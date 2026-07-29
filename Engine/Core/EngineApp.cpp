@@ -1,0 +1,127 @@
+#include "Engine/Core/EngineApp.hpp"
+
+#include <iostream>
+#include <thread>
+
+namespace Engine {
+
+EngineApp::EngineApp()
+    : m_renderSystem(std::make_unique<RenderSystem>()),
+      m_physicsSystem(std::make_unique<PhysicsSystem>()) {}
+
+EngineApp::~EngineApp() {
+    Shutdown();
+}
+
+auto EngineApp::Init(uint32_t width, uint32_t height, std::string_view title) -> EngineResult<void> {
+    std::cout << "[EngineApp] Initializing 3D Engine Core (C++23)..." << std::endl;
+
+    // Initialize Render System
+    auto renderInit = m_renderSystem->Init(width, height, title);
+    if (!renderInit) {
+        return std::unexpected(renderInit.error());
+    }
+
+    // Initialize Physics System
+    auto physicsInit = m_physicsSystem->Init();
+    if (!physicsInit) {
+        return std::unexpected(physicsInit.error());
+    }
+
+    m_isRunning = true;
+    std::cout << "[EngineApp] Engine initialization completed successfully." << std::endl;
+    return {};
+}
+
+auto EngineApp::Run() -> EngineResult<void> {
+    if (!m_isRunning) {
+        return std::unexpected(EngineError(ErrorCode::UnknownError, "EngineApp::Run called without prior successful initialization"));
+    }
+
+    std::cout << "[EngineApp] Entering main loop with fixed timestep physics accumulator." << std::endl;
+
+    auto lastTime = std::chrono::high_resolution_clock::now();
+    float accumulator = 0.0f;
+
+    while (m_isRunning && !m_renderSystem->ShouldClose()) {
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+        lastTime = currentTime;
+
+        // Cap maximum deltaTime to prevent physics spiral of death
+        if (deltaTime > 0.25f) {
+            deltaTime = 0.25f;
+        }
+
+        accumulator += deltaTime;
+
+        // Poll window events
+        m_renderSystem->PollEvents();
+
+        // Fixed Timestep Physics Update
+        while (accumulator >= m_fixedTimeStep) {
+            FixedUpdate(m_fixedTimeStep);
+            accumulator -= m_fixedTimeStep;
+        }
+
+        // Frame variable update & rendering
+        Update(deltaTime);
+        Render(deltaTime);
+    }
+
+    std::cout << "[EngineApp] Main loop exited." << std::endl;
+    return {};
+}
+
+void EngineApp::FixedUpdate(float fixedDeltaTime) {
+    if (m_physicsSystem) {
+        m_physicsSystem->Step(fixedDeltaTime);
+    }
+}
+
+void EngineApp::Update(float deltaTime) {
+    // Accumulate FPS statistics
+    m_frameCounterTime += deltaTime;
+    m_frameCount++;
+
+    if (m_frameCounterTime >= 1.0f) {
+        m_currentStats.fps = static_cast<float>(m_frameCount) / m_frameCounterTime;
+        m_currentStats.deltaTimeMs = (m_frameCounterTime / static_cast<float>(m_frameCount)) * 1000.0f;
+        m_frameCount = 0;
+        m_frameCounterTime = 0.0f;
+    }
+
+    // Query synchronized physics transforms for display/rendering
+    if (m_physicsSystem) {
+        m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
+        m_currentStats.boxTransform = m_physicsSystem->GetDynamicBoxTransform();
+        m_currentStats.groundTransform = m_physicsSystem->GetGroundTransform();
+    }
+}
+
+void EngineApp::Render([[maybe_unused]] float deltaTime) {
+    if (!m_renderSystem) return;
+
+    m_renderSystem->BeginFrame();
+    m_renderSystem->RenderUI(m_currentStats);
+    m_renderSystem->EndFrame();
+}
+
+void EngineApp::Shutdown() {
+    if (!m_isRunning) return;
+
+    std::cout << "[EngineApp] Shutting down systems..." << std::endl;
+
+    if (m_physicsSystem) {
+        m_physicsSystem->Shutdown();
+    }
+
+    if (m_renderSystem) {
+        m_renderSystem->Shutdown();
+    }
+
+    m_isRunning = false;
+    std::cout << "[EngineApp] Engine shutdown finished." << std::endl;
+}
+
+} // namespace Engine
