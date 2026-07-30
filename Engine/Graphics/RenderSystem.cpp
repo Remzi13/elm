@@ -96,6 +96,11 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, std::string_view title)
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
     }
 
+    // Initialize ImGui context and style
+    ImGui::CreateContext();
+    ImGui::StyleColorsDark();
+    m_imguiContextCreated = true;
+
     // Initialize ImGui Diligent Backend
     const auto& SCDesc = m_swapChain->GetDesc();
     Diligent::ImGuiDiligentCreateInfo ImGuiCI;
@@ -185,8 +190,8 @@ void RenderSystem::EndFrame() {
 void RenderSystem::Shutdown() {
     if (!m_initialized) return;
 
+        
     m_imGui.reset();
-    ImGui_ImplGlfw_Shutdown();
 
     if (m_swapChain) {
         m_swapChain->Release();

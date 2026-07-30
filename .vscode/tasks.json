@@ -31,10 +31,7 @@
             "problemMatcher": [
                 "$gcc"
             ],
-            "detail": "Build the CMake project",
-            "dependsOn": [
-                "CMake: Configure"
-            ]
+            "detail": "Build the CMake project"
         }
     ]
 }

@@ -56,6 +56,7 @@ private:
     Diligent::ISwapChain* m_swapChain{nullptr};
 
     std::unique_ptr<Diligent::ImGuiImplDiligent> m_imGui;
+    bool m_imguiContextCreated{false};
 
     uint32_t m_width{1280};
     uint32_t m_height{720};
