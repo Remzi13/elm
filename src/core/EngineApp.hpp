@@ -1,8 +1,8 @@
 #pragma once
 
-#include "src/Core/Error.hpp"
-#include "src/Graphics/RenderSystem.hpp"
-#include "src/Physics/PhysicsSystem.hpp"
+#include "core/Error.hpp"
+#include "graphics/RenderSystem.hpp"
+#include "physics/PhysicsSystem.hpp"
 
 #include <memory>
 #include <chrono>

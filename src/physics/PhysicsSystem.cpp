@@ -1,4 +1,4 @@
-#include "src/Physics/PhysicsSystem.hpp"
+#include "physics/PhysicsSystem.hpp"
 
 // Jolt includes
 #include <Jolt/Jolt.h>

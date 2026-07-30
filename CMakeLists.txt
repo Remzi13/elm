@@ -28,12 +28,14 @@ function(engine_add_library target_name)
     target_set_warnings(${target_name})
 endfunction()
 
+include_directories(src)
+
 # ------------------------------------------------------------------------------
 # Engine module targets
 # ------------------------------------------------------------------------------
-add_subdirectory(src/Graphics)
-add_subdirectory(src/Physics)
-add_subdirectory(src/Core)
+add_subdirectory(src/graphics)
+add_subdirectory(src/physics)
+add_subdirectory(src/core)
 
 # ------------------------------------------------------------------------------
 # Application target

@@ -1,4 +1,4 @@
-#include "src/Graphics/RenderSystem.hpp"
+#include "graphics/RenderSystem.hpp"
 
 #include <GLFW/glfw3.h>
 
