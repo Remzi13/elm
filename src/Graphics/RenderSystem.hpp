@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Engine/Core/Error.hpp"
-#include "Engine/Scene/Transform.hpp"
+#include "src/Core/Error.hpp"
+#include "src/Scene/Transform.hpp"
 
 #include <memory>
 #include <string_view>

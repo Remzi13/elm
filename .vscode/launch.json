@@ -5,7 +5,7 @@
             "name": "Debug EngineCore (gdb)",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/EngineCore",
+            "program": "${workspaceFolder}/build/Engine",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

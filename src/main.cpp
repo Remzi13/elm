@@ -1,4 +1,4 @@
-#include "Engine/Core/EngineApp.hpp"
+#include "src/Core/EngineApp.hpp"
 #include <iostream>
 
 int main(int argc, char** argv) {
