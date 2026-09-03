@@ -48,6 +48,7 @@ target_include_directories(Engine PUBLIC ${ENGINE_INCLUDE_DIRS})
 target_compile_definitions(Engine PUBLIC PLATFORM_LINUX=1)
 target_set_warnings(Engine)
 target_link_libraries(Engine PRIVATE core )
+target_link_libraries(Engine PRIVATE Diligent-Imgui)
 
 set_target_properties(Engine PROPERTIES
     CXX_STANDARD 23

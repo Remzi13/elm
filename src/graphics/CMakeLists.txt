@@ -25,7 +25,9 @@ FetchContent_Declare(
     DiligentEngine
     GIT_REPOSITORY https://github.com/DiligentGraphics/DiligentEngine.git
     GIT_TAG        v2.5.6
-    PATCH_COMMAND  sed -i "s/add_subdirectory(RenderStateNotation)/#add_subdirectory(RenderStateNotation)/g" DiligentTools/CMakeLists.txt
+    PATCH_COMMAND  git -C DiligentTools/ThirdParty/imgui fetch --depth 1 origin refs/tags/v1.89.7-docking
+                   COMMAND git -C DiligentTools/ThirdParty/imgui checkout --detach FETCH_HEAD
+                   COMMAND sed -i "s/add_subdirectory(RenderStateNotation)/#add_subdirectory(RenderStateNotation)/g" DiligentTools/CMakeLists.txt
 )
 FetchContent_MakeAvailable(DiligentEngine)
 

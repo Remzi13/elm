@@ -71,6 +71,7 @@ private:
     void CreateMeshBuffers();
     void CreateInstanceBuffer();
     void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
+    void CreateEngineViewport(uint32_t width, uint32_t height);
     void UpdateDepthPreviewTexture();
     void RebuildScene();
 
@@ -112,6 +113,15 @@ private:
     uint32_t m_depthPreviewHeight{144};
     std::vector<uint32_t> m_depthPreviewPixels;
     bool m_depthPreviewFalseColor{true};
+
+    // Offscreen render target displayed inside the dockspace.
+    Diligent::ITexture* m_pEngineViewportTex{nullptr};
+    Diligent::ITextureView* m_pEngineViewportRTV{nullptr};
+    Diligent::ITextureView* m_pEngineViewportDSV{nullptr};
+    Diligent::ITextureView* m_pEngineViewportSRV{nullptr};
+    uint32_t m_engineViewportWidth{1280};
+    uint32_t m_engineViewportHeight{720};
+    bool m_engineViewportIsShaderResource{false};
 
     // Systems & Scenes
     Camera m_camera;

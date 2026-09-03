@@ -166,6 +166,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, std::string_view title)
 
     // Initialize ImGui
     ImGui::CreateContext();
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
     ImGui::StyleColorsDark();
     m_imguiContextCreated = true;
 
@@ -288,6 +289,7 @@ void RenderSystem::InitPipeline() {
 
     // Create Depth Preview Texture
     CreateDepthPreviewTexture(m_depthPreviewWidth, m_depthPreviewHeight);
+    CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
 }
 
 void RenderSystem::CreateMeshBuffers() {
@@ -374,6 +376,54 @@ void RenderSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
     }
 }
 
+void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height) {
+    if (m_pEngineViewportSRV) m_pEngineViewportSRV->Release();
+    if (m_pEngineViewportDSV) m_pEngineViewportDSV->Release();
+    if (m_pEngineViewportRTV) m_pEngineViewportRTV->Release();
+    if (m_pEngineViewportTex) m_pEngineViewportTex->Release();
+    m_pEngineViewportSRV = nullptr;
+    m_pEngineViewportDSV = nullptr;
+    m_pEngineViewportRTV = nullptr;
+    m_pEngineViewportTex = nullptr;
+    m_engineViewportIsShaderResource = false;
+
+    m_engineViewportWidth = width;
+    m_engineViewportHeight = height;
+
+    Diligent::TextureDesc colorDesc;
+    colorDesc.Name = "Engine Viewport Color";
+    colorDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
+    colorDesc.Width = width;
+    colorDesc.Height = height;
+    colorDesc.Format = m_swapChain->GetDesc().ColorBufferFormat;
+    colorDesc.Usage = Diligent::USAGE_DEFAULT;
+    colorDesc.BindFlags = Diligent::BIND_RENDER_TARGET | Diligent::BIND_SHADER_RESOURCE;
+    m_renderDevice->CreateTexture(colorDesc, nullptr, &m_pEngineViewportTex);
+    if (!m_pEngineViewportTex) return;
+    m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
+
+    m_pEngineViewportRTV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_RENDER_TARGET);
+    m_pEngineViewportSRV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
+    if (m_pEngineViewportRTV) m_pEngineViewportRTV->AddRef();
+    if (m_pEngineViewportSRV) m_pEngineViewportSRV->AddRef();
+
+    Diligent::TextureDesc depthDesc;
+    depthDesc.Name = "Engine Viewport Depth";
+    depthDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
+    depthDesc.Width = width;
+    depthDesc.Height = height;
+    depthDesc.Format = m_swapChain->GetDesc().DepthBufferFormat;
+    depthDesc.Usage = Diligent::USAGE_DEFAULT;
+    depthDesc.BindFlags = Diligent::BIND_DEPTH_STENCIL;
+    Diligent::RefCntAutoPtr<Diligent::ITexture> depthTexture;
+    m_renderDevice->CreateTexture(depthDesc, nullptr, &depthTexture);
+    if (depthTexture) {
+        depthTexture->SetState(Diligent::RESOURCE_STATE_DEPTH_WRITE);
+        m_pEngineViewportDSV = depthTexture->GetDefaultView(Diligent::TEXTURE_VIEW_DEPTH_STENCIL);
+        if (m_pEngineViewportDSV) m_pEngineViewportDSV->AddRef();
+    }
+}
+
 void RenderSystem::UpdateDepthPreviewTexture() {
     if (!m_pDepthPreviewTex || !m_deviceContext) return;
 
@@ -430,6 +480,27 @@ void RenderSystem::BeginFrame() {
 
 void RenderSystem::RenderScene() {
     if (!m_deviceContext || !m_pPSO) return;
+
+    if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
+        if (m_engineViewportIsShaderResource) {
+            Diligent::StateTransitionDesc toRenderTarget{
+                m_pEngineViewportTex,
+                Diligent::RESOURCE_STATE_SHADER_RESOURCE,
+                Diligent::RESOURCE_STATE_RENDER_TARGET
+            };
+            m_deviceContext->TransitionResourceStates(1, &toRenderTarget);
+            m_engineViewportIsShaderResource = false;
+        }
+        m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
+
+        const float clearColor[] = {0.11f, 0.13f, 0.16f, 1.0f};
+        m_deviceContext->SetRenderTargets(1, &m_pEngineViewportRTV, m_pEngineViewportDSV,
+                                          Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
+        m_deviceContext->ClearRenderTarget(m_pEngineViewportRTV, clearColor,
+                                           Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
+        m_deviceContext->ClearDepthStencil(m_pEngineViewportDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0,
+                                           Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
+    }
 
     // 1. Run Software Occlusion Culling
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
@@ -544,9 +615,59 @@ void RenderSystem::RenderScene() {
         DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numCulled);
         m_deviceContext->DrawIndexed(DrawAttrs);
     }
+
+    if (m_pEngineViewportTex) {
+        Diligent::StateTransitionDesc toShaderResource{
+            m_pEngineViewportTex,
+            Diligent::RESOURCE_STATE_RENDER_TARGET,
+            Diligent::RESOURCE_STATE_SHADER_RESOURCE
+        };
+        m_deviceContext->TransitionResourceStates(1, &toShaderResource);
+        m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_SHADER_RESOURCE);
+        m_engineViewportIsShaderResource = true;
+    }
 }
 
 void RenderSystem::RenderUI(const FrameStats& stats) {
+    const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(mainViewport->Pos);
+    ImGui::SetNextWindowSize(mainViewport->Size);
+    ImGui::SetNextWindowViewport(mainViewport->ID);
+
+    constexpr ImGuiWindowFlags dockspaceWindowFlags =
+        ImGuiWindowFlags_NoDocking |
+        ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoBringToFrontOnFocus |
+        ImGuiWindowFlags_NoNavFocus |
+        ImGuiWindowFlags_NoBackground;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::Begin("DockSpaceHost", nullptr, dockspaceWindowFlags);
+    ImGui::PopStyleVar(2);
+    ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGui::End();
+
+    ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(800.0f, 600.0f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowDockID(ImGui::GetID("MainDockSpace"), ImGuiCond_FirstUseEver);
+    ImGui::Begin("Engine Viewport");
+    if (m_pEngineViewportSRV) {
+        const ImVec2 availableSize = ImGui::GetContentRegionAvail();
+        const float aspect = static_cast<float>(m_engineViewportWidth) / static_cast<float>(m_engineViewportHeight);
+        ImVec2 imageSize = availableSize;
+        if (imageSize.x / aspect < imageSize.y) {
+            imageSize.y = imageSize.x / aspect;
+        } else {
+            imageSize.x = imageSize.y * aspect;
+        }
+        ImGui::Image(reinterpret_cast<ImTextureID>(m_pEngineViewportSRV), imageSize);
+    }
+    ImGui::End();
+
     // -------------------------------------------------------------------------
     // Window 1: SOC Controls & Telemetry
     // -------------------------------------------------------------------------
@@ -693,17 +814,23 @@ void RenderSystem::RenderUI(const FrameStats& stats) {
 
     ImGui::End();
 
-    ImGui::Render();
 }
 
 void RenderSystem::EndFrame() {
     if (!m_swapChain || !m_deviceContext) return;
+
+    auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
+    auto* pDSV = m_swapChain->GetDepthBufferDSV();
+    m_deviceContext->SetRenderTargets(1, &pRTV, pDSV,
+                                      Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
     if (m_imGui) {
         m_imGui->Render(m_deviceContext);
     }
 
     m_swapChain->Present();
+
+    ImGui::UpdatePlatformWindows();
 }
 
 void RenderSystem::Shutdown() {
@@ -717,6 +844,15 @@ void RenderSystem::Shutdown() {
         m_pDepthPreviewTex->Release();
         m_pDepthPreviewTex = nullptr;
     }
+
+    if (m_pEngineViewportSRV) m_pEngineViewportSRV->Release();
+    if (m_pEngineViewportDSV) m_pEngineViewportDSV->Release();
+    if (m_pEngineViewportRTV) m_pEngineViewportRTV->Release();
+    if (m_pEngineViewportTex) m_pEngineViewportTex->Release();
+    m_pEngineViewportSRV = nullptr;
+    m_pEngineViewportDSV = nullptr;
+    m_pEngineViewportRTV = nullptr;
+    m_pEngineViewportTex = nullptr;
 
     if (m_pInstanceBuffer) {
         m_pInstanceBuffer->Release();
