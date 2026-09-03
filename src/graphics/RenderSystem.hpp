@@ -22,7 +22,6 @@ namespace Diligent {
     class IBuffer;
     class ITexture;
     class ITextureView;
-    class ImGuiImplDiligent;
 }
 
 namespace Engine {
@@ -41,6 +40,7 @@ struct GpuInstanceData {
 };
 
 class RenderSystem {
+    friend class ImGuiSystem;
 public:
     RenderSystem();
     ~RenderSystem();
@@ -58,13 +58,21 @@ public:
     void Update(float deltaTime);
     void BeginFrame();
     void RenderScene();
-    void RenderUI(const FrameStats& stats);
     void EndFrame();
     void Shutdown();
 
     [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
     [[nodiscard]] Camera& GetCamera() { return m_camera; }
     [[nodiscard]] OcclusionCullingSystem& GetCullingSystem() { return m_cullingSystem; }
+    [[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
+    [[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
+    [[nodiscard]] Diligent::ISwapChain* GetSwapChain() const { return m_swapChain; }
+    [[nodiscard]] Diligent::ITextureView* GetEngineViewportSRV() const { return m_pEngineViewportSRV; }
+    [[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportWidth; }
+    [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
+    [[nodiscard]] uint32_t GetWidth() const { return m_width; }
+    [[nodiscard]] uint32_t GetHeight() const { return m_height; }
+    void RebuildScene();
 
 private:
     void InitPipeline();
@@ -73,7 +81,6 @@ private:
     void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
     void CreateEngineViewport(uint32_t width, uint32_t height);
     void UpdateDepthPreviewTexture();
-    void RebuildScene();
 
 private:
     GLFWwindow* m_window{nullptr};
@@ -134,9 +141,6 @@ private:
     std::vector<OccludeeInstance> m_occludees;
     std::vector<GpuInstanceData> m_visibleGpuInstances;
     std::vector<GpuInstanceData> m_culledGpuInstances;
-
-    std::unique_ptr<Diligent::ImGuiImplDiligent> m_imGui;
-    bool m_imguiContextCreated{false};
 
     uint32_t m_width{1280};
     uint32_t m_height{720};

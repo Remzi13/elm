@@ -33,6 +33,7 @@ FetchContent_MakeAvailable(DiligentEngine)
 
 engine_add_library(graphics
     RenderSystem.cpp
+    ImGuiSystem.cpp
     Camera.cpp
     culling/SoftwareDepthBuffer.cpp
     culling/OcclusionCullingSystem.cpp

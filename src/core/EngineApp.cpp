@@ -7,6 +7,7 @@ namespace Engine {
 
 EngineApp::EngineApp()
     : m_renderSystem(std::make_unique<RenderSystem>()),
+    m_imguiSystem(std::make_unique<ImGuiSystem>()),
       m_physicsSystem(std::make_unique<PhysicsSystem>()) {}
 
 EngineApp::~EngineApp() {
@@ -20,6 +21,11 @@ auto EngineApp::Init(uint32_t width, uint32_t height, std::string_view title) ->
     auto renderInit = m_renderSystem->Init(width, height, title);
     if (!renderInit) {
         return std::unexpected(renderInit.error());
+    }
+
+    auto imguiInit = m_imguiSystem->Init(*m_renderSystem, "Engine Debug UI");
+    if (!imguiInit) {
+        return std::unexpected(imguiInit.error());
     }
 
     // Initialize Physics System
@@ -109,7 +115,8 @@ void EngineApp::Render([[maybe_unused]] float deltaTime) {
 
     m_renderSystem->BeginFrame();
     m_renderSystem->RenderScene();
-    m_renderSystem->RenderUI(m_currentStats);
+    m_imguiSystem->BeginFrame(*m_renderSystem);
+    m_imguiSystem->Render(*m_renderSystem, m_currentStats);
     m_renderSystem->EndFrame();
 }
 
@@ -122,6 +129,9 @@ void EngineApp::Shutdown() {
         m_physicsSystem->Shutdown();
     }
 
+    if (m_imguiSystem) {
+        m_imguiSystem->Shutdown();
+    }
     if (m_renderSystem) {
         m_renderSystem->Shutdown();
     }

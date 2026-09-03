@@ -11,11 +11,6 @@
 #include "Graphics/GraphicsTools/interface/CommonlyUsedStates.h"
 #include "Graphics/GraphicsTools/interface/MapHelper.hpp"
 
-// ImGui integration
-#include "imgui.h"
-#include "ImGuiImplDiligent.hpp"
-#include "backends/imgui_impl_glfw.h"
-
 #include <iostream>
 #include <vector>
 #include <iomanip>
@@ -164,21 +159,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, std::string_view title)
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
     }
 
-    // Initialize ImGui
-    ImGui::CreateContext();
-    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
-    ImGui::StyleColorsDark();
-    m_imguiContextCreated = true;
-
     const auto& SCDesc = m_swapChain->GetDesc();
-    Diligent::ImGuiDiligentCreateInfo ImGuiCI;
-    ImGuiCI.pDevice = m_renderDevice;
-    ImGuiCI.BackBufferFmt = SCDesc.ColorBufferFormat;
-    ImGuiCI.DepthBufferFmt = SCDesc.DepthBufferFormat;
-    
-    m_imGui = std::make_unique<Diligent::ImGuiImplDiligent>(ImGuiCI);
-    ImGui_ImplGlfw_InitForOther(m_window, true);
-
     // Initialize 3D Rendering Pipeline
     InitPipeline();
 
@@ -449,10 +430,7 @@ void RenderSystem::RebuildScene() {
 }
 
 void RenderSystem::Update(float deltaTime) {
-    // Camera mouse look only when ImGui doesn't capture mouse or when right mouse button is dragging
-    const ImGuiIO& io = ImGui::GetIO();
-    const bool allowInput = !io.WantCaptureKeyboard || (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS);
-    m_camera.Update(deltaTime, m_window, allowInput);
+    m_camera.Update(deltaTime, m_window, true);
 }
 
 bool RenderSystem::ShouldClose() const {
@@ -474,8 +452,6 @@ void RenderSystem::BeginFrame() {
     m_deviceContext->ClearRenderTarget(pRTV, clearColor, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
     m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-    ImGui_ImplGlfw_NewFrame();
-    m_imGui->NewFrame(m_width, m_height, m_swapChain->GetDesc().PreTransform);
 }
 
 void RenderSystem::RenderScene() {
@@ -628,209 +604,9 @@ void RenderSystem::RenderScene() {
     }
 }
 
-void RenderSystem::RenderUI(const FrameStats& stats) {
-    const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(mainViewport->Pos);
-    ImGui::SetNextWindowSize(mainViewport->Size);
-    ImGui::SetNextWindowViewport(mainViewport->ID);
-
-    constexpr ImGuiWindowFlags dockspaceWindowFlags =
-        ImGuiWindowFlags_NoDocking |
-        ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoCollapse |
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoBringToFrontOnFocus |
-        ImGuiWindowFlags_NoNavFocus |
-        ImGuiWindowFlags_NoBackground;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::Begin("DockSpaceHost", nullptr, dockspaceWindowFlags);
-    ImGui::PopStyleVar(2);
-    ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-    ImGui::End();
-
-    ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(800.0f, 600.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowDockID(ImGui::GetID("MainDockSpace"), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Engine Viewport");
-    if (m_pEngineViewportSRV) {
-        const ImVec2 availableSize = ImGui::GetContentRegionAvail();
-        const float aspect = static_cast<float>(m_engineViewportWidth) / static_cast<float>(m_engineViewportHeight);
-        ImVec2 imageSize = availableSize;
-        if (imageSize.x / aspect < imageSize.y) {
-            imageSize.y = imageSize.x / aspect;
-        } else {
-            imageSize.x = imageSize.y * aspect;
-        }
-        ImGui::Image(reinterpret_cast<ImTextureID>(m_pEngineViewportSRV), imageSize);
-    }
-    ImGui::End();
-
-    // -------------------------------------------------------------------------
-    // Window 1: SOC Controls & Telemetry
-    // -------------------------------------------------------------------------
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(440, 560), ImGuiCond_FirstUseEver);
-
-    ImGui::Begin("Software Occlusion Culling Lab");
-
-    ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "C++23 Vulkan SOC Testbed");
-    ImGui::Text("FPS: %.1f | Frame: %.2f ms", stats.fps, stats.deltaTimeMs);
-    ImGui::Separator();
-
-    // Scene Selection
-    if (ImGui::CollapsingHeader("Scene Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const char* presets[] = {"The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox"};
-        int currentPresetIdx = static_cast<int>(m_currentPreset);
-        if (ImGui::Combo("Preset", &currentPresetIdx, presets, IM_ARRAYSIZE(presets))) {
-            m_currentPreset = static_cast<ScenePreset>(currentPresetIdx);
-            RebuildScene();
-        }
-
-        if (ImGui::SliderInt("Instances", &m_targetInstanceCount, 100, 10000)) {
-            RebuildScene();
-        }
-    }
-
-    // Culling Settings
-    if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::Checkbox("Enable Frustum Culling", &m_cullingSystem.enableFrustumCulling);
-        ImGui::Checkbox("Enable Software Occlusion Culling", &m_cullingSystem.enableOcclusionCulling);
-
-        bool freezeCamera = m_camera.IsCullingFrozen();
-        if (ImGui::Checkbox("Freeze Culling Camera", &freezeCamera)) {
-            m_camera.SetFreezeCulling(freezeCamera);
-        }
-        if (freezeCamera) {
-            ImGui::SameLine();
-            ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "[FROZEN]");
-        }
-
-        ImGui::SliderFloat("Depth Bias", &m_cullingSystem.depthBias, 0.0f, 0.01f, "%.4f");
-
-        // Resolution Selector
-        const char* resolutions[] = {"64x36", "128x72", "256x144 (Recommended)", "320x180", "512x288"};
-        static int currentResIdx = 2; // 256x144
-        if (ImGui::Combo("SOC Buffer Res", &currentResIdx, resolutions, IM_ARRAYSIZE(resolutions))) {
-            uint32_t w = 256, h = 144;
-            if (currentResIdx == 0) { w = 64; h = 36; }
-            else if (currentResIdx == 1) { w = 128; h = 72; }
-            else if (currentResIdx == 2) { w = 256; h = 144; }
-            else if (currentResIdx == 3) { w = 320; h = 180; }
-            else if (currentResIdx == 4) { w = 512; h = 288; }
-            m_cullingSystem.SetResolution(w, h);
-            CreateDepthPreviewTexture(w, h);
-        }
-    }
-
-    // Visual Modes
-    if (ImGui::CollapsingHeader("Visualization Modes", ImGuiTreeNodeFlags_DefaultOpen)) {
-        int vMode = static_cast<int>(m_cullingSystem.visualMode);
-        ImGui::RadioButton("Hide Culled (Draw Visible Only)", &vMode, 0);
-        ImGui::RadioButton("Highlight Culled (Red Ghost)", &vMode, 1);
-        ImGui::RadioButton("Occluders Only", &vMode, 2);
-        m_cullingSystem.visualMode = static_cast<VisualMode>(vMode);
-    }
-
-    // Culling Telemetry & Metrics
-    if (ImGui::CollapsingHeader("Real-Time Telemetry", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const auto& cStats = m_cullingSystem.GetStats();
-
-        ImGui::Text("Total Objects:     %u", cStats.totalObjects);
-        ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "Visible Rendered:  %u", cStats.visibleCount);
-        ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Frustum Culled:    %u", cStats.frustumCulledCount);
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Occlusion Culled:  %u", cStats.occlusionCulledCount);
-
-        ImGui::Spacing();
-        ImGui::ProgressBar(cStats.cullingRatioPercent / 100.0f, ImVec2(-1, 0), "");
-        ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
-        ImGui::Text("Culled: %.1f%%", cStats.cullingRatioPercent);
-
-        ImGui::Separator();
-        ImGui::Text("CPU Rasterize Time:   %.1f us (%.3f ms)", cStats.rasterizeTimeUs, cStats.rasterizeTimeUs / 1000.0f);
-        ImGui::Text("CPU Query / Test:     %.1f us (%.3f ms)", cStats.queryTimeUs, cStats.queryTimeUs / 1000.0f);
-        ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f), "Total Culling Time:   %.1f us (%.3f ms)", cStats.totalCullingTimeUs, cStats.totalCullingTimeUs / 1000.0f);
-    }
-
-    // Camera Info & Controls Help
-    if (ImGui::CollapsingHeader("Camera & Controls")) {
-        const Vector3 pos = m_camera.GetPosition();
-        ImGui::Text("Pos: (%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z);
-        ImGui::SliderFloat("Move Speed", &m_camera.moveSpeed, 5.0f, 50.0f);
-        ImGui::Separator();
-        ImGui::TextDisabled("Controls:");
-        ImGui::BulletText("Right Mouse Button + Drag: Look around");
-        ImGui::BulletText("W / A / S / D: Move forward / left / back / right");
-        ImGui::BulletText("E / Q: Move Up / Down");
-        ImGui::BulletText("Left Shift: Sprint (2.5x speed)");
-    }
-
-    ImGui::End();
-
-    // -------------------------------------------------------------------------
-    // Window 2: Real-Time Software Depth Buffer Viewer
-    // -------------------------------------------------------------------------
-    ImGui::SetNextWindowPos(ImVec2(static_cast<float>(m_width) - 460.0f, 10.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(450, 350), ImGuiCond_FirstUseEver);
-
-    ImGui::Begin("Software Depth Buffer Viewport");
-
-    ImGui::Text("Resolution: %ux%u", m_depthPreviewWidth, m_depthPreviewHeight);
-    ImGui::SameLine();
-    ImGui::Checkbox("False Color (Heatmap)", &m_depthPreviewFalseColor);
-
-    if (m_pDepthPreviewSRV) {
-        const float aspect = static_cast<float>(m_depthPreviewWidth) / static_cast<float>(m_depthPreviewHeight);
-        const float displayWidth = ImGui::GetContentRegionAvail().x;
-        const float displayHeight = displayWidth / aspect;
-
-        const ImVec2 imagePos = ImGui::GetCursorScreenPos();
-        ImGui::Image(reinterpret_cast<ImTextureID>(m_pDepthPreviewSRV), ImVec2(displayWidth, displayHeight));
-
-        // Hover inspector
-        if (ImGui::IsItemHovered()) {
-            const ImVec2 mousePos = ImGui::GetMousePos();
-            const float u = (mousePos.x - imagePos.x) / displayWidth;
-            const float v = (mousePos.y - imagePos.y) / displayHeight;
-            if (u >= 0.0f && u <= 1.0f && v >= 0.0f && v <= 1.0f) {
-                const uint32_t px = static_cast<uint32_t>(u * static_cast<float>(m_depthPreviewWidth));
-                const uint32_t py = static_cast<uint32_t>(v * static_cast<float>(m_depthPreviewHeight));
-                const float depthVal = m_cullingSystem.GetDepthBuffer().GetDepth(px, py);
-
-                ImGui::BeginTooltip();
-                ImGui::Text("Pixel: (%u, %u)", px, py);
-                ImGui::Text("Normalized Depth: %.4f", depthVal);
-                if (depthVal >= 0.999f) {
-                    ImGui::TextDisabled("(Clear / Sky)");
-                } else {
-                    ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.4f, 1.0f), "Occluder Geometry");
-                }
-                ImGui::EndTooltip();
-            }
-        }
-    }
-
-    ImGui::End();
-
-}
-
 void RenderSystem::EndFrame() {
     if (!m_swapChain || !m_deviceContext) return;
-
-    auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
-    auto* pDSV = m_swapChain->GetDepthBufferDSV();
-    m_deviceContext->SetRenderTargets(1, &pRTV, pDSV,
-                                      Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-    if (m_imGui) {
-        m_imGui->Render(m_deviceContext);
-    }
-
     m_swapChain->Present();
-
-    ImGui::UpdatePlatformWindows();
 }
 
 void RenderSystem::Shutdown() {
@@ -899,8 +675,6 @@ void RenderSystem::Shutdown() {
         m_pPSO->Release();
         m_pPSO = nullptr;
     }
-
-    m_imGui.reset();
 
     if (m_swapChain) {
         m_swapChain->Release();

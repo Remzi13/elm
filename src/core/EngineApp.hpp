@@ -2,6 +2,7 @@
 
 #include "core/Error.hpp"
 #include "graphics/RenderSystem.hpp"
+#include "graphics/ImGuiSystem.hpp"
 #include "physics/PhysicsSystem.hpp"
 
 #include <memory>
@@ -31,6 +32,7 @@ private:
 
 private:
     std::unique_ptr<RenderSystem> m_renderSystem;
+    std::unique_ptr<ImGuiSystem> m_imguiSystem;
     std::unique_ptr<PhysicsSystem> m_physicsSystem;
 
     bool m_isRunning{false};
