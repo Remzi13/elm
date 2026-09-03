@@ -15,6 +15,9 @@
 #include <vector>
 #include <iomanip>
 #include <cstring>
+#include <fstream>
+#include <filesystem>
+#include <string>
 
 #define GLFW_EXPOSE_NATIVE_X11
 #define GLFW_EXPOSE_NATIVE_WAYLAND
@@ -22,82 +25,35 @@
 
 namespace Engine {
 
-// HLSL Shader Source for 3D Mesh Rendering
-static const char* VSSource = R"(
-cbuffer CameraConstants
-{
-    row_major float4x4 g_ViewProj;
-    float4   g_CameraPos;
-};
+// Shaders are loaded from shaders/ at runtime. This keeps shader editing independent
+// from the executable and also allows the same source to be replaced without a rebuild.
+static std::string LoadShaderSource(const char* fileName) {
+    const std::filesystem::path sourceRoot =
+        std::filesystem::path{__FILE__}.parent_path().parent_path().parent_path();
+    const std::filesystem::path paths[] = {
+        std::filesystem::current_path() / "shaders" / fileName,
+        std::filesystem::current_path() / "assets/shaders" / fileName,
+        sourceRoot / "shaders" / fileName,
+        sourceRoot / "assets/shaders" / fileName
+    };
+    for (const auto& path : paths) {
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file) continue;
 
-struct VSInput
-{
-    float3 Pos    : ATTRIB0;
-    float3 Normal : ATTRIB1;
-    float2 UV     : ATTRIB2;
+        const auto size = file.tellg();
+        if (size <= 0 || !file.seekg(0)) continue;
 
-    float4 Row0   : ATTRIB3;
-    float4 Row1   : ATTRIB4;
-    float4 Row2   : ATTRIB5;
-    float4 Row3   : ATTRIB6;
-    float4 Color  : ATTRIB7;
-};
-
-struct PSInput
-{
-    float4 Pos      : SV_Position;
-    float3 Normal   : NORMAL;
-    float4 Color    : COLOR;
-    float3 WorldPos : WORLDPOS;
-};
-
-void main(in VSInput VSIn, out PSInput PSIn)
-{
-    float4x4 InstanceMat = MatrixFromRows(VSIn.Row0, VSIn.Row1, VSIn.Row2, VSIn.Row3);
-    float4 WorldPos = mul(InstanceMat, float4(VSIn.Pos, 1.0));
-    PSIn.WorldPos = WorldPos.xyz;
-    PSIn.Pos = mul(g_ViewProj, WorldPos);
-
-    float3x3 RotMat = (float3x3)InstanceMat;
-    PSIn.Normal = normalize(mul(RotMat, VSIn.Normal));
-    PSIn.Color = VSIn.Color;
+        std::string source(static_cast<size_t>(size), '\0');
+        if (file.read(source.data(), size)) {
+            std::cout << "[RenderSystem] Loaded shader: " << path << std::endl;
+            return source;
+        }
+    }
+    std::cerr << "[RenderSystem] Cannot load shader from the working directory or project root: "
+              << fileName << std::endl;
+    return {};
 }
-)";
 
-static const char* PSSource = R"(
-struct PSInput
-{
-    float4 Pos      : SV_Position;
-    float3 Normal   : NORMAL;
-    float4 Color    : COLOR;
-    float3 WorldPos : WORLDPOS;
-};
-
-float4 main(in PSInput PSIn) : SV_Target
-{
-    float3 lightDir = normalize(float3(0.4, 0.9, -0.5));
-    float diff = max(dot(PSIn.Normal, lightDir), 0.0);
-    float3 ambient = float3(0.24, 0.26, 0.30);
-    float3 diffuse = float3(0.85, 0.85, 0.82) * diff;
-    float3 lighting = ambient + diffuse;
-    return float4(PSIn.Color.rgb * lighting, PSIn.Color.a);
-}
-)";
-
-static const char* PSHighlightSource = R"(
-struct PSInput
-{
-    float4 Pos      : SV_Position;
-    float3 Normal   : NORMAL;
-    float4 Color    : COLOR;
-    float3 WorldPos : WORLDPOS;
-};
-
-float4 main(in PSInput PSIn) : SV_Target
-{
-    return float4(0.95, 0.20, 0.15, 0.40);
-}
-)";
 
 RenderSystem::RenderSystem() = default;
 
@@ -190,11 +146,19 @@ void RenderSystem::InitPipeline() {
     Diligent::ShaderCreateInfo ShaderCI;
     ShaderCI.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
 
+    const std::string VSSource = LoadShaderSource("mesh.vert.hlsl");
+    const std::string PSSource = LoadShaderSource("mesh.frag.hlsl");
+    const std::string PSHighlightSource = LoadShaderSource("highlight.frag.hlsl");
+    if (VSSource.empty() || PSSource.empty() || PSHighlightSource.empty()) {
+        std::cerr << "[RenderSystem] Pipeline creation aborted: shader source is missing." << std::endl;
+        return;
+    }
+
     Diligent::RefCntAutoPtr<Diligent::IShader> pVS;
     {
         ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_VERTEX;
         ShaderCI.Desc.Name       = "Mesh VS";
-        ShaderCI.Source          = VSSource;
+        ShaderCI.Source          = VSSource.c_str();
         m_renderDevice->CreateShader(ShaderCI, &pVS);
     }
 
@@ -202,7 +166,7 @@ void RenderSystem::InitPipeline() {
     {
         ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
         ShaderCI.Desc.Name       = "Mesh PS";
-        ShaderCI.Source          = PSSource;
+        ShaderCI.Source          = PSSource.c_str();
         m_renderDevice->CreateShader(ShaderCI, &pPS);
     }
 
@@ -210,8 +174,13 @@ void RenderSystem::InitPipeline() {
     {
         ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
         ShaderCI.Desc.Name       = "Highlight PS";
-        ShaderCI.Source          = PSHighlightSource;
+        ShaderCI.Source          = PSHighlightSource.c_str();
         m_renderDevice->CreateShader(ShaderCI, &pHighlightPS);
+    }
+
+    if (!pVS || !pPS || !pHighlightPS) {
+        std::cerr << "[RenderSystem] Pipeline creation aborted: shader compilation failed." << std::endl;
+        return;
     }
 
     // Input Layout
