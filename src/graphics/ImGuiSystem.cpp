@@ -21,17 +21,19 @@ auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> En
     m_window = renderSystem.GetWindowHandle();
     m_title = title;
 
-    ImGui::CreateContext();
-    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
-    ImGui::StyleColorsDark();
-
     const auto& swapChainDesc = renderSystem.GetSwapChain()->GetDesc();
     Diligent::ImGuiDiligentCreateInfo createInfo;
     createInfo.pDevice = renderSystem.GetRenderDevice();
     createInfo.BackBufferFmt = swapChainDesc.ColorBufferFormat;
     createInfo.DepthBufferFmt = swapChainDesc.DepthBufferFormat;
     m_imGui = std::make_unique<Diligent::ImGuiImplDiligent>(createInfo);
-    ImGui_ImplGlfw_InitForOther(m_window, true);
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+    ImGui::StyleColorsDark();
+    m_glfwInitialized = ImGui_ImplGlfw_InitForOther(m_window, true);
+    if (!m_glfwInitialized) {
+        Shutdown();
+        return std::unexpected(EngineError(ErrorCode::UnknownError, "Failed to initialize ImGui GLFW backend"));
+    }
     m_initialized = true;
     return {};
 }
@@ -194,10 +196,11 @@ void ImGuiSystem::Render(RenderSystem& renderSystem, const FrameStats& stats) {
 }
 
 void ImGuiSystem::Shutdown() {
-    if (!m_initialized) return;
-    ImGui_ImplGlfw_Shutdown();
+    if (m_glfwInitialized) {
+        ImGui_ImplGlfw_Shutdown();
+        m_glfwInitialized = false;
+    }
     m_imGui.reset();
-    ImGui::DestroyContext();
     m_initialized = false;
 }
 

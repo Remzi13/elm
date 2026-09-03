@@ -35,6 +35,7 @@ private:
     GLFWwindow* m_window{nullptr};
     std::unique_ptr<Diligent::ImGuiImplDiligent> m_imGui;
     bool m_initialized{false};
+    bool m_glfwInitialized{false};
     int m_currentResolution{2};
     std::string m_title;
 };
