@@ -31,6 +31,10 @@ FetchContent_MakeAvailable(DiligentEngine)
 
 engine_add_library(graphics
     RenderSystem.cpp
+    Camera.cpp
+    culling/SoftwareDepthBuffer.cpp
+    culling/OcclusionCullingSystem.cpp
+    ../Scene/TestScenes.cpp
     ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp
 )
 

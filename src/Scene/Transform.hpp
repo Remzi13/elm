@@ -16,20 +16,9 @@ namespace Diligent {
     struct float4x4;
 }
 
+#include "graphics/culling/MathTypes.hpp"
+
 namespace Engine {
-
-struct Vector3 {
-    float x{0.0f};
-    float y{0.0f};
-    float z{0.0f};
-};
-
-struct Quaternion {
-    float x{0.0f};
-    float y{0.0f};
-    float z{0.0f};
-    float w{1.0f};
-};
 
 class Transform {
 public:

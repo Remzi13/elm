@@ -91,6 +91,11 @@ void EngineApp::Update(float deltaTime) {
         m_frameCounterTime = 0.0f;
     }
 
+    // Update camera and rendering inputs
+    if (m_renderSystem) {
+        m_renderSystem->Update(deltaTime);
+    }
+
     // Query synchronized physics transforms for display/rendering
     if (m_physicsSystem) {
         m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
@@ -103,6 +108,7 @@ void EngineApp::Render([[maybe_unused]] float deltaTime) {
     if (!m_renderSystem) return;
 
     m_renderSystem->BeginFrame();
+    m_renderSystem->RenderScene();
     m_renderSystem->RenderUI(m_currentStats);
     m_renderSystem->EndFrame();
 }
