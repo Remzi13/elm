@@ -24,6 +24,7 @@
 #include <string>
 
 #if PLATFORM_WIN32
+#include <windows.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #else
 #define GLFW_EXPOSE_NATIVE_X11
@@ -77,6 +78,9 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, std::string_view title)
     m_width = width;
     m_height = height;
 
+#if PLATFORM_WIN32
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+#endif
     if (!glfwInit()) {
         return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW"));
     }

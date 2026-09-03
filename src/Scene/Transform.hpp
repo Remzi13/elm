@@ -10,12 +10,6 @@ namespace JPH {
     class Mat44;
 }
 
-namespace Diligent {
-    struct float3;
-    struct float4;
-    struct float4x4;
-}
-
 #include "graphics/culling/MathTypes.hpp"
 
 namespace Engine {

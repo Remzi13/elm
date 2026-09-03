@@ -2,14 +2,51 @@
 
 #include <GLFW/glfw3.h>
 
+#include <algorithm>
+
+#if PLATFORM_WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#endif
+
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
 #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
 #include "Graphics/GraphicsEngine/interface/SwapChain.h"
+#if PLATFORM_WIN32
+#include "Graphics/GraphicsEngineD3D12/interface/EngineFactoryD3D12.h"
+#else
+#include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
+#define GLFW_EXPOSE_NATIVE_X11
+#define GLFW_EXPOSE_NATIVE_WAYLAND
+#include <GLFW/glfw3native.h>
+#endif
+#include "ImGuiDiligentRenderer.hpp"
 #include "ImGuiImplDiligent.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
 
+namespace Diligent {
+
+class ImGuiImplDiligentViewport : public ImGuiImplDiligent {
+public:
+    using ImGuiImplDiligent::ImGuiImplDiligent;
+
+    void SetRenderSurface(Uint32 width, Uint32 height, SURFACE_TRANSFORM transform) {
+        m_pRenderer->NewFrame(width, height, transform);
+    }
+
+    void RenderDrawData(IDeviceContext* context, ImDrawData* drawData) {
+        m_pRenderer->RenderDrawData(context, drawData);
+    }
+};
+
+} // namespace Diligent
+
 namespace Engine {
+
+struct ImGuiViewportRendererData {
+    Diligent::RefCntAutoPtr<Diligent::ISwapChain> swapChain;
+};
 
 ImGuiSystem::ImGuiSystem() = default;
 
@@ -19,6 +56,7 @@ ImGuiSystem::~ImGuiSystem() {
 
 auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> EngineResult<void> {
     m_window = renderSystem.GetWindowHandle();
+    m_renderSystem = &renderSystem;
     m_title = title;
 
     const auto& swapChainDesc = renderSystem.GetSwapChain()->GetDesc();
@@ -26,14 +64,27 @@ auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> En
     createInfo.pDevice = renderSystem.GetRenderDevice();
     createInfo.BackBufferFmt = swapChainDesc.ColorBufferFormat;
     createInfo.DepthBufferFmt = swapChainDesc.DepthBufferFormat;
-    m_imGui = std::make_unique<Diligent::ImGuiImplDiligent>(createInfo);
-    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable;
+    m_imGui = std::make_unique<Diligent::ImGuiImplDiligentViewport>(createInfo);
+    auto& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable |
+        ImGuiConfigFlags_DpiEnableScaleViewports | ImGuiConfigFlags_DpiEnableScaleFonts;
+    io.ConfigViewportsNoAutoMerge = false;
+    io.UserData = this;
     ImGui::StyleColorsDark();
     m_glfwInitialized = ImGui_ImplGlfw_InitForOther(m_window, true);
     if (!m_glfwInitialized) {
         Shutdown();
         return std::unexpected(EngineError(ErrorCode::UnknownError, "Failed to initialize ImGui GLFW backend"));
     }
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+    auto& platformIO = ImGui::GetPlatformIO();
+    platformIO.Renderer_CreateWindow = &ImGuiSystem::CreateViewport;
+    platformIO.Renderer_DestroyWindow = &ImGuiSystem::DestroyViewport;
+    platformIO.Renderer_SetWindowSize = &ImGuiSystem::ResizeViewport;
+    platformIO.Renderer_RenderWindow = &ImGuiSystem::RenderViewport;
+    platformIO.Renderer_SwapBuffers = &ImGuiSystem::PresentViewport;
+    platformIO.Platform_GetWindowDpiScale = &ImGuiSystem::GetViewportDpiScale;
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasViewports;
     m_initialized = true;
     return {};
 }
@@ -43,6 +94,114 @@ void ImGuiSystem::BeginFrame(RenderSystem& renderSystem) {
     ImGui_ImplGlfw_NewFrame();
     const auto& swapChainDesc = renderSystem.GetSwapChain()->GetDesc();
     m_imGui->NewFrame(renderSystem.GetWidth(), renderSystem.GetHeight(), swapChainDesc.PreTransform);
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetFramebufferSize(m_window, &framebufferWidth, &framebufferHeight);
+    m_imGui->SetRenderSurface(static_cast<Diligent::Uint32>((std::max)(framebufferWidth, 1)),
+                              static_cast<Diligent::Uint32>((std::max)(framebufferHeight, 1)),
+                              swapChainDesc.PreTransform);
+}
+
+void ImGuiSystem::CreateViewport(ImGuiViewport* viewport) {
+    auto* system = static_cast<ImGuiSystem*>(ImGui::GetIO().UserData);
+    auto* window = static_cast<GLFWwindow*>(viewport->PlatformHandle);
+    if (!system || !system->m_renderSystem || !window) return;
+
+    Diligent::SwapChainDesc description = system->m_renderSystem->GetSwapChain()->GetDesc();
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+    description.Width = static_cast<Diligent::Uint32>((std::max)(framebufferWidth, 1));
+    description.Height = static_cast<Diligent::Uint32>((std::max)(framebufferHeight, 1));
+
+    Diligent::ISwapChain* swapChain = nullptr;
+#if PLATFORM_WIN32
+    auto* factory = Diligent::GetEngineFactoryD3D12();
+    Diligent::Win32NativeWindow nativeWindow{glfwGetWin32Window(window)};
+    factory->CreateSwapChainD3D12(system->m_renderSystem->GetRenderDevice(),
+                                  system->m_renderSystem->GetDeviceContext(), description,
+                                  Diligent::FullScreenModeDesc{}, nativeWindow, &swapChain);
+#else
+    auto* factory = Diligent::GetEngineFactoryVk();
+    Diligent::LinuxNativeWindow nativeWindow;
+    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
+        nativeWindow.pDisplay = glfwGetWaylandDisplay();
+        nativeWindow.WindowId = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(glfwGetWaylandWindow(window)));
+    } else {
+        nativeWindow.pDisplay = glfwGetX11Display();
+        nativeWindow.WindowId = static_cast<uint32_t>(glfwGetX11Window(window));
+    }
+    factory->CreateSwapChainVk(system->m_renderSystem->GetRenderDevice(),
+                                system->m_renderSystem->GetDeviceContext(), description,
+                                nativeWindow, &swapChain);
+#endif
+    if (swapChain) {
+        auto* data = new ImGuiViewportRendererData;
+        data->swapChain = swapChain;
+        viewport->RendererUserData = data;
+    }
+}
+
+void ImGuiSystem::DestroyViewport(ImGuiViewport* viewport) {
+    delete static_cast<ImGuiViewportRendererData*>(viewport->RendererUserData);
+    viewport->RendererUserData = nullptr;
+}
+
+void ImGuiSystem::ResizeViewport(ImGuiViewport* viewport, ImVec2) {
+    auto* data = static_cast<ImGuiViewportRendererData*>(viewport->RendererUserData);
+    if (!data || !data->swapChain) return;
+
+    auto* window = static_cast<GLFWwindow*>(viewport->PlatformHandle);
+    if (!window) return;
+
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
+    data->swapChain->Resize(static_cast<Diligent::Uint32>((std::max)(framebufferWidth, 1)),
+                            static_cast<Diligent::Uint32>((std::max)(framebufferHeight, 1)));
+}
+
+float ImGuiSystem::GetViewportDpiScale(ImGuiViewport* viewport) {
+    auto* window = static_cast<GLFWwindow*>(viewport->PlatformHandle);
+    if (!window) return 1.0f;
+
+    float xScale = 1.0f;
+    float yScale = 1.0f;
+    glfwGetWindowContentScale(window, &xScale, &yScale);
+    return xScale > 0.0f ? xScale : 1.0f;
+}
+
+void ImGuiSystem::RenderViewport(ImGuiViewport* viewport, void* userData) {
+    auto* system = static_cast<ImGuiSystem*>(userData);
+    auto* data = static_cast<ImGuiViewportRendererData*>(viewport->RendererUserData);
+    if (!system || !data || !data->swapChain) return;
+
+    int windowWidth = 0;
+    int windowHeight = 0;
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetWindowSize(static_cast<GLFWwindow*>(viewport->PlatformHandle), &windowWidth, &windowHeight);
+    glfwGetFramebufferSize(static_cast<GLFWwindow*>(viewport->PlatformHandle), &framebufferWidth, &framebufferHeight);
+    if (windowWidth > 0 && windowHeight > 0) {
+        viewport->DrawData->FramebufferScale = ImVec2(
+            static_cast<float>(framebufferWidth) / static_cast<float>(windowWidth),
+            static_cast<float>(framebufferHeight) / static_cast<float>(windowHeight));
+    }
+    system->m_imGui->SetRenderSurface(static_cast<Diligent::Uint32>((std::max)(framebufferWidth, 1)),
+                                       static_cast<Diligent::Uint32>((std::max)(framebufferHeight, 1)),
+                                       data->swapChain->GetDesc().PreTransform);
+    auto* renderTarget = data->swapChain->GetCurrentBackBufferRTV();
+    const float clearColor[] = {0.11f, 0.13f, 0.16f, 1.0f};
+    system->m_renderSystem->GetDeviceContext()->SetRenderTargets(
+        1, &renderTarget, nullptr, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    system->m_renderSystem->GetDeviceContext()->ClearRenderTarget(
+        renderTarget, clearColor, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    system->m_imGui->RenderDrawData(system->m_renderSystem->GetDeviceContext(), viewport->DrawData);
+}
+
+void ImGuiSystem::PresentViewport(ImGuiViewport* viewport, void*) {
+    auto* data = static_cast<ImGuiViewportRendererData*>(viewport->RendererUserData);
+    if (data && data->swapChain) data->swapChain->Present();
 }
 
 void ImGuiSystem::RenderDockspace() {
@@ -65,7 +224,6 @@ void ImGuiSystem::RenderDockspace() {
 void ImGuiSystem::RenderEngineViewport(RenderSystem& renderSystem) {
     ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(800.0f, 600.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowDockID(ImGui::GetID("MainDockSpace"), ImGuiCond_FirstUseEver);
     ImGui::Begin("Engine Viewport");
     if (auto* texture = renderSystem.GetEngineViewportSRV()) {
         const ImVec2 available = ImGui::GetContentRegionAvail();
@@ -193,6 +351,7 @@ void ImGuiSystem::Render(RenderSystem& renderSystem, const FrameStats& stats) {
     context->SetRenderTargets(1, &rtv, dsv, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
     m_imGui->Render(context);
     ImGui::UpdatePlatformWindows();
+    ImGui::RenderPlatformWindowsDefault(this, this);
 }
 
 void ImGuiSystem::Shutdown() {
@@ -200,7 +359,9 @@ void ImGuiSystem::Shutdown() {
         ImGui_ImplGlfw_Shutdown();
         m_glfwInitialized = false;
     }
+    if (m_imGui) ImGui::DestroyPlatformWindows();
     m_imGui.reset();
+    m_renderSystem = nullptr;
     m_initialized = false;
 }
 

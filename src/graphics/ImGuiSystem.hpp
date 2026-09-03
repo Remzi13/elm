@@ -2,12 +2,13 @@
 
 #include "core/Error.hpp"
 #include "graphics/RenderSystem.hpp"
+#include "imgui.h"
 
 #include <memory>
 #include <string_view>
 
 namespace Diligent {
-class ImGuiImplDiligent;
+class ImGuiImplDiligentViewport;
 }
 
 namespace Engine {
@@ -32,8 +33,16 @@ private:
     void RenderDepthPreview(RenderSystem& renderSystem);
 
 private:
+    static void CreateViewport(ImGuiViewport* viewport);
+    static void DestroyViewport(ImGuiViewport* viewport);
+    static void ResizeViewport(ImGuiViewport* viewport, ImVec2 size);
+    static float GetViewportDpiScale(ImGuiViewport* viewport);
+    static void RenderViewport(ImGuiViewport* viewport, void* userData);
+    static void PresentViewport(ImGuiViewport* viewport, void* userData);
+
     GLFWwindow* m_window{nullptr};
-    std::unique_ptr<Diligent::ImGuiImplDiligent> m_imGui;
+    std::unique_ptr<Diligent::ImGuiImplDiligentViewport> m_imGui;
+    RenderSystem* m_renderSystem{nullptr};
     bool m_initialized{false};
     bool m_glfwInitialized{false};
     int m_currentResolution{2};
