@@ -1,38 +1,3 @@
-# ------------------------------------------------------------------------------
-# Dependency 1: GLFW 3.4
-# ------------------------------------------------------------------------------
-set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "" FORCE)
-set(GLFW_INSTALL OFF CACHE BOOL "" FORCE)
-
-FetchContent_Declare(
-    glfw
-    GIT_REPOSITORY https://github.com/glfw/glfw.git
-    GIT_TAG        3.4
-)
-FetchContent_MakeAvailable(glfw)
-
-# ------------------------------------------------------------------------------
-# Dependency 3: Diligent Engine
-# ------------------------------------------------------------------------------
-set(DILIGENT_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
-set(DILIGENT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(DILIGENT_NO_FORMAT_VALIDATION ON CACHE BOOL "" FORCE)
-set(DILIGENT_NO_RENDER_STATE_PACKAGER ON CACHE BOOL "" FORCE)
-
-FetchContent_Declare(
-    DiligentEngine
-    GIT_REPOSITORY https://github.com/DiligentGraphics/DiligentEngine.git
-    GIT_TAG        v2.5.6
-    PATCH_COMMAND  git -C DiligentTools/ThirdParty/imgui fetch --depth 1 origin refs/tags/v1.89.7-docking
-                   COMMAND git -C DiligentTools/ThirdParty/imgui checkout --detach FETCH_HEAD
-               COMMAND ${CMAKE_COMMAND}
-                   -DDILIGENT_TOOLS_CMAKE=<SOURCE_DIR>/DiligentTools/CMakeLists.txt
-                   -P ${CMAKE_SOURCE_DIR}/cmake/DisableDiligentRenderStateNotation.cmake
-)
-FetchContent_MakeAvailable(DiligentEngine)
-
 engine_add_library(graphics
     RenderSystem.cpp
     ImGuiSystem.cpp

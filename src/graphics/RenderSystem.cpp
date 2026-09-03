@@ -525,7 +525,7 @@ void RenderSystem::RenderScene() {
     }
 
     // Draw Occluders (Walls) as one instanced batch to avoid repeated dynamic-buffer maps.
-    const size_t numOccluders = std::min(m_occluders.size(), MaxInstances);
+    const size_t numOccluders = (std::min)(m_occluders.size(), MaxInstances);
     if (numOccluders > 0) {
         std::vector<GpuInstanceData> occluderGpuInstances;
         occluderGpuInstances.reserve(numOccluders);
@@ -549,7 +549,7 @@ void RenderSystem::RenderScene() {
 
     // 6. Draw Occludees (Cubes)
     if (m_cullingSystem.visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
-        const size_t numDraw = std::min(m_visibleGpuInstances.size(), MaxInstances);
+        const size_t numDraw = (std::min)(m_visibleGpuInstances.size(), MaxInstances);
         {
             Diligent::MapHelper<GpuInstanceData> InstData(m_deviceContext, m_pInstanceBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
             memcpy(InstData, m_visibleGpuInstances.data(), numDraw * sizeof(GpuInstanceData));
@@ -567,7 +567,7 @@ void RenderSystem::RenderScene() {
 
     // 7. Highlight Culled Objects (Ghost visualization)
     if (m_cullingSystem.visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
-        const size_t numCulled = std::min(m_culledGpuInstances.size(), MaxInstances);
+        const size_t numCulled = (std::min)(m_culledGpuInstances.size(), MaxInstances);
         {
             Diligent::MapHelper<GpuInstanceData> InstData(m_deviceContext, m_pInstanceBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
             memcpy(InstData, m_culledGpuInstances.data(), numCulled * sizeof(GpuInstanceData));

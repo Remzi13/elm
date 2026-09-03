@@ -11,6 +11,9 @@ include(cmake/CompileOptions.cmake)
 # Enable FetchContent for dependencies
 include(FetchContent)
 
+# External dependencies
+add_subdirectory(third_party)
+
 # ------------------------------------------------------------------------------
 # Shared include directories for engine modules
 # ------------------------------------------------------------------------------

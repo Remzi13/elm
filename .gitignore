@@ -1,1 +1,6 @@
 build/
+.vs/
+
+third_party/*-src/
+third_party/*-build/
+third_party/*-subbuild/
