@@ -1,4 +1,4 @@
-#include "core/EngineApp.hpp"
+#include "EngineApp.hpp"
 
 #include <iostream>
 #include <thread>
