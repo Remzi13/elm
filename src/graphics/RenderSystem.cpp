@@ -6,8 +6,12 @@
 #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
 #include "Graphics/GraphicsEngine/interface/SwapChain.h"
-#include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
 #include "Graphics/GraphicsEngine/interface/EngineFactory.h"
+#if PLATFORM_WIN32
+#include "Graphics/GraphicsEngineD3D12/interface/EngineFactoryD3D12.h"
+#else
+#include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
+#endif
 #include "Graphics/GraphicsTools/interface/CommonlyUsedStates.h"
 #include "Graphics/GraphicsTools/interface/MapHelper.hpp"
 
@@ -19,8 +23,12 @@
 #include <filesystem>
 #include <string>
 
+#if PLATFORM_WIN32
+#define GLFW_EXPOSE_NATIVE_WIN32
+#else
 #define GLFW_EXPOSE_NATIVE_X11
 #define GLFW_EXPOSE_NATIVE_WAYLAND
+#endif
 #include <GLFW/glfw3native.h>
 
 namespace Engine {
@@ -82,15 +90,26 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, std::string_view title)
         return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window"));
     }
 
-    auto* pFactoryVk = Diligent::GetEngineFactoryVk();
-    if (!pFactoryVk) {
+#if PLATFORM_WIN32
+    auto* pFactory = Diligent::GetEngineFactoryD3D12();
+    if (!pFactory) {
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryD3D12"));
+    }
+
+    Diligent::EngineD3D12CreateInfo engineCreateInfo;
+    engineCreateInfo.NumDeferredContexts = 0;
+    pFactory->CreateDeviceAndContextsD3D12(engineCreateInfo, &m_renderDevice, &m_deviceContext);
+#else
+    auto* pFactory = Diligent::GetEngineFactoryVk();
+    if (!pFactory) {
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryVk"));
     }
 
     Diligent::EngineVkCreateInfo engineCreateInfo;
     engineCreateInfo.NumDeferredContexts = 0;
     engineCreateInfo.DynamicHeapSize = 32 << 20;
-    pFactoryVk->CreateDeviceAndContextsVk(engineCreateInfo, &m_renderDevice, &m_deviceContext);
+    pFactory->CreateDeviceAndContextsVk(engineCreateInfo, &m_renderDevice, &m_deviceContext);
+#endif
 
     if (!m_renderDevice || !m_deviceContext) {
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts"));
@@ -100,6 +119,11 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, std::string_view title)
     swapChainDesc.Width = width;
     swapChainDesc.Height = height;
 
+#if PLATFORM_WIN32
+    Diligent::Win32NativeWindow nativeWindow{glfwGetWin32Window(m_window)};
+    pFactory->CreateSwapChainD3D12(m_renderDevice, m_deviceContext, swapChainDesc,
+                                   Diligent::FullScreenModeDesc{}, nativeWindow, &m_swapChain);
+#else
     Diligent::LinuxNativeWindow nativeWindow;
     if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
         nativeWindow.pDisplay = glfwGetWaylandDisplay();
@@ -109,7 +133,8 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, std::string_view title)
         nativeWindow.WindowId = static_cast<uint32_t>(glfwGetX11Window(m_window));
     }
 
-    pFactoryVk->CreateSwapChainVk(m_renderDevice, m_deviceContext, swapChainDesc, nativeWindow, &m_swapChain);
+    pFactory->CreateSwapChainVk(m_renderDevice, m_deviceContext, swapChainDesc, nativeWindow, &m_swapChain);
+#endif
 
     if (!m_swapChain) {
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
