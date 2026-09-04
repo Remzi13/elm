@@ -1,7 +1,9 @@
 engine_add_library(graphics
+    RenderSystem.hpp
     RenderSystem.cpp
     ImGuiSystem.cpp
     Camera.cpp
+    CameraController.cpp
     culling/SoftwareDepthBuffer.cpp
     culling/OcclusionCullingSystem.cpp    
     ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp

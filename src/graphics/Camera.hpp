@@ -1,7 +1,6 @@
 #pragma once
 
 #include "graphics/culling/MathTypes.hpp"
-#include <GLFW/glfw3.h>
 
 namespace Engine {
 
@@ -11,8 +10,12 @@ public:
            float yaw = 0.0f,
            float pitch = -0.1f);
 
-    void Update(float deltaTime, GLFWwindow* window, bool allowInput = true);
     void SetAspect(float aspect) noexcept { m_aspect = aspect; }
+
+    void Rotate(float yawDelta, float pitchDelta) noexcept;
+    void Translate(const Vector3& offset) noexcept { m_position += offset; }
+    [[nodiscard]] Vector3 GetForwardDirection() const noexcept;
+    [[nodiscard]] Vector3 GetRightDirection() const noexcept;
 
     [[nodiscard]] Matrix4x4 GetViewMatrix() const noexcept;
     [[nodiscard]] Matrix4x4 GetProjectionMatrix() const noexcept;
@@ -37,10 +40,6 @@ private:
     float m_yaw{0.0f};   // Radians
     float m_pitch{0.0f}; // Radians
     float m_aspect{16.0f / 9.0f};
-
-    bool m_firstMouse{true};
-    double m_lastMouseX{0.0};
-    double m_lastMouseY{0.0};
 
     bool m_freezeCulling{false};
     Matrix4x4 m_frozenCullingViewProj{Matrix4x4::Identity()};

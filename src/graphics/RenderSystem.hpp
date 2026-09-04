@@ -5,7 +5,9 @@
 #include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/CameraController.hpp"
 #include "Scene/TestScenes.hpp"
+#include "input/Input.hpp"
 
 #include <memory>
 #include <string_view>
@@ -55,7 +57,7 @@ public:
     [[nodiscard]] bool ShouldClose() const;
     void PollEvents();
 
-    void Update(float deltaTime);
+    void Update(float deltaTime, const std::vector<elm::InputEvent>& events);
     void BeginFrame();
     void RenderScene();
     void EndFrame();
@@ -132,6 +134,7 @@ private:
 
     // Systems & Scenes
     Camera m_camera;
+    CameraController m_cameraController;
     OcclusionCullingSystem m_cullingSystem;
 
     ScenePreset m_currentPreset{ScenePreset::WallAndGrid};

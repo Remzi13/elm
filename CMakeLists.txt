@@ -41,6 +41,8 @@ include_directories(src)
 # Engine module targets
 # ------------------------------------------------------------------------------
 add_subdirectory(src/core)
+add_subdirectory(src/math)
+add_subdirectory(src/input)
 add_subdirectory(src/graphics)
 add_subdirectory(src/physics)
 add_subdirectory(src/Scene)
@@ -61,7 +63,7 @@ else()
     target_compile_definitions(Engine PUBLIC PLATFORM_LINUX=1)
 endif()
 target_set_warnings(Engine)
-target_link_libraries(Engine PRIVATE core graphics physics Scene)
+target_link_libraries(Engine PRIVATE core math input graphics physics Scene)
 target_link_libraries(Engine PRIVATE Diligent-Imgui)
 
 set_target_properties(Engine PROPERTIES

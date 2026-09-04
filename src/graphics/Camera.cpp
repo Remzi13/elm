@@ -39,72 +39,23 @@ Matrix4x4 Camera::GetViewProjectionMatrix() const noexcept {
     return GetProjectionMatrix() * GetViewMatrix();
 }
 
-void Camera::Update(float deltaTime, GLFWwindow* window, bool allowInput) {
-    if (!window || !allowInput) {
-        m_firstMouse = true;
-        return;
-    }
+void Camera::Rotate(float yawDelta, float pitchDelta) noexcept {
+    m_yaw += yawDelta;
+    m_pitch += pitchDelta;
+    constexpr float maxPitch = 1.55f;
+    m_pitch = std::clamp(m_pitch, -maxPitch, maxPitch);
+}
 
-    // Check if right mouse button is pressed to rotate camera
-    const bool isRmbHeld = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
-
-    double mouseX = 0.0;
-    double mouseY = 0.0;
-    glfwGetCursorPos(window, &mouseX, &mouseY);
-
-    if (m_firstMouse) {
-        m_lastMouseX = mouseX;
-        m_lastMouseY = mouseY;
-        m_firstMouse = false;
-    }
-
-    if (isRmbHeld) {
-        const float dx = static_cast<float>(mouseX - m_lastMouseX);
-        const float dy = static_cast<float>(mouseY - m_lastMouseY);
-
-        m_yaw += dx * mouseSensitivity;
-        m_pitch -= dy * mouseSensitivity;
-
-        constexpr float maxPitch = 1.55f; // ~89 degrees
-        m_pitch = std::clamp(m_pitch, -maxPitch, maxPitch);
-    }
-
-    m_lastMouseX = mouseX;
-    m_lastMouseY = mouseY;
-
-    // Movement vectors
+Vector3 Camera::GetForwardDirection() const noexcept {
     const float cosPitch = std::cos(m_pitch);
     const float sinPitch = std::sin(m_pitch);
     const float cosYaw = std::cos(m_yaw);
     const float sinYaw = std::sin(m_yaw);
+    return {sinYaw * cosPitch, sinPitch, cosYaw * cosPitch};
+}
 
-    const Vector3 forward{sinYaw * cosPitch, sinPitch, cosYaw * cosPitch};
-    const Vector3 right{cosYaw, 0.0f, -sinYaw};
-    const Vector3 up{0.0f, 1.0f, 0.0f};
-
-    float speed = moveSpeed * deltaTime;
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-        speed *= 2.5f;
-    }
-
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        m_position += forward * speed;
-    }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        m_position -= forward * speed;
-    }
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        m_position += right * speed;
-    }
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        m_position -= right * speed;
-    }
-    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
-        m_position += up * speed;
-    }
-    if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
-        m_position -= up * speed;
-    }
+Vector3 Camera::GetRightDirection() const noexcept {
+    return {std::cos(m_yaw), 0.0f, -std::sin(m_yaw)};
 }
 
 } // namespace Engine

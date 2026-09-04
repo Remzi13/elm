@@ -1,143 +1,150 @@
 #include "EngineApp.hpp"
 
 #include <iostream>
-#include <thread>
 
 namespace Engine {
 
-EngineApp::EngineApp()
-    : m_renderSystem(std::make_unique<RenderSystem>()),
-    m_imguiSystem(std::make_unique<ImGuiSystem>()),
-      m_physicsSystem(std::make_unique<PhysicsSystem>()) {}
+	EngineApp::EngineApp()
+		: m_renderSystem(std::make_unique<RenderSystem>()),
+		m_imguiSystem(std::make_unique<ImGuiSystem>()),
+		m_physicsSystem(std::make_unique<PhysicsSystem>()),
+		m_inputSystem(std::make_unique<InputSystem>())
+	{
+	}
 
-EngineApp::~EngineApp() {
-    Shutdown();
-}
+	EngineApp::~EngineApp() {
+		Shutdown();
+	}
 
-auto EngineApp::Init(uint32_t width, uint32_t height, std::string_view title) -> EngineResult<void> {
-    std::cout << "[EngineApp] Initializing 3D Engine Core (C++23)..." << std::endl;
+	auto EngineApp::Init(uint32_t width, uint32_t height, std::string_view title) -> EngineResult<void> {
+		std::cout << "[EngineApp] Initializing 3D Engine Core (C++23)..." << std::endl;
 
-    // Initialize Render System
-    auto renderInit = m_renderSystem->Init(width, height, title);
-    if (!renderInit) {
-        return std::unexpected(renderInit.error());
-    }
+		// Initialize Render System
+		auto renderInit = m_renderSystem->Init(width, height, title);
+		if (!renderInit) {
+			return std::unexpected(renderInit.error());
+		}
+		m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
 
-    auto imguiInit = m_imguiSystem->Init(*m_renderSystem, "Engine Debug UI");
-    if (!imguiInit) {
-        return std::unexpected(imguiInit.error());
-    }
+		auto imguiInit = m_imguiSystem->Init(*m_renderSystem, "Engine Debug UI");
+		if (!imguiInit) {
+			return std::unexpected(imguiInit.error());
+		}
 
-    // Initialize Physics System
-    auto physicsInit = m_physicsSystem->Init();
-    if (!physicsInit) {
-        return std::unexpected(physicsInit.error());
-    }
+		// Initialize Physics System
+		auto physicsInit = m_physicsSystem->Init();
+		if (!physicsInit) {
+			return std::unexpected(physicsInit.error());
+		}
 
-    m_isRunning = true;
-    std::cout << "[EngineApp] Engine initialization completed successfully." << std::endl;
-    return {};
-}
+		m_isRunning = true;
+		std::cout << "[EngineApp] Engine initialization completed successfully." << std::endl;
+		return {};
+	}
 
-auto EngineApp::Run() -> EngineResult<void> {
-    if (!m_isRunning) {
-        return std::unexpected(EngineError(ErrorCode::UnknownError, "EngineApp::Run called without prior successful initialization"));
-    }
+	auto EngineApp::Run() -> EngineResult<void> {
+		if (!m_isRunning) {
+			return std::unexpected(EngineError(ErrorCode::UnknownError, "EngineApp::Run called without prior successful initialization"));
+		}
 
-    std::cout << "[EngineApp] Entering main loop with fixed timestep physics accumulator." << std::endl;
+		std::cout << "[EngineApp] Entering main loop with fixed timestep physics accumulator." << std::endl;
 
-    auto lastTime = std::chrono::high_resolution_clock::now();
-    float accumulator = 0.0f;
+		auto lastTime = std::chrono::high_resolution_clock::now();
+		float accumulator = 0.0f;
 
-    while (m_isRunning && !m_renderSystem->ShouldClose()) {
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
-        lastTime = currentTime;
+		while (m_isRunning && !m_renderSystem->ShouldClose()) {
+			auto currentTime = std::chrono::high_resolution_clock::now();
+			float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+			lastTime = currentTime;
 
-        // Cap maximum deltaTime to prevent physics spiral of death
-        if (deltaTime > 0.25f) {
-            deltaTime = 0.25f;
-        }
+			// Cap maximum deltaTime to prevent physics spiral of death
+			if (deltaTime > 0.25f) {
+				deltaTime = 0.25f;
+			}
 
-        accumulator += deltaTime;
+			accumulator += deltaTime;
 
-        // Poll window events
-        m_renderSystem->PollEvents();
+			m_inputSystem->BeginFrame();
 
-        // Fixed Timestep Physics Update
-        while (accumulator >= m_fixedTimeStep) {
-            FixedUpdate(m_fixedTimeStep);
-            accumulator -= m_fixedTimeStep;
-        }
+			// Poll window events
+			m_renderSystem->PollEvents();
 
-        // Frame variable update & rendering
-        Update(deltaTime);
-        Render(deltaTime);
-    }
+			// Fixed Timestep Physics Update
+			while (accumulator >= m_fixedTimeStep) {
+				FixedUpdate(m_fixedTimeStep);
+				accumulator -= m_fixedTimeStep;
+			}
 
-    std::cout << "[EngineApp] Main loop exited." << std::endl;
-    return {};
-}
+			// Frame variable update & rendering
+			Update(deltaTime);
+			Render(deltaTime);
+		}
 
-void EngineApp::FixedUpdate(float fixedDeltaTime) {
-    if (m_physicsSystem) {
-        m_physicsSystem->Step(fixedDeltaTime);
-    }
-}
+		std::cout << "[EngineApp] Main loop exited." << std::endl;
+		return {};
+	}
 
-void EngineApp::Update(float deltaTime) {
-    // Accumulate FPS statistics
-    m_frameCounterTime += deltaTime;
-    m_frameCount++;
+	void EngineApp::FixedUpdate(float fixedDeltaTime) {
+		if (m_physicsSystem) {
+			m_physicsSystem->Step(fixedDeltaTime);
+		}
+	}
 
-    if (m_frameCounterTime >= 1.0f) {
-        m_currentStats.fps = static_cast<float>(m_frameCount) / m_frameCounterTime;
-        m_currentStats.deltaTimeMs = (m_frameCounterTime / static_cast<float>(m_frameCount)) * 1000.0f;
-        m_frameCount = 0;
-        m_frameCounterTime = 0.0f;
-    }
+	void EngineApp::Update(float deltaTime) {
+		// Accumulate FPS statistics
+		m_frameCounterTime += deltaTime;
+		m_frameCount++;
 
-    // Update camera and rendering inputs
-    if (m_renderSystem) {
-        m_renderSystem->Update(deltaTime);
-    }
+		if (m_frameCounterTime >= 1.0f) {
+			m_currentStats.fps = static_cast<float>(m_frameCount) / m_frameCounterTime;
+			m_currentStats.deltaTimeMs = (m_frameCounterTime / static_cast<float>(m_frameCount)) * 1000.0f;
+			m_frameCount = 0;
+			m_frameCounterTime = 0.0f;
+		}
 
-    // Query synchronized physics transforms for display/rendering
-    if (m_physicsSystem) {
-        m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
-        m_currentStats.boxTransform = m_physicsSystem->GetDynamicBoxTransform();
-        m_currentStats.groundTransform = m_physicsSystem->GetGroundTransform();
-    }
-}
+		m_inputSystem->Update();
 
-void EngineApp::Render([[maybe_unused]] float deltaTime) {
-    if (!m_renderSystem) return;
+		// Update camera and rendering inputs
+		if (m_renderSystem) {
+			m_renderSystem->Update(deltaTime, m_inputSystem->GetEvents());
+		}
 
-    m_renderSystem->BeginFrame();
-    m_renderSystem->RenderScene();
-    m_imguiSystem->BeginFrame(*m_renderSystem);
-    m_imguiSystem->Render(*m_renderSystem, m_currentStats);
-    m_renderSystem->EndFrame();
-}
+		// Query synchronized physics transforms for display/rendering
+		if (m_physicsSystem) {
+			m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
+			m_currentStats.boxTransform = m_physicsSystem->GetDynamicBoxTransform();
+			m_currentStats.groundTransform = m_physicsSystem->GetGroundTransform();
+		}
+	}
 
-void EngineApp::Shutdown() {
-    if (!m_isRunning) return;
+	void EngineApp::Render([[maybe_unused]] float deltaTime) {
+		if (!m_renderSystem) return;
 
-    std::cout << "[EngineApp] Shutting down systems..." << std::endl;
+		m_renderSystem->BeginFrame();
+		m_renderSystem->RenderScene();
+		m_imguiSystem->BeginFrame(*m_renderSystem);
+		m_imguiSystem->Render(*m_renderSystem, m_currentStats);
+		m_renderSystem->EndFrame();
+	}
 
-    if (m_physicsSystem) {
-        m_physicsSystem->Shutdown();
-    }
+	void EngineApp::Shutdown() {
+		if (!m_isRunning) return;
 
-    if (m_imguiSystem) {
-        m_imguiSystem->Shutdown();
-    }
-    if (m_renderSystem) {
-        m_renderSystem->Shutdown();
-    }
+		std::cout << "[EngineApp] Shutting down systems..." << std::endl;
 
-    m_isRunning = false;
-    std::cout << "[EngineApp] Engine shutdown finished." << std::endl;
-}
+		if (m_physicsSystem) {
+			m_physicsSystem->Shutdown();
+		}
+
+		if (m_imguiSystem) {
+			m_imguiSystem->Shutdown();
+		}
+		if (m_renderSystem) {
+			m_renderSystem->Shutdown();
+		}
+
+		m_isRunning = false;
+		std::cout << "[EngineApp] Engine shutdown finished." << std::endl;
+	}
 
 } // namespace Engine
