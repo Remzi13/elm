@@ -5,7 +5,7 @@
 
 namespace elm {
 
-	struct InputSystem::Impl {
+	struct Impl {
 		GLFWwindow* window{ nullptr };
 		void* previousUserPointer{ nullptr };
 		std::vector<InputEvent>* events{ nullptr };

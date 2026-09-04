@@ -63,8 +63,7 @@ public:
 	[[nodiscard]] const std::vector<InputEvent>& GetEvents() const noexcept { return m_events; }
 
 private:
-	std::vector<InputEvent> m_events;
-	struct Impl;
-	std::unique_ptr<Impl> m_impl;
+	std::vector<InputEvent> m_events;	
+	std::unique_ptr<struct Impl> m_impl;
 };
 }
