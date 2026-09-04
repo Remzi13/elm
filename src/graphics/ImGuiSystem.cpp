@@ -1,4 +1,7 @@
 #include "graphics/ImGuiSystem.hpp"
+#include "graphics/ui/DepthPreviewWindow.hpp"
+#include "graphics/ui/EngineViewportWindow.hpp"
+#include "graphics/ui/SocLabWindow.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -59,10 +62,23 @@ ImGuiSystem::~ImGuiSystem() {
     Shutdown();
 }
 
+void ImGuiSystem::AddWindow(std::unique_ptr<IImGuiWindow> window) {
+    if (window) {
+        m_windows.push_back(std::move(window));
+    }
+}
+
 auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> EngineResult<void> {
     m_window = renderSystem.GetWindowHandle();
     m_renderSystem = &renderSystem;
     m_title = title;
+
+    // Register standard engine editor windows
+    auto socLab = std::make_unique<SocLabWindow>();
+    m_socLabWindow = socLab.get();
+    AddWindow(std::move(socLab));
+    AddWindow(std::make_unique<EngineViewportWindow>());
+    AddWindow(std::make_unique<DepthPreviewWindow>());
 
     const auto& swapChainDesc = renderSystem.GetSwapChain()->GetDesc();
     Diligent::ImGuiDiligentCreateInfo createInfo;
@@ -141,20 +157,18 @@ auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> En
         auto* self = static_cast<ImGuiSystem*>(handler->UserData);
         if (!self || !self->m_savedSettings.hasLoaded || !self->m_renderSystem) return;
         auto& rs = *self->m_renderSystem;
-        rs.m_currentPreset = static_cast<ScenePreset>(self->m_savedSettings.preset);
-        rs.m_targetInstanceCount = std::clamp(self->m_savedSettings.instanceCount, 100, 10000);
-        rs.m_cullingSystem.enableFrustumCulling = self->m_savedSettings.enableFrustum;
-        rs.m_cullingSystem.enableOcclusionCulling = self->m_savedSettings.enableOcclusion;
-        rs.m_cullingSystem.depthBias = self->m_savedSettings.depthBias;
-        self->m_currentResolution = std::clamp(self->m_savedSettings.resolution, 0, 4);
-        rs.m_cullingSystem.visualMode = static_cast<VisualMode>(self->m_savedSettings.visualMode);
-        rs.m_depthPreviewFalseColor = self->m_savedSettings.depthFalseColor;
-        rs.m_camera.moveSpeed = self->m_savedSettings.moveSpeed;
-
-        const uint32_t widths[] = {64, 128, 256, 320, 512};
-        const uint32_t heights[] = {36, 72, 144, 180, 288};
-        rs.m_cullingSystem.SetResolution(widths[self->m_currentResolution], heights[self->m_currentResolution]);
-        rs.CreateDepthPreviewTexture(widths[self->m_currentResolution], heights[self->m_currentResolution]);
+        rs.SetCurrentPreset(static_cast<ScenePreset>(self->m_savedSettings.preset));
+        rs.SetTargetInstanceCount(std::clamp(self->m_savedSettings.instanceCount, 100, 10000));
+        rs.GetCullingSystem().enableFrustumCulling = self->m_savedSettings.enableFrustum;
+        rs.GetCullingSystem().enableOcclusionCulling = self->m_savedSettings.enableOcclusion;
+        rs.GetCullingSystem().depthBias = self->m_savedSettings.depthBias;
+        if (self->m_socLabWindow) {
+            self->m_socLabWindow->SetResolutionIndex(self->m_savedSettings.resolution);
+            self->m_socLabWindow->ApplyResolution(rs);
+        }
+        rs.GetCullingSystem().visualMode = static_cast<VisualMode>(self->m_savedSettings.visualMode);
+        rs.SetDepthPreviewFalseColor(self->m_savedSettings.depthFalseColor);
+        rs.GetCamera().moveSpeed = self->m_savedSettings.moveSpeed;
         rs.RebuildScene();
     };
     iniHandler.WriteAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
@@ -162,15 +176,16 @@ auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> En
         if (!self || !self->m_renderSystem) return;
         auto& rs = *self->m_renderSystem;
         buf->append("[LabSettings][State]\n");
-        buf->appendf("Preset=%d\n", static_cast<int>(rs.m_currentPreset));
-        buf->appendf("Instances=%d\n", rs.m_targetInstanceCount);
-        buf->appendf("FrustumCulling=%d\n", rs.m_cullingSystem.enableFrustumCulling ? 1 : 0);
-        buf->appendf("OcclusionCulling=%d\n", rs.m_cullingSystem.enableOcclusionCulling ? 1 : 0);
-        buf->appendf("DepthBias=%.6f\n", rs.m_cullingSystem.depthBias);
-        buf->appendf("SOCResolution=%d\n", self->m_currentResolution);
-        buf->appendf("VisualMode=%d\n", static_cast<int>(rs.m_cullingSystem.visualMode));
-        buf->appendf("DepthFalseColor=%d\n", rs.m_depthPreviewFalseColor ? 1 : 0);
-        buf->appendf("MoveSpeed=%.2f\n", rs.m_camera.moveSpeed);
+        buf->appendf("Preset=%d\n", static_cast<int>(rs.GetCurrentPreset()));
+        buf->appendf("Instances=%d\n", rs.GetTargetInstanceCount());
+        buf->appendf("FrustumCulling=%d\n", rs.GetCullingSystem().enableFrustumCulling ? 1 : 0);
+        buf->appendf("OcclusionCulling=%d\n", rs.GetCullingSystem().enableOcclusionCulling ? 1 : 0);
+        buf->appendf("DepthBias=%.6f\n", rs.GetCullingSystem().depthBias);
+        const int resIdx = self->m_socLabWindow ? self->m_socLabWindow->GetResolutionIndex() : 2;
+        buf->appendf("SOCResolution=%d\n", resIdx);
+        buf->appendf("VisualMode=%d\n", static_cast<int>(rs.GetCullingSystem().visualMode));
+        buf->appendf("DepthFalseColor=%d\n", rs.IsDepthPreviewFalseColor() ? 1 : 0);
+        buf->appendf("MoveSpeed=%.2f\n", rs.GetCamera().moveSpeed);
         buf->append("\n");
     };
     ImGui::AddSettingsHandler(&iniHandler);
@@ -312,164 +327,15 @@ void ImGuiSystem::PresentViewport(ImGuiViewport* viewport, void*) {
     if (data && data->swapChain) data->swapChain->Present();
 }
 
-void ImGuiSystem::RenderDockspace() {
-    const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(mainViewport->WorkPos);
-    ImGui::SetNextWindowSize(mainViewport->WorkSize);
-    ImGui::SetNextWindowViewport(mainViewport->ID);
-
-    constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
-    ImGui::Begin("DockSpaceHost", nullptr, flags);
-    ImGui::PopStyleVar(3);
-    ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
-    ImGui::End();
-}
-
-void ImGuiSystem::RenderEngineViewport(RenderSystem& renderSystem) {
-    ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(800.0f, 600.0f), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Engine Viewport");
-    if (auto* texture = renderSystem.GetEngineViewportSRV()) {
-        const ImVec2 available = ImGui::GetContentRegionAvail();
-        const float aspect = static_cast<float>(renderSystem.GetEngineViewportWidth()) /
-                             static_cast<float>(renderSystem.GetEngineViewportHeight());
-        ImVec2 size = available;
-        if (size.x / aspect < size.y) size.y = size.x / aspect;
-        else size.x = size.y * aspect;
-        ImGui::Image(reinterpret_cast<ImTextureID>(texture), size);
-    }
-    ImGui::End();
-}
-
-void ImGuiSystem::RenderControls(RenderSystem& renderSystem, const FrameStats& stats) {
-    ImGui::SetNextWindowPos(ImVec2(10, 10), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(440, 560), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Software Occlusion Culling Lab");
-    ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "C++23 Vulkan SOC Testbed");
-    ImGui::Text("FPS: %.1f | Frame: %.2f ms", stats.fps, stats.deltaTimeMs);
-    ImGui::Separator();
-
-    if (ImGui::CollapsingHeader("Scene Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const char* presets[] = {"The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox"};
-        int preset = static_cast<int>(renderSystem.m_currentPreset);
-        if (ImGui::Combo("Preset", &preset, presets, IM_ARRAYSIZE(presets))) {
-            renderSystem.m_currentPreset = static_cast<ScenePreset>(preset);
-            renderSystem.RebuildScene();
-            ImGui::MarkIniSettingsDirty();
-        }
-        if (ImGui::SliderInt("Instances", &renderSystem.m_targetInstanceCount, 100, 10000)) {
-            renderSystem.RebuildScene();
-            ImGui::MarkIniSettingsDirty();
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
-        auto& culling = renderSystem.m_cullingSystem;
-        if (ImGui::Checkbox("Enable Frustum Culling", &culling.enableFrustumCulling)) {
-            ImGui::MarkIniSettingsDirty();
-        }
-        if (ImGui::Checkbox("Enable Software Occlusion Culling", &culling.enableOcclusionCulling)) {
-            ImGui::MarkIniSettingsDirty();
-        }
-        bool freeze = renderSystem.m_camera.IsCullingFrozen();
-        if (ImGui::Checkbox("Freeze Culling Camera", &freeze)) renderSystem.m_camera.SetFreezeCulling(freeze);
-        if (freeze) { ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "[FROZEN]"); }
-        if (ImGui::SliderFloat("Depth Bias", &culling.depthBias, 0.0f, 0.01f, "%.4f")) {
-            ImGui::MarkIniSettingsDirty();
-        }
-        const char* resolutions[] = {"64x36", "128x72", "256x144 (Recommended)", "320x180", "512x288"};
-        if (ImGui::Combo("SOC Buffer Res", &m_currentResolution, resolutions, IM_ARRAYSIZE(resolutions))) {
-            const uint32_t widths[] = {64, 128, 256, 320, 512};
-            const uint32_t heights[] = {36, 72, 144, 180, 288};
-            culling.SetResolution(widths[m_currentResolution], heights[m_currentResolution]);
-            renderSystem.CreateDepthPreviewTexture(widths[m_currentResolution], heights[m_currentResolution]);
-            ImGui::MarkIniSettingsDirty();
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Visualization Modes", ImGuiTreeNodeFlags_DefaultOpen)) {
-        int mode = static_cast<int>(renderSystem.m_cullingSystem.visualMode);
-        bool modeChanged = false;
-        if (ImGui::RadioButton("Hide Culled (Draw Visible Only)", &mode, 0)) modeChanged = true;
-        if (ImGui::RadioButton("Highlight Culled (Red Ghost)", &mode, 1)) modeChanged = true;
-        if (ImGui::RadioButton("Occluders Only", &mode, 2)) modeChanged = true;
-        if (modeChanged) {
-            renderSystem.m_cullingSystem.visualMode = static_cast<VisualMode>(mode);
-            ImGui::MarkIniSettingsDirty();
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Real-Time Telemetry", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const auto& s = renderSystem.m_cullingSystem.GetStats();
-        ImGui::Text("Total Objects:     %u", s.totalObjects);
-        ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "Visible Rendered:  %u", s.visibleCount);
-        ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Frustum Culled:    %u", s.frustumCulledCount);
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Occlusion Culled:  %u", s.occlusionCulledCount);
-        ImGui::Spacing();
-        ImGui::ProgressBar(s.cullingRatioPercent / 100.0f, ImVec2(-1, 0), "");
-        ImGui::SameLine(); ImGui::Text("Culled: %.1f%%", s.cullingRatioPercent);
-        ImGui::Separator();
-        ImGui::Text("CPU Rasterize Time: %.1f us (%.3f ms)", s.rasterizeTimeUs, s.rasterizeTimeUs / 1000.0f);
-        ImGui::Text("CPU Query / Test:   %.1f us (%.3f ms)", s.queryTimeUs, s.queryTimeUs / 1000.0f);
-        ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f), "Total Culling Time: %.1f us (%.3f ms)", s.totalCullingTimeUs, s.totalCullingTimeUs / 1000.0f);
-    }
-
-    if (ImGui::CollapsingHeader("Camera & Controls")) {
-        const Vector3 pos = renderSystem.m_camera.GetPosition();
-        ImGui::Text("Pos: (%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z);
-        if (ImGui::SliderFloat("Move Speed", &renderSystem.m_camera.moveSpeed, 5.0f, 50.0f)) {
-            ImGui::MarkIniSettingsDirty();
-        }
-        ImGui::Separator(); ImGui::TextDisabled("Controls:");
-        ImGui::BulletText("Right Mouse Button + Drag: Look around");
-        ImGui::BulletText("W / A / S / D: Move forward / left / back / right");
-        ImGui::BulletText("E / Q: Move Up / Down");
-        ImGui::BulletText("Left Shift: Sprint (2.5x speed)");
-    }
-    ImGui::End();
-}
-
-void ImGuiSystem::RenderDepthPreview(RenderSystem& renderSystem) {
-    ImGui::SetNextWindowPos(ImVec2(static_cast<float>(renderSystem.GetWidth()) - 460.0f, 10.0f), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(450, 350), ImGuiCond_FirstUseEver);
-    ImGui::Begin("Software Depth Buffer Viewport");
-    ImGui::Text("Resolution: %ux%u", renderSystem.m_depthPreviewWidth, renderSystem.m_depthPreviewHeight);
-    ImGui::SameLine();
-    if (ImGui::Checkbox("False Color (Heatmap)", &renderSystem.m_depthPreviewFalseColor)) {
-        ImGui::MarkIniSettingsDirty();
-    }
-    if (auto* texture = renderSystem.m_pDepthPreviewSRV) {
-        const float aspect = static_cast<float>(renderSystem.m_depthPreviewWidth) / renderSystem.m_depthPreviewHeight;
-        const float width = ImGui::GetContentRegionAvail().x;
-        const float height = width / aspect;
-        const ImVec2 imagePos = ImGui::GetCursorScreenPos();
-        ImGui::Image(reinterpret_cast<ImTextureID>(texture), ImVec2(width, height));
-        if (ImGui::IsItemHovered()) {
-            const ImVec2 mouse = ImGui::GetMousePos();
-            const uint32_t px = static_cast<uint32_t>(((mouse.x - imagePos.x) / width) * renderSystem.m_depthPreviewWidth);
-            const uint32_t py = static_cast<uint32_t>(((mouse.y - imagePos.y) / height) * renderSystem.m_depthPreviewHeight);
-            if (px < renderSystem.m_depthPreviewWidth && py < renderSystem.m_depthPreviewHeight) {
-                ImGui::BeginTooltip();
-                ImGui::Text("Pixel: (%u, %u)", px, py);
-                ImGui::Text("Normalized Depth: %.4f", renderSystem.m_cullingSystem.GetDepthBuffer().GetDepth(px, py));
-                ImGui::EndTooltip();
-            }
-        }
-    }
-    ImGui::End();
-}
-
 void ImGuiSystem::Render(RenderSystem& renderSystem, const FrameStats& stats) {
     if (!m_initialized) return;
-    RenderDockspace();
-    RenderEngineViewport(renderSystem);
-    RenderControls(renderSystem, stats);
-    RenderDepthPreview(renderSystem);
+
+    m_dockSpace.Render(m_windows);
+    for (const auto& window : m_windows) {
+        if (window && window->IsVisible()) {
+            window->Render(renderSystem, stats);
+        }
+    }
 
     auto* context = renderSystem.GetDeviceContext();
     auto* swapChain = renderSystem.GetSwapChain();
@@ -493,6 +359,8 @@ void ImGuiSystem::Shutdown() {
     }
     if (m_imGui) ImGui::DestroyPlatformWindows();
     m_imGui.reset();
+    m_windows.clear();
+    m_socLabWindow = nullptr;
     m_renderSystem = nullptr;
     m_initialized = false;
 }

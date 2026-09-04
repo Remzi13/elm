@@ -2,17 +2,23 @@
 
 #include "core/Error.hpp"
 #include "graphics/RenderSystem.hpp"
+#include "graphics/ui/DockSpaceView.hpp"
+#include "graphics/ui/IImGuiWindow.hpp"
 #include "imgui.h"
 
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Diligent {
 class ImGuiImplDiligentViewport;
 }
 
 namespace Engine {
+
+class SocLabWindow;
 
 class ImGuiSystem {
 public:
@@ -27,11 +33,19 @@ public:
     void Render(RenderSystem& renderSystem, const FrameStats& stats);
     void Shutdown();
 
-private:
-    void RenderDockspace();
-    void RenderEngineViewport(RenderSystem& renderSystem);
-    void RenderControls(RenderSystem& renderSystem, const FrameStats& stats);
-    void RenderDepthPreview(RenderSystem& renderSystem);
+    // Window management
+    void AddWindow(std::unique_ptr<IImGuiWindow> window);
+    [[nodiscard]] std::span<const std::unique_ptr<IImGuiWindow>> GetWindows() const noexcept { return m_windows; }
+
+    template <typename T>
+    [[nodiscard]] T* GetWindow() const {
+        for (const auto& window : m_windows) {
+            if (auto* ptr = dynamic_cast<T*>(window.get())) {
+                return ptr;
+            }
+        }
+        return nullptr;
+    }
 
 private:
     static void CreateViewport(ImGuiViewport* viewport);
@@ -59,10 +73,13 @@ private:
     RenderSystem* m_renderSystem{nullptr};
     bool m_initialized{false};
     bool m_glfwInitialized{false};
-    int m_currentResolution{2};
     std::string m_title;
     std::string m_iniFilePath;
     SavedLabSettings m_savedSettings;
+
+    DockSpaceView m_dockSpace;
+    std::vector<std::unique_ptr<IImGuiWindow>> m_windows;
+    SocLabWindow* m_socLabWindow{nullptr};
 };
 
 } // namespace Engine

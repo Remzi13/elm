@@ -74,13 +74,22 @@ public:
     [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
     [[nodiscard]] uint32_t GetWidth() const { return m_width; }
     [[nodiscard]] uint32_t GetHeight() const { return m_height; }
+    [[nodiscard]] ScenePreset GetCurrentPreset() const { return m_currentPreset; }
+    void SetCurrentPreset(ScenePreset preset) { m_currentPreset = preset; }
+    [[nodiscard]] int GetTargetInstanceCount() const { return m_targetInstanceCount; }
+    void SetTargetInstanceCount(int count) { m_targetInstanceCount = count; }
+    [[nodiscard]] bool IsDepthPreviewFalseColor() const { return m_depthPreviewFalseColor; }
+    void SetDepthPreviewFalseColor(bool falseColor) { m_depthPreviewFalseColor = falseColor; }
+    [[nodiscard]] Diligent::ITextureView* GetDepthPreviewSRV() const { return m_pDepthPreviewSRV; }
+    [[nodiscard]] uint32_t GetDepthPreviewWidth() const { return m_depthPreviewWidth; }
+    [[nodiscard]] uint32_t GetDepthPreviewHeight() const { return m_depthPreviewHeight; }
+    void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
     void RebuildScene();
 
 private:
     void InitPipeline();
     void CreateMeshBuffers();
     void CreateInstanceBuffer();
-    void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
     void CreateEngineViewport(uint32_t width, uint32_t height);
     void UpdateDepthPreviewTexture();
 

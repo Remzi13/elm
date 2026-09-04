@@ -6,6 +6,10 @@ engine_add_library(graphics
     CameraController.cpp
     culling/SoftwareDepthBuffer.cpp
     culling/OcclusionCullingSystem.cpp    
+    ui/DockSpaceView.cpp
+    ui/EngineViewportWindow.cpp
+    ui/SocLabWindow.cpp
+    ui/DepthPreviewWindow.cpp
     ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp
 )
 
