@@ -1,5 +1,6 @@
 build/
 .vs/
+imgui.ini
 
 third_party/*-src/
 third_party/*-build/

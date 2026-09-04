@@ -3,6 +3,11 @@
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <cstring>
+#include <filesystem>
+
+#include "imgui_internal.h"
 
 #if PLATFORM_WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -70,6 +75,108 @@ auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> En
         ImGuiConfigFlags_DpiEnableScaleViewports | ImGuiConfigFlags_DpiEnableScaleFonts;
     io.ConfigViewportsNoAutoMerge = false;
     io.UserData = this;
+
+    const std::filesystem::path sourceRoot =
+        std::filesystem::path{ __FILE__ }.parent_path().parent_path().parent_path();
+    if (std::filesystem::exists(sourceRoot / "CMakeLists.txt")) {
+        m_iniFilePath = (sourceRoot / "imgui.ini").string();
+    } else {
+        m_iniFilePath = "imgui.ini";
+    }
+    io.IniFilename = m_iniFilePath.c_str();
+
+    ImGuiSettingsHandler iniHandler;
+    iniHandler.TypeName = "LabSettings";
+    iniHandler.TypeHash = ImHashStr("LabSettings");
+    iniHandler.UserData = this;
+    iniHandler.ClearAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler) {
+        auto* self = static_cast<ImGuiSystem*>(handler->UserData);
+        if (self) self->m_savedSettings = {};
+    };
+    iniHandler.ReadInitFn = [](ImGuiContext*, ImGuiSettingsHandler* handler) {
+        auto* self = static_cast<ImGuiSystem*>(handler->UserData);
+        if (self) self->m_savedSettings = {};
+    };
+    iniHandler.ReadOpenFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, const char* name) -> void* {
+        if (std::strcmp(name, "State") == 0) {
+            return handler->UserData;
+        }
+        return nullptr;
+    };
+    iniHandler.ReadLineFn = [](ImGuiContext*, ImGuiSettingsHandler*, void* entry, const char* line) {
+        auto* self = static_cast<ImGuiSystem*>(entry);
+        if (!self) return;
+        int val = 0;
+        float fval = 0.0f;
+        if (std::sscanf(line, "Preset=%d", &val) == 1) {
+            self->m_savedSettings.preset = val;
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "Instances=%d", &val) == 1) {
+            self->m_savedSettings.instanceCount = val;
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "FrustumCulling=%d", &val) == 1) {
+            self->m_savedSettings.enableFrustum = (val != 0);
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "OcclusionCulling=%d", &val) == 1) {
+            self->m_savedSettings.enableOcclusion = (val != 0);
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "DepthBias=%f", &fval) == 1) {
+            self->m_savedSettings.depthBias = fval;
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "SOCResolution=%d", &val) == 1) {
+            self->m_savedSettings.resolution = val;
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "VisualMode=%d", &val) == 1) {
+            self->m_savedSettings.visualMode = val;
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "DepthFalseColor=%d", &val) == 1) {
+            self->m_savedSettings.depthFalseColor = (val != 0);
+            self->m_savedSettings.hasLoaded = true;
+        } else if (std::sscanf(line, "MoveSpeed=%f", &fval) == 1) {
+            self->m_savedSettings.moveSpeed = fval;
+            self->m_savedSettings.hasLoaded = true;
+        }
+    };
+    iniHandler.ApplyAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler) {
+        auto* self = static_cast<ImGuiSystem*>(handler->UserData);
+        if (!self || !self->m_savedSettings.hasLoaded || !self->m_renderSystem) return;
+        auto& rs = *self->m_renderSystem;
+        rs.m_currentPreset = static_cast<ScenePreset>(self->m_savedSettings.preset);
+        rs.m_targetInstanceCount = std::clamp(self->m_savedSettings.instanceCount, 100, 10000);
+        rs.m_cullingSystem.enableFrustumCulling = self->m_savedSettings.enableFrustum;
+        rs.m_cullingSystem.enableOcclusionCulling = self->m_savedSettings.enableOcclusion;
+        rs.m_cullingSystem.depthBias = self->m_savedSettings.depthBias;
+        self->m_currentResolution = std::clamp(self->m_savedSettings.resolution, 0, 4);
+        rs.m_cullingSystem.visualMode = static_cast<VisualMode>(self->m_savedSettings.visualMode);
+        rs.m_depthPreviewFalseColor = self->m_savedSettings.depthFalseColor;
+        rs.m_camera.moveSpeed = self->m_savedSettings.moveSpeed;
+
+        const uint32_t widths[] = {64, 128, 256, 320, 512};
+        const uint32_t heights[] = {36, 72, 144, 180, 288};
+        rs.m_cullingSystem.SetResolution(widths[self->m_currentResolution], heights[self->m_currentResolution]);
+        rs.CreateDepthPreviewTexture(widths[self->m_currentResolution], heights[self->m_currentResolution]);
+        rs.RebuildScene();
+    };
+    iniHandler.WriteAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
+        auto* self = static_cast<ImGuiSystem*>(handler->UserData);
+        if (!self || !self->m_renderSystem) return;
+        auto& rs = *self->m_renderSystem;
+        buf->append("[LabSettings][State]\n");
+        buf->appendf("Preset=%d\n", static_cast<int>(rs.m_currentPreset));
+        buf->appendf("Instances=%d\n", rs.m_targetInstanceCount);
+        buf->appendf("FrustumCulling=%d\n", rs.m_cullingSystem.enableFrustumCulling ? 1 : 0);
+        buf->appendf("OcclusionCulling=%d\n", rs.m_cullingSystem.enableOcclusionCulling ? 1 : 0);
+        buf->appendf("DepthBias=%.6f\n", rs.m_cullingSystem.depthBias);
+        buf->appendf("SOCResolution=%d\n", self->m_currentResolution);
+        buf->appendf("VisualMode=%d\n", static_cast<int>(rs.m_cullingSystem.visualMode));
+        buf->appendf("DepthFalseColor=%d\n", rs.m_depthPreviewFalseColor ? 1 : 0);
+        buf->appendf("MoveSpeed=%.2f\n", rs.m_camera.moveSpeed);
+        buf->append("\n");
+    };
+    ImGui::AddSettingsHandler(&iniHandler);
+
+    ImGui::LoadIniSettingsFromDisk(io.IniFilename);
+
     ImGui::StyleColorsDark();
     m_glfwInitialized = ImGui_ImplGlfw_InitForOther(m_window, true);
     if (!m_glfwInitialized) {
@@ -207,8 +314,8 @@ void ImGuiSystem::PresentViewport(ImGuiViewport* viewport, void*) {
 
 void ImGuiSystem::RenderDockspace() {
     const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(mainViewport->Pos);
-    ImGui::SetNextWindowSize(mainViewport->Size);
+    ImGui::SetNextWindowPos(mainViewport->WorkPos);
+    ImGui::SetNextWindowSize(mainViewport->WorkSize);
     ImGui::SetNextWindowViewport(mainViewport->ID);
 
     constexpr ImGuiWindowFlags flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar |
@@ -216,8 +323,9 @@ void ImGuiSystem::RenderDockspace() {
         ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::Begin("DockSpaceHost", nullptr, flags);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar(3);
     ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
     ImGui::End();
 }
@@ -252,35 +360,48 @@ void ImGuiSystem::RenderControls(RenderSystem& renderSystem, const FrameStats& s
         if (ImGui::Combo("Preset", &preset, presets, IM_ARRAYSIZE(presets))) {
             renderSystem.m_currentPreset = static_cast<ScenePreset>(preset);
             renderSystem.RebuildScene();
+            ImGui::MarkIniSettingsDirty();
         }
         if (ImGui::SliderInt("Instances", &renderSystem.m_targetInstanceCount, 100, 10000)) {
             renderSystem.RebuildScene();
+            ImGui::MarkIniSettingsDirty();
         }
     }
 
     if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
         auto& culling = renderSystem.m_cullingSystem;
-        ImGui::Checkbox("Enable Frustum Culling", &culling.enableFrustumCulling);
-        ImGui::Checkbox("Enable Software Occlusion Culling", &culling.enableOcclusionCulling);
+        if (ImGui::Checkbox("Enable Frustum Culling", &culling.enableFrustumCulling)) {
+            ImGui::MarkIniSettingsDirty();
+        }
+        if (ImGui::Checkbox("Enable Software Occlusion Culling", &culling.enableOcclusionCulling)) {
+            ImGui::MarkIniSettingsDirty();
+        }
         bool freeze = renderSystem.m_camera.IsCullingFrozen();
         if (ImGui::Checkbox("Freeze Culling Camera", &freeze)) renderSystem.m_camera.SetFreezeCulling(freeze);
         if (freeze) { ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "[FROZEN]"); }
-        ImGui::SliderFloat("Depth Bias", &culling.depthBias, 0.0f, 0.01f, "%.4f");
+        if (ImGui::SliderFloat("Depth Bias", &culling.depthBias, 0.0f, 0.01f, "%.4f")) {
+            ImGui::MarkIniSettingsDirty();
+        }
         const char* resolutions[] = {"64x36", "128x72", "256x144 (Recommended)", "320x180", "512x288"};
         if (ImGui::Combo("SOC Buffer Res", &m_currentResolution, resolutions, IM_ARRAYSIZE(resolutions))) {
             const uint32_t widths[] = {64, 128, 256, 320, 512};
             const uint32_t heights[] = {36, 72, 144, 180, 288};
             culling.SetResolution(widths[m_currentResolution], heights[m_currentResolution]);
             renderSystem.CreateDepthPreviewTexture(widths[m_currentResolution], heights[m_currentResolution]);
+            ImGui::MarkIniSettingsDirty();
         }
     }
 
     if (ImGui::CollapsingHeader("Visualization Modes", ImGuiTreeNodeFlags_DefaultOpen)) {
         int mode = static_cast<int>(renderSystem.m_cullingSystem.visualMode);
-        ImGui::RadioButton("Hide Culled (Draw Visible Only)", &mode, 0);
-        ImGui::RadioButton("Highlight Culled (Red Ghost)", &mode, 1);
-        ImGui::RadioButton("Occluders Only", &mode, 2);
-        renderSystem.m_cullingSystem.visualMode = static_cast<VisualMode>(mode);
+        bool modeChanged = false;
+        if (ImGui::RadioButton("Hide Culled (Draw Visible Only)", &mode, 0)) modeChanged = true;
+        if (ImGui::RadioButton("Highlight Culled (Red Ghost)", &mode, 1)) modeChanged = true;
+        if (ImGui::RadioButton("Occluders Only", &mode, 2)) modeChanged = true;
+        if (modeChanged) {
+            renderSystem.m_cullingSystem.visualMode = static_cast<VisualMode>(mode);
+            ImGui::MarkIniSettingsDirty();
+        }
     }
 
     if (ImGui::CollapsingHeader("Real-Time Telemetry", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -301,7 +422,9 @@ void ImGuiSystem::RenderControls(RenderSystem& renderSystem, const FrameStats& s
     if (ImGui::CollapsingHeader("Camera & Controls")) {
         const Vector3 pos = renderSystem.m_camera.GetPosition();
         ImGui::Text("Pos: (%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z);
-        ImGui::SliderFloat("Move Speed", &renderSystem.m_camera.moveSpeed, 5.0f, 50.0f);
+        if (ImGui::SliderFloat("Move Speed", &renderSystem.m_camera.moveSpeed, 5.0f, 50.0f)) {
+            ImGui::MarkIniSettingsDirty();
+        }
         ImGui::Separator(); ImGui::TextDisabled("Controls:");
         ImGui::BulletText("Right Mouse Button + Drag: Look around");
         ImGui::BulletText("W / A / S / D: Move forward / left / back / right");
@@ -316,7 +439,10 @@ void ImGuiSystem::RenderDepthPreview(RenderSystem& renderSystem) {
     ImGui::SetNextWindowSize(ImVec2(450, 350), ImGuiCond_FirstUseEver);
     ImGui::Begin("Software Depth Buffer Viewport");
     ImGui::Text("Resolution: %ux%u", renderSystem.m_depthPreviewWidth, renderSystem.m_depthPreviewHeight);
-    ImGui::SameLine(); ImGui::Checkbox("False Color (Heatmap)", &renderSystem.m_depthPreviewFalseColor);
+    ImGui::SameLine();
+    if (ImGui::Checkbox("False Color (Heatmap)", &renderSystem.m_depthPreviewFalseColor)) {
+        ImGui::MarkIniSettingsDirty();
+    }
     if (auto* texture = renderSystem.m_pDepthPreviewSRV) {
         const float aspect = static_cast<float>(renderSystem.m_depthPreviewWidth) / renderSystem.m_depthPreviewHeight;
         const float width = ImGui::GetContentRegionAvail().x;
@@ -355,6 +481,12 @@ void ImGuiSystem::Render(RenderSystem& renderSystem, const FrameStats& stats) {
 }
 
 void ImGuiSystem::Shutdown() {
+    if (m_initialized) {
+        const auto& io = ImGui::GetIO();
+        if (io.IniFilename != nullptr) {
+            ImGui::SaveIniSettingsToDisk(io.IniFilename);
+        }
+    }
     if (m_glfwInitialized) {
         ImGui_ImplGlfw_Shutdown();
         m_glfwInitialized = false;
