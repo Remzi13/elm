@@ -126,7 +126,7 @@ namespace elm {
 		Vector<InputEvent> m_allEvents;
 		Vector<InputEvent> m_unhandledEvents;
 
-		std::unique_ptr<struct InputSystemImpl> m_impl;
+		UniquePtr<struct InputSystemImpl> m_impl;
 	};
 
 } // namespace elm

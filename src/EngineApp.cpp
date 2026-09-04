@@ -6,10 +6,10 @@
 namespace elm  {
 
 	EngineApp::EngineApp()
-		: m_renderSystem(std::make_unique<RenderSystem>()),
-		m_imguiSystem(std::make_unique<ImGuiSystem>()),
-		m_physicsSystem(std::make_unique<PhysicsSystem>()),
-		m_inputSystem(std::make_unique<InputSystem>())
+		: m_renderSystem(MakeUnique<RenderSystem>()),
+		m_imguiSystem(MakeUnique<ImGuiSystem>()),
+		m_physicsSystem(MakeUnique<PhysicsSystem>()),
+		m_inputSystem(MakeUnique<InputSystem>())
 	{
 	}
 

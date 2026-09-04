@@ -199,7 +199,7 @@ namespace elm {
 		}
 	};
 
-	InputSystem::InputSystem() : m_impl(std::make_unique<InputSystemImpl>()) {
+	InputSystem::InputSystem() : m_impl(MakeUnique<InputSystemImpl>()) {
 		m_impl->rawEvents = &m_rawEvents;
 	}
 

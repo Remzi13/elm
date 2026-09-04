@@ -9,7 +9,7 @@ namespace elm  {
 
 class DockSpaceView {
 public:
-    void Render(std::span<const std::unique_ptr<IImGuiWindow>> windows);
+    void Render(std::span<const UniquePtr<IImGuiWindow>> windows);
 };
 
 } // namespace Engine

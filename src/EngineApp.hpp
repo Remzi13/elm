@@ -32,10 +32,10 @@ namespace elm {
 		void Render(float deltaTime);
 
 	private:
-		std::unique_ptr<RenderSystem> m_renderSystem;
-		std::unique_ptr<ImGuiSystem> m_imguiSystem;
-		std::unique_ptr<PhysicsSystem> m_physicsSystem;
-		std::unique_ptr<InputSystem> m_inputSystem;
+		UniquePtr<RenderSystem> m_renderSystem;
+		UniquePtr<ImGuiSystem> m_imguiSystem;
+		UniquePtr<PhysicsSystem> m_physicsSystem;
+		UniquePtr<InputSystem> m_inputSystem;
 
 		bool m_isRunning{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step
