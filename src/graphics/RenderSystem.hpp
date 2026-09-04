@@ -64,7 +64,7 @@ public:
     void Shutdown();
 
     [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
-    [[nodiscard]] Camera& GetCamera() { return m_camera; }
+    [[nodiscard]] elm::Camera& GetCamera() { return m_camera; }
     [[nodiscard]] OcclusionCullingSystem& GetCullingSystem() { return m_cullingSystem; }
     [[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
     [[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
@@ -133,8 +133,8 @@ private:
     bool m_engineViewportIsShaderResource{false};
 
     // Systems & Scenes
-    Camera m_camera;
-    CameraController m_cameraController;
+    elm::Camera m_camera;
+    elm::CameraController m_cameraController;
     OcclusionCullingSystem m_cullingSystem;
 
     ScenePreset m_currentPreset{ScenePreset::WallAndGrid};

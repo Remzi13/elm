@@ -1,48 +1,51 @@
 #pragma once
 
-#include "graphics/culling/MathTypes.hpp"
+#include "math/Vector.hpp"
+#include "math/Matrix.hpp"
 
-namespace Engine {
+namespace elm {
 
-class Camera {
-public:
-    Camera(const Vector3& position = {0.0f, 6.0f, -22.0f},
-           float yaw = 0.0f,
-           float pitch = -0.1f);
+	using namespace math;
 
-    void SetAspect(float aspect) noexcept { m_aspect = aspect; }
+	class Camera {
+	public:
+		Camera(const Vector3& position = { 0.0f, 6.0f, -22.0f },
+			float yaw = 0.0f,
+			float pitch = -0.1f);
 
-    void Rotate(float yawDelta, float pitchDelta) noexcept;
-    void Translate(const Vector3& offset) noexcept { m_position += offset; }
-    [[nodiscard]] Vector3 GetForwardDirection() const noexcept;
-    [[nodiscard]] Vector3 GetRightDirection() const noexcept;
+		void SetAspect(float aspect) noexcept { m_aspect = aspect; }
 
-    [[nodiscard]] Matrix4x4 GetViewMatrix() const noexcept;
-    [[nodiscard]] Matrix4x4 GetProjectionMatrix() const noexcept;
-    [[nodiscard]] Matrix4x4 GetViewProjectionMatrix() const noexcept;
+		void Rotate(float yawDelta, float pitchDelta) noexcept;
+		void Translate(const Vector3& offset) noexcept { m_position += offset; }
+		[[nodiscard]] Vector3 GetForwardDirection() const noexcept;
+		[[nodiscard]] Vector3 GetRightDirection() const noexcept;
 
-    // Freeze camera for culling inspection
-    void SetFreezeCulling(bool freeze) noexcept;
-    [[nodiscard]] bool IsCullingFrozen() const noexcept { return m_freezeCulling; }
-    [[nodiscard]] Matrix4x4 GetCullingViewProjection() const noexcept;
+		[[nodiscard]] Matrix4x4 GetViewMatrix() const noexcept;
+		[[nodiscard]] Matrix4x4 GetProjectionMatrix() const noexcept;
+		[[nodiscard]] Matrix4x4 GetViewProjectionMatrix() const noexcept;
 
-    [[nodiscard]] Vector3 GetPosition() const noexcept { return m_position; }
-    void SetPosition(const Vector3& pos) noexcept { m_position = pos; }
+		// Freeze camera for culling inspection
+		void SetFreezeCulling(bool freeze) noexcept;
+		[[nodiscard]] bool IsCullingFrozen() const noexcept { return m_freezeCulling; }
+		[[nodiscard]] Matrix4x4 GetCullingViewProjection() const noexcept;
 
-    float moveSpeed{15.0f};
-    float mouseSensitivity{0.003f};
-    float fovRadians{1.04719755f}; // 60 deg
-    float zNear{0.2f};
-    float zFar{500.0f};
+		[[nodiscard]] Vector3 GetPosition() const noexcept { return m_position; }
+		void SetPosition(const Vector3& pos) noexcept { m_position = pos; }
 
-private:
-    Vector3 m_position;
-    float m_yaw{0.0f};   // Radians
-    float m_pitch{0.0f}; // Radians
-    float m_aspect{16.0f / 9.0f};
+		float moveSpeed{ 15.0f };
+		float mouseSensitivity{ 0.003f };
+		float fovRadians{ 1.04719755f }; // 60 deg
+		float zNear{ 0.2f };
+		float zFar{ 500.0f };
 
-    bool m_freezeCulling{false};
-    Matrix4x4 m_frozenCullingViewProj{Matrix4x4::Identity()};
-};
+	private:
+		Vector3 m_position;
+		float m_yaw{ 0.0f };   // Radians
+		float m_pitch{ 0.0f }; // Radians
+		float m_aspect{ 16.0f / 9.0f };
+
+		bool m_freezeCulling{ false };
+		Matrix4x4 m_frozenCullingViewProj{ Matrix4x4::Identity() };
+	};
 
 } // namespace Engine

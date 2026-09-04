@@ -6,7 +6,7 @@
 #include <array>
 #include <vector>
 
-namespace Engine {
+namespace elm {
 
 class CameraController {
 public:

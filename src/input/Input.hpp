@@ -15,13 +15,13 @@ enum class InputEventType : uint8_t {
 	Scroll
 };
 
-enum class InputAction : int {
+enum class InputAction {
 	Release = 0,
 	Press = 1,
 	Repeat = 2
 };
 
-enum class InputKey : int {
+enum class InputKey {
 	A = 65,
 	D = 68,
 	E = 69,
@@ -37,9 +37,9 @@ enum class InputMouseButton : int {
 
 struct InputEvent {
 	InputEventType type{InputEventType::Key};
-	int key{-1};
+	InputKey key{-1};
 	int scancode{0};
-	int action{0};
+	InputAction action{0};
 	int modifiers{0};
 	int button{0};
 	unsigned int codepoint{0};
