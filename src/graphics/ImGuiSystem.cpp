@@ -63,7 +63,7 @@ auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> En
     Diligent::ImGuiDiligentCreateInfo createInfo;
     createInfo.pDevice = renderSystem.GetRenderDevice();
     createInfo.BackBufferFmt = swapChainDesc.ColorBufferFormat;
-    createInfo.DepthBufferFmt = swapChainDesc.DepthBufferFormat;
+    createInfo.DepthBufferFmt = Diligent::TEX_FORMAT_UNKNOWN;
     m_imGui = std::make_unique<Diligent::ImGuiImplDiligentViewport>(createInfo);
     auto& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable |
@@ -113,6 +113,7 @@ void ImGuiSystem::CreateViewport(ImGuiViewport* viewport) {
     glfwGetFramebufferSize(window, &framebufferWidth, &framebufferHeight);
     description.Width = static_cast<Diligent::Uint32>((std::max)(framebufferWidth, 1));
     description.Height = static_cast<Diligent::Uint32>((std::max)(framebufferHeight, 1));
+    description.DepthBufferFormat = Diligent::TEX_FORMAT_UNKNOWN;
 
     Diligent::ISwapChain* swapChain = nullptr;
 #if PLATFORM_WIN32
@@ -347,8 +348,7 @@ void ImGuiSystem::Render(RenderSystem& renderSystem, const FrameStats& stats) {
     auto* context = renderSystem.GetDeviceContext();
     auto* swapChain = renderSystem.GetSwapChain();
     auto* rtv = swapChain->GetCurrentBackBufferRTV();
-    auto* dsv = swapChain->GetDepthBufferDSV();
-    context->SetRenderTargets(1, &rtv, dsv, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    context->SetRenderTargets(1, &rtv, nullptr, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
     m_imGui->Render(context);
     ImGui::UpdatePlatformWindows();
     ImGui::RenderPlatformWindowsDefault(this, this);

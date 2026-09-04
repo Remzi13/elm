@@ -31,6 +31,25 @@ namespace Engine {
 			return std::unexpected(imguiInit.error());
 		}
 
+		// Register UI input consumer for keyboard focus (e.g. typing in text fields)
+		m_inputSystem->AddListener([](InputEvent& event) -> bool {
+			ImGuiIO& io = ImGui::GetIO();
+			if (event.type == InputEventType::Key || event.type == InputEventType::Character) {
+				if (io.WantCaptureKeyboard) {
+					return true;
+				}
+			}
+			return false;
+		}, static_cast<int32_t>(InputPriority::UI), "ImGuiKeyboardFilter");
+
+		// Register default AAA Action & Axis Mappings (Unreal Engine Enhanced Input style)
+		m_inputSystem->AddAxisMapping("MoveForward", Key::W, 1.0f);
+		m_inputSystem->AddAxisMapping("MoveForward", Key::S, -1.0f);
+		m_inputSystem->AddAxisMapping("MoveRight", Key::D, 1.0f);
+		m_inputSystem->AddAxisMapping("MoveRight", Key::A, -1.0f);
+		m_inputSystem->AddAxisMapping("MoveUp", Key::E, 1.0f);
+		m_inputSystem->AddAxisMapping("MoveUp", Key::Q, -1.0f);
+
 		// Initialize Physics System
 		auto physicsInit = m_physicsSystem->Init();
 		if (!physicsInit) {

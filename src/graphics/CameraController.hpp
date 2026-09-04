@@ -8,11 +8,17 @@
 
 namespace elm {
 
-class CameraController {
+class CameraController : public IInputSubscriber {
 public:
     explicit CameraController(Camera& camera) noexcept : m_camera(camera) {}
 
+    void Update(float deltaTime);
     void Update(float deltaTime, const std::vector<elm::InputEvent>& events);
+
+    // IInputSubscriber interface
+    bool OnKeyEvent(const KeyEvent& event) override;
+    bool OnMouseButtonEvent(const MouseButtonEvent& event) override;
+    bool OnMouseMoveEvent(const MouseMoveEvent& event) override;
 
 private:
     Camera& m_camera;
@@ -23,4 +29,4 @@ private:
     double m_lastMouseY{0.0};
 };
 
-} // namespace Engine
+} // namespace elm
