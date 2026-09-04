@@ -6,8 +6,6 @@
 #include "input/InputSubscriber.hpp"
 #include "input/InputAction.hpp"
 
-
-#include <memory>
 #include <utility>
 
 namespace elm {
@@ -112,15 +110,7 @@ namespace elm {
 		void AddAxisMapping(StringView axisName, Key key, float scale);
 		void BindAction(StringView actionName, ActionCallback callback);
 		[[nodiscard]] float GetAxisValue(StringView axisName) const;
-
-		// =========================================================================
-		// Event Accessors
-		// =========================================================================
-		/// Returns unconsumed events from the current frame (preserves backward compatibility)
-		[[nodiscard]] const Vector<InputEvent>& GetEvents() const noexcept { return m_unhandledEvents; }
-		[[nodiscard]] const Vector<InputEvent>& GetUnhandledEvents() const noexcept { return m_unhandledEvents; }
-		[[nodiscard]] const Vector<InputEvent>& GetAllEvents() const noexcept { return m_allEvents; }
-
+				
 	private:
 		Vector<InputEvent> m_rawEvents;
 		Vector<InputEvent> m_allEvents;

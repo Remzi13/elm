@@ -6,9 +6,6 @@
 #include "physics/PhysicsSystem.hpp"
 #include "input/Input.hpp"
 
-#include <memory>
-
-
 namespace elm {
 
 	class EngineApp {

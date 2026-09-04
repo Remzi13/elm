@@ -271,7 +271,9 @@ namespace elm {
 			m_impl->scrollDeltaX = 0.0;
 			m_impl->scrollDeltaY = 0.0;
 		}
-		m_rawEvents.clear();
+
+		// Do not clear m_rawEvents here: GLFW callbacks populate it during PollEvents()
+		// and Update() is the place that drains the queue for the current frame.
 		m_allEvents.clear();
 		m_unhandledEvents.clear();
 	}

@@ -26,6 +26,8 @@ namespace elm  {
 			return std::unexpected(renderInit.error());
 		}
 		m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
+		m_inputSystem->AddSubscriber(&m_renderSystem->GetCameraController(),
+			static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
 		auto imguiInit = m_imguiSystem->Init(*m_renderSystem, "Engine Debug UI");
 		if (!imguiInit) {
@@ -126,7 +128,7 @@ namespace elm  {
 
 		// Update camera and rendering inputs
 		if (m_renderSystem) {
-			m_renderSystem->Update(deltaTime, m_inputSystem->GetEvents());
+			m_renderSystem->Update(deltaTime);
 		}
 
 		// Query synchronized physics transforms for display/rendering
