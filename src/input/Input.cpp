@@ -29,7 +29,7 @@ namespace elm {
 		SubscriptionId id{ 0 };
 		int32_t priority{ 0 };
 		String name;
-		std::shared_ptr<IInputSubscriber> sharedSubscriber;
+		SharedPtr<IInputSubscriber> sharedSubscriber;
 		IInputSubscriber* rawSubscriber{ nullptr };
 		EventCallback callback;
 
@@ -69,8 +69,8 @@ namespace elm {
 		bool hasInitialMousePos{ false };
 
 		// Action & Axis contexts
-		std::shared_ptr<InputContext> defaultContext{ std::make_shared<InputContext>("Default") };
-		Vector<std::shared_ptr<InputContext>> contextStack;
+		SharedPtr<InputContext> defaultContext{ MakeShared<InputContext>("Default") };
+		Vector<SharedPtr<InputContext>> contextStack;
 
 		void Detach() {
 			if (window && glfwGetWindowUserPointer(window) == this) {
@@ -348,7 +348,7 @@ namespace elm {
 		m_rawEvents.clear();
 	}
 
-	SubscriptionId InputSystem::AddSubscriber(std::shared_ptr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
+	SubscriptionId InputSystem::AddSubscriber(SharedPtr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
 		if (!m_impl || !subscriber) return 0;
 		const SubscriptionId id = s_nextSubscriptionId.fetch_add(1, std::memory_order_relaxed);
 		RegisteredSubscriber sub;
@@ -387,7 +387,7 @@ namespace elm {
 		return id;
 	}
 
-	ScopedInputSubscription InputSystem::SubscribeScoped(std::shared_ptr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
+	ScopedInputSubscription InputSystem::SubscribeScoped(SharedPtr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
 		SubscriptionId id = AddSubscriber(std::move(subscriber), priority, name);
 		return ScopedInputSubscription(this, id);
 	}
@@ -482,7 +482,7 @@ namespace elm {
 	}
 
 	// Action & Axis contexts
-	void InputSystem::PushContext(std::shared_ptr<InputContext> context) {
+	void InputSystem::PushContext(SharedPtr<InputContext> context) {
 		if (m_impl && context) {
 			m_impl->contextStack.push_back(std::move(context));
 		}

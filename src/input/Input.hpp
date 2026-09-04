@@ -39,7 +39,7 @@ namespace elm {
 		 * propagation stops immediately and lower-priority subscribers will NOT receive it.
 		 */
 		SubscriptionId AddSubscriber(
-			std::shared_ptr<IInputSubscriber> subscriber,
+			SharedPtr<IInputSubscriber> subscriber,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
 			StringView name = "");
 
@@ -60,7 +60,7 @@ namespace elm {
 		 * @brief Helper to obtain an RAII subscription handle.
 		 */
 		[[nodiscard]] ScopedInputSubscription SubscribeScoped(
-			std::shared_ptr<IInputSubscriber> subscriber,
+			SharedPtr<IInputSubscriber> subscriber,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
 			StringView name = "");
 
@@ -103,7 +103,7 @@ namespace elm {
 		// =========================================================================
 		// Action & Axis Mapping (Unreal-style Enhanced Input)
 		// =========================================================================
-		void PushContext(std::shared_ptr<InputContext> context);
+		void PushContext(SharedPtr<InputContext> context);
 		void PopContext();
 		[[nodiscard]] InputContext& GetDefaultContext() noexcept;
 
