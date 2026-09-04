@@ -1,12 +1,14 @@
 #pragma once
 
+#include "core/Std.hpp"
+
 #include "input/InputTypes.hpp"
 #include "input/InputSubscriber.hpp"
 #include "input/InputAction.hpp"
 
+
 #include <memory>
 #include <vector>
-#include <string_view>
 #include <utility>
 
 namespace elm {
@@ -40,12 +42,12 @@ namespace elm {
 		SubscriptionId AddSubscriber(
 			std::shared_ptr<IInputSubscriber> subscriber,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
-			std::string_view name = "");
+			StringView name = "");
 
 		SubscriptionId AddSubscriber(
 			IInputSubscriber* subscriber,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
-			std::string_view name = "");
+			StringView name = "");
 
 		/**
 		 * @brief Registers a functional/lambda listener with priority.
@@ -53,7 +55,7 @@ namespace elm {
 		SubscriptionId AddListener(
 			EventCallback callback,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
-			std::string_view name = "");
+			StringView name = "");
 
 		/**
 		 * @brief Helper to obtain an RAII subscription handle.
@@ -61,17 +63,17 @@ namespace elm {
 		[[nodiscard]] ScopedInputSubscription SubscribeScoped(
 			std::shared_ptr<IInputSubscriber> subscriber,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
-			std::string_view name = "");
+			StringView name = "");
 
 		[[nodiscard]] ScopedInputSubscription SubscribeScoped(
 			IInputSubscriber* subscriber,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
-			std::string_view name = "");
+			StringView name = "");
 
 		[[nodiscard]] ScopedInputSubscription SubscribeScoped(
 			EventCallback callback,
 			int32_t priority = static_cast<int32_t>(InputPriority::Default),
-			std::string_view name = "");
+			StringView name = "");
 
 		void RemoveSubscriber(SubscriptionId id);
 		void RemoveSubscriber(IInputSubscriber* subscriber);
@@ -106,11 +108,11 @@ namespace elm {
 		void PopContext();
 		[[nodiscard]] InputContext& GetDefaultContext() noexcept;
 
-		void AddActionMapping(std::string_view actionName, Key key, KeyAction triggerAction = KeyAction::Press, KeyModifiers modifiers = KeyModifiers::None);
-		void AddActionMapping(std::string_view actionName, MouseButton button, KeyAction triggerAction = KeyAction::Press, KeyModifiers modifiers = KeyModifiers::None);
-		void AddAxisMapping(std::string_view axisName, Key key, float scale);
-		void BindAction(std::string_view actionName, ActionCallback callback);
-		[[nodiscard]] float GetAxisValue(std::string_view axisName) const;
+		void AddActionMapping(StringView actionName, Key key, KeyAction triggerAction = KeyAction::Press, KeyModifiers modifiers = KeyModifiers::None);
+		void AddActionMapping(StringView actionName, MouseButton button, KeyAction triggerAction = KeyAction::Press, KeyModifiers modifiers = KeyModifiers::None);
+		void AddAxisMapping(StringView axisName, Key key, float scale);
+		void BindAction(StringView actionName, ActionCallback callback);
+		[[nodiscard]] float GetAxisValue(StringView axisName) const;
 
 		// =========================================================================
 		// Event Accessors

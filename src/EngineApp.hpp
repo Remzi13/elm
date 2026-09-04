@@ -9,9 +9,7 @@
 #include <memory>
 
 
-namespace Engine {
-
-	using namespace elm;
+namespace elm {
 
 	class EngineApp {
 	public:
@@ -23,7 +21,7 @@ namespace Engine {
 		EngineApp(EngineApp&&) noexcept = delete;
 		EngineApp& operator=(EngineApp&&) noexcept = delete;
 
-		[[nodiscard]] auto Init(uint32_t width = 1280, uint32_t height = 720, std::string_view title = "C++23 3D Engine Core") -> EngineResult<void>;
+		[[nodiscard]] auto Init(uint32_t width = 1280, uint32_t height = 720, StringView title = "C++23 3D Engine Core") -> EngineResult<void>;
 
 		[[nodiscard]] auto Run() -> EngineResult<void>;
 		void Shutdown();
@@ -39,7 +37,7 @@ namespace Engine {
 		std::unique_ptr<PhysicsSystem> m_physicsSystem;
 		std::unique_ptr<InputSystem> m_inputSystem;
 
-			bool m_isRunning{ false };
+		bool m_isRunning{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step
 
 		// FPS counter statistics

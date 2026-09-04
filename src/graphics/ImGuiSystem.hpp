@@ -16,7 +16,7 @@ namespace Diligent {
 class ImGuiImplDiligentViewport;
 }
 
-namespace Engine {
+namespace elm  {
 
 class SocLabWindow;
 
@@ -28,7 +28,7 @@ public:
     ImGuiSystem(const ImGuiSystem&) = delete;
     ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
-    [[nodiscard]] auto Init(RenderSystem& renderSystem, std::string_view title) -> EngineResult<void>;
+    [[nodiscard]] auto Init(RenderSystem& renderSystem, StringView title) -> elm::EngineResult<void>;
     void BeginFrame(RenderSystem& renderSystem);
     void Render(RenderSystem& renderSystem, const FrameStats& stats);
     void Shutdown();

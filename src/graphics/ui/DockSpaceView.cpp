@@ -2,7 +2,7 @@
 
 #include "imgui.h"
 
-namespace Engine {
+namespace elm  {
 
 void DockSpaceView::Render(std::span<const std::unique_ptr<IImGuiWindow>> windows) {
     const ImGuiViewport* mainViewport = ImGui::GetMainViewport();

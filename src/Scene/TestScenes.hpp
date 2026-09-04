@@ -3,7 +3,7 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include <string>
 
-namespace Engine {
+namespace elm {
 
 enum class ScenePreset {
     WallAndGrid,

@@ -1,6 +1,6 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 
-namespace Engine {
+namespace elm  {
 
 OcclusionCullingSystem::OcclusionCullingSystem(uint32_t width, uint32_t height)
     : m_depthBuffer(width, height) {}

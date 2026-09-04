@@ -1,12 +1,14 @@
 #pragma once
 
+#include "core/Std.hpp"
+
 #include "graphics/ui/IImGuiWindow.hpp"
 
-namespace Engine {
+namespace elm  {
 
 class EngineViewportWindow final : public IImGuiWindow {
 public:
-    [[nodiscard]] std::string_view GetName() const override { return "Engine Viewport"; }
+    [[nodiscard]] StringView GetName() const override { return "Engine Viewport"; }
     void Render(RenderSystem& renderSystem, const FrameStats& stats) override;
 };
 

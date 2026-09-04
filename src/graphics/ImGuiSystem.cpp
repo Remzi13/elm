@@ -50,7 +50,7 @@ public:
 
 } // namespace Diligent
 
-namespace Engine {
+namespace elm  {
 
 struct ImGuiViewportRendererData {
     Diligent::RefCntAutoPtr<Diligent::ISwapChain> swapChain;
@@ -68,7 +68,7 @@ void ImGuiSystem::AddWindow(std::unique_ptr<IImGuiWindow> window) {
     }
 }
 
-auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> EngineResult<void> {
+auto ImGuiSystem::Init(RenderSystem& renderSystem, StringView title) -> elm::EngineResult<void> {
     m_window = renderSystem.GetWindowHandle();
     m_renderSystem = &renderSystem;
     m_title = title;
@@ -196,7 +196,7 @@ auto ImGuiSystem::Init(RenderSystem& renderSystem, std::string_view title) -> En
     m_glfwInitialized = ImGui_ImplGlfw_InitForOther(m_window, true);
     if (!m_glfwInitialized) {
         Shutdown();
-        return std::unexpected(EngineError(ErrorCode::UnknownError, "Failed to initialize ImGui GLFW backend"));
+        return std::unexpected(elm::EngineError(elm::ErrorCode::UnknownError, "Failed to initialize ImGui GLFW backend"));
     }
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
     auto& platformIO = ImGui::GetPlatformIO();

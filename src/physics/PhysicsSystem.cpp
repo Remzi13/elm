@@ -15,7 +15,7 @@
 #include <iostream>
 #include <thread>
 
-namespace Engine {
+namespace elm  {
 
 // BroadPhaseLayerInterface implementation
 class BPLayerInterfaceImpl final : public JPH::BroadPhaseLayerInterface {
@@ -84,7 +84,7 @@ PhysicsSystem::~PhysicsSystem() {
     Shutdown();
 }
 
-auto PhysicsSystem::Init() -> EngineResult<void> {
+auto PhysicsSystem::Init() -> elm::EngineResult<void> {
     if (m_initialized) {
         return {};
     }

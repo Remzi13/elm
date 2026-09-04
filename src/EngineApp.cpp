@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-namespace Engine {
+namespace elm  {
 
 	EngineApp::EngineApp()
 		: m_renderSystem(std::make_unique<RenderSystem>()),
@@ -16,7 +16,7 @@ namespace Engine {
 		Shutdown();
 	}
 
-	auto EngineApp::Init(uint32_t width, uint32_t height, std::string_view title) -> EngineResult<void> {
+	auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void> {
 		std::cout << "[EngineApp] Initializing 3D Engine Core (C++23)..." << std::endl;
 
 		// Initialize Render System

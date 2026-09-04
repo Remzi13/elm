@@ -1,11 +1,11 @@
 #pragma once
 
-#include <expected>
-#include <string>
-#include <string_view>
-#include <format>
+#include "core/Std.hpp"
 
-namespace Engine {
+#include <expected>
+#include <string_view>
+
+namespace elm {
 
 enum class ErrorCode {
     WindowInitializationFailed,
@@ -17,9 +17,9 @@ enum class ErrorCode {
 
 struct EngineError {
     ErrorCode code{ErrorCode::UnknownError};
-    std::string message;
+    String message;
 
-    explicit EngineError(ErrorCode c, std::string_view msg = "")
+    explicit EngineError(ErrorCode c, StringView msg = "")
         : code(c), message(msg) {}
 };
 

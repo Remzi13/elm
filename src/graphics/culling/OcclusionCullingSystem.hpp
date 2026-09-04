@@ -6,7 +6,7 @@
 #include <vector>
 #include <chrono>
 
-namespace Engine {
+namespace elm  {
 
 enum class VisualMode {
     HideCulled,

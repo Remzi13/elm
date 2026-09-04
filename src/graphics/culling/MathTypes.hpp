@@ -3,7 +3,7 @@
 #include "math/Vector.hpp"
 #include "math/Matrix.hpp"
 
-namespace Engine {
+namespace elm  {
 
 	using namespace math;
 	struct Quaternion {

@@ -5,7 +5,7 @@
 #include <memory>
 #include <span>
 
-namespace Engine {
+namespace elm  {
 
 class DockSpaceView {
 public:

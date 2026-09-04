@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace Engine {
+namespace elm  {
 
 struct Vertex {
     Vector3 position;

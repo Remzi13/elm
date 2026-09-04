@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <algorithm>
 
-namespace Engine {
+namespace elm  {
 
 class SoftwareDepthBuffer {
 public:

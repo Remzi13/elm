@@ -28,7 +28,7 @@ namespace elm {
 	struct RegisteredSubscriber {
 		SubscriptionId id{ 0 };
 		int32_t priority{ 0 };
-		std::string name;
+		String name;
 		std::shared_ptr<IInputSubscriber> sharedSubscriber;
 		IInputSubscriber* rawSubscriber{ nullptr };
 		EventCallback callback;
@@ -348,56 +348,56 @@ namespace elm {
 		m_rawEvents.clear();
 	}
 
-	SubscriptionId InputSystem::AddSubscriber(std::shared_ptr<IInputSubscriber> subscriber, int32_t priority, std::string_view name) {
+	SubscriptionId InputSystem::AddSubscriber(std::shared_ptr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
 		if (!m_impl || !subscriber) return 0;
 		const SubscriptionId id = s_nextSubscriptionId.fetch_add(1, std::memory_order_relaxed);
 		RegisteredSubscriber sub;
 		sub.id = id;
 		sub.priority = priority;
-		sub.name = std::string(name);
+		sub.name = String(name);
 		sub.sharedSubscriber = std::move(subscriber);
 		m_impl->subscribers.push_back(std::move(sub));
 		m_impl->SortSubscribers();
 		return id;
 	}
 
-	SubscriptionId InputSystem::AddSubscriber(IInputSubscriber* subscriber, int32_t priority, std::string_view name) {
+	SubscriptionId InputSystem::AddSubscriber(IInputSubscriber* subscriber, int32_t priority, StringView name) {
 		if (!m_impl || !subscriber) return 0;
 		const SubscriptionId id = s_nextSubscriptionId.fetch_add(1, std::memory_order_relaxed);
 		RegisteredSubscriber sub;
 		sub.id = id;
 		sub.priority = priority;
-		sub.name = std::string(name);
+		sub.name = String(name);
 		sub.rawSubscriber = subscriber;
 		m_impl->subscribers.push_back(std::move(sub));
 		m_impl->SortSubscribers();
 		return id;
 	}
 
-	SubscriptionId InputSystem::AddListener(EventCallback callback, int32_t priority, std::string_view name) {
+	SubscriptionId InputSystem::AddListener(EventCallback callback, int32_t priority, StringView name) {
 		if (!m_impl || !callback) return 0;
 		const SubscriptionId id = s_nextSubscriptionId.fetch_add(1, std::memory_order_relaxed);
 		RegisteredSubscriber sub;
 		sub.id = id;
 		sub.priority = priority;
-		sub.name = std::string(name);
+		sub.name = String(name);
 		sub.callback = std::move(callback);
 		m_impl->subscribers.push_back(std::move(sub));
 		m_impl->SortSubscribers();
 		return id;
 	}
 
-	ScopedInputSubscription InputSystem::SubscribeScoped(std::shared_ptr<IInputSubscriber> subscriber, int32_t priority, std::string_view name) {
+	ScopedInputSubscription InputSystem::SubscribeScoped(std::shared_ptr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
 		SubscriptionId id = AddSubscriber(std::move(subscriber), priority, name);
 		return ScopedInputSubscription(this, id);
 	}
 
-	ScopedInputSubscription InputSystem::SubscribeScoped(IInputSubscriber* subscriber, int32_t priority, std::string_view name) {
+	ScopedInputSubscription InputSystem::SubscribeScoped(IInputSubscriber* subscriber, int32_t priority, StringView name) {
 		SubscriptionId id = AddSubscriber(subscriber, priority, name);
 		return ScopedInputSubscription(this, id);
 	}
 
-	ScopedInputSubscription InputSystem::SubscribeScoped(EventCallback callback, int32_t priority, std::string_view name) {
+	ScopedInputSubscription InputSystem::SubscribeScoped(EventCallback callback, int32_t priority, StringView name) {
 		SubscriptionId id = AddListener(std::move(callback), priority, name);
 		return ScopedInputSubscription(this, id);
 	}
@@ -498,37 +498,37 @@ namespace elm {
 		return *m_impl->defaultContext;
 	}
 
-	void InputSystem::AddActionMapping(std::string_view actionName, Key key, KeyAction triggerAction, KeyModifiers modifiers) {
+	void InputSystem::AddActionMapping(StringView actionName, Key key, KeyAction triggerAction, KeyModifiers modifiers) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->AddActionMapping(actionName, key, triggerAction, modifiers);
 		}
 	}
 
-	void InputSystem::AddActionMapping(std::string_view actionName, MouseButton button, KeyAction triggerAction, KeyModifiers modifiers) {
+	void InputSystem::AddActionMapping(StringView actionName, MouseButton button, KeyAction triggerAction, KeyModifiers modifiers) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->AddActionMapping(actionName, button, triggerAction, modifiers);
 		}
 	}
 
-	void InputSystem::AddAxisMapping(std::string_view axisName, Key key, float scale) {
+	void InputSystem::AddAxisMapping(StringView axisName, Key key, float scale) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->AddAxisMapping(axisName, key, scale);
 		}
 	}
 
-	void InputSystem::BindAction(std::string_view actionName, ActionCallback callback) {
+	void InputSystem::BindAction(StringView actionName, ActionCallback callback) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->BindAction(actionName, std::move(callback));
 		}
 	}
 
-	float InputSystem::GetAxisValue(std::string_view axisName) const {
+	float InputSystem::GetAxisValue(StringView axisName) const {
 		if (!m_impl) return 0.0f;
 
 		auto evaluateContext = [this, axisName](const InputContext& ctx) -> std::pair<bool, float> {
 			if (!ctx.IsActive()) return { false, 0.0f };
 			const auto& axes = ctx.GetAxes();
-			auto it = axes.find(std::string(axisName));
+			auto it = axes.find(String(axisName));
 			if (it == axes.end()) return { false, 0.0f };
 
 			float val = 0.0f;

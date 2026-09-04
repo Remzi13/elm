@@ -26,7 +26,7 @@ namespace Diligent {
     class ITextureView;
 }
 
-namespace Engine {
+namespace elm {
 
 struct FrameStats {
     float fps{0.0f};
@@ -52,12 +52,12 @@ public:
     RenderSystem(RenderSystem&&) noexcept = delete;
     RenderSystem& operator=(RenderSystem&&) noexcept = delete;
 
-    [[nodiscard]] auto Init(uint32_t width, uint32_t height, std::string_view title) -> EngineResult<void>;
+    [[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
     
     [[nodiscard]] bool ShouldClose() const;
     void PollEvents();
 
-    void Update(float deltaTime, const std::vector<elm::InputEvent>& events);
+    void Update(float deltaTime, const std::vector<InputEvent>& events);
     void BeginFrame();
     void RenderScene();
     void EndFrame();

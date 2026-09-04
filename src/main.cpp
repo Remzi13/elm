@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
     std::cout << " Diligent Engine | Jolt Physics | Dear ImGui " << std::endl;
     std::cout << "==================================================" << std::endl;
 
-    Engine::EngineApp app;
+    elm::EngineApp app;
 
     // Initialize application using C++23 std::expected error checking
     const auto initResult = app.Init(1280, 720, "C++23 3D Engine - Diligent Engine & Jolt Physics");

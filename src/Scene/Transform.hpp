@@ -12,7 +12,7 @@ namespace JPH {
 
 #include "graphics/culling/MathTypes.hpp"
 
-namespace Engine {
+namespace elm  {
 
 class Transform {
 public:

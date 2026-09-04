@@ -1,7 +1,7 @@
 #include "Scene/TestScenes.hpp"
 #include <cmath>
 
-namespace Engine {
+namespace elm  {
 
 	namespace {
 

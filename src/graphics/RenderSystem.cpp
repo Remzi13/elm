@@ -34,11 +34,11 @@
 #endif
 #include <GLFW/glfw3native.h>
 
-namespace Engine {
+namespace elm {
 
 	// Shaders are loaded from shaders/ at runtime. This keeps shader editing independent
 	// from the executable and also allows the same source to be replaced without a rebuild.
-	static std::string LoadShaderSource( const char* fileName ) {
+	static String LoadShaderSource( const char* fileName ) {
 		const std::filesystem::path sourceRoot =
 			std::filesystem::path{ __FILE__ }.parent_path().parent_path().parent_path();
 		const std::filesystem::path paths[] = {
@@ -54,7 +54,7 @@ namespace Engine {
 			const auto size = file.tellg();
 			if ( size <= 0 || !file.seekg( 0 ) ) continue;
 
-			std::string source( static_cast<size_t>( size ), '\0' );
+			String source( static_cast<size_t>( size ), '\0' );
 			if ( file.read( source.data(), size ) ) {
 				std::cout << "[RenderSystem] Loaded shader: " << path << std::endl;
 				return source;
@@ -73,7 +73,7 @@ namespace Engine {
 		Shutdown();
 	}
 
-	auto RenderSystem::Init( uint32_t width, uint32_t height, std::string_view title ) -> EngineResult<void> {
+	auto RenderSystem::Init( uint32_t width, uint32_t height, StringView title ) -> elm::EngineResult<void> {
 		if ( m_initialized ) {
 			return {};
 		}
@@ -85,7 +85,7 @@ namespace Engine {
 		SetProcessDpiAwarenessContext( DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 );
 #endif
 		if ( !glfwInit() ) {
-			return std::unexpected( EngineError( ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW" ) );
+			return std::unexpected( elm::EngineError(elm::ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW" ) );
 		}
 
 		glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
@@ -94,13 +94,13 @@ namespace Engine {
 		m_window = glfwCreateWindow( static_cast<int>( width ), static_cast<int>( height ), title.data(), nullptr, nullptr );
 		if ( !m_window ) {
 			glfwTerminate();
-			return std::unexpected( EngineError( ErrorCode::WindowInitializationFailed, "Failed to create GLFW window" ) );
+			return std::unexpected( elm::EngineError(elm::ErrorCode::WindowInitializationFailed, "Failed to create GLFW window" ) );
 		}
 
 #if PLATFORM_WIN32
 		auto* pFactory = Diligent::GetEngineFactoryD3D12();
 		if ( !pFactory ) {
-			return std::unexpected( EngineError( ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryD3D12" ) );
+			return std::unexpected(elm::EngineError(elm::ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryD3D12" ) );
 		}
 
 		Diligent::EngineD3D12CreateInfo engineCreateInfo;
@@ -119,7 +119,7 @@ namespace Engine {
 #endif
 
 		if ( !m_renderDevice || !m_deviceContext ) {
-			return std::unexpected( EngineError( ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts" ) );
+			return std::unexpected(elm::EngineError(elm::ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts" ) );
 		}
 
 		Diligent::SwapChainDesc swapChainDesc;
@@ -145,7 +145,7 @@ namespace Engine {
 #endif
 
 		if ( !m_swapChain ) {
-			return std::unexpected( EngineError( ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain" ) );
+			return std::unexpected(elm::EngineError(elm::ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain" ) );
 		}
 
 		const auto& SCDesc = m_swapChain->GetDesc();
@@ -179,9 +179,9 @@ namespace Engine {
 		Diligent::ShaderCreateInfo ShaderCI;
 		ShaderCI.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
 
-		const std::string VSSource = LoadShaderSource( "mesh.vert.hlsl" );
-		const std::string PSSource = LoadShaderSource( "mesh.frag.hlsl" );
-		const std::string PSHighlightSource = LoadShaderSource( "highlight.frag.hlsl" );
+		const String VSSource = LoadShaderSource( "mesh.vert.hlsl" );
+		const String PSSource = LoadShaderSource( "mesh.frag.hlsl" );
+		const String PSHighlightSource = LoadShaderSource( "highlight.frag.hlsl" );
 		if ( VSSource.empty() || PSSource.empty() || PSHighlightSource.empty() ) {
 			std::cerr << "[RenderSystem] Pipeline creation aborted: shader source is missing." << std::endl;
 			return;

@@ -4,7 +4,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace Engine {
+namespace elm  {
 
 SoftwareDepthBuffer::SoftwareDepthBuffer(uint32_t width, uint32_t height)
     : m_width(width), m_height(height), m_depthBuffer(static_cast<size_t>(width) * static_cast<size_t>(height), 1.0f) {}

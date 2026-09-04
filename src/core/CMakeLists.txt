@@ -1,4 +1,7 @@
 engine_add_library(core
+    Std.hpp
+    Memory.hpp
+    Memory.cpp
     Log.hpp
     Log.cpp
     Error.cpp

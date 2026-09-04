@@ -18,7 +18,7 @@ namespace JPH {
     class ObjectLayerPairFilter;
 }
 
-namespace Engine {
+namespace elm  {
 
 // Object Layers
 namespace Layers {
@@ -44,7 +44,7 @@ public:
     PhysicsSystem(PhysicsSystem&&) noexcept = delete;
     PhysicsSystem& operator=(PhysicsSystem&&) noexcept = delete;
 
-    [[nodiscard]] auto Init() -> EngineResult<void>;
+    [[nodiscard]] auto Init() -> elm::EngineResult<void>;
     void Step(float deltaTime);
     void Shutdown();
 
