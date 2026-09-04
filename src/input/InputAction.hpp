@@ -4,9 +4,7 @@
 
 #include <functional>
 #include <string>
-#include <string_view>
 #include <unordered_map>
-#include <vector>
 
 namespace elm {
 
@@ -31,14 +29,14 @@ namespace elm {
 
 	struct ActionBinding {
 		String name;
-		std::vector<ActionKeyMapping> keyMappings;
-		std::vector<ActionMouseButtonMapping> mouseMappings;
-		std::vector<ActionCallback> callbacks;
+		Vector<ActionKeyMapping> keyMappings;
+		Vector<ActionMouseButtonMapping> mouseMappings;
+		Vector<ActionCallback> callbacks;
 	};
 
 	struct AxisBinding {
 		String name;
-		std::vector<AxisKeyMapping> keyMappings;
+		Vector<AxisKeyMapping> keyMappings;
 	};
 
 	class InputContext {

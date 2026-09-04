@@ -1,5 +1,6 @@
 #include "EngineApp.hpp"
 
+#include <chrono>
 #include <iostream>
 
 namespace elm  {

@@ -9,10 +9,6 @@
 #include "Scene/TestScenes.hpp"
 #include "input/Input.hpp"
 
-#include <memory>
-#include <string_view>
-#include <vector>
-
 struct GLFWwindow;
 
 namespace Diligent {
@@ -57,7 +53,7 @@ public:
     [[nodiscard]] bool ShouldClose() const;
     void PollEvents();
 
-    void Update(float deltaTime, const std::vector<InputEvent>& events);
+    void Update(float deltaTime, const Vector<InputEvent>& events);
     void BeginFrame();
     void RenderScene();
     void EndFrame();
@@ -129,7 +125,7 @@ private:
     Diligent::ITextureView* m_pDepthPreviewSRV{nullptr};
     uint32_t m_depthPreviewWidth{256};
     uint32_t m_depthPreviewHeight{144};
-    std::vector<uint32_t> m_depthPreviewPixels;
+    Vector<uint32_t> m_depthPreviewPixels;
     bool m_depthPreviewFalseColor{true};
 
     // Offscreen render target displayed inside the dockspace.
@@ -149,10 +145,10 @@ private:
     ScenePreset m_currentPreset{ScenePreset::WallAndGrid};
     int m_targetInstanceCount{1500};
 
-    std::vector<OccluderInstance> m_occluders;
-    std::vector<OccludeeInstance> m_occludees;
-    std::vector<GpuInstanceData> m_visibleGpuInstances;
-    std::vector<GpuInstanceData> m_culledGpuInstances;
+    Vector<OccluderInstance> m_occluders;
+    Vector<OccludeeInstance> m_occludees;
+    Vector<GpuInstanceData> m_visibleGpuInstances;
+    Vector<GpuInstanceData> m_culledGpuInstances;
 
     uint32_t m_width{1280};
     uint32_t m_height{720};

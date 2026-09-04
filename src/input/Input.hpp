@@ -8,7 +8,6 @@
 
 
 #include <memory>
-#include <vector>
 #include <utility>
 
 namespace elm {
@@ -118,14 +117,14 @@ namespace elm {
 		// Event Accessors
 		// =========================================================================
 		/// Returns unconsumed events from the current frame (preserves backward compatibility)
-		[[nodiscard]] const std::vector<InputEvent>& GetEvents() const noexcept { return m_unhandledEvents; }
-		[[nodiscard]] const std::vector<InputEvent>& GetUnhandledEvents() const noexcept { return m_unhandledEvents; }
-		[[nodiscard]] const std::vector<InputEvent>& GetAllEvents() const noexcept { return m_allEvents; }
+		[[nodiscard]] const Vector<InputEvent>& GetEvents() const noexcept { return m_unhandledEvents; }
+		[[nodiscard]] const Vector<InputEvent>& GetUnhandledEvents() const noexcept { return m_unhandledEvents; }
+		[[nodiscard]] const Vector<InputEvent>& GetAllEvents() const noexcept { return m_allEvents; }
 
 	private:
-		std::vector<InputEvent> m_rawEvents;
-		std::vector<InputEvent> m_allEvents;
-		std::vector<InputEvent> m_unhandledEvents;
+		Vector<InputEvent> m_rawEvents;
+		Vector<InputEvent> m_allEvents;
+		Vector<InputEvent> m_unhandledEvents;
 
 		std::unique_ptr<struct InputSystemImpl> m_impl;
 	};

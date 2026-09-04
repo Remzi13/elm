@@ -1,10 +1,11 @@
 #pragma once
 
+#include "core/Std.hpp"
+
 #include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
 #include "graphics/GeometryPrimitives.hpp"
-#include <vector>
-#include <chrono>
+
 
 namespace elm  {
 
@@ -47,8 +48,8 @@ public:
 
     void SetResolution(uint32_t width, uint32_t height);
 
-    void ExecuteCulling(const std::vector<OccluderInstance>& occluders,
-                        std::vector<OccludeeInstance>& occludees,
+    void ExecuteCulling(const Vector<OccluderInstance>& occluders,
+                        Vector<OccludeeInstance>& occludees,
                         const Matrix4x4& cullingViewProj);
 
     [[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }

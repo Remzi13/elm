@@ -78,7 +78,7 @@ private:
     SavedLabSettings m_savedSettings;
 
     DockSpaceView m_dockSpace;
-    std::vector<std::unique_ptr<IImGuiWindow>> m_windows;
+    Vector<std::unique_ptr<IImGuiWindow>> m_windows;
     SocLabWindow* m_socLabWindow{nullptr};
 };
 

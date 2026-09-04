@@ -14,8 +14,8 @@ struct Vertex {
 };
 
 struct MeshData {
-    std::vector<Vertex> vertices;
-    std::vector<uint32_t> indices;
+    Vector<Vertex> vertices;
+    Vector<uint32_t> indices;
     AABB localBounds;
 };
 

@@ -51,8 +51,8 @@ namespace elm {
 		GLFWwindow* window{ nullptr };
 		void* previousUserPointer{ nullptr };
 
-		std::vector<InputEvent>* rawEvents{ nullptr };
-		std::vector<RegisteredSubscriber> subscribers;
+		Vector<InputEvent>* rawEvents{ nullptr };
+		Vector<RegisteredSubscriber> subscribers;
 
 		// Immediate state tables
 		std::array<bool, 512> currentKeys{};
@@ -70,7 +70,7 @@ namespace elm {
 
 		// Action & Axis contexts
 		std::shared_ptr<InputContext> defaultContext{ std::make_shared<InputContext>("Default") };
-		std::vector<std::shared_ptr<InputContext>> contextStack;
+		Vector<std::shared_ptr<InputContext>> contextStack;
 
 		void Detach() {
 			if (window && glfwGetWindowUserPointer(window) == this) {

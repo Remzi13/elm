@@ -18,12 +18,9 @@
 #include "Graphics/GraphicsTools/interface/MapHelper.hpp"
 
 #include <iostream>
-#include <vector>
-#include <iomanip>
 #include <cstring>
 #include <fstream>
 #include <filesystem>
-#include <string>
 
 #if PLATFORM_WIN32
 #include <windows.h>
@@ -431,7 +428,7 @@ namespace elm {
 		TestScenes::BuildScene( m_currentPreset, static_cast<uint32_t>( m_targetInstanceCount ), m_occluders, m_occludees );
 	}
 
-	void RenderSystem::Update( float deltaTime, const std::vector<elm::InputEvent>& events ) {
+	void RenderSystem::Update( float deltaTime, const Vector<elm::InputEvent>& events ) {
 		m_cameraController.Update( deltaTime, events );
 	}
 
@@ -536,7 +533,7 @@ namespace elm {
 		// Draw Occluders (Walls) as one instanced batch to avoid repeated dynamic-buffer maps.
 		const size_t numOccluders = (std::min)( m_occluders.size(), MaxInstances );
 		if ( numOccluders > 0 ) {
-			std::vector<GpuInstanceData> occluderGpuInstances;
+			Vector<GpuInstanceData> occluderGpuInstances;
 			occluderGpuInstances.reserve( numOccluders );
 			for ( size_t i = 0; i < numOccluders; ++i ) {
 				occluderGpuInstances.push_back( { m_occluders[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} } );
