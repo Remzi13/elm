@@ -4,6 +4,8 @@
 
 #include "graphics/ui/IImGuiWindow.hpp"
 
+#include "Scene/TestScenes.hpp"
+
 #include <array>
 #include <cstdint>
 
@@ -14,7 +16,7 @@ namespace elm {
 		SocLabWindow() = default;
 
 		[[nodiscard]] StringView GetName() const override { return "Software Occlusion Culling Lab"; }
-		void Render(RenderSystem& renderSystem, const FrameStats& stats) override;
+		void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) override;
 
 		[[nodiscard]] int GetResolutionIndex() const noexcept { return m_currentResolution; }
 		void SetResolutionIndex(int index) noexcept;

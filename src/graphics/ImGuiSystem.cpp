@@ -166,7 +166,6 @@ namespace elm {
 			auto* self = static_cast<ImGuiSystem*>(handler->UserData);
 			if (!self || !self->m_savedSettings.hasLoaded || !self->m_renderSystem) return;
 			auto& rs = *self->m_renderSystem;
-			rs.SetCurrentPreset(static_cast<ScenePreset>(self->m_savedSettings.preset));
 			rs.SetTargetInstanceCount(std::clamp(self->m_savedSettings.instanceCount, 100, 10000));
 			rs.GetCullingSystem().enableFrustumCulling = self->m_savedSettings.enableFrustum;
 			rs.GetCullingSystem().enableOcclusionCulling = self->m_savedSettings.enableOcclusion;
@@ -176,15 +175,13 @@ namespace elm {
 				self->m_socLabWindow->ApplyResolution(rs);
 			}
 			rs.GetCullingSystem().visualMode = static_cast<VisualMode>(self->m_savedSettings.visualMode);
-			rs.SetDepthPreviewFalseColor(self->m_savedSettings.depthFalseColor);			
-			rs.RebuildScene();
+			rs.SetDepthPreviewFalseColor(self->m_savedSettings.depthFalseColor);
 			};
 		iniHandler.WriteAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
 			auto* self = static_cast<ImGuiSystem*>(handler->UserData);
 			if (!self || !self->m_renderSystem) return;
 			auto& rs = *self->m_renderSystem;
 			buf->append("[LabSettings][State]\n");
-			buf->appendf("Preset=%d\n", static_cast<int>(rs.GetCurrentPreset()));
 			buf->appendf("Instances=%d\n", rs.GetTargetInstanceCount());
 			buf->appendf("FrustumCulling=%d\n", rs.GetCullingSystem().enableFrustumCulling ? 1 : 0);
 			buf->appendf("OcclusionCulling=%d\n", rs.GetCullingSystem().enableOcclusionCulling ? 1 : 0);
@@ -192,7 +189,7 @@ namespace elm {
 			const int resIdx = self->m_socLabWindow ? self->m_socLabWindow->GetResolutionIndex() : 2;
 			buf->appendf("SOCResolution=%d\n", resIdx);
 			buf->appendf("VisualMode=%d\n", static_cast<int>(rs.GetCullingSystem().visualMode));
-			buf->appendf("DepthFalseColor=%d\n", rs.IsDepthPreviewFalseColor() ? 1 : 0);			
+			buf->appendf("DepthFalseColor=%d\n", rs.IsDepthPreviewFalseColor() ? 1 : 0);
 			buf->append("\n");
 			};
 		ImGui::AddSettingsHandler(&iniHandler);
@@ -335,13 +332,13 @@ namespace elm {
 		if (data && data->swapChain) data->swapChain->Present();
 	}
 
-	void ImGuiSystem::Render(RenderSystem& renderSystem, const FrameStats& stats) {
+	void ImGuiSystem::Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) {
 		if (!m_initialized) return;
 
 		m_dockSpace.Render(m_windows);
 		for (const auto& window : m_windows) {
 			if (window && window->IsVisible()) {
-				window->Render(renderSystem, stats);
+				window->Render(renderSystem, scene, stats);
 			}
 		}
 

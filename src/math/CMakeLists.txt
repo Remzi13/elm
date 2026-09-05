@@ -3,6 +3,7 @@ engine_add_library(math
     Vector.cpp
     Matrix.hpp
     Matrix.cpp
+    Primitivs.hpp
 )
 
 target_include_directories(math PUBLIC

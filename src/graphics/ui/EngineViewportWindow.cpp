@@ -5,7 +5,7 @@
 
 namespace elm {
 
-	void EngineViewportWindow::Render(RenderSystem& renderSystem, const FrameStats&) {
+	void EngineViewportWindow::Render(RenderSystem& renderSystem, Scene& sceen, const FrameStats&) {
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);

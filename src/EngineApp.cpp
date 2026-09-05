@@ -145,9 +145,9 @@ namespace elm  {
 		if (!m_renderSystem) return;
 
 		m_renderSystem->BeginFrame();
-		m_renderSystem->RenderScene(m_camera);
+		m_renderSystem->RenderScene(m_camera, m_scene);
 		m_imguiSystem->BeginFrame(*m_renderSystem);
-		m_imguiSystem->Render(*m_renderSystem, m_currentStats);
+		m_imguiSystem->Render(*m_renderSystem, m_scene, m_currentStats);
 		m_renderSystem->EndFrame();
 	}
 

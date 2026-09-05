@@ -2,6 +2,8 @@
 
 #include "core/Std.hpp"
 
+#include "Scene/TestScenes.hpp"
+
 namespace elm {
 
 	class RenderSystem;
@@ -11,7 +13,7 @@ namespace elm {
 	public:
 		virtual ~IImGuiWindow() = default;
 
-		virtual void Render(RenderSystem& renderSystem, const FrameStats& stats) = 0;
+		virtual void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) = 0;
 		[[nodiscard]] virtual StringView GetName() const = 0;
 
 		[[nodiscard]] bool IsVisible() const noexcept { return m_visible; }

@@ -5,7 +5,7 @@
 
 namespace elm {
 
-	void DepthPreviewWindow::Render(RenderSystem& renderSystem, const FrameStats&) {
+	void DepthPreviewWindow::Render(RenderSystem& renderSystem, Scene& scene, const FrameStats&) {
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(static_cast<float>(renderSystem.GetWidth()) - 460.0f, 10.0f), ImGuiCond_FirstUseEver);

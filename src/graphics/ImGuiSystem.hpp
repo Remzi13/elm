@@ -29,7 +29,7 @@ namespace elm {
 
 		[[nodiscard]] auto Init(RenderSystem& renderSystem, StringView title) -> elm::EngineResult<void>;
 		void BeginFrame(RenderSystem& renderSystem);
-		void Render(RenderSystem& renderSystem, const FrameStats& stats);
+		void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats);
 		void Shutdown();
 
 		// Window management

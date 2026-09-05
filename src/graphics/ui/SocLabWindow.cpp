@@ -18,7 +18,7 @@ namespace elm {
 		renderSystem.CreateDepthPreviewTexture(width, height);
 	}
 
-	void SocLabWindow::Render(RenderSystem& renderSystem, const FrameStats& stats) {
+	void SocLabWindow::Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) {
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -35,17 +35,16 @@ namespace elm {
 		ImGui::Separator();
 
 		if (ImGui::CollapsingHeader("Scene Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {
-			const char* presets[] = { "The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox" };
-			int preset = static_cast<int>(renderSystem.GetCurrentPreset());
+			const char* presets[] = { "Box", "The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox" };
+			int preset = static_cast<int>(scene.preset);
 			if (ImGui::Combo("Preset", &preset, presets, IM_ARRAYSIZE(presets))) {
-				renderSystem.SetCurrentPreset(static_cast<ScenePreset>(preset));
-				renderSystem.RebuildScene();
+				TestScenes::BuildScene(static_cast<ScenePreset>(preset), static_cast<uint32_t>(1500), scene);
+				
 				//ImGui::MarkIniSettingsDirty();
 			}
 			int targetInstances = renderSystem.GetTargetInstanceCount();
 			if (ImGui::SliderInt("Instances", &targetInstances, 100, 10000)) {
-				renderSystem.SetTargetInstanceCount(targetInstances);
-				renderSystem.RebuildScene();
+				renderSystem.SetTargetInstanceCount(targetInstances);				
 				//ImGui::MarkIniSettingsDirty();
 			}
 		}

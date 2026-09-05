@@ -9,7 +9,7 @@ namespace elm  {
 class EngineViewportWindow final : public IImGuiWindow {
 public:
     [[nodiscard]] StringView GetName() const override { return "Engine Viewport"; }
-    void Render(RenderSystem& renderSystem, const FrameStats& stats) override;
+    void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) override;
 };
 
 } // namespace Engine

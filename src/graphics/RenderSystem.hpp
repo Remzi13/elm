@@ -54,7 +54,7 @@ namespace elm {
 
 		void Update(float deltaTime);
 		void BeginFrame();
-		void RenderScene(const Camera& camera);
+		void RenderScene(const Camera& camera, const Scene& scene);
 		void EndFrame();
 		void Shutdown();
 
@@ -69,8 +69,8 @@ namespace elm {
 		[[nodiscard]] uint32_t GetWidth() const { return m_width; }
 		[[nodiscard]] uint32_t GetHeight() const { return m_height; }
 		[[nodiscard]] uint32_t GetMemAllocated() const;
-		[[nodiscard]] ScenePreset GetCurrentPreset() const { return m_currentPreset; }
-		void SetCurrentPreset(ScenePreset preset) { m_currentPreset = preset; }
+		//[[nodiscard]] ScenePreset GetCurrentPreset() const { return m_currentPreset; }
+		//void SetCurrentPreset(ScenePreset preset) { m_currentPreset = preset; }
 		[[nodiscard]] int GetTargetInstanceCount() const { return m_targetInstanceCount; }
 		void SetTargetInstanceCount(int count) { m_targetInstanceCount = count; }
 		[[nodiscard]] bool IsDepthPreviewFalseColor() const { return m_depthPreviewFalseColor; }
@@ -79,8 +79,7 @@ namespace elm {
 		[[nodiscard]] uint32_t GetDepthPreviewWidth() const { return m_depthPreviewWidth; }
 		[[nodiscard]] uint32_t GetDepthPreviewHeight() const { return m_depthPreviewHeight; }
 		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
-		void RebuildScene();
-
+		
 	private:
 		void InitPipeline();
 		void CreateMeshBuffers();
@@ -137,12 +136,9 @@ namespace elm {
 		bool m_engineViewportIsShaderResource{ false };
 		
 		OcclusionCullingSystem m_cullingSystem;
-
-		ScenePreset m_currentPreset{ ScenePreset::WallAndGrid };
+				
 		int m_targetInstanceCount{ 1500 };
-
-		Vector<OccluderInstance> m_occluders;
-		Vector<OccludeeInstance> m_occludees;
+		
 		Vector<GpuInstanceData> m_visibleGpuInstances;
 		Vector<GpuInstanceData> m_culledGpuInstances;
 

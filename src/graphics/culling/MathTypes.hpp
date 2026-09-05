@@ -2,6 +2,7 @@
 
 #include "math/Vector.hpp"
 #include "math/Matrix.hpp"
+#include "math/Primitivs.hpp"
 
 namespace elm  {
 
@@ -16,51 +17,7 @@ namespace elm  {
 		constexpr Quaternion( float inX, float inY, float inZ, float inW ) : x( inX ), y( inY ), z( inZ ), w( inW ) {}
 	};
 
-	struct AABB {
-		Vector3 minBounds{ 1e30f, 1e30f, 1e30f };
-		Vector3 maxBounds{ -1e30f, -1e30f, -1e30f };
-
-		constexpr AABB() = default;
-		constexpr AABB( const Vector3& inMin, const Vector3& inMax ) : minBounds( inMin ), maxBounds( inMax ) {}
-
-		[[nodiscard]] constexpr Vector3 GetCenter() const noexcept {
-			return ( minBounds + maxBounds ) * 0.5f;
-		}
-
-		[[nodiscard]] constexpr Vector3 GetExtent() const noexcept {
-			return ( maxBounds - minBounds ) * 0.5f;
-		}
-
-		[[nodiscard]] std::array<Vector3, 8> GetCorners() const noexcept {
-			return {
-				Vector3{minBounds.x, minBounds.y, minBounds.z},
-				Vector3{maxBounds.x, minBounds.y, minBounds.z},
-				Vector3{minBounds.x, maxBounds.y, minBounds.z},
-				Vector3{maxBounds.x, maxBounds.y, minBounds.z},
-				Vector3{minBounds.x, minBounds.y, maxBounds.z},
-				Vector3{maxBounds.x, minBounds.y, maxBounds.z},
-				Vector3{minBounds.x, maxBounds.y, maxBounds.z},
-				Vector3{maxBounds.x, maxBounds.y, maxBounds.z}
-			};
-		}
-
-		[[nodiscard]] AABB Transformed( const Matrix4x4& mat ) const noexcept {
-			const auto corners = GetCorners();
-			AABB result;
-			for ( const auto& c : corners ) {
-				const Vector4 transformed = mat.TransformPoint( c );
-				const Vector3 p{ transformed.x, transformed.y, transformed.z };
-				result.minBounds.x = std::min( result.minBounds.x, p.x );
-				result.minBounds.y = std::min( result.minBounds.y, p.y );
-				result.minBounds.z = std::min( result.minBounds.z, p.z );
-				result.maxBounds.x = std::max( result.maxBounds.x, p.x );
-				result.maxBounds.y = std::max( result.maxBounds.y, p.y );
-				result.maxBounds.z = std::max( result.maxBounds.z, p.z );
-			}
-			return result;
-		}
-	};
-
+	
 	struct FrustumPlane {
 		Vector3 normal{ 0.0f, 0.0f, 0.0f };
 		float distance{ 0.0f };

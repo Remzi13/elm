@@ -203,9 +203,6 @@ namespace elm {
 		// Initialize 3D Rendering Pipeline
 		InitPipeline();
 
-		// Create Initial Scene
-		RebuildScene();		
-
 		m_initialized = true;
 		std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
 		return {};
@@ -476,10 +473,6 @@ namespace elm {
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}
 
-	void RenderSystem::RebuildScene() {
-		TestScenes::BuildScene(m_currentPreset, static_cast<uint32_t>(m_targetInstanceCount), m_occluders, m_occludees);
-	}
-
 	void RenderSystem::Update(float deltaTime) {		
 	}
 
@@ -500,7 +493,7 @@ namespace elm {
 
 	}
 
-	void RenderSystem::RenderScene(const Camera& camera) {
+	void RenderSystem::RenderScene(const Camera& camera, const Scene& scene) {
 		if (!m_deviceContext || !m_pPSO) return;
 
 		if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
@@ -526,7 +519,8 @@ namespace elm {
 
 		// 1. Run Software Occlusion Culling
 		const Matrix4x4 cullingVP = camera.GetCullingViewProjection();
-		m_cullingSystem.ExecuteCulling(m_occluders, m_occludees, cullingVP);
+		Vector<OccludeeInstance> occludees;
+		m_cullingSystem.ExecuteCulling(scene, cullingVP, occludees);
 
 		// 2. Update Depth Buffer Texture for ImGui
 		UpdateDepthPreviewTexture();
@@ -546,7 +540,7 @@ namespace elm {
 		m_visibleGpuInstances.clear();
 		m_culledGpuInstances.clear();
 
-		for (const auto& inst : m_occludees) {
+		for (const auto& inst : occludees) {
 			if (inst.isVisible) {
 				m_visibleGpuInstances.push_back({ inst.worldTransform, inst.color });
 			}
@@ -578,12 +572,12 @@ namespace elm {
 		}
 
 		// Draw Occluders (Walls) as one instanced batch to avoid repeated dynamic-buffer maps.
-		const size_t numOccluders = (std::min)(m_occluders.size(), MaxInstances);
+		const size_t numOccluders = (std::min)(occludees.size(), MaxInstances);
 		if (numOccluders > 0) {
 			Vector<GpuInstanceData> occluderGpuInstances;
 			occluderGpuInstances.reserve(numOccluders);
 			for (size_t i = 0; i < numOccluders; ++i) {
-				occluderGpuInstances.push_back({ m_occluders[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
+				occluderGpuInstances.push_back({ occludees[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
 			}
 			{
 				Diligent::MapHelper<GpuInstanceData> InstData(m_deviceContext, m_pInstanceBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);

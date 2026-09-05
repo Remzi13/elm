@@ -12,10 +12,10 @@ namespace elm {
 		m_depthBuffer.Resize(width, height);
 	}
 
-	void OcclusionCullingSystem::ExecuteCulling(const Vector<OccluderInstance>& occluders,
-		Vector<OccludeeInstance>& occludees,
-		const Matrix4x4& cullingViewProj) {
+	void OcclusionCullingSystem::ExecuteCulling(const Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees) {
 		const auto tStart = std::chrono::high_resolution_clock::now();
+
+		occludees.clear();
 
 		// 1. Clear depth buffer
 		m_depthBuffer.Clear(1.0f);
@@ -23,7 +23,7 @@ namespace elm {
 		// 2. Rasterize occluders to software depth buffer
 		const auto tRasterStart = std::chrono::high_resolution_clock::now();
 		if (enableOcclusionCulling) {
-			for (const auto& occ : occluders) {
+			for (const auto& occ : scene.occluders) {
 				const Matrix4x4 wvp = cullingViewProj * occ.worldTransform;
 				Vector<Vector3> positions;
 				positions.reserve(occ.mesh.vertices.size());
@@ -40,15 +40,20 @@ namespace elm {
 
 		const Frustum frustum = Frustum::FromViewProj(cullingViewProj);
 
-		m_stats.totalObjects = static_cast<uint32_t>(occludees.size());
+		m_stats.totalObjects = static_cast<uint32_t>(scene.occluders.size());
 		m_stats.visibleCount = 0;
 		m_stats.frustumCulledCount = 0;
 		m_stats.occlusionCulledCount = 0;
 
-		for (auto& inst : occludees) {
+		for (auto& occ : scene.occluders) {
+
+			OccludeeInstance inst; 
 			inst.isFrustumCulled = false;
 			inst.isOcclusionCulled = false;
 			inst.isVisible = true;
+			inst.worldTransform = occ.worldTransform;
+			inst.localBounds = occ.mesh.localBounds;
+			inst.color = occ.color;
 
 			const AABB worldBounds = inst.localBounds.Transformed(inst.worldTransform);
 
@@ -58,6 +63,7 @@ namespace elm {
 					inst.isFrustumCulled = true;
 					inst.isVisible = false;
 					m_stats.frustumCulledCount++;
+					occludees.emplace_back(inst);
 					continue;
 				}
 			}
@@ -68,11 +74,13 @@ namespace elm {
 					inst.isOcclusionCulled = true;
 					inst.isVisible = false;
 					m_stats.occlusionCulledCount++;
+					occludees.emplace_back(inst);
 					continue;
 				}
 			}
 
 			inst.isVisible = true;
+			occludees.emplace_back(inst);
 			m_stats.visibleCount++;
 		}
 

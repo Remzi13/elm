@@ -40,6 +40,7 @@ namespace elm {
 
 		Camera m_camera;
 		CameraController m_cameraController;
+		Scene m_scene;
 
 		bool m_isRunning{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step
