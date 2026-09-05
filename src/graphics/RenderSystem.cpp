@@ -70,9 +70,12 @@ namespace elm {
         			if (!Ptr) return;
 
 					auto* header = reinterpret_cast<AllocationHeader*>(Ptr) - 1;
+					void* rawPointer = header->rawPointer;
+					const size_t requestedSize = header->requestedSize;
+					const size_t allocatedSize = header->allocatedSize;
 
-					memory::deallocate_impl(header->rawPointer, header->allocatedSize);
-					m_TotalAllocated.fetch_sub(header->requestedSize, std::memory_order_relaxed);
+					m_TotalAllocated.fetch_sub(requestedSize, std::memory_order_relaxed);
+					memory::deallocate_impl(rawPointer, allocatedSize);
 					
     			}
 
@@ -741,8 +744,8 @@ namespace elm {
 		std::cout << "[RenderSystem] Shutdown completed." << std::endl;
 	}
 
-	uint32_t RenderSystem::GetMemAllocated() const {
-		return static_cast<uint32_t>(g_Allocator.GetTotalAllocatedBytes());
+	size_t RenderSystem::GetMemAllocated() const {
+		return g_Allocator.GetTotalAllocatedBytes();
 	}
 
 } // namespace Engine
