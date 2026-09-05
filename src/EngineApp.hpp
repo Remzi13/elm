@@ -1,9 +1,13 @@
 #pragma once
 
 #include "core/Error.hpp"
+
 #include "graphics/RenderSystem.hpp"
 #include "graphics/ImGuiSystem.hpp"
+#include "graphics/CameraController.hpp"
+
 #include "physics/PhysicsSystem.hpp"
+
 #include "input/Input.hpp"
 
 namespace elm {
@@ -33,6 +37,9 @@ namespace elm {
 		UniquePtr<ImGuiSystem> m_imguiSystem;
 		UniquePtr<PhysicsSystem> m_physicsSystem;
 		UniquePtr<InputSystem> m_inputSystem;
+
+		Camera m_camera;
+		CameraController m_cameraController;
 
 		bool m_isRunning{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step

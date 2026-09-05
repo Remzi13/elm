@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <new>
+#include <type_traits>
 
 namespace elm::memory {
 
@@ -42,6 +43,38 @@ namespace elm::memory {
 
 	template<typename T, typename U>
 	bool operator!=(const Allocator<T>&, const Allocator<U>&) noexcept
+	{
+		return false;
+	}
+
+	template<typename T>
+	class StdStringAllocator : public Allocator<T>
+	{
+	public:
+		using Base = Allocator<char>;
+		using value_type = char;
+		using size_type = std::size_t;
+		using difference_type = std::ptrdiff_t;
+		using propagate_on_container_move_assignment = std::true_type;
+		using is_always_equal = std::true_type;
+
+		StdStringAllocator() noexcept = default;
+
+		template<typename U>
+		struct rebind
+		{
+			using other = Allocator<U>;
+		};
+	};
+
+	template<typename T, typename U>
+	inline bool operator==(const StdStringAllocator<T>&, const StdStringAllocator<U>&) noexcept
+	{
+		return true;
+	}
+
+	template<typename T, typename U>
+	inline bool operator!=(const StdStringAllocator<T>&, const StdStringAllocator<U>&) noexcept
 	{
 		return false;
 	}

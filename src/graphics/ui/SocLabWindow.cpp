@@ -55,15 +55,7 @@ namespace elm {
 			}
 			if (ImGui::Checkbox("Enable Software Occlusion Culling", &culling.enableOcclusionCulling)) {
 				//ImGui::MarkIniSettingsDirty();
-			}
-			bool freeze = renderSystem.GetCamera().IsCullingFrozen();
-			if (ImGui::Checkbox("Freeze Culling Camera", &freeze)) {
-				renderSystem.GetCamera().SetFreezeCulling(freeze);
-			}
-			if (freeze) {
-				ImGui::SameLine();
-				ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.2f, 1.0f), "[FROZEN]");
-			}
+			}			
 			if (ImGui::SliderFloat("Depth Bias", &culling.depthBias, 0.0f, 0.01f, "%.4f")) {
 				//ImGui::MarkIniSettingsDirty();
 			}
@@ -104,11 +96,6 @@ namespace elm {
 		}
 
 		if (ImGui::CollapsingHeader("Camera & Controls")) {
-			const Vector3 pos = renderSystem.GetCamera().GetPosition();
-			ImGui::Text("Pos: (%.1f, %.1f, %.1f)", pos.x, pos.y, pos.z);
-			if (ImGui::SliderFloat("Move Speed", &renderSystem.GetCamera().moveSpeed, 5.0f, 50.0f)) {
-				//ImGui::MarkIniSettingsDirty();
-			}
 			ImGui::Separator();
 			ImGui::TextDisabled("Controls:");
 			ImGui::BulletText("Right Mouse Button + Drag: Look around");

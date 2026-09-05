@@ -176,8 +176,7 @@ namespace elm {
 				self->m_socLabWindow->ApplyResolution(rs);
 			}
 			rs.GetCullingSystem().visualMode = static_cast<VisualMode>(self->m_savedSettings.visualMode);
-			rs.SetDepthPreviewFalseColor(self->m_savedSettings.depthFalseColor);
-			rs.GetCamera().moveSpeed = self->m_savedSettings.moveSpeed;
+			rs.SetDepthPreviewFalseColor(self->m_savedSettings.depthFalseColor);			
 			rs.RebuildScene();
 			};
 		iniHandler.WriteAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buf) {
@@ -193,8 +192,7 @@ namespace elm {
 			const int resIdx = self->m_socLabWindow ? self->m_socLabWindow->GetResolutionIndex() : 2;
 			buf->appendf("SOCResolution=%d\n", resIdx);
 			buf->appendf("VisualMode=%d\n", static_cast<int>(rs.GetCullingSystem().visualMode));
-			buf->appendf("DepthFalseColor=%d\n", rs.IsDepthPreviewFalseColor() ? 1 : 0);
-			buf->appendf("MoveSpeed=%.2f\n", rs.GetCamera().moveSpeed);
+			buf->appendf("DepthFalseColor=%d\n", rs.IsDepthPreviewFalseColor() ? 1 : 0);			
 			buf->append("\n");
 			};
 		ImGui::AddSettingsHandler(&iniHandler);

@@ -1,16 +1,15 @@
 #pragma once
 
 #include "core/Error.hpp"
+
 #include "graphics/RenderSystem.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
+
 #include "imgui.h"
 
 #include <memory>
 #include <span>
-#include <string>
-#include <string_view>
-#include <vector>
 
 namespace Diligent {
 	class ImGuiImplDiligentViewport;

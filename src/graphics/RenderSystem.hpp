@@ -5,9 +5,8 @@
 #include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/Camera.hpp"
-#include "graphics/CameraController.hpp"
 #include "Scene/TestScenes.hpp"
-#include "input/Input.hpp"
+
 
 struct GLFWwindow;
 
@@ -54,13 +53,11 @@ namespace elm {
 
 		void Update(float deltaTime);
 		void BeginFrame();
-		void RenderScene();
+		void RenderScene(const Camera& camera);
 		void EndFrame();
 		void Shutdown();
 
-		[[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
-		[[nodiscard]] elm::Camera& GetCamera() { return m_camera; }
-		[[nodiscard]] CameraController& GetCameraController() noexcept { return m_cameraController; }
+		[[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }				
 		[[nodiscard]] OcclusionCullingSystem& GetCullingSystem() { return m_cullingSystem; }
 		[[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
 		[[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
@@ -136,10 +133,7 @@ namespace elm {
 		uint32_t m_engineViewportWidth{ 1280 };
 		uint32_t m_engineViewportHeight{ 720 };
 		bool m_engineViewportIsShaderResource{ false };
-
-		// Systems & Scenes
-		elm::Camera m_camera;
-		elm::CameraController m_cameraController;
+		
 		OcclusionCullingSystem m_cullingSystem;
 
 		ScenePreset m_currentPreset{ ScenePreset::WallAndGrid };

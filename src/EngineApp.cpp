@@ -9,7 +9,8 @@ namespace elm  {
 		: m_renderSystem(MakeUnique<RenderSystem>()),
 		m_imguiSystem(MakeUnique<ImGuiSystem>()),
 		m_physicsSystem(MakeUnique<PhysicsSystem>()),
-		m_inputSystem(MakeUnique<InputSystem>())
+		m_inputSystem(MakeUnique<InputSystem>()), 		
+		m_cameraController(m_camera)
 	{
 	}
 
@@ -20,14 +21,16 @@ namespace elm  {
 	auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void> {
 		std::cout << "[EngineApp] Initializing 3D Engine Core (C++23)..." << std::endl;
 
+
+		m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
+
 		// Initialize Render System
 		auto renderInit = m_renderSystem->Init(width, height, title);
 		if (!renderInit) {
 			return std::unexpected(renderInit.error());
 		}
 		m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
-		m_inputSystem->AddSubscriber(&m_renderSystem->GetCameraController(),
-			static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
+		m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
 		auto imguiInit = m_imguiSystem->Init(*m_renderSystem, "Engine Debug UI");
 		if (!imguiInit) {
@@ -123,6 +126,8 @@ namespace elm  {
 
 		m_inputSystem->Update();
 
+		m_cameraController.Update(deltaTime);
+
 		// Update camera and rendering inputs
 		if (m_renderSystem) {
 			m_renderSystem->Update(deltaTime);
@@ -140,7 +145,7 @@ namespace elm  {
 		if (!m_renderSystem) return;
 
 		m_renderSystem->BeginFrame();
-		m_renderSystem->RenderScene();
+		m_renderSystem->RenderScene(m_camera);
 		m_imguiSystem->BeginFrame(*m_renderSystem);
 		m_imguiSystem->Render(*m_renderSystem, m_currentStats);
 		m_renderSystem->EndFrame();

@@ -63,8 +63,7 @@ namespace elm {
 	}
 
 
-	RenderSystem::RenderSystem()
-		: m_cameraController(m_camera) {
+	RenderSystem::RenderSystem(){		
 	}
 
 	RenderSystem::~RenderSystem() {
@@ -151,9 +150,7 @@ namespace elm {
 		InitPipeline();
 
 		// Create Initial Scene
-		RebuildScene();
-
-		m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
+		RebuildScene();		
 
 		m_initialized = true;
 		std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
@@ -429,8 +426,7 @@ namespace elm {
 		TestScenes::BuildScene(m_currentPreset, static_cast<uint32_t>(m_targetInstanceCount), m_occluders, m_occludees);
 	}
 
-	void RenderSystem::Update(float deltaTime) {
-		m_cameraController.Update(deltaTime);
+	void RenderSystem::Update(float deltaTime) {		
 	}
 
 	bool RenderSystem::ShouldClose() const {
@@ -450,7 +446,7 @@ namespace elm {
 
 	}
 
-	void RenderSystem::RenderScene() {
+	void RenderSystem::RenderScene(const Camera& camera) {
 		if (!m_deviceContext || !m_pPSO) return;
 
 		if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
@@ -475,7 +471,7 @@ namespace elm {
 		}
 
 		// 1. Run Software Occlusion Culling
-		const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
+		const Matrix4x4 cullingVP = camera.GetCullingViewProjection();
 		m_cullingSystem.ExecuteCulling(m_occluders, m_occludees, cullingVP);
 
 		// 2. Update Depth Buffer Texture for ImGui
@@ -488,8 +484,8 @@ namespace elm {
 				Vector4   CameraPos;
 			};
 			Diligent::MapHelper<CameraCBData> CBData(m_deviceContext, m_pCameraConstantsBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
-			CBData->ViewProj = m_camera.GetViewProjectionMatrix();
-			CBData->CameraPos = Vector4{ m_camera.GetPosition(), 1.0f };
+			CBData->ViewProj = camera.GetViewProjectionMatrix();
+			CBData->CameraPos = Vector4{ camera.GetPosition(), 1.0f };
 		}
 
 		// 4. Collect Visible and Culled Instances
