@@ -18,7 +18,6 @@ namespace elm {
 
 	struct Scene
 	{
-
 		struct Instance {
 			MeshData mesh;
 			Matrix4x4 worldTransform;
@@ -26,7 +25,7 @@ namespace elm {
 		};
 
 		ScenePreset preset;
-		Vector<Instance> occluders;
+		Vector<Instance> instances;
 	};
 
 	class TestScenes {

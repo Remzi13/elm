@@ -16,7 +16,7 @@ namespace elm {
 	} // namespace
 
 	void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene) {
-		scene.occluders.clear();
+		scene.instances.clear();
 
 		switch (preset) {
 		case ScenePreset::Box:
@@ -42,7 +42,7 @@ namespace elm {
 		cube.worldTransform = Matrix4x4::Translation(Vector3{ 0.0f, 0.5f, 0.0f });
 		cube.color = Vector4{ 0.8f, 0.2f, 0.2f, 1.0f };
 
-		scene.occluders.push_back(cube);
+		scene.instances.push_back(cube);
 	}
 	
 	void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene) {
@@ -50,19 +50,19 @@ namespace elm {
 		// Left Wall: width 18, height 9, thickness 1.5, center at (-10.5, 4.5, 0)
 
 		{
-			scene.occluders.push_back(MakeWall(18.0f, 9.0f, 1.5f, Vector3{ -10.5f, 4.5f, 0.0f }));
+			scene.instances.push_back(MakeWall(18.0f, 9.0f, 1.5f, Vector3{ -10.5f, 4.5f, 0.0f }));
 		}
 		// Right Wall: width 18, height 9, thickness 1.5, center at (+10.5, 4.5, 0)
 		{
-			scene.occluders.push_back(MakeWall(18.0f, 9.0f, 1.5f, Vector3{ 10.5f, 4.5f, 0.0f }));
+			scene.instances.push_back(MakeWall(18.0f, 9.0f, 1.5f, Vector3{ 10.5f, 4.5f, 0.0f }));
 		}
 		// Middle Lintle (above doorway): width 3, height 3, center at (0, 7.5, 0)
 		{
-			scene.occluders.push_back(MakeWall(3.0f, 3.0f, 1.5f, Vector3{ 0.0f, 7.5f, 0.0f }));
+			scene.instances.push_back(MakeWall(3.0f, 3.0f, 1.5f, Vector3{ 0.0f, 7.5f, 0.0f }));
 		}
 		// Second layer occluder wall further back: center at (0, 4.0, 18.0)
 		{
-			scene.occluders.push_back(MakeWall(12.0f, 8.0f, 1.0f, Vector3{ 0.0f, 4.0f, 18.0f }));
+			scene.instances.push_back(MakeWall(12.0f, 8.0f, 1.0f, Vector3{ 0.0f, 4.0f, 18.0f }));
 		}
 
 		// 2. Occludees: Distributed in rows/columns behind the walls (Z from 3 to 45)			
@@ -93,7 +93,7 @@ namespace elm {
 				const float tZ = static_cast<float>(r) / static_cast<float>(rows);
 				inst.color = Vector4{ 0.2f + 0.7f * tX, 0.4f + 0.5f * (1.0f - tZ), 0.3f + 0.6f * tZ, 1.0f };
 
-				scene.occluders.push_back(inst);
+				scene.instances.push_back(inst);
 			}
 		}
 	}
@@ -106,27 +106,27 @@ namespace elm {
 
 		// Center dividing wall along X (Z=0), with doorway at X=0
 		{
-			scene.occluders.push_back(MakeWall(14.0f, wallH, wallT, Vector3{ -8.5f, wallH * 0.5f, 0.0f }));
-			scene.occluders.push_back(MakeWall(14.0f, wallH, wallT, Vector3{ 8.5f, wallH * 0.5f, 0.0f }));
+			scene.instances.push_back(MakeWall(14.0f, wallH, wallT, Vector3{ -8.5f, wallH * 0.5f, 0.0f }));
+			scene.instances.push_back(MakeWall(14.0f, wallH, wallT, Vector3{ 8.5f, wallH * 0.5f, 0.0f }));
 		}
 
 		// Center dividing wall along Z (X=0), with doorway at Z=0
 		{
-			scene.occluders.push_back(MakeWall(wallT, wallH, 14.0f, Vector3{ 0.0f, wallH * 0.5f, -8.5f }));
-			scene.occluders.push_back(MakeWall(wallT, wallH, 14.0f, Vector3{ 0.0f, wallH * 0.5f, 8.5f }));
+			scene.instances.push_back(MakeWall(wallT, wallH, 14.0f, Vector3{ 0.0f, wallH * 0.5f, -8.5f }));
+			scene.instances.push_back(MakeWall(wallT, wallH, 14.0f, Vector3{ 0.0f, wallH * 0.5f, 8.5f }));
 		}
 
 		// Outer boundary walls
 		{
-			scene.occluders.push_back(MakeWall(roomSize * 2.0f, wallH, wallT, Vector3{ 0.0f, wallH * 0.5f, roomSize }));
-			scene.occluders.push_back(MakeWall(roomSize * 2.0f, wallH, wallT, Vector3{ 0.0f, wallH * 0.5f, -roomSize }));
-			scene.occluders.push_back(MakeWall(wallT, wallH, roomSize * 2.0f, Vector3{ roomSize, wallH * 0.5f, 0.0f }));
-			scene.occluders.push_back(MakeWall(wallT, wallH, roomSize * 2.0f, Vector3{ -roomSize, wallH * 0.5f, 0.0f }));
+			scene.instances.push_back(MakeWall(roomSize * 2.0f, wallH, wallT, Vector3{ 0.0f, wallH * 0.5f, roomSize }));
+			scene.instances.push_back(MakeWall(roomSize * 2.0f, wallH, wallT, Vector3{ 0.0f, wallH * 0.5f, -roomSize }));
+			scene.instances.push_back(MakeWall(wallT, wallH, roomSize * 2.0f, Vector3{ roomSize, wallH * 0.5f, 0.0f }));
+			scene.instances.push_back(MakeWall(wallT, wallH, roomSize * 2.0f, Vector3{ -roomSize, wallH * 0.5f, 0.0f }));
 		}
 
 		// Scatter objects across 4 rooms
 		const MeshData cubeMesh = GeometryPrimitives::CreateCube(0.7f);
-		scene.occluders.reserve(count);
+		scene.instances.reserve(count);
 
 		for (uint32_t i = 0; i < count; ++i) {
 			const int roomIdx = static_cast<int>(i % 4);
@@ -148,18 +148,18 @@ namespace elm {
 			else if (roomIdx == 2) inst.color = Vector4{ 0.3f, 0.3f, 0.9f, 1.0f };
 			else inst.color = Vector4{ 0.9f, 0.8f, 0.2f, 1.0f };
 
-			scene.occluders.push_back(inst);
+			scene.instances.push_back(inst);
 		}
 	}
 
 	void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene) {
 		// A center barrier wall
 		{
-			scene.occluders.push_back(MakeWall(16.0f, 6.0f, 1.5f, Vector3{ 0.0f, 3.0f, 0.0f }));
+			scene.instances.push_back(MakeWall(16.0f, 6.0f, 1.5f, Vector3{ 0.0f, 3.0f, 0.0f }));
 		}
 
 		const MeshData cubeMesh = GeometryPrimitives::CreateCube(0.9f);
-		scene.occluders.reserve(count);
+		scene.instances.reserve(count);
 
 		// Stacks of boxes behind the barrier, and visible boxes in front
 		for (uint32_t i = 0; i < count; ++i) {
@@ -173,7 +173,7 @@ namespace elm {
 			inst.worldTransform = Matrix4x4::Translation(Vector3{ x, y, z });
 			inst.color = behindWall ? Vector4{ 0.2f, 0.7f, 0.9f, 1.0f } : Vector4{ 0.9f, 0.6f, 0.2f, 1.0f };
 
-			scene.occluders.push_back(inst);
+			scene.instances.push_back(inst);
 		}
 	}
 

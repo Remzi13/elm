@@ -2,7 +2,6 @@
 
 #include "core/Error.hpp"
 
-#include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/Camera.hpp"
 
