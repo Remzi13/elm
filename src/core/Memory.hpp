@@ -7,6 +7,16 @@
 
 namespace elm::memory {
 
+	void* allocate_impl(size_t size);
+	void deallocate_impl(void* ptr, size_t size);
+
+	struct Statistics
+	{
+		int64_t allocated = 0;
+	};
+
+	Statistics getStatistic();
+
 	template<typename T>
 	class Allocator
 	{
@@ -20,18 +30,12 @@ namespace elm::memory {
 
 		[[nodiscard]] T* allocate(std::size_t count)
 		{
-			if (count > static_cast<std::size_t>(-1) / sizeof(T))
-				throw std::bad_alloc{};
-
-			if (void* memory = std::malloc(count * sizeof(T)))
-				return static_cast<T*>(memory);
-
-			throw std::bad_alloc{};
+			return  static_cast<T*>(allocate_impl(count * sizeof(T)));
 		}
 
-		void deallocate(T* ptr, std::size_t) noexcept
+		void deallocate(T* ptr, std::size_t count) noexcept
 		{
-			std::free(ptr);
+			deallocate_impl(static_cast<void*>(ptr), count * sizeof(T));
 		}
 	};
 

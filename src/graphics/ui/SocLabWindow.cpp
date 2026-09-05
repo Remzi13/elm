@@ -29,7 +29,7 @@ namespace elm {
 		}
 
 		ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "C++23 Vulkan SOC Testbed");
-		ImGui::Text("FPS: %.1f | Frame: %.2f ms", stats.fps, stats.deltaTimeMs);
+		ImGui::Text("FPS: %.1f | Frame: %.2f ms | Mem: %lld KB", stats.fps, stats.deltaTimeMs, memory::getStatistic().allocated / 1024 );
 		ImGui::Separator();
 
 		if (ImGui::CollapsingHeader("Scene Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {

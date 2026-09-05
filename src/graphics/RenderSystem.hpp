@@ -1,12 +1,13 @@
 #pragma once
 
 #include "core/Error.hpp"
-#include "Scene/Transform.hpp"
+
 #include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/Camera.hpp"
-#include "Scene/TestScenes.hpp"
 
+#include "Scene/Transform.hpp"
+#include "Scene/TestScenes.hpp"
 
 struct GLFWwindow;
 
