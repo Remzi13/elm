@@ -33,6 +33,43 @@
 
 namespace elm {
 
+	namespace {
+		class DilligentAllocator : public Diligent::IMemoryAllocator
+		{
+			public:
+    			virtual void* Allocate(size_t Size,[[maybe_unused]] const char* DebugDesc, [[maybe_unused]] const char* File, [[maybe_unused]] int Line) override
+    			{	
+					void* ptr = memory::allocate_impl(Size + sizeof(size_t));
+        			if (!ptr) return nullptr;
+
+        			*static_cast<size_t*>(ptr) = Size;
+        			m_TotalAllocated.fetch_add(Size, std::memory_order_relaxed);
+
+        			return static_cast<char*>(ptr) + sizeof(size_t);
+    			}
+
+    			virtual void Free(void* Ptr) override
+    			{
+        			if (!Ptr) return;
+
+        			void* realPtr = static_cast<char*>(Ptr) - sizeof(size_t);
+        			size_t size = *static_cast<size_t*>(realPtr);
+
+					memory::deallocate_impl(realPtr, size + sizeof(size_t));
+        			m_TotalAllocated.fetch_sub(size, std::memory_order_relaxed);
+					
+    			}
+
+    			size_t GetTotalAllocatedBytes() const 
+    			{ 
+        			return m_TotalAllocated.load(std::memory_order_relaxed); 
+    			}
+
+			private:
+    			std::atomic<size_t> m_TotalAllocated{0};
+		} g_Allocator;
+	}
+
 	// Shaders are loaded from shaders/ at runtime. This keeps shader editing independent
 	// from the executable and also allows the same source to be replaced without a rebuild.
 	static String LoadShaderSource(const char* fileName) {
@@ -102,6 +139,7 @@ namespace elm {
 
 		Diligent::EngineD3D12CreateInfo engineCreateInfo;
 		engineCreateInfo.NumDeferredContexts = 0;
+		engineCreateInfo.pRawMemAllocator = &g_Allocator;
 		pFactory->CreateDeviceAndContextsD3D12(engineCreateInfo, &m_renderDevice, &m_deviceContext);
 #else
 		auto* pFactory = Diligent::GetEngineFactoryVk();
@@ -112,6 +150,7 @@ namespace elm {
 		Diligent::EngineVkCreateInfo engineCreateInfo;
 		engineCreateInfo.NumDeferredContexts = 0;
 		engineCreateInfo.DynamicHeapSize = 32 << 20;
+		engineCreateInfo.pRamMemoryAllocator = &g_Allocator;
 		pFactory->CreateDeviceAndContextsVk(engineCreateInfo, &m_renderDevice, &m_deviceContext);
 #endif
 
@@ -144,8 +183,7 @@ namespace elm {
 		if (!m_swapChain) {
 			return std::unexpected(elm::EngineError(elm::ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
 		}
-
-		const auto& SCDesc = m_swapChain->GetDesc();
+				
 		// Initialize 3D Rendering Pipeline
 		InitPipeline();
 
@@ -691,6 +729,10 @@ namespace elm {
 
 		m_initialized = false;
 		std::cout << "[RenderSystem] Shutdown completed." << std::endl;
+	}
+
+	uint32_t RenderSystem::GetMemAllocated() const {
+		return static_cast<uint32_t>(g_Allocator.GetTotalAllocatedBytes());
 	}
 
 } // namespace Engine

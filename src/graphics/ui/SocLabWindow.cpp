@@ -29,7 +29,9 @@ namespace elm {
 		}
 
 		ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "C++23 Vulkan SOC Testbed");
-		ImGui::Text("FPS: %.1f | Frame: %.2f ms | Mem: %lld KB", stats.fps, stats.deltaTimeMs, memory::getStatistic().allocated / 1024 );
+		const long long allocatedMemoryKb = static_cast<long long>(memory::getStatistic().allocated / 1024);
+		const long long renderMemoryKb = static_cast<long long>(renderSystem.GetMemAllocated() / 1024);
+		ImGui::Text("FPS: %.1f | Frame: %.2f ms | Mem: All %lld KB | Render %lld KB", stats.fps, stats.deltaTimeMs, allocatedMemoryKb, renderMemoryKb);
 		ImGui::Separator();
 
 		if (ImGui::CollapsingHeader("Scene Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {

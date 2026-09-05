@@ -68,6 +68,7 @@ namespace elm {
 		[[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
 		[[nodiscard]] uint32_t GetWidth() const { return m_width; }
 		[[nodiscard]] uint32_t GetHeight() const { return m_height; }
+		[[nodiscard]] uint32_t GetMemAllocated() const;
 		[[nodiscard]] ScenePreset GetCurrentPreset() const { return m_currentPreset; }
 		void SetCurrentPreset(ScenePreset preset) { m_currentPreset = preset; }
 		[[nodiscard]] int GetTargetInstanceCount() const { return m_targetInstanceCount; }
