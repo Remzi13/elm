@@ -55,14 +55,17 @@ namespace elm::memory {
 	class StdStringAllocator : public Allocator<T>
 	{
 	public:
-		using Base = Allocator<char>;
-		using value_type = char;
+		using Base = Allocator<T>;
+		using value_type = T;
 		using size_type = std::size_t;
 		using difference_type = std::ptrdiff_t;
 		using propagate_on_container_move_assignment = std::true_type;
 		using is_always_equal = std::true_type;
 
 		StdStringAllocator() noexcept = default;
+
+		template<typename U>
+		StdStringAllocator(const StdStringAllocator<U>&) noexcept {}
 
 		template<typename U>
 		struct rebind
