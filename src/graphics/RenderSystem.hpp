@@ -50,8 +50,7 @@ namespace elm {
 
 		[[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
 
-		[[nodiscard]] bool ShouldClose() const;
-		void PollEvents();
+		[[nodiscard]] bool ShouldClose() const;		
 
 		void Update(float deltaTime);
 		void BeginFrame();

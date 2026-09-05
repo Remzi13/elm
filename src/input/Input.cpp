@@ -276,6 +276,7 @@ namespace elm {
 		// and Update() is the place that drains the queue for the current frame.
 		m_allEvents.clear();
 		m_unhandledEvents.clear();
+		glfwPollEvents();
 	}
 
 	bool InputSystem::DispatchEvent(InputEvent& event) {

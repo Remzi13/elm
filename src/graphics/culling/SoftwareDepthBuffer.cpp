@@ -1,5 +1,3 @@
-#pragma once
-
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
 #include <cmath>
 #include <algorithm>

@@ -88,9 +88,6 @@ namespace elm  {
 
 			m_inputSystem->BeginFrame();
 
-			// Poll window events
-			m_renderSystem->PollEvents();
-
 			// Fixed Timestep Physics Update
 			while (accumulator >= m_fixedTimeStep) {
 				FixedUpdate(m_fixedTimeStep);

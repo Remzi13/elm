@@ -437,10 +437,6 @@ namespace elm {
 		return m_window ? glfwWindowShouldClose(m_window) : true;
 	}
 
-	void RenderSystem::PollEvents() {
-		glfwPollEvents();
-	}
-
 	void RenderSystem::BeginFrame() {
 		if (!m_swapChain || !m_deviceContext) return;
 
