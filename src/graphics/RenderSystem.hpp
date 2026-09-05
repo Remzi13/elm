@@ -68,11 +68,7 @@ namespace elm {
 		[[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
 		[[nodiscard]] uint32_t GetWidth() const { return m_width; }
 		[[nodiscard]] uint32_t GetHeight() const { return m_height; }
-		[[nodiscard]] size_t GetMemAllocated() const;
-		//[[nodiscard]] ScenePreset GetCurrentPreset() const { return m_currentPreset; }
-		//void SetCurrentPreset(ScenePreset preset) { m_currentPreset = preset; }
-		[[nodiscard]] int GetTargetInstanceCount() const { return m_targetInstanceCount; }
-		void SetTargetInstanceCount(int count) { m_targetInstanceCount = count; }
+		[[nodiscard]] size_t GetMemAllocated() const;				
 		[[nodiscard]] bool IsDepthPreviewFalseColor() const { return m_depthPreviewFalseColor; }
 		void SetDepthPreviewFalseColor(bool falseColor) { m_depthPreviewFalseColor = falseColor; }
 		[[nodiscard]] Diligent::ITextureView* GetDepthPreviewSRV() const { return m_pDepthPreviewSRV; }
@@ -137,8 +133,6 @@ namespace elm {
 		
 		OcclusionCullingSystem m_cullingSystem;
 				
-		int m_targetInstanceCount{ 1500 };
-		
 		Vector<GpuInstanceData> m_visibleGpuInstances;
 		Vector<GpuInstanceData> m_culledGpuInstances;
 

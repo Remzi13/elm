@@ -42,13 +42,7 @@ namespace elm {
 				
 				//ImGui::MarkIniSettingsDirty();
 			}
-			int targetInstances = renderSystem.GetTargetInstanceCount();
-			if (ImGui::SliderInt("Instances", &targetInstances, 100, 10000)) {
-				renderSystem.SetTargetInstanceCount(targetInstances);				
-				//ImGui::MarkIniSettingsDirty();
-			}
 		}
-
 		if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
 			auto& culling = renderSystem.GetCullingSystem();
 			if (ImGui::Checkbox("Enable Frustum Culling", &culling.enableFrustumCulling)) {

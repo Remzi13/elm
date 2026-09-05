@@ -165,8 +165,7 @@ namespace elm {
 		iniHandler.ApplyAllFn = [](ImGuiContext*, ImGuiSettingsHandler* handler) {
 			auto* self = static_cast<ImGuiSystem*>(handler->UserData);
 			if (!self || !self->m_savedSettings.hasLoaded || !self->m_renderSystem) return;
-			auto& rs = *self->m_renderSystem;
-			rs.SetTargetInstanceCount(std::clamp(self->m_savedSettings.instanceCount, 100, 10000));
+			auto& rs = *self->m_renderSystem;			
 			rs.GetCullingSystem().enableFrustumCulling = self->m_savedSettings.enableFrustum;
 			rs.GetCullingSystem().enableOcclusionCulling = self->m_savedSettings.enableOcclusion;
 			rs.GetCullingSystem().depthBias = self->m_savedSettings.depthBias;
@@ -181,8 +180,7 @@ namespace elm {
 			auto* self = static_cast<ImGuiSystem*>(handler->UserData);
 			if (!self || !self->m_renderSystem) return;
 			auto& rs = *self->m_renderSystem;
-			buf->append("[LabSettings][State]\n");
-			buf->appendf("Instances=%d\n", rs.GetTargetInstanceCount());
+			buf->append("[LabSettings][State]\n");			
 			buf->appendf("FrustumCulling=%d\n", rs.GetCullingSystem().enableFrustumCulling ? 1 : 0);
 			buf->appendf("OcclusionCulling=%d\n", rs.GetCullingSystem().enableOcclusionCulling ? 1 : 0);
 			buf->appendf("DepthBias=%.6f\n", rs.GetCullingSystem().depthBias);
