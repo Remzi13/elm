@@ -125,39 +125,39 @@ namespace elm {
 			if (!self) return;
 			int val = 0;
 			float fval = 0.0f;
-			if (::sscanf_s(line, "Preset=%d", &val) == 1) {
+			if (::sscanf(line, "Preset=%d", &val) == 1) {
 				self->m_savedSettings.preset = val;
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "Instances=%d", &val) == 1) {
+			else if (::sscanf(line, "Instances=%d", &val) == 1) {
 				self->m_savedSettings.instanceCount = val;
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "FrustumCulling=%d", &val) == 1) {
+			else if (::sscanf(line, "FrustumCulling=%d", &val) == 1) {
 				self->m_savedSettings.enableFrustum = (val != 0);
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "OcclusionCulling=%d", &val) == 1) {
+			else if (::sscanf(line, "OcclusionCulling=%d", &val) == 1) {
 				self->m_savedSettings.enableOcclusion = (val != 0);
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "DepthBias=%f", &fval) == 1) {
+			else if (::sscanf(line, "DepthBias=%f", &fval) == 1) {
 				self->m_savedSettings.depthBias = fval;
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "SOCResolution=%d", &val) == 1) {
+			else if (::sscanf(line, "SOCResolution=%d", &val) == 1) {
 				self->m_savedSettings.resolution = val;
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "VisualMode=%d", &val) == 1) {
+			else if (::sscanf(line, "VisualMode=%d", &val) == 1) {
 				self->m_savedSettings.visualMode = val;
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "DepthFalseColor=%d", &val) == 1) {
+			else if (::sscanf(line, "DepthFalseColor=%d", &val) == 1) {
 				self->m_savedSettings.depthFalseColor = (val != 0);
 				self->m_savedSettings.hasLoaded = true;
 			}
-			else if (::sscanf_s(line, "MoveSpeed=%f", &fval) == 1) {
+			else if (::sscanf(line, "MoveSpeed=%f", &fval) == 1) {
 				self->m_savedSettings.moveSpeed = fval;
 				self->m_savedSettings.hasLoaded = true;
 			}

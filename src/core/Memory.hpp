@@ -67,7 +67,7 @@ namespace elm::memory {
 		template<typename U>
 		struct rebind
 		{
-			using other = Allocator<U>;
+			using other = StdStringAllocator<U>;
 		};
 	};
 

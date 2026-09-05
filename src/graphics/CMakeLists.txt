@@ -26,6 +26,9 @@ endif()
 target_include_directories(graphics PUBLIC
     ${ENGINE_INCLUDE_DIRS}
     ${glfw_SOURCE_DIR}/include
+)
+
+target_include_directories(graphics SYSTEM PUBLIC
     ${diligentengine_SOURCE_DIR}/DiligentCore
     ${diligentengine_SOURCE_DIR}/DiligentTools
     ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui

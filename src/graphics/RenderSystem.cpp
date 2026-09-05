@@ -37,26 +37,42 @@ namespace elm {
 		class DilligentAllocator : public Diligent::IMemoryAllocator
 		{
 			public:
+				virtual ~DilligentAllocator() = default;
+
+				struct AllocationHeader
+				{
+					void* rawPointer;
+					size_t requestedSize;
+					size_t allocatedSize;
+				};
+
     			virtual void* Allocate(size_t Size,[[maybe_unused]] const char* DebugDesc, [[maybe_unused]] const char* File, [[maybe_unused]] int Line) override
     			{	
-					void* ptr = memory::allocate_impl(Size + sizeof(size_t));
+					constexpr size_t Alignment = 64;
+					size_t allocatedSize = Size + Alignment + sizeof(AllocationHeader);
+					void* rawPointer = memory::allocate_impl(allocatedSize);
+					void* ptr = static_cast<char*>(rawPointer) + sizeof(AllocationHeader);
+					size_t availableSize = allocatedSize - sizeof(AllocationHeader);
+					std::align(Alignment, Size, ptr, availableSize);
         			if (!ptr) return nullptr;
 
-        			*static_cast<size_t*>(ptr) = Size;
+					auto* header = reinterpret_cast<AllocationHeader*>(ptr) - 1;
+					header->rawPointer = rawPointer;
+					header->requestedSize = Size;
+					header->allocatedSize = allocatedSize;
         			m_TotalAllocated.fetch_add(Size, std::memory_order_relaxed);
 
-        			return static_cast<char*>(ptr) + sizeof(size_t);
+					return ptr;
     			}
 
     			virtual void Free(void* Ptr) override
     			{
         			if (!Ptr) return;
 
-        			void* realPtr = static_cast<char*>(Ptr) - sizeof(size_t);
-        			size_t size = *static_cast<size_t*>(realPtr);
+					auto* header = reinterpret_cast<AllocationHeader*>(Ptr) - 1;
 
-					memory::deallocate_impl(realPtr, size + sizeof(size_t));
-        			m_TotalAllocated.fetch_sub(size, std::memory_order_relaxed);
+					memory::deallocate_impl(header->rawPointer, header->allocatedSize);
+					m_TotalAllocated.fetch_sub(header->requestedSize, std::memory_order_relaxed);
 					
     			}
 
@@ -150,7 +166,7 @@ namespace elm {
 		Diligent::EngineVkCreateInfo engineCreateInfo;
 		engineCreateInfo.NumDeferredContexts = 0;
 		engineCreateInfo.DynamicHeapSize = 32 << 20;
-		engineCreateInfo.pRamMemoryAllocator = &g_Allocator;
+		engineCreateInfo.pRawMemAllocator = &g_Allocator;
 		pFactory->CreateDeviceAndContextsVk(engineCreateInfo, &m_renderDevice, &m_deviceContext);
 #endif
 
