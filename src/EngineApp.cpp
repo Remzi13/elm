@@ -1,7 +1,9 @@
 #include "EngineApp.hpp"
 
 #include "core/Timer.hpp"
+#include "graphics/ui/SocLabWindow.hpp"
 
+#include <algorithm>
 #include <iostream>
 
 namespace elm {
@@ -33,7 +35,12 @@ namespace elm {
 		m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
 		m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
-		auto imguiInit = m_imguiSystem->Init(*m_renderSystem, "Engine Debug UI");
+		ImGuiRenderContext imguiRenderContext;
+		imguiRenderContext.renderSystem = m_renderSystem.get();
+		imguiRenderContext.window = m_renderSystem->GetWindowHandle();
+		imguiRenderContext.width = m_renderSystem->GetWidth();
+		imguiRenderContext.height = m_renderSystem->GetHeight();
+		auto imguiInit = m_imguiSystem->Init(imguiRenderContext, "Engine Debug UI");
 		if (!imguiInit) {
 			return std::unexpected(imguiInit.error());
 		}
@@ -140,15 +147,75 @@ namespace elm {
 			m_currentStats.boxTransform = m_physicsSystem->GetDynamicBoxTransform();
 			m_currentStats.groundTransform = m_physicsSystem->GetGroundTransform();
 		}
+
+		ImGuiRenderContext imguiRenderContext{
+			m_renderSystem.get(),
+			m_renderSystem->GetWindowHandle(),
+			m_renderSystem->GetWidth(),
+			m_renderSystem->GetHeight()
+		};
+		ImGuiUpdateContext imguiContext{
+			m_scene,
+			m_currentStats,
+			m_renderSystem->GetWidth(),
+			m_renderSystem->GetHeight(),
+			m_renderSystem->GetMemAllocated(),
+			m_renderSystem->GetEngineViewportTexture(),
+			m_renderSystem->GetEngineViewportWidth(),
+			m_renderSystem->GetEngineViewportHeight(),
+			m_renderSystem->GetDepthPreviewTexture(),
+			&m_renderSystem->GetCullingSystem().GetDepthBuffer(),
+			m_renderSystem->GetDepthPreviewWidth(),
+			m_renderSystem->GetDepthPreviewHeight(),
+			m_renderSystem->IsDepthPreviewFalseColor(),
+			m_renderSystem->GetCullingSystem().GetStats(),
+			m_renderSystem->GetCullingSystem().enableFrustumCulling,
+			m_renderSystem->GetCullingSystem().enableOcclusionCulling,
+			m_renderSystem->GetCullingSystem().depthBias,
+			m_renderSystem->GetCullingSystem().visualMode
+		};
+		auto updateConfig = m_imguiUpdateConfig;
+		m_imguiSystem->Update(imguiContext, updateConfig);
+		m_imguiUpdateConfig = updateConfig;
+		{
+			std::scoped_lock lock{ m_imguiConfigMutex };
+			m_imguiRenderConfig = updateConfig;
+		}
 	}
 
 	void EngineApp::Render([[maybe_unused]] float deltaTime) {
 		if (!m_renderSystem) return;
 
+		ImGuiConfig renderConfig;
+		{
+			std::scoped_lock lock{ m_imguiConfigMutex };
+			renderConfig = m_imguiRenderConfig;
+		}
+		auto& culling = m_renderSystem->GetCullingSystem();
+		culling.enableFrustumCulling = renderConfig.enableFrustumCulling;
+		culling.enableOcclusionCulling = renderConfig.enableOcclusionCulling;
+		culling.depthBias = renderConfig.depthBias;
+		culling.visualMode = renderConfig.visualMode;
+		m_renderSystem->SetDepthPreviewFalseColor(renderConfig.depthPreviewFalseColor);
+		const auto resolutionIndex = std::clamp(renderConfig.resolution, 0, static_cast<int>(SocLabWindow::ResolutionWidths.size()) - 1);
+		renderConfig.resolution = resolutionIndex;
+		if (m_appliedResolution != resolutionIndex) {
+			const auto width = SocLabWindow::ResolutionWidths[resolutionIndex];
+			const auto height = SocLabWindow::ResolutionHeights[resolutionIndex];
+			culling.SetResolution(width, height);
+			m_renderSystem->CreateDepthPreviewTexture(width, height);
+			m_appliedResolution = resolutionIndex;
+		}
+
 		m_renderSystem->BeginFrame();
 		m_renderSystem->RenderScene(m_camera, m_scene);
-		m_imguiSystem->BeginFrame(*m_renderSystem);
-		m_imguiSystem->Render(*m_renderSystem, m_scene, m_currentStats);
+		ImGuiRenderContext imguiRenderContext{
+			m_renderSystem.get(),
+			m_renderSystem->GetWindowHandle(),
+			m_renderSystem->GetWidth(),
+			m_renderSystem->GetHeight()
+		};
+		m_imguiSystem->Render();
 		m_renderSystem->EndFrame();
 	}
 

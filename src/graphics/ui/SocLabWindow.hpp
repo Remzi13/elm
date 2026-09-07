@@ -16,11 +16,10 @@ namespace elm {
 		SocLabWindow() = default;
 
 		[[nodiscard]] StringView GetName() const override { return "Software Occlusion Culling Lab"; }
-		void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) override;
+		void Update(const ImGuiUpdateContext& context, ImGuiConfig& config) override;
 
 		[[nodiscard]] int GetResolutionIndex() const noexcept { return m_currentResolution; }
 		void SetResolutionIndex(int index) noexcept;
-		void ApplyResolution(RenderSystem& renderSystem);
 
 		static constexpr std::array<uint32_t, 5> ResolutionWidths = { 64, 128, 256, 320, 512 };
 		static constexpr std::array<uint32_t, 5> ResolutionHeights = { 36, 72, 144, 180, 288 };

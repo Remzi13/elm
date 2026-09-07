@@ -1,6 +1,39 @@
 engine_add_library(graphics
     RenderSystem.hpp
     RenderSystem.cpp
+    backend/diligent/DiligentRenderer.hpp
+    backend/diligent/DiligentRenderer.cpp
+    RenderDevice.hpp
+    RenderContext.hpp
+    RenderFrame.hpp
+    Renderer.hpp
+    RenderBuffer.hpp
+    RenderMesh.hpp
+    RenderShader.hpp
+    RenderMaterial.hpp
+    RenderPipeline.hpp
+    RenderResourceManager/Buffer.hpp
+    RenderResourceManager/Texture.hpp
+    RenderResourceManager/Mesh.hpp
+    RenderResourceManager/Shader.hpp
+    RenderResourceManager/Material.hpp
+    RenderResourceManager/Pipeline.hpp
+    RenderResourceManager.hpp
+    RenderSurfaceManager.hpp
+    RenderWorld.hpp
+    SceneRenderer.hpp
+    VisibilitySystem.hpp
+    passes/VisibilityPass.hpp
+    passes/DepthPass.hpp
+    passes/OpaquePass.hpp
+    passes/TransparentPass.hpp
+    passes/DebugPass.hpp
+    backend/diligent/DiligentRenderDevice.hpp
+    backend/diligent/DiligentRenderContext.hpp
+    backend/diligent/DiligentBuffer.hpp
+    backend/diligent/DiligentTexture.hpp
+    ImGuiRenderer.hpp
+    ImGuiRenderer.cpp
     ImGuiSystem.cpp
     Camera.cpp
     CameraController.cpp

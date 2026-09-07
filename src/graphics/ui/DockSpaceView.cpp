@@ -4,7 +4,7 @@
 
 namespace elm {
 
-	void DockSpaceView::Render(std::span<const UniquePtr<IImGuiWindow>> windows) {
+	void DockSpaceView::Update(std::span<const UniquePtr<IImGuiWindow>> windows) {
 		const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
 		ImGui::SetNextWindowPos(mainViewport->WorkPos);
 		ImGui::SetNextWindowSize(mainViewport->WorkSize);

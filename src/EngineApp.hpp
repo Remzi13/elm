@@ -10,6 +10,8 @@
 
 #include "input/Input.hpp"
 
+#include <mutex>
+
 namespace elm {
 
 	class EngineApp {
@@ -49,6 +51,10 @@ namespace elm {
 		float m_frameCounterTime{ 0.0f };
 		uint32_t m_frameCount{ 0 };
 		FrameStats m_currentStats;
+		ImGuiConfig m_imguiUpdateConfig;
+		ImGuiConfig m_imguiRenderConfig;
+		std::mutex m_imguiConfigMutex;
+		int m_appliedResolution{ -1 };
 	};
 
 } // namespace Engine

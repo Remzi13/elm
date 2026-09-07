@@ -1,4 +1,4 @@
-#include "graphics/RenderSystem.hpp"#include "graphics/RenderSystem.hpp"
+#include "graphics/backend/diligent/DiligentRenderer.hpp"
 
 #include "core/Log.hpp"
 
@@ -34,7 +34,7 @@
 
 namespace elm {
 
-	struct RenderSystem::Impl {
+	struct DiligentRenderer::Impl {
 		Diligent::IRenderDevice* m_renderDevice{ nullptr };
 		Diligent::IDeviceContext* m_deviceContext{ nullptr };
 		Diligent::ISwapChain* m_swapChain{ nullptr };
@@ -58,7 +58,7 @@ namespace elm {
 	};
 
 
-	struct RenderSystem::ViewportRegistry {
+	struct DiligentRenderer::ViewportRegistry {
 		struct Entry {
 			Diligent::RefCntAutoPtr<Diligent::ISwapChain> swapChain;
 			RenderViewport viewport;
@@ -146,7 +146,7 @@ namespace elm {
 
 			String source(static_cast<size_t>(size), '\0');
 			if (file.read(source.data(), size)) {
-				std::cout << "[RenderSystem] Loaded shader: " << path << std::endl;
+				std::cout << "[DiligentRenderer] Loaded shader: " << path << std::endl;
 				return source;
 			}
 		}
@@ -156,30 +156,30 @@ namespace elm {
 	}
 
 
-	RenderSystem::RenderSystem()
+	DiligentRenderer::DiligentRenderer()
 		: m_impl(std::make_unique<Impl>()),
 		m_viewports(std::make_unique<ViewportRegistry>()),
 		m_engineViewportTexture(std::make_unique<RenderTexture>()),
 		m_depthPreviewTexture(std::make_unique<RenderTexture>()) {
 	}
 
-	RenderSystem::~RenderSystem() {
+	DiligentRenderer::~DiligentRenderer() {
 		Shutdown();
 	}
 
-	void* RenderSystem::GetNativeDevice() const noexcept {
+	void* DiligentRenderer::GetNativeDevice() const noexcept {
 		return m_impl->m_renderDevice;
 	}
 
-	void* RenderSystem::GetNativeContext() const noexcept {
+	void* DiligentRenderer::GetNativeContext() const noexcept {
 		return m_impl->m_deviceContext;
 	}
 
-	void* RenderSystem::GetNativeSwapChain() const noexcept {
+	void* DiligentRenderer::GetNativeSwapChain() const noexcept {
 		return m_impl->m_swapChain;
 	}
 
-	RenderViewport* RenderSystem::CreateViewport(GLFWwindow* window, uint32_t width, uint32_t height) {
+	RenderViewport* DiligentRenderer::CreateViewport(GLFWwindow* window, uint32_t width, uint32_t height) {
 		if (!window || !m_impl->m_renderDevice || !m_impl->m_deviceContext) return nullptr;
 		Diligent::SwapChainDesc description = m_impl->m_swapChain->GetDesc();
 		description.Width = width;
@@ -215,17 +215,17 @@ namespace elm {
 		return inserted ? &it->second.viewport : nullptr;
 	}
 
-	void RenderSystem::DestroyViewport(RenderViewport* viewport) {
+	void DiligentRenderer::DestroyViewport(RenderViewport* viewport) {
 		if (viewport) m_viewports->viewports.erase(viewport->m_id);
 	}
 
-	void RenderSystem::ResizeViewport(RenderViewport* viewport, uint32_t width, uint32_t height) {
+	void DiligentRenderer::ResizeViewport(RenderViewport* viewport, uint32_t width, uint32_t height) {
 		if (!viewport) return;
 		auto it = m_viewports->viewports.find(viewport->m_id);
 		if (it != m_viewports->viewports.end()) it->second.swapChain->Resize(width, height);
 	}
 
-	void RenderSystem::RenderViewportFrame(RenderViewport* viewport, void* drawData) {
+	void DiligentRenderer::RenderViewportFrame(RenderViewport* viewport, void* drawData) {
 		if (!viewport) return;
 		auto it = m_viewports->viewports.find(viewport->m_id);
 		if (it == m_viewports->viewports.end()) return;
@@ -240,18 +240,18 @@ namespace elm {
 		}
 	}
 
-	void RenderSystem::PresentViewportFrame(RenderViewport* viewport) {
+	void DiligentRenderer::PresentViewportFrame(RenderViewport* viewport) {
 		if (!viewport) return;
 		auto it = m_viewports->viewports.find(viewport->m_id);
 		if (it != m_viewports->viewports.end()) it->second.swapChain->Present();
 	}
 
-	void RenderSystem::SetViewportDrawCallback(ViewportDrawCallback callback, void* userData) {
+	void DiligentRenderer::SetViewportDrawCallback(ViewportDrawCallback callback, void* userData) {
 		m_viewports->drawCallback = callback;
 		m_viewports->drawUserData = userData;
 	}
 
-	auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void> {
+	auto DiligentRenderer::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void> {
 		if (m_initialized) {
 			return {};
 		}
@@ -332,11 +332,11 @@ namespace elm {
 		InitPipeline();
 
 		m_initialized = true;
-		std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
+		std::cout << "[DiligentRenderer] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
 		return {};
 	}
 
-	void RenderSystem::InitPipeline() {
+	void DiligentRenderer::InitPipeline() {
 		CreateMeshBuffers();
 		CreateInstanceBuffer();
 
@@ -357,7 +357,7 @@ namespace elm {
 		const String PSSource = LoadShaderSource("mesh.frag.hlsl");
 		const String PSHighlightSource = LoadShaderSource("highlight.frag.hlsl");
 		if (VSSource.empty() || PSSource.empty() || PSHighlightSource.empty()) {
-			std::cerr << "[RenderSystem] Pipeline creation aborted: shader source is missing." << std::endl;
+			std::cerr << "[DiligentRenderer] Pipeline creation aborted: shader source is missing." << std::endl;
 			return;
 		}
 
@@ -386,7 +386,7 @@ namespace elm {
 		}
 
 		if (!pVS || !pPS || !pHighlightPS) {
-			std::cerr << "[RenderSystem] Pipeline creation aborted: shader compilation failed." << std::endl;
+			std::cerr << "[DiligentRenderer] Pipeline creation aborted: shader compilation failed." << std::endl;
 			return;
 		}
 
@@ -449,7 +449,7 @@ namespace elm {
 		CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
 	}
 
-	void RenderSystem::CreateMeshBuffers() {
+	void DiligentRenderer::CreateMeshBuffers() {
 		auto createBuffers = [this](const MeshData& mesh, Diligent::IBuffer** ppVB, Diligent::IBuffer** ppIB, uint32_t& indexCount) {
 			Diligent::BufferDesc VBDesc;
 			VBDesc.Name = "Mesh VB";
@@ -484,7 +484,7 @@ namespace elm {
 		createBuffers(groundMesh, &m_impl->m_pGroundVB, &m_impl->m_pGroundIB, m_groundIndexCount);
 	}
 
-	void RenderSystem::CreateInstanceBuffer() {
+	void DiligentRenderer::CreateInstanceBuffer() {
 		Diligent::BufferDesc InstBuffDesc;
 		InstBuffDesc.Name = "Mesh Instance Buffer";
 		InstBuffDesc.Usage = Diligent::USAGE_DYNAMIC;
@@ -494,7 +494,7 @@ namespace elm {
 		m_impl->m_renderDevice->CreateBuffer(InstBuffDesc, nullptr, &m_impl->m_pInstanceBuffer);
 	}
 
-	void RenderSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
+	void DiligentRenderer::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
 		if (m_impl->m_pDepthPreviewSRV) {
 			m_impl->m_pDepthPreviewSRV->Release();
 			m_impl->m_pDepthPreviewSRV = nullptr;
@@ -537,7 +537,7 @@ namespace elm {
 		m_depthPreviewTexture->m_height = height;
 	}
 
-	void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height) {
+	void DiligentRenderer::CreateEngineViewport(uint32_t width, uint32_t height) {
 		if (m_impl->m_pEngineViewportSRV) m_impl->m_pEngineViewportSRV->Release();
 		if (m_impl->m_pEngineViewportDSV) m_impl->m_pEngineViewportDSV->Release();
 		if (m_impl->m_pEngineViewportRTV) m_impl->m_pEngineViewportRTV->Release();
@@ -589,7 +589,7 @@ namespace elm {
 		}
 	}
 
-	void RenderSystem::UpdateDepthPreviewTexture() {
+	void DiligentRenderer::UpdateDepthPreviewTexture() {
 		if (!m_impl->m_pDepthPreviewTex || !m_impl->m_deviceContext) return;
 
 		m_visibilitySystem.GetSoftwareOcclusionCuller().GetDepthBuffer().GenerateVisualTexture(m_depthPreviewPixels, m_depthPreviewFalseColor);
@@ -609,11 +609,11 @@ namespace elm {
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}
 
-	bool RenderSystem::ShouldClose() const {
+	bool DiligentRenderer::ShouldClose() const {
 		return m_window ? glfwWindowShouldClose(m_window) : true;
 	}
 
-	void RenderSystem::BeginFrame() {
+	void DiligentRenderer::BeginFrame() {
 		if (!m_impl->m_swapChain || !m_impl->m_deviceContext) return;
 
 		auto* pRTV = m_impl->m_swapChain->GetCurrentBackBufferRTV();
@@ -626,7 +626,7 @@ namespace elm {
 
 	}
 
-	void RenderSystem::RenderScene(const Camera& camera, const Scene& scene) {
+	void DiligentRenderer::RenderScene(const Camera& camera, const Scene& scene) {
 		if (!m_impl->m_deviceContext || !m_impl->m_pPSO) return;
 
 		if (m_impl->m_pEngineViewportRTV && m_impl->m_pEngineViewportDSV) {
@@ -778,12 +778,12 @@ namespace elm {
 		}
 	}
 
-	void RenderSystem::EndFrame() {
+	void DiligentRenderer::EndFrame() {
 		if (!m_impl->m_swapChain || !m_impl->m_deviceContext) return;
 		m_impl->m_swapChain->Present();
 	}
 
-	void RenderSystem::Shutdown() {
+	void DiligentRenderer::Shutdown() {
 		if (!m_initialized) return;
 
 		m_viewports->viewports.clear();
@@ -875,10 +875,10 @@ namespace elm {
 		glfwTerminate();
 
 		m_initialized = false;
-		std::cout << "[RenderSystem] Shutdown completed." << std::endl;
+		std::cout << "[DiligentRenderer] Shutdown completed." << std::endl;
 	}
 
-	size_t RenderSystem::GetMemAllocated() const {
+	size_t DiligentRenderer::GetMemAllocated() const {
 		return g_Allocator.GetTotalAllocatedBytes();
 	}
 

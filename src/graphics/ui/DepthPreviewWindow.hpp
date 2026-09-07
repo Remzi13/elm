@@ -11,7 +11,7 @@ namespace elm {
 		DepthPreviewWindow() = default;
 
 		[[nodiscard]] StringView GetName() const override { return "Software Depth Buffer Viewport"; }
-		void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) override;
+		void Update(const ImGuiUpdateContext& context, ImGuiConfig& config) override;
 	};
 
 } // namespace Engine

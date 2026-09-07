@@ -5,7 +5,7 @@
 
 namespace elm {
 
-	void EngineViewportWindow::Render(RenderSystem& renderSystem, Scene& sceen, const FrameStats&) {
+	void EngineViewportWindow::Update(const ImGuiUpdateContext& context, ImGuiConfig&) {
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -15,10 +15,10 @@ namespace elm {
 			return;
 		}
 
-		if (auto* texture = renderSystem.GetEngineViewportSRV()) {
+		if (auto* texture = context.engineViewport) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
-			const float aspect = static_cast<float>(renderSystem.GetEngineViewportWidth()) /
-				static_cast<float>(renderSystem.GetEngineViewportHeight());
+			const float aspect = static_cast<float>(context.engineViewportWidth) /
+				static_cast<float>(context.engineViewportHeight);
 			ImVec2 size = available;
 			if (size.x / aspect < size.y) {
 				size.y = size.x / aspect;
@@ -26,7 +26,7 @@ namespace elm {
 			else {
 				size.x = size.y * aspect;
 			}
-			ImGui::Image(reinterpret_cast<ImTextureID>(texture), size);
+			ImGui::Image(reinterpret_cast<ImTextureID>(texture->GetNativeHandle()), size);
 		}
 		ImGui::End();
 	}

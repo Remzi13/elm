@@ -1,22 +1,5 @@
 #pragma once
 
-#include "graphics/backend/diligent/DiligentRenderer.hpp"
-
-namespace elm {
-
-class RenderSystem final : public DiligentRenderer {
-public:
-    RenderSystem() = default;
-    ~RenderSystem() override = default;
-
-    RenderSystem(const RenderSystem&) = delete;
-    RenderSystem& operator=(const RenderSystem&) = delete;
-    RenderSystem(RenderSystem&&) noexcept = delete;
-    RenderSystem& operator=(RenderSystem&&) noexcept = delete;
-};
-
-} // namespace elm#pragma once
-
 #include "core/Error.hpp"
 
 #include "graphics/VisibilitySystem.hpp"
@@ -39,17 +22,17 @@ namespace elm {
 		Vector4 Color;
 	};
 
-	class RenderSystem final : public RenderSurfaceManager {
+	class DiligentRenderer : public RenderSurfaceManager {
 		friend class ImGuiRenderer;
 	public:
 		using ViewportDrawCallback = void(*)(void* userData, void* deviceContext, void* drawData);
-		RenderSystem();
-		~RenderSystem();
+		DiligentRenderer();
+		~DiligentRenderer();
 
-		RenderSystem(const RenderSystem&) = delete;
-		RenderSystem& operator=(const RenderSystem&) = delete;
-		RenderSystem(RenderSystem&&) noexcept = delete;
-		RenderSystem& operator=(RenderSystem&&) noexcept = delete;
+		DiligentRenderer(const DiligentRenderer&) = delete;
+		DiligentRenderer& operator=(const DiligentRenderer&) = delete;
+		DiligentRenderer(DiligentRenderer&&) noexcept = delete;
+		DiligentRenderer& operator=(DiligentRenderer&&) noexcept = delete;
 
 		[[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
 		[[nodiscard]] bool ShouldClose() const;		
@@ -79,13 +62,13 @@ namespace elm {
 		[[nodiscard]] uint32_t GetDepthPreviewWidth() const { return m_depthPreviewWidth; }
 		[[nodiscard]] uint32_t GetDepthPreviewHeight() const { return m_depthPreviewHeight; }
 		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
+		[[nodiscard]] void* GetNativeDevice() const noexcept;
+		[[nodiscard]] void* GetNativeContext() const noexcept;
+		[[nodiscard]] void* GetNativeSwapChain() const noexcept;
 		
 	private:
 		struct Impl;
 		struct ViewportRegistry;
-		[[nodiscard]] void* GetNativeDevice() const noexcept;
-		[[nodiscard]] void* GetNativeContext() const noexcept;
-		[[nodiscard]] void* GetNativeSwapChain() const noexcept;
 
 		void InitPipeline();
 		void CreateMeshBuffers();

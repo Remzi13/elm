@@ -2,7 +2,8 @@
 
 #include "core/Error.hpp"
 
-#include "graphics/RenderSystem.hpp"
+#include "graphics/ImGuiRenderer.hpp"
+
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
 
@@ -10,10 +11,6 @@
 
 #include <memory>
 #include <span>
-
-namespace Diligent {
-	class ImGuiImplDiligentViewport;
-}
 
 namespace elm {
 
@@ -27,9 +24,9 @@ namespace elm {
 		ImGuiSystem(const ImGuiSystem&) = delete;
 		ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
-		[[nodiscard]] auto Init(RenderSystem& renderSystem, StringView title) -> elm::EngineResult<void>;
-		void BeginFrame(RenderSystem& renderSystem);
-		void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats);
+		[[nodiscard]] auto Init(const ImGuiRenderContext& renderContext, StringView title) -> elm::EngineResult<void>;
+		void Update(const ImGuiUpdateContext& updateContext, ImGuiConfig& config);
+		void Render();
 		void Shutdown();
 
 		// Window management
@@ -47,13 +44,6 @@ namespace elm {
 		}
 
 	private:
-		static void CreateViewport(ImGuiViewport* viewport);
-		static void DestroyViewport(ImGuiViewport* viewport);
-		static void ResizeViewport(ImGuiViewport* viewport, ImVec2 size);
-		static float GetViewportDpiScale(ImGuiViewport* viewport);
-		static void RenderViewport(ImGuiViewport* viewport, void* userData);
-		static void PresentViewport(ImGuiViewport* viewport, void* userData);
-
 		struct SavedLabSettings {
 			int preset{ 0 };
 			int instanceCount{ 1000 };
@@ -67,14 +57,11 @@ namespace elm {
 			bool hasLoaded{ false };
 		};
 
-		GLFWwindow* m_window{ nullptr };
-		UniquePtr<Diligent::ImGuiImplDiligentViewport> m_imGui;
-		RenderSystem* m_renderSystem{ nullptr };
-		bool m_initialized{ false };
-		bool m_glfwInitialized{ false };
-		String m_title;
+		ImGuiRenderer m_renderer;
 		String m_iniFilePath;
 		SavedLabSettings m_savedSettings;
+		ImGuiConfig m_uiConfig;
+		bool m_pendingSettings{ false };
 
 		DockSpaceView m_dockSpace;
 		Vector<UniquePtr<IImGuiWindow>> m_windows;
