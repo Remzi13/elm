@@ -10,10 +10,9 @@ engine_add_library(graphics
     ui/EngineViewportWindow.cpp
     ui/SocLabWindow.cpp
     ui/DepthPreviewWindow.cpp
-    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp
 )
 
-target_link_libraries(graphics PUBLIC glfw Diligent-Imgui)
+target_link_libraries(graphics PUBLIC glfw Diligent-Imgui imgui_glfw)
 
 target_link_libraries(graphics PRIVATE core)
 

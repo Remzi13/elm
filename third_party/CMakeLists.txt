@@ -50,6 +50,22 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(DiligentEngine)
 set_property(TARGET Diligent-Imgui PROPERTY FOLDER "third party")
 
+# ImGui GLFW backend
+add_library(imgui_glfw STATIC
+    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp
+)
+
+target_include_directories(imgui_glfw PRIVATE
+    ${glfw_SOURCE_DIR}/include
+    ${diligentengine_SOURCE_DIR}/DiligentCore
+    ${diligentengine_SOURCE_DIR}/DiligentTools
+    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui
+    ${diligentengine_SOURCE_DIR}/DiligentTools/Imgui/interface
+)
+
+target_link_libraries(imgui_glfw PRIVATE glfw Diligent-Imgui)
+set_property(TARGET imgui_glfw PROPERTY FOLDER "third party")
+
 # ------------------------------------------------------------------------------
 # Jolt Physics Engine
 # ------------------------------------------------------------------------------
