@@ -475,10 +475,7 @@ namespace elm {
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}
-
-	void RenderSystem::Update(float deltaTime) {		
-	}
-
+		
 	bool RenderSystem::ShouldClose() const {
 		return m_window ? glfwWindowShouldClose(m_window) : true;
 	}

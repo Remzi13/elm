@@ -4,13 +4,13 @@
 
 #include <iostream>
 
-namespace elm  {
+namespace elm {
 
 	EngineApp::EngineApp()
 		: m_renderSystem(MakeUnique<RenderSystem>()),
 		m_imguiSystem(MakeUnique<ImGuiSystem>()),
 		m_physicsSystem(MakeUnique<PhysicsSystem>()),
-		m_inputSystem(MakeUnique<InputSystem>()), 		
+		m_inputSystem(MakeUnique<InputSystem>()),
 		m_cameraController(m_camera)
 	{
 	}
@@ -47,7 +47,7 @@ namespace elm  {
 				}
 			}
 			return false;
-		}, static_cast<int32_t>(InputPriority::UI), "ImGuiKeyboardFilter");
+			}, static_cast<int32_t>(InputPriority::UI), "ImGuiKeyboardFilter");
 
 		// Register default AAA Action & Axis Mappings (Unreal Engine Enhanced Input style)
 		m_inputSystem->AddAxisMapping("MoveForward", Key::W, 1.0f);
@@ -80,7 +80,7 @@ namespace elm  {
 
 		while (m_isRunning && !m_renderSystem->ShouldClose()) {
 			auto currentTime = core::getTimeStamp();
-			float deltaTime = core::getMilliseconds(lastTime, currentTime);
+			float deltaTime = static_cast<float>(core::getMilliseconds(lastTime, currentTime));
 			lastTime = currentTime;
 
 			// Cap maximum deltaTime to prevent physics spiral of death
@@ -90,17 +90,22 @@ namespace elm  {
 
 			accumulator += deltaTime;
 
-			m_inputSystem->BeginFrame();
+			// 
+			{
+				m_inputSystem->BeginFrame();
+				// Fixed Timestep Physics Update
+				while (accumulator >= m_fixedTimeStep) {
+					FixedUpdate(m_fixedTimeStep);
+					accumulator -= m_fixedTimeStep;
+				}
 
-			// Fixed Timestep Physics Update
-			while (accumulator >= m_fixedTimeStep) {
-				FixedUpdate(m_fixedTimeStep);
-				accumulator -= m_fixedTimeStep;
+				// Frame variable update & rendering
+				Update(deltaTime);
 			}
-
-			// Frame variable update & rendering
-			Update(deltaTime);
-			Render(deltaTime);
+			// Draw
+			{
+				Render(deltaTime);
+			}
 		}
 
 		std::cout << "[EngineApp] Main loop exited." << std::endl;
@@ -128,11 +133,6 @@ namespace elm  {
 		m_inputSystem->Update();
 
 		m_cameraController.Update(deltaTime);
-
-		// Update camera and rendering inputs
-		if (m_renderSystem) {
-			m_renderSystem->Update(deltaTime);
-		}
 
 		// Query synchronized physics transforms for display/rendering
 		if (m_physicsSystem) {

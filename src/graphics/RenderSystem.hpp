@@ -48,10 +48,8 @@ namespace elm {
 		RenderSystem& operator=(RenderSystem&&) noexcept = delete;
 
 		[[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
-
 		[[nodiscard]] bool ShouldClose() const;		
-
-		void Update(float deltaTime);
+				
 		void BeginFrame();
 		void RenderScene(const Camera& camera, const Scene& scene);
 		void EndFrame();
