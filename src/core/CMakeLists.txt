@@ -8,6 +8,8 @@ engine_add_library(core
     Error.hpp
     Timer.hpp
     Timer.cpp
+    Threading.hpp
+    Threading.cpp
 )
 
 target_include_directories(core PUBLIC
