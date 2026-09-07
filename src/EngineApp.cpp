@@ -1,6 +1,7 @@
 #include "EngineApp.hpp"
 
-#include <chrono>
+#include "core/Timer.hpp"
+
 #include <iostream>
 
 namespace elm  {
@@ -74,12 +75,12 @@ namespace elm  {
 
 		std::cout << "[EngineApp] Entering main loop with fixed timestep physics accumulator." << std::endl;
 
-		auto lastTime = std::chrono::high_resolution_clock::now();
+		auto lastTime = core::getTimeStamp();
 		float accumulator = 0.0f;
 
 		while (m_isRunning && !m_renderSystem->ShouldClose()) {
-			auto currentTime = std::chrono::high_resolution_clock::now();
-			float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+			auto currentTime = core::getTimeStamp();
+			float deltaTime = core::getMilliseconds(lastTime, currentTime);
 			lastTime = currentTime;
 
 			// Cap maximum deltaTime to prevent physics spiral of death

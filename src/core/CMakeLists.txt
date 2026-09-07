@@ -6,6 +6,8 @@ engine_add_library(core
     Log.cpp
     Error.cpp
     Error.hpp
+    Timer.hpp
+    Timer.cpp
 )
 
 target_include_directories(core PUBLIC

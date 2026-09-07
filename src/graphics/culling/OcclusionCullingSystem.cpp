@@ -1,6 +1,6 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 
-#include <chrono>
+#include "core/Timer.hpp"
 
 namespace elm {
 
@@ -13,7 +13,7 @@ namespace elm {
 	}
 
 	void OcclusionCullingSystem::ExecuteCulling(const Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees) {
-		const auto tStart = std::chrono::high_resolution_clock::now();
+		const auto tStart = core::getTimeStamp();
 
 		occludees.clear();
 
@@ -21,7 +21,7 @@ namespace elm {
 		m_depthBuffer.Clear(1.0f);
 
 		// 2. Rasterize occluders to software depth buffer
-		const auto tRasterStart = std::chrono::high_resolution_clock::now();
+		const auto tRasterStart = core::getTimeStamp();
 		if (enableOcclusionCulling) {
 			for (const auto& inst : scene.instances) {
 				const Matrix4x4 wvp = cullingViewProj * inst.worldTransform;
@@ -33,10 +33,10 @@ namespace elm {
 				m_depthBuffer.RasterizeMesh(positions, inst.mesh.indices, wvp);
 			}
 		}
-		const auto tRasterEnd = std::chrono::high_resolution_clock::now();
+		const auto tRasterEnd = core::getTimeStamp();
 
 		// 3. Test occludees against frustum and software depth buffer
-		const auto tQueryStart = std::chrono::high_resolution_clock::now();
+		const auto tQueryStart = core::getTimeStamp();
 
 		const Frustum frustum = Frustum::FromViewProj(cullingViewProj);
 
@@ -84,12 +84,12 @@ namespace elm {
 			m_stats.visibleCount++;
 		}
 
-		const auto tQueryEnd = std::chrono::high_resolution_clock::now();
-		const auto tEnd = std::chrono::high_resolution_clock::now();
+		const auto tQueryEnd = core::getTimeStamp();
+		const auto tEnd = core::getTimeStamp();
 
-		m_stats.rasterizeTimeUs = std::chrono::duration<float, std::micro>(tRasterEnd - tRasterStart).count();
-		m_stats.queryTimeUs = std::chrono::duration<float, std::micro>(tQueryEnd - tQueryStart).count();
-		m_stats.totalCullingTimeUs = std::chrono::duration<float, std::micro>(tEnd - tStart).count();
+		m_stats.rasterizeTimeUs = static_cast<float>(core::getMicroseconds(tRasterStart, tRasterEnd));
+		m_stats.queryTimeUs = static_cast<float>(core::getMicroseconds(tQueryStart, tQueryEnd));
+		m_stats.totalCullingTimeUs = static_cast<float>(core::getMicroseconds(tStart, tEnd));
 
 		const uint32_t culledTotal = m_stats.frustumCulledCount + m_stats.occlusionCulledCount;
 		m_stats.cullingRatioPercent = (m_stats.totalObjects > 0)
