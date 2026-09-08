@@ -8,15 +8,17 @@
 #include "Scene/Transform.hpp"
 #include "Scene/TestScenes.hpp"
 
+#include "graphics/render/BufferManager.hpp"
+
 struct GLFWwindow;
 
 namespace Diligent {
-	class IRenderDevice;
+	struct IRenderDevice;
 	class IDeviceContext;
 	class ISwapChain;
 	class IPipelineState;
 	class IShaderResourceBinding;
-	class IBuffer;
+	struct IBuffer;
 	class ITexture;
 	class ITextureView;
 }
@@ -82,7 +84,7 @@ namespace elm {
 
 	private:
 		GLFWwindow* m_window{ nullptr };
-
+		
 		// Diligent Engine components
 		Diligent::IRenderDevice* m_renderDevice{ nullptr };
 		Diligent::IDeviceContext* m_deviceContext{ nullptr };
@@ -95,16 +97,16 @@ namespace elm {
 		Diligent::IBuffer* m_pCameraConstantsBuffer{ nullptr };
 
 		// Geometry Buffers
-		Diligent::IBuffer* m_pCubeVB{ nullptr };
-		Diligent::IBuffer* m_pCubeIB{ nullptr };
+		render::BufferHandler m_pCubeVB;
+		render::BufferHandler m_pCubeIB;
 		uint32_t m_cubeIndexCount{ 0 };
 
-		Diligent::IBuffer* m_pWallVB{ nullptr };
-		Diligent::IBuffer* m_pWallIB{ nullptr };
+		render::BufferHandler m_pWallVB;
+		render::BufferHandler m_pWallIB;
 		uint32_t m_wallIndexCount{ 0 };
 
-		Diligent::IBuffer* m_pGroundVB{ nullptr };
-		Diligent::IBuffer* m_pGroundIB{ nullptr };
+		render::BufferHandler m_pGroundVB;
+		render::BufferHandler m_pGroundIB;
 		uint32_t m_groundIndexCount{ 0 };
 
 		// Dynamic Instance Buffer
@@ -132,6 +134,8 @@ namespace elm {
 				
 		Vector<GpuInstanceData> m_visibleGpuInstances;
 		Vector<GpuInstanceData> m_culledGpuInstances;
+
+		render::BufferManager m_bufferManager;
 
 		uint32_t m_width{ 1280 };
 		uint32_t m_height{ 720 };

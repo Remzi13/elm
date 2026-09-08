@@ -14,8 +14,10 @@
 #else
 #include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
 #endif
-#include "Graphics/GraphicsTools/interface/CommonlyUsedStates.h"
 #include "Graphics/GraphicsTools/interface/MapHelper.hpp"
+
+#include "graphics/render/BufferManager.hpp"
+
 
 #include <iostream>
 #include <cstring>
@@ -36,56 +38,56 @@ namespace elm {
 	namespace {
 		class DilligentAllocator : public Diligent::IMemoryAllocator
 		{
-			public:
-				virtual ~DilligentAllocator() = default;
+		public:
+			virtual ~DilligentAllocator() = default;
 
-				struct AllocationHeader
-				{
-					void* rawPointer;
-					size_t requestedSize;
-					size_t allocatedSize;
-				};
+			struct AllocationHeader
+			{
+				void* rawPointer;
+				size_t requestedSize;
+				size_t allocatedSize;
+			};
 
-    			virtual void* Allocate(size_t Size,[[maybe_unused]] const char* DebugDesc, [[maybe_unused]] const char* File, [[maybe_unused]] int Line) override
-    			{	
-					constexpr size_t Alignment = 64;
-					size_t allocatedSize = Size + Alignment + sizeof(AllocationHeader);
-					void* rawPointer = memory::allocate_impl(allocatedSize);
-					void* ptr = static_cast<char*>(rawPointer) + sizeof(AllocationHeader);
-					size_t availableSize = allocatedSize - sizeof(AllocationHeader);
-					std::align(Alignment, Size, ptr, availableSize);
-        			if (!ptr) return nullptr;
+			virtual void* Allocate(size_t Size, [[maybe_unused]] const char* DebugDesc, [[maybe_unused]] const char* File, [[maybe_unused]] int Line) override
+			{
+				constexpr size_t Alignment = 64;
+				size_t allocatedSize = Size + Alignment + sizeof(AllocationHeader);
+				void* rawPointer = memory::allocate_impl(allocatedSize);
+				void* ptr = static_cast<char*>(rawPointer) + sizeof(AllocationHeader);
+				size_t availableSize = allocatedSize - sizeof(AllocationHeader);
+				std::align(Alignment, Size, ptr, availableSize);
+				if (!ptr) return nullptr;
 
-					auto* header = reinterpret_cast<AllocationHeader*>(ptr) - 1;
-					header->rawPointer = rawPointer;
-					header->requestedSize = Size;
-					header->allocatedSize = allocatedSize;
-        			m_TotalAllocated.fetch_add(Size, std::memory_order_relaxed);
+				auto* header = reinterpret_cast<AllocationHeader*>(ptr) - 1;
+				header->rawPointer = rawPointer;
+				header->requestedSize = Size;
+				header->allocatedSize = allocatedSize;
+				m_TotalAllocated.fetch_add(Size, std::memory_order_relaxed);
 
-					return ptr;
-    			}
+				return ptr;
+			}
 
-    			virtual void Free(void* Ptr) override
-    			{
-        			if (!Ptr) return;
+			virtual void Free(void* Ptr) override
+			{
+				if (!Ptr) return;
 
-					auto* header = reinterpret_cast<AllocationHeader*>(Ptr) - 1;
-					void* rawPointer = header->rawPointer;
-					const size_t requestedSize = header->requestedSize;
-					const size_t allocatedSize = header->allocatedSize;
+				auto* header = reinterpret_cast<AllocationHeader*>(Ptr) - 1;
+				void* rawPointer = header->rawPointer;
+				const size_t requestedSize = header->requestedSize;
+				const size_t allocatedSize = header->allocatedSize;
 
-					m_TotalAllocated.fetch_sub(requestedSize, std::memory_order_relaxed);
-					memory::deallocate_impl(rawPointer, allocatedSize);
-					
-    			}
+				m_TotalAllocated.fetch_sub(requestedSize, std::memory_order_relaxed);
+				memory::deallocate_impl(rawPointer, allocatedSize);
 
-    			size_t GetTotalAllocatedBytes() const 
-    			{ 
-        			return m_TotalAllocated.load(std::memory_order_relaxed); 
-    			}
+			}
 
-			private:
-    			std::atomic<size_t> m_TotalAllocated{0};
+			size_t GetTotalAllocatedBytes() const
+			{
+				return m_TotalAllocated.load(std::memory_order_relaxed);
+			}
+
+		private:
+			std::atomic<size_t> m_TotalAllocated{ 0 };
 		} g_Allocator;
 	}
 
@@ -119,7 +121,7 @@ namespace elm {
 	}
 
 
-	RenderSystem::RenderSystem(){		
+	RenderSystem::RenderSystem() {
 	}
 
 	RenderSystem::~RenderSystem() {
@@ -202,9 +204,13 @@ namespace elm {
 		if (!m_swapChain) {
 			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
 		}
-				
+
+		if (!m_bufferManager.Init(m_renderDevice))
+			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
+
 		// Initialize 3D Rendering Pipeline
 		InitPipeline();
+
 
 		m_initialized = true;
 		std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
@@ -322,41 +328,28 @@ namespace elm {
 		// Create Depth Preview Texture
 		CreateDepthPreviewTexture(m_depthPreviewWidth, m_depthPreviewHeight);
 		CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
+
+
 	}
 
 	void RenderSystem::CreateMeshBuffers() {
-		auto createBuffers = [this](const MeshData& mesh, Diligent::IBuffer** ppVB, Diligent::IBuffer** ppIB, uint32_t& indexCount) {
-			Diligent::BufferDesc VBDesc;
-			VBDesc.Name = "Mesh VB";
-			VBDesc.Usage = Diligent::USAGE_IMMUTABLE;
-			VBDesc.BindFlags = Diligent::BIND_VERTEX_BUFFER;
-			VBDesc.Size = mesh.vertices.size() * sizeof(Vertex);
-			Diligent::BufferData VBData;
-			VBData.pData = mesh.vertices.data();
-			VBData.DataSize = VBDesc.Size;
-			m_renderDevice->CreateBuffer(VBDesc, &VBData, ppVB);
+		using namespace render;
+		auto createBuffers = [this](const MeshData& mesh, BufferHandler& ppVB, BufferHandler& ppIB, uint32_t& indexCount) {
 
-			Diligent::BufferDesc IBDesc;
-			IBDesc.Name = "Mesh IB";
-			IBDesc.Usage = Diligent::USAGE_IMMUTABLE;
-			IBDesc.BindFlags = Diligent::BIND_INDEX_BUFFER;
-			IBDesc.Size = mesh.indices.size() * sizeof(uint32_t);
-			Diligent::BufferData IBData;
-			IBData.pData = mesh.indices.data();
-			IBData.DataSize = IBDesc.Size;
-			m_renderDevice->CreateBuffer(IBDesc, &IBData, ppIB);
+			ppVB = m_bufferManager.createBuffer(BufferInfo{ "Mesh VB", BufferType::VertexBuffer , mesh.vertices.size() * sizeof(Vertex), (void*)mesh.vertices.data() });
+			ppIB = m_bufferManager.createBuffer(BufferInfo{ "Mesh IB", BufferType::IndexBuffer, mesh.indices.size() * sizeof(uint32_t), (void*)mesh.indices.data() });
 
 			indexCount = static_cast<uint32_t>(mesh.indices.size());
 			};
 
 		const MeshData cubeMesh = GeometryPrimitives::CreateCube(1.0f);
-		createBuffers(cubeMesh, &m_pCubeVB, &m_pCubeIB, m_cubeIndexCount);
+		createBuffers(cubeMesh, m_pCubeVB, m_pCubeIB, m_cubeIndexCount);
 
 		const MeshData wallMesh = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
-		createBuffers(wallMesh, &m_pWallVB, &m_pWallIB, m_wallIndexCount);
+		createBuffers(wallMesh, m_pWallVB, m_pWallIB, m_wallIndexCount);
 
 		const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
-		createBuffers(groundMesh, &m_pGroundVB, &m_pGroundIB, m_groundIndexCount);
+		createBuffers(groundMesh, m_pGroundVB, m_pGroundIB, m_groundIndexCount);
 	}
 
 	void RenderSystem::CreateInstanceBuffer() {
@@ -475,7 +468,7 @@ namespace elm {
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}
-		
+
 	bool RenderSystem::ShouldClose() const {
 		return m_window ? glfwWindowShouldClose(m_window) : true;
 	}
@@ -562,9 +555,9 @@ namespace elm {
 			}
 
 			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_pGroundVB, m_pInstanceBuffer };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pGroundVB), m_pInstanceBuffer };
 			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_pGroundIB, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pGroundIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			Diligent::DrawIndexedAttribs DrawAttrs{ m_groundIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
 			DrawAttrs.NumInstances = 1;
@@ -585,9 +578,9 @@ namespace elm {
 			}
 
 			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_pWallVB, m_pInstanceBuffer };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pWallVB), m_pInstanceBuffer };
 			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_pWallIB, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pWallIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			Diligent::DrawIndexedAttribs DrawAttrs{ m_wallIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
 			DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numOccluders);
@@ -603,9 +596,9 @@ namespace elm {
 			}
 
 			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_pCubeVB, m_pInstanceBuffer };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), m_pInstanceBuffer };
 			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_pCubeIB, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pCubeIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			Diligent::DrawIndexedAttribs DrawAttrs{ m_cubeIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
 			DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numDraw);
@@ -624,9 +617,9 @@ namespace elm {
 			m_deviceContext->CommitShaderResources(m_pSRB, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_pCubeVB, m_pInstanceBuffer };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), m_pInstanceBuffer };
 			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_pCubeIB, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pCubeIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 			Diligent::DrawIndexedAttribs DrawAttrs{ m_cubeIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
 			DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numCulled);
@@ -675,30 +668,8 @@ namespace elm {
 			m_pInstanceBuffer->Release();
 			m_pInstanceBuffer = nullptr;
 		}
-		if (m_pGroundIB) {
-			m_pGroundIB->Release();
-			m_pGroundIB = nullptr;
-		}
-		if (m_pGroundVB) {
-			m_pGroundVB->Release();
-			m_pGroundVB = nullptr;
-		}
-		if (m_pWallIB) {
-			m_pWallIB->Release();
-			m_pWallIB = nullptr;
-		}
-		if (m_pWallVB) {
-			m_pWallVB->Release();
-			m_pWallVB = nullptr;
-		}
-		if (m_pCubeIB) {
-			m_pCubeIB->Release();
-			m_pCubeIB = nullptr;
-		}
-		if (m_pCubeVB) {
-			m_pCubeVB->Release();
-			m_pCubeVB = nullptr;
-		}
+
+		m_bufferManager.clear();
 
 		if (m_pCameraConstantsBuffer) {
 			m_pCameraConstantsBuffer->Release();

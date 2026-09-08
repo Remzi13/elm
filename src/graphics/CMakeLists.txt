@@ -10,6 +10,8 @@ engine_add_library(graphics
     ui/EngineViewportWindow.cpp
     ui/SocLabWindow.cpp
     ui/DepthPreviewWindow.cpp
+    render/BufferManager.hpp
+    render/BufferManager.cpp
 )
 
 target_link_libraries(graphics PUBLIC glfw Diligent-Imgui imgui_glfw)
