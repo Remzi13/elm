@@ -327,22 +327,22 @@ namespace elm {
 
 	void RenderSystem::CreateMeshBuffers() {
 		using namespace render;
-		auto createBuffers = [this](const MeshData& mesh, BufferHandler& ppVB, BufferHandler& ppIB, uint32_t& indexCount) {
+		auto createBuffers = [this](const MeshData& data, Mesh& mesh) {
 
-			ppVB = m_bufferManager.createBuffer(BufferInfo{ "Mesh VB", BufferType::VertexBuffer , mesh.vertices.size() * sizeof(Vertex), (void*)mesh.vertices.data() });
-			ppIB = m_bufferManager.createBuffer(BufferInfo{ "Mesh IB", BufferType::IndexBuffer, mesh.indices.size() * sizeof(uint32_t), (void*)mesh.indices.data() });
+			mesh.vb = m_bufferManager.createBuffer(BufferInfo{ "Mesh VB", BufferType::VertexBuffer , data.vertices.size() * sizeof(Vertex), (void*)data.vertices.data() });
+			mesh.ib = m_bufferManager.createBuffer(BufferInfo{ "Mesh IB", BufferType::IndexBuffer, data.indices.size() * sizeof(uint32_t), (void*)data.indices.data() });
 
-			indexCount = static_cast<uint32_t>(mesh.indices.size());
+			mesh.indexCount = static_cast<uint32_t>(data.indices.size());
 			};
 
 		const MeshData cubeMesh = GeometryPrimitives::CreateCube(1.0f);
-		createBuffers(cubeMesh, m_pCubeVB, m_pCubeIB, m_cubeIndexCount);
+		createBuffers(cubeMesh, m_cube);
 
 		const MeshData wallMesh = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
-		createBuffers(wallMesh, m_pWallVB, m_pWallIB, m_wallIndexCount);
+		createBuffers(wallMesh, m_wall);
 
 		const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
-		createBuffers(groundMesh, m_pGroundVB, m_pGroundIB, m_groundIndexCount);
+		createBuffers(groundMesh, m_ground);
 	}
 
 	void RenderSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
@@ -469,6 +469,22 @@ namespace elm {
 
 	}
 
+	void RenderSystem::Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances)
+	{
+		auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * instances.size(), 16);
+		std::memcpy(alloc.pCPUAddress, instances.data(), sizeof(GpuInstanceData) * instances.size());
+
+		const Diligent::Uint64 offsets[] = { 0, alloc.offset };
+		Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(mesh.vb), alloc.buffer };
+
+		m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
+		m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(mesh.ib), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+		Diligent::DrawIndexedAttribs DrawAttrs{ mesh.indexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
+		DrawAttrs.NumInstances = instances.size();
+		m_deviceContext->DrawIndexed(DrawAttrs);
+	}
+
 	void RenderSystem::RenderScene(const Camera& camera, const Scene& scene) {
 		if (!m_deviceContext || !m_pPSO) return;
 
@@ -535,26 +551,13 @@ namespace elm {
 			}
 		}
 
-		// 5. Устанавливаем Pipeline State и финализируем SRB (ТОЛЬКО ПОСЛЕ SetBufferOffset!)
+		// 5. Устанавливаем Pipeline State и финализируем SRB 
 		m_deviceContext->SetPipelineState(m_pPSO);
 		m_deviceContext->CommitShaderResources(m_pSRB, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		// --- Draw Ground ---
 		{
-			GpuInstanceData groundInst{ Matrix4x4::Translation(Vector3{0.0f, 0.0f, 0.0f}), Vector4{0.22f, 0.24f, 0.27f, 1.0f} };
-
-			auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData), 16);
-			std::memcpy(alloc.pCPUAddress, &groundInst, sizeof(GpuInstanceData));
-
-			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pGroundVB), alloc.buffer };
-
-			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pGroundIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-			Diligent::DrawIndexedAttribs DrawAttrs{ m_groundIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
-			DrawAttrs.NumInstances = 1;
-			m_deviceContext->DrawIndexed(DrawAttrs);
+			Draw(m_ground, { { Matrix4x4::Translation(Vector3{0.0f, 0.0f, 0.0f}), Vector4{0.22f, 0.24f, 0.27f, 1.0f} } });
 		}
 
 		// --- Draw Occluders (Walls) ---
@@ -566,54 +569,19 @@ namespace elm {
 				occluderGpuInstances.push_back({ occludees[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
 			}
 
-			auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * numOccluders, 16);
-			std::memcpy(alloc.pCPUAddress, occluderGpuInstances.data(), sizeof(GpuInstanceData) * numOccluders);
-
-			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pWallVB), alloc.buffer };
-			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pWallIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-			Diligent::DrawIndexedAttribs DrawAttrs{ m_wallIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
-			DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numOccluders);
-			m_deviceContext->DrawIndexed(DrawAttrs);
+			Draw(m_wall, occluderGpuInstances);
 		}
 
 		// --- Draw Occludees (Cubes) ---
 		if (m_cullingSystem.visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
-			const size_t numDraw = (std::min)(m_visibleGpuInstances.size(), MaxInstances);
 
-			auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * numDraw, 16);
-			std::memcpy(alloc.pCPUAddress, m_visibleGpuInstances.data(), sizeof(GpuInstanceData) * numDraw);
-
-			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), alloc.buffer };
-			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pCubeIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-			Diligent::DrawIndexedAttribs DrawAttrs{ m_cubeIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
-			DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numDraw);
-			m_deviceContext->DrawIndexed(DrawAttrs);
+			Draw(m_cube, m_visibleGpuInstances);
 		}
 
 		// --- Highlight Culled Objects ---
 		if (m_cullingSystem.visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
-			const size_t numCulled = (std::min)(m_culledGpuInstances.size(), MaxInstances);
 
-			auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * numCulled, 16);
-			std::memcpy(alloc.pCPUAddress, m_culledGpuInstances.data(), sizeof(GpuInstanceData) * numCulled);
-
-			m_deviceContext->SetPipelineState(m_pHighlightPSO);
-			m_deviceContext->CommitShaderResources(m_pSRB, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), alloc.buffer };
-			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pCubeIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-			Diligent::DrawIndexedAttribs DrawAttrs{ m_cubeIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
-			DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numCulled);
-			m_deviceContext->DrawIndexed(DrawAttrs);
+			Draw(m_cube, m_culledGpuInstances);
 		}
 
 		// 6. Flush аллокаторов в конце кадра

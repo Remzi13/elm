@@ -50,14 +50,14 @@ namespace elm {
 		RenderSystem& operator=(RenderSystem&&) noexcept = delete;
 
 		[[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
-		[[nodiscard]] bool ShouldClose() const;		
-				
+		[[nodiscard]] bool ShouldClose() const;
+
 		void BeginFrame();
 		void RenderScene(const Camera& camera, const Scene& scene);
 		void EndFrame();
 		void Shutdown();
 
-		[[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }				
+		[[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
 		[[nodiscard]] OcclusionCullingSystem& GetCullingSystem() { return m_cullingSystem; }
 		[[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
 		[[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
@@ -67,19 +67,28 @@ namespace elm {
 		[[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
 		[[nodiscard]] uint32_t GetWidth() const { return m_width; }
 		[[nodiscard]] uint32_t GetHeight() const { return m_height; }
-		[[nodiscard]] size_t GetMemAllocated() const;				
+		[[nodiscard]] size_t GetMemAllocated() const;
 		[[nodiscard]] bool IsDepthPreviewFalseColor() const { return m_depthPreviewFalseColor; }
 		void SetDepthPreviewFalseColor(bool falseColor) { m_depthPreviewFalseColor = falseColor; }
 		[[nodiscard]] Diligent::ITextureView* GetDepthPreviewSRV() const { return m_pDepthPreviewSRV; }
 		[[nodiscard]] uint32_t GetDepthPreviewWidth() const { return m_depthPreviewWidth; }
 		[[nodiscard]] uint32_t GetDepthPreviewHeight() const { return m_depthPreviewHeight; }
 		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
-		
+
+	private:
+		struct Mesh {
+			render::BufferHandler vb;
+			render::BufferHandler ib;
+			uint32_t indexCount{ 0 };
+		};
+
 	private:
 		void InitPipeline();
-		void CreateMeshBuffers();		
+		void CreateMeshBuffers();
 		void CreateEngineViewport(uint32_t width, uint32_t height);
 		void UpdateDepthPreviewTexture();
+
+		void Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances);
 
 	private:
 		GLFWwindow* m_window{ nullptr };
@@ -92,20 +101,11 @@ namespace elm {
 		// Shaders & Pipelines
 		Diligent::IPipelineState* m_pPSO{ nullptr };
 		Diligent::IPipelineState* m_pHighlightPSO{ nullptr };
-		Diligent::IShaderResourceBinding* m_pSRB{ nullptr };		
+		Diligent::IShaderResourceBinding* m_pSRB{ nullptr };
 
-		// Geometry Buffers
-		render::BufferHandler m_pCubeVB;
-		render::BufferHandler m_pCubeIB;
-		uint32_t m_cubeIndexCount{ 0 };
-
-		render::BufferHandler m_pWallVB;
-		render::BufferHandler m_pWallIB;
-		uint32_t m_wallIndexCount{ 0 };
-
-		render::BufferHandler m_pGroundVB;
-		render::BufferHandler m_pGroundIB;
-		uint32_t m_groundIndexCount{ 0 };
+		Mesh m_cube;
+		Mesh m_wall;
+		Mesh m_ground;
 
 		// Dynamic Instance Buffer
 		static constexpr size_t MaxInstances = 30000;

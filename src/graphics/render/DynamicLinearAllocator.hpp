@@ -14,7 +14,7 @@ namespace elm::render {
 
 	struct Allocation {
 		Diligent::IBuffer* buffer{ nullptr };
-		int offset{ 0 };
+		uint64_t offset{ 0 };
 		void* pCPUAddress{ nullptr };
 	};
 
