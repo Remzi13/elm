@@ -2,6 +2,8 @@
 
 #include "core/Std.hpp"
 
+#include "graphics/render/Render.hpp"
+
 namespace Diligent {
 	struct IRenderDevice;
 	struct IBuffer;
@@ -22,7 +24,7 @@ namespace elm::render {
 		DynamicLinearAllocator() = default;
 		~DynamicLinearAllocator() = default;
 
-		void Init(Diligent::IRenderDevice* device, const char* name, int capacity);
+		void Init(Diligent::IRenderDevice* device, const char* name, BufferType type, int capacity);
 		void Release();
 		
 		void Flush( Diligent::IDeviceContext* pContext );

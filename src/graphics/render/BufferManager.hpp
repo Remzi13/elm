@@ -2,23 +2,18 @@
 
 #include "core/Std.hpp"
 
+#include "graphics/render/Render.hpp"
+
 namespace Diligent {
 	struct IRenderDevice;
 	struct IBuffer;
 }
 
 namespace elm::render {
-
-	
+		
 	struct BufferHandler {
 		int index { -1 };
-	};
-
-	enum BufferType {
-		VertexBuffer,
-		IndexBuffer,
-		UniformBuffer
-	};
+	};	
 
 	struct BufferInfo {
 		String name;

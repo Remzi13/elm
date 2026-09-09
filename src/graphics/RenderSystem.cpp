@@ -2,8 +2,6 @@
 
 #include "core/Log.hpp"
 
-#include <GLFW/glfw3.h>
-
 // Diligent Engine Includes
 #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
@@ -31,7 +29,9 @@
 #define GLFW_EXPOSE_NATIVE_X11
 #define GLFW_EXPOSE_NATIVE_WAYLAND
 #endif
+#include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
+
 
 namespace elm {
 
@@ -211,7 +211,7 @@ namespace elm {
 		// Initialize 3D Rendering Pipeline
 		InitPipeline();
 
-		m_dynamicLinearAllocator.Init( m_renderDevice, "Dynamic Instance Linear Allocator", 16 * 1024 * 1024);
+		m_dynamicLinearAllocator.Init( m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
 
 		m_initialized = true;
 		std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;

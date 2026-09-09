@@ -1,11 +1,13 @@
 #include "graphics/render/DynamicLinearAllocator.hpp"
 
+#include "graphics/render/backends/Utils.hpp"
+
 #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
 
 namespace elm::render {
 
-	void DynamicLinearAllocator::Init( Diligent::IRenderDevice* device, const char* name, int capacity )
+	void DynamicLinearAllocator::Init( Diligent::IRenderDevice* device, const char* name, BufferType type, int capacity )
 	{
 		m_renderDevice = device;
 		m_capacity = capacity;
@@ -13,7 +15,7 @@ namespace elm::render {
 		Diligent::BufferDesc desc;
 		desc.Name = name;
 		desc.Size = capacity;
-		desc.BindFlags = Diligent::BIND_VERTEX_BUFFER;
+        desc.BindFlags = getBindFlags(type);
 		desc.Usage = Diligent::USAGE_DYNAMIC;
 		desc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
 
