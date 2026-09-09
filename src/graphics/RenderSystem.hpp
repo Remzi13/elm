@@ -9,16 +9,17 @@
 #include "Scene/TestScenes.hpp"
 
 #include "graphics/render/BufferManager.hpp"
+#include "graphics/render/DynamicLinearAllocator.hpp"
 
 struct GLFWwindow;
 
 namespace Diligent {
 	struct IRenderDevice;
-	class IDeviceContext;
+	struct IDeviceContext;
 	class ISwapChain;
 	class IPipelineState;
 	class IShaderResourceBinding;
-	struct IBuffer;
+	//struct IBuffer;
 	class ITexture;
 	class ITextureView;
 }
@@ -77,8 +78,7 @@ namespace elm {
 		
 	private:
 		void InitPipeline();
-		void CreateMeshBuffers();
-		void CreateInstanceBuffer();
+		void CreateMeshBuffers();		
 		void CreateEngineViewport(uint32_t width, uint32_t height);
 		void UpdateDepthPreviewTexture();
 
@@ -110,7 +110,6 @@ namespace elm {
 		uint32_t m_groundIndexCount{ 0 };
 
 		// Dynamic Instance Buffer
-		Diligent::IBuffer* m_pInstanceBuffer{ nullptr };
 		static constexpr size_t MaxInstances = 30000;
 
 		// Depth Buffer Visualization Texture
@@ -136,6 +135,7 @@ namespace elm {
 		Vector<GpuInstanceData> m_culledGpuInstances;
 
 		render::BufferManager m_bufferManager;
+		render::DynamicLinearAllocator m_dynamicLinearAllocator;
 
 		uint32_t m_width{ 1280 };
 		uint32_t m_height{ 720 };

@@ -80,7 +80,7 @@ namespace elm {
 
 		while (m_isRunning && !m_renderSystem->ShouldClose()) {
 			auto currentTime = core::getTimeStamp();
-			float deltaTime = static_cast<float>(core::getMilliseconds(lastTime, currentTime));
+			float deltaTime = static_cast<float>(core::getMilliseconds(lastTime, currentTime)) / 1000.f;
 			lastTime = currentTime;
 
 			// Cap maximum deltaTime to prevent physics spiral of death

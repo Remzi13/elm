@@ -211,6 +211,7 @@ namespace elm {
 		// Initialize 3D Rendering Pipeline
 		InitPipeline();
 
+		m_dynamicLinearAllocator.Init( m_renderDevice, "Dynamic Instance Linear Allocator", 16 * 1024 * 1024);
 
 		m_initialized = true;
 		std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
@@ -218,8 +219,7 @@ namespace elm {
 	}
 
 	void RenderSystem::InitPipeline() {
-		CreateMeshBuffers();
-		CreateInstanceBuffer();
+		CreateMeshBuffers();		
 
 		// Uniform Buffer for Camera
 		Diligent::BufferDesc CBDesc;
@@ -229,6 +229,8 @@ namespace elm {
 		CBDesc.BindFlags = Diligent::BIND_UNIFORM_BUFFER;
 		CBDesc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
 		m_renderDevice->CreateBuffer(CBDesc, nullptr, &m_pCameraConstantsBuffer);
+
+		//m_bufferManager->createBuffer(render::BufferInfo( "Camera Constants CB" ), render::BufferType::UniformBuffer, )
 
 		// Create Shaders
 		Diligent::ShaderCreateInfo ShaderCI;
@@ -351,17 +353,7 @@ namespace elm {
 		const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
 		createBuffers(groundMesh, m_pGroundVB, m_pGroundIB, m_groundIndexCount);
 	}
-
-	void RenderSystem::CreateInstanceBuffer() {
-		Diligent::BufferDesc InstBuffDesc;
-		InstBuffDesc.Name = "Mesh Instance Buffer";
-		InstBuffDesc.Usage = Diligent::USAGE_DYNAMIC;
-		InstBuffDesc.BindFlags = Diligent::BIND_VERTEX_BUFFER;
-		InstBuffDesc.CPUAccessFlags = Diligent::CPU_ACCESS_WRITE;
-		InstBuffDesc.Size = sizeof(GpuInstanceData) * MaxInstances;
-		m_renderDevice->CreateBuffer(InstBuffDesc, nullptr, &m_pInstanceBuffer);
-	}
-
+	
 	void RenderSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
 		if (m_pDepthPreviewSRV) {
 			m_pDepthPreviewSRV->Release();
@@ -475,7 +467,7 @@ namespace elm {
 
 	void RenderSystem::BeginFrame() {
 		if (!m_swapChain || !m_deviceContext) return;
-
+		
 		auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
 		auto* pDSV = m_swapChain->GetDepthBufferDSV();
 
@@ -548,20 +540,22 @@ namespace elm {
 
 		// Draw Ground
 		{
-			GpuInstanceData groundInst{ Matrix4x4::Translation(Vector3{0.0f, 0.0f, 0.0f}), Vector4{0.22f, 0.24f, 0.27f, 1.0f} };
-			{
-				Diligent::MapHelper<GpuInstanceData> InstData(m_deviceContext, m_pInstanceBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
-				InstData[0] = groundInst;
-			}
+			GpuInstanceData groundInst{ Matrix4x4::Translation( Vector3{0.0f, 0.0f, 0.0f} ), Vector4{0.22f, 0.24f, 0.27f, 1.0f} };
 
-			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pGroundVB), m_pInstanceBuffer };
-			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pGroundIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+			// Выделяем память из линейного аллокатора
+			auto alloc = m_dynamicLinearAllocator.Allocate( m_deviceContext, sizeof( GpuInstanceData ), 16 );
+			std::memcpy( alloc.pCPUAddress, &groundInst, sizeof( GpuInstanceData ) );
+
+			// Устанавливаем буферы с передачей корректных offsets
+			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl( m_pGroundVB ), alloc.buffer };
+
+			m_deviceContext->SetVertexBuffers( 0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET );
+			m_deviceContext->SetIndexBuffer( m_bufferManager.getBufferImpl( m_pGroundIB ), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION );
 
 			Diligent::DrawIndexedAttribs DrawAttrs{ m_groundIndexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
 			DrawAttrs.NumInstances = 1;
-			m_deviceContext->DrawIndexed(DrawAttrs);
+			m_deviceContext->DrawIndexed( DrawAttrs );
 		}
 
 		// Draw Occluders (Walls) as one instanced batch to avoid repeated dynamic-buffer maps.
@@ -572,13 +566,12 @@ namespace elm {
 			for (size_t i = 0; i < numOccluders; ++i) {
 				occluderGpuInstances.push_back({ occludees[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
 			}
-			{
-				Diligent::MapHelper<GpuInstanceData> InstData(m_deviceContext, m_pInstanceBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
-				std::memcpy(InstData, occluderGpuInstances.data(), numOccluders * sizeof(GpuInstanceData));
-			}
-
-			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pWallVB), m_pInstanceBuffer };
+			
+			auto alloc = m_dynamicLinearAllocator.Allocate( m_deviceContext, sizeof( GpuInstanceData ), 16 );
+			std::memcpy( alloc.pCPUAddress, occluderGpuInstances.data(), sizeof(GpuInstanceData) * numOccluders );
+			
+			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pWallVB), alloc.buffer };
 			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
 			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pWallIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
@@ -590,13 +583,12 @@ namespace elm {
 		// 6. Draw Occludees (Cubes)
 		if (m_cullingSystem.visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
 			const size_t numDraw = (std::min)(m_visibleGpuInstances.size(), MaxInstances);
-			{
-				Diligent::MapHelper<GpuInstanceData> InstData(m_deviceContext, m_pInstanceBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
-				memcpy(InstData, m_visibleGpuInstances.data(), numDraw * sizeof(GpuInstanceData));
-			}
 
-			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), m_pInstanceBuffer };
+			auto alloc = m_dynamicLinearAllocator.Allocate( m_deviceContext, sizeof( GpuInstanceData ), 16 );
+			std::memcpy( alloc.pCPUAddress, m_visibleGpuInstances.data(), sizeof( GpuInstanceData )* numDraw );
+
+			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), alloc.buffer };
 			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
 			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pCubeIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
@@ -608,16 +600,15 @@ namespace elm {
 		// 7. Highlight Culled Objects (Ghost visualization)
 		if (m_cullingSystem.visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
 			const size_t numCulled = (std::min)(m_culledGpuInstances.size(), MaxInstances);
-			{
-				Diligent::MapHelper<GpuInstanceData> InstData(m_deviceContext, m_pInstanceBuffer, Diligent::MAP_WRITE, Diligent::MAP_FLAG_DISCARD);
-				memcpy(InstData, m_culledGpuInstances.data(), numCulled * sizeof(GpuInstanceData));
-			}
+			
+			auto alloc = m_dynamicLinearAllocator.Allocate( m_deviceContext, sizeof( GpuInstanceData ), 16 );
+			std::memcpy( alloc.pCPUAddress, m_culledGpuInstances.data(), sizeof( GpuInstanceData ) * numCulled );
 
 			m_deviceContext->SetPipelineState(m_pHighlightPSO);
 			m_deviceContext->CommitShaderResources(m_pSRB, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-			const Diligent::Uint64 offsets[] = { 0, 0 };
-			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), m_pInstanceBuffer };
+			const Diligent::Uint64 offsets[] = { 0, alloc.offset };
+			Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(m_pCubeVB), alloc.buffer };
 			m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
 			m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(m_pCubeIB), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
@@ -625,6 +616,8 @@ namespace elm {
 			DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(numCulled);
 			m_deviceContext->DrawIndexed(DrawAttrs);
 		}
+
+		m_dynamicLinearAllocator.Flush( m_deviceContext );
 
 		if (m_pEngineViewportTex) {
 			Diligent::StateTransitionDesc toShaderResource{
@@ -663,13 +656,11 @@ namespace elm {
 		m_pEngineViewportDSV = nullptr;
 		m_pEngineViewportRTV = nullptr;
 		m_pEngineViewportTex = nullptr;
-
-		if (m_pInstanceBuffer) {
-			m_pInstanceBuffer->Release();
-			m_pInstanceBuffer = nullptr;
-		}
+				
 
 		m_bufferManager.clear();
+
+		m_dynamicLinearAllocator.Release();
 
 		if (m_pCameraConstantsBuffer) {
 			m_pCameraConstantsBuffer->Release();

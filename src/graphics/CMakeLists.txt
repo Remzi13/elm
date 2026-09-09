@@ -12,6 +12,8 @@ engine_add_library(graphics
     ui/DepthPreviewWindow.cpp
     render/BufferManager.hpp
     render/BufferManager.cpp
+    render/DynamicLinearAllocator.hpp
+    render/DynamicLinearAllocator.cpp
 )
 
 target_link_libraries(graphics PUBLIC glfw Diligent-Imgui imgui_glfw)
