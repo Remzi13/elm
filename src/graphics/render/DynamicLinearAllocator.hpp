@@ -29,7 +29,9 @@ namespace elm::render {
 		
 		void Flush( Diligent::IDeviceContext* pContext );
 
-		Allocation Allocate( Diligent::IDeviceContext* pContext, uint64_t size, uint64_t alignment );
+		[[nodiscard]]Allocation Allocate( Diligent::IDeviceContext* pContext, uint64_t size, uint64_t alignment );
+
+		Diligent::IBuffer* GetBuffer() const { return  m_buffer; };
 
 	private:
 		Diligent::IRenderDevice* m_renderDevice{ nullptr };

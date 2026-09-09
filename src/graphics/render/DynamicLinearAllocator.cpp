@@ -32,6 +32,7 @@ namespace elm::render {
         if ( m_data && pContext && m_buffer ) {
             pContext->UnmapBuffer( m_buffer, Diligent::MAP_WRITE );
             m_data = nullptr;
+            m_offset = 0;
         }        
     }
 

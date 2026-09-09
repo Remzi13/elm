@@ -18,8 +18,7 @@ namespace Diligent {
 	struct IDeviceContext;
 	class ISwapChain;
 	class IPipelineState;
-	class IShaderResourceBinding;
-	//struct IBuffer;
+	class IShaderResourceBinding;	
 	class ITexture;
 	class ITextureView;
 }
@@ -93,8 +92,7 @@ namespace elm {
 		// Shaders & Pipelines
 		Diligent::IPipelineState* m_pPSO{ nullptr };
 		Diligent::IPipelineState* m_pHighlightPSO{ nullptr };
-		Diligent::IShaderResourceBinding* m_pSRB{ nullptr };
-		Diligent::IBuffer* m_pCameraConstantsBuffer{ nullptr };
+		Diligent::IShaderResourceBinding* m_pSRB{ nullptr };		
 
 		// Geometry Buffers
 		render::BufferHandler m_pCubeVB;
@@ -135,7 +133,8 @@ namespace elm {
 		Vector<GpuInstanceData> m_culledGpuInstances;
 
 		render::BufferManager m_bufferManager;
-		render::DynamicLinearAllocator m_dynamicLinearAllocator;
+		render::DynamicLinearAllocator m_dynamicInstanceBuffer;
+		render::DynamicLinearAllocator m_dynamicUniformBuffer;
 
 		uint32_t m_width{ 1280 };
 		uint32_t m_height{ 720 };
