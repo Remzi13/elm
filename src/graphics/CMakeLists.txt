@@ -6,10 +6,15 @@ engine_add_library(graphics
     CameraController.cpp
     Settings.hpp
     Settings.cpp
+    culling/SoftwareDepthBuffer.hpp
     culling/SoftwareDepthBuffer.cpp
-    culling/OcclusionCullingSystem.cpp    
+    culling/OcclusionCullingSystem.hpp
+    culling/OcclusionCullingSystem.cpp
+    ui/DockSpaceView.hpp
     ui/DockSpaceView.cpp
+    ui/EngineViewportWindow.hpp
     ui/EngineViewportWindow.cpp
+    ui/SocLabWindow.hpp
     ui/SocLabWindow.cpp
     ui/DepthPreviewWindow.cpp
     render/Render.hpp

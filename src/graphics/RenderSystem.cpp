@@ -323,8 +323,6 @@ namespace elm {
 		// Create Depth Preview Texture
 		CreateDepthPreviewTexture(m_depthPreviewWidth, m_depthPreviewHeight);
 		CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
-
-
 	}
 
 	void RenderSystem::CreateMeshBuffers() {

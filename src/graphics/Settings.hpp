@@ -1,8 +1,6 @@
 #pragma once
 
 #include <array>
-#include <atomic>
-#include <optional>
 #include <variant>
 #include <mutex>
 

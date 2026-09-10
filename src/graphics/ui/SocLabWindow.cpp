@@ -7,7 +7,10 @@
 
 namespace elm {
 
-
+	namespace {
+		static constexpr std::array<uint32_t, 5> ResolutionWidths = { 64, 128, 256, 320, 512 };
+		static constexpr std::array<uint32_t, 5> ResolutionHeights = { 36, 72, 144, 180, 288 };
+	}
 
 	void SocLabWindow::SetResolutionIndex(int index) noexcept {
 		m_currentResolution = std::clamp(index, 0, static_cast<int>(ResolutionWidths.size()) - 1);

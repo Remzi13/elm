@@ -20,10 +20,7 @@ namespace elm {
 
 		[[nodiscard]] int GetResolutionIndex() const noexcept { return m_currentResolution; }
 		void SetResolutionIndex(int index) noexcept;
-		void ApplyResolution(RenderSystem& renderSystem);
-
-		static constexpr std::array<uint32_t, 5> ResolutionWidths = { 64, 128, 256, 320, 512 };
-		static constexpr std::array<uint32_t, 5> ResolutionHeights = { 36, 72, 144, 180, 288 };
+		void ApplyResolution(RenderSystem& renderSystem);		
 
 	private:
 		int m_currentResolution{ 2 };
