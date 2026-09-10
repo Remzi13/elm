@@ -5,6 +5,8 @@
 #include "graphics/RenderSystem.hpp"
 #include "graphics/ImGuiSystem.hpp"
 #include "graphics/CameraController.hpp"
+#include "graphics/Settings.hpp"
+#include "graphics/culling/OcclusionCullingSystem.hpp"
 
 #include "physics/PhysicsSystem.hpp"
 
@@ -41,6 +43,7 @@ namespace elm {
 		Camera m_camera;
 		CameraController m_cameraController;
 		Scene m_scene;
+		Settings m_settings;
 
 		bool m_isRunning{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step
@@ -49,6 +52,8 @@ namespace elm {
 		float m_frameCounterTime{ 0.0f };
 		uint32_t m_frameCount{ 0 };
 		FrameStats m_currentStats;
+
+		OcclusionCullingSystem m_cullingSystem;
 	};
 
 } // namespace Engine

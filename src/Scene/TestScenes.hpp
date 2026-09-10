@@ -22,6 +22,7 @@ namespace elm {
 			MeshData mesh;
 			Matrix4x4 worldTransform;
 			Vector4 color{ 0.8f, 0.8f, 0.8f, 1.0f };
+			bool visible{ true };
 		};
 
 		ScenePreset preset;

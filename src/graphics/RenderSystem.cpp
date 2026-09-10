@@ -22,6 +22,8 @@
 #include <fstream>
 #include <filesystem>
 
+#include "graphics/culling/OcclusionCullingSystem.hpp"
+
 #if PLATFORM_WIN32
 #include <windows.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -435,7 +437,7 @@ namespace elm {
 	void RenderSystem::UpdateDepthPreviewTexture() {
 		if (!m_pDepthPreviewTex || !m_deviceContext) return;
 
-		m_cullingSystem.GetDepthBuffer().GenerateVisualTexture(m_depthPreviewPixels, m_depthPreviewFalseColor);
+		//m_cullingSystem.GetDepthBuffer().GenerateVisualTexture(m_depthPreviewPixels, m_depthPreviewFalseColor);
 
 		Diligent::Box UpdateBox;
 		UpdateBox.MinX = 0;
@@ -485,7 +487,7 @@ namespace elm {
 		m_deviceContext->DrawIndexed(DrawAttrs);
 	}
 
-	void RenderSystem::RenderScene(const Camera& camera, const Scene& scene) {
+	void RenderSystem::RenderScene(const Camera& camera, const Scene& scene, Settings& settings) {
 		if (!m_deviceContext || !m_pPSO) return;
 
 		if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
@@ -508,12 +510,7 @@ namespace elm {
 			m_deviceContext->ClearDepthStencil(m_pEngineViewportDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0,
 				Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
 		}
-
-		// 1. Run Software Occlusion Culling
-		const Matrix4x4 cullingVP = camera.GetCullingViewProjection();
-		Vector<OccludeeInstance> occludees;
-		m_cullingSystem.ExecuteCulling(scene, cullingVP, occludees);
-
+		
 		// 2. Update Depth Buffer Texture for ImGui
 		UpdateDepthPreviewTexture();
 
@@ -542,8 +539,8 @@ namespace elm {
 		m_visibleGpuInstances.clear();
 		m_culledGpuInstances.clear();
 
-		for (const auto& inst : occludees) {
-			if (inst.isVisible) {
+		for (const auto& inst : scene.instances) {
+			if (inst.visible) {
 				m_visibleGpuInstances.push_back({ inst.worldTransform, inst.color });
 			}
 			else {
@@ -561,25 +558,26 @@ namespace elm {
 		}
 
 		// --- Draw Occluders (Walls) ---
-		const size_t numOccluders = (std::min)(occludees.size(), MaxInstances);
+		const size_t numOccluders = (std::min)(scene.instances.size(), MaxInstances);
 		if (numOccluders > 0) {
 			Vector<GpuInstanceData> occluderGpuInstances;
 			occluderGpuInstances.reserve(numOccluders);
 			for (size_t i = 0; i < numOccluders; ++i) {
-				occluderGpuInstances.push_back({ occludees[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
+				occluderGpuInstances.push_back({ scene.instances[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
 			}
 
 			Draw(m_wall, occluderGpuInstances);
 		}
 
 		// --- Draw Occludees (Cubes) ---
-		if (m_cullingSystem.visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
+		auto visualMode = VisualMode(settings.Get<uint32_t>(Settings::Category::Render, CULLING_VISUAL_MODE));
+		if (visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
 
 			Draw(m_cube, m_visibleGpuInstances);
 		}
 
 		// --- Highlight Culled Objects ---
-		if (m_cullingSystem.visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
+		if (visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
 
 			Draw(m_cube, m_culledGpuInstances);
 		}

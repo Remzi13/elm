@@ -33,7 +33,7 @@ namespace elm {
 		m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
 		m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
-		auto imguiInit = m_imguiSystem->Init(*m_renderSystem, "Engine Debug UI");
+		auto imguiInit = m_imguiSystem->Init(*m_renderSystem, m_settings, "Engine Debug UI");
 		if (!imguiInit) {
 			return std::unexpected(imguiInit.error());
 		}
@@ -101,6 +101,8 @@ namespace elm {
 
 				// Frame variable update & rendering
 				Update(deltaTime);
+
+				m_settings.Flash();
 			}
 			// Draw
 			{
@@ -134,6 +136,10 @@ namespace elm {
 
 		m_cameraController.Update(deltaTime);
 
+		const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
+		Vector<OccludeeInstance> occludees;
+		m_cullingSystem.ExecuteCulling(m_scene, cullingVP, occludees);
+
 		// Query synchronized physics transforms for display/rendering
 		if (m_physicsSystem) {
 			m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
@@ -146,7 +152,7 @@ namespace elm {
 		if (!m_renderSystem) return;
 
 		m_renderSystem->BeginFrame();
-		m_renderSystem->RenderScene(m_camera, m_scene);
+		m_renderSystem->RenderScene(m_camera, m_scene, m_settings);
 		m_imguiSystem->BeginFrame(*m_renderSystem);
 		m_imguiSystem->Render(*m_renderSystem, m_scene, m_currentStats);
 		m_renderSystem->EndFrame();

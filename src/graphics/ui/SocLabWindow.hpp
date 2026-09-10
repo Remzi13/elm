@@ -13,7 +13,7 @@ namespace elm {
 
 	class SocLabWindow final : public IImGuiWindow {
 	public:
-		SocLabWindow() = default;
+		SocLabWindow(Settings& settings) : IImGuiWindow(settings) {}
 
 		[[nodiscard]] StringView GetName() const override { return "Software Occlusion Culling Lab"; }
 		void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) override;

@@ -12,7 +12,7 @@ namespace elm {
 		m_depthBuffer.Resize(width, height);
 	}
 
-	void OcclusionCullingSystem::ExecuteCulling(const Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees) {
+	void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees) {
 		const auto tStart = core::getTimeStamp();
 
 		occludees.clear();
@@ -62,6 +62,7 @@ namespace elm {
 				if (!frustum.IntersectsAABB(worldBounds)) {
 					occInst.isFrustumCulled = true;
 					occInst.isVisible = false;
+					inst.visible = false;
 					m_stats.frustumCulledCount++;
 					occludees.emplace_back(occInst);
 					continue;
@@ -73,6 +74,7 @@ namespace elm {
 				if (m_depthBuffer.TestAABB(worldBounds, cullingViewProj, depthBias)) {
 					occInst.isOcclusionCulled = true;
 					occInst.isVisible = false;
+					inst.visible = false;
 					m_stats.occlusionCulledCount++;
 					occludees.emplace_back(occInst);
 					continue;
@@ -80,6 +82,7 @@ namespace elm {
 			}
 
 			occInst.isVisible = true;
+			inst.visible = true;
 			occludees.emplace_back(occInst);
 			m_stats.visibleCount++;
 		}

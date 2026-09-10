@@ -4,6 +4,8 @@ engine_add_library(graphics
     ImGuiSystem.cpp
     Camera.cpp
     CameraController.cpp
+    Settings.hpp
+    Settings.cpp
     culling/SoftwareDepthBuffer.cpp
     culling/OcclusionCullingSystem.cpp    
     ui/DockSpaceView.cpp

@@ -5,6 +5,7 @@
 #include "graphics/RenderSystem.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
+#include "graphics/Settings.hpp"
 
 #include "imgui.h"
 
@@ -27,7 +28,7 @@ namespace elm {
 		ImGuiSystem(const ImGuiSystem&) = delete;
 		ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
-		[[nodiscard]] auto Init(RenderSystem& renderSystem, StringView title) -> elm::EngineResult<void>;
+		[[nodiscard]] auto Init(RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
 		void BeginFrame(RenderSystem& renderSystem);
 		void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats);
 		void Shutdown();
@@ -79,6 +80,8 @@ namespace elm {
 		DockSpaceView m_dockSpace;
 		Vector<UniquePtr<IImGuiWindow>> m_windows;
 		SocLabWindow* m_socLabWindow{ nullptr };
+
+		Settings* m_settings;
 	};
 
 } // namespace Engine

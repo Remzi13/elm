@@ -37,7 +37,7 @@ namespace elm {
 				if (px < depthWidth && py < depthHeight) {
 					ImGui::BeginTooltip();
 					ImGui::Text("Pixel: (%u, %u)", px, py);
-					ImGui::Text("Normalized Depth: %.4f", renderSystem.GetCullingSystem().GetDepthBuffer().GetDepth(px, py));
+					//ImGui::Text("Normalized Depth: %.4f", renderSystem.GetCullingSystem().GetDepthBuffer().GetDepth(px, py));
 					ImGui::EndTooltip();
 				}
 			}

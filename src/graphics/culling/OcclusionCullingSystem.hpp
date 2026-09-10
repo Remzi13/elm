@@ -43,7 +43,7 @@ namespace elm {
 
 		void SetResolution(uint32_t width, uint32_t height);
 
-		void ExecuteCulling(const Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees);
+		void ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees);
 
 		[[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }
 		[[nodiscard]] const SoftwareDepthBuffer& GetDepthBuffer() const noexcept { return m_depthBuffer; }

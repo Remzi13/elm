@@ -2,7 +2,6 @@
 
 #include "core/Error.hpp"
 
-#include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/Camera.hpp"
 
 #include "Scene/Transform.hpp"
@@ -10,6 +9,7 @@
 
 #include "graphics/render/BufferManager.hpp"
 #include "graphics/render/DynamicLinearAllocator.hpp"
+#include "graphics/Settings.hpp"
 
 struct GLFWwindow;
 
@@ -53,12 +53,11 @@ namespace elm {
 		[[nodiscard]] bool ShouldClose() const;
 
 		void BeginFrame();
-		void RenderScene(const Camera& camera, const Scene& scene);
+		void RenderScene(const Camera& camera, const Scene& scene, Settings& settings);
 		void EndFrame();
 		void Shutdown();
 
 		[[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
-		[[nodiscard]] OcclusionCullingSystem& GetCullingSystem() { return m_cullingSystem; }
 		[[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
 		[[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
 		[[nodiscard]] Diligent::ISwapChain* GetSwapChain() const { return m_swapChain; }
@@ -126,8 +125,7 @@ namespace elm {
 		uint32_t m_engineViewportWidth{ 1280 };
 		uint32_t m_engineViewportHeight{ 720 };
 		bool m_engineViewportIsShaderResource{ false };
-		
-		OcclusionCullingSystem m_cullingSystem;
+				
 				
 		Vector<GpuInstanceData> m_visibleGpuInstances;
 		Vector<GpuInstanceData> m_culledGpuInstances;
