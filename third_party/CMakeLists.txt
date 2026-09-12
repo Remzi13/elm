@@ -1,5 +1,6 @@
-# Keep fetched sources and their generated build projects under third_party.
-set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/third_party" CACHE PATH "FetchContent dependency directory" FORCE)
+# Keep fetched sources outside the project tree to avoid AI indexing.
+# Dependencies will be placed in a sibling directory: ../elm_deps
+set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/../elm_deps" CACHE PATH "FetchContent dependency directory" FORCE)
 set(CMAKE_FOLDER "third party")
 
 function(set_dependency_folder directory)
@@ -41,8 +42,8 @@ FetchContent_Declare(
     DiligentEngine
     GIT_REPOSITORY https://github.com/DiligentGraphics/DiligentEngine.git
     GIT_TAG        v2.5.6
-    PATCH_COMMAND  git -C DiligentTools/ThirdParty/imgui fetch --depth 1 origin refs/tags/v1.89.7-docking
-                   COMMAND git -C DiligentTools/ThirdParty/imgui checkout --detach FETCH_HEAD
+    PATCH_COMMAND  git -C <SOURCE_DIR>/DiligentTools/ThirdParty/imgui fetch --depth 1 origin refs/tags/v1.89.7-docking
+                   COMMAND git -C <SOURCE_DIR>/DiligentTools/ThirdParty/imgui checkout --detach FETCH_HEAD
                    COMMAND ${CMAKE_COMMAND}
                        -DDILIGENT_TOOLS_CMAKE=<SOURCE_DIR>/DiligentTools/CMakeLists.txt
                        -P ${CMAKE_SOURCE_DIR}/cmake/DisableDiligentRenderStateNotation.cmake
