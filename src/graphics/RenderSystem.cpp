@@ -357,7 +357,8 @@ namespace elm {
 
 		m_depthPreviewWidth = width;
 		m_depthPreviewHeight = height;
-		m_depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height), 0xFF000000);
+		Vector<uint32_t> depthPreviewPixels;
+		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height), 0xFF000000);
 
 		Diligent::TextureDesc TexDesc;
 		TexDesc.Name = "Software Depth Buffer Preview Texture";
@@ -369,7 +370,7 @@ namespace elm {
 		TexDesc.BindFlags = Diligent::BIND_SHADER_RESOURCE;
 
 		Diligent::TextureSubResData Level0Data;
-		Level0Data.pData = m_depthPreviewPixels.data();
+		Level0Data.pData = depthPreviewPixels.data();
 		Level0Data.Stride = width * sizeof(uint32_t);
 		Diligent::TextureData InitData;
 		InitData.pSubResources = &Level0Data;
@@ -432,7 +433,7 @@ namespace elm {
 		}
 	}
 
-	void RenderSystem::UpdateDepthPreviewTexture() {
+	void RenderSystem::UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels) {
 		if (!m_pDepthPreviewTex || !m_deviceContext) return;
 
 		//m_cullingSystem.GetDepthBuffer().GenerateVisualTexture(m_depthPreviewPixels, m_depthPreviewFalseColor);
@@ -445,7 +446,7 @@ namespace elm {
 
 		Diligent::TextureSubResData SubresData;
 		SubresData.Stride = m_depthPreviewWidth * sizeof(uint32_t);
-		SubresData.pData = m_depthPreviewPixels.data();
+		SubresData.pData = depthPreviewPixels.data();
 
 		m_deviceContext->UpdateTexture(m_pDepthPreviewTex, 0, 0, UpdateBox, SubresData,
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
@@ -485,7 +486,7 @@ namespace elm {
 		m_deviceContext->DrawIndexed(DrawAttrs);
 	}
 
-	void RenderSystem::RenderScene(const Camera& camera, const Scene& scene, Settings& settings) {
+	void RenderSystem::Draw(FrameData& frameData, Settings& settings) {
 		if (!m_deviceContext || !m_pPSO) return;
 
 		if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
@@ -510,7 +511,7 @@ namespace elm {
 		}
 		
 		// 2. Update Depth Buffer Texture for ImGui
-		UpdateDepthPreviewTexture();
+		UpdateDepthPreviewTexture(frameData.depthPreviewPixels);
 
 		// 3. Update Camera Constant Buffer
 		{
@@ -520,8 +521,8 @@ namespace elm {
 			};
 			auto cameraAlloc = m_dynamicUniformBuffer.Allocate(m_deviceContext, sizeof(CameraCBData), 256);
 			CameraCBData cbData;
-			cbData.ViewProj = camera.GetViewProjectionMatrix();
-			cbData.CameraPos = Vector4{ camera.GetPosition(), 1.0f };
+			cbData.ViewProj = frameData.camera.GetViewProjectionMatrix();
+			cbData.CameraPos = Vector4{ frameData.camera.GetPosition(), 1.0f };
 			std::memcpy(cameraAlloc.pCPUAddress, &cbData, sizeof(CameraCBData));
 
 			// Привязываем смещение кадра для переменной CameraConstants в SRB
@@ -537,7 +538,7 @@ namespace elm {
 		m_visibleGpuInstances.clear();
 		m_culledGpuInstances.clear();
 
-		for (const auto& inst : scene.instances) {
+		for (const auto& inst : frameData.scene.instances) {
 			if (inst.visible) {
 				m_visibleGpuInstances.push_back({ inst.worldTransform, inst.color });
 			}
@@ -556,12 +557,12 @@ namespace elm {
 		}
 
 		// --- Draw Occluders (Walls) ---
-		const size_t numOccluders = (std::min)(scene.instances.size(), MaxInstances);
+		const size_t numOccluders = (std::min)(frameData.scene.instances.size(), MaxInstances);
 		if (numOccluders > 0) {
 			Vector<GpuInstanceData> occluderGpuInstances;
 			occluderGpuInstances.reserve(numOccluders);
 			for (size_t i = 0; i < numOccluders; ++i) {
-				occluderGpuInstances.push_back({ scene.instances[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
+				occluderGpuInstances.push_back({ frameData.scene.instances[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
 			}
 
 			Draw(m_wall, occluderGpuInstances);

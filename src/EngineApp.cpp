@@ -152,7 +152,13 @@ namespace elm {
 		if (!m_renderSystem) return;
 
 		m_renderSystem->BeginFrame();
-		m_renderSystem->RenderScene(m_camera, m_scene, m_settings);
+
+		FrameData data;
+		data.camera = m_camera;
+		data.scene = m_scene;
+		m_cullingSystem.GetDepthBuffer().GenerateVisualTexture(data.depthPreviewPixels);
+
+		m_renderSystem->Draw(data, m_settings);
 		m_imguiSystem->BeginFrame(*m_renderSystem);
 		m_imguiSystem->Render(*m_renderSystem, m_scene, m_currentStats);
 		m_renderSystem->EndFrame();

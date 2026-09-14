@@ -38,6 +38,12 @@ namespace elm {
 		Vector4 Color;
 	};
 
+	struct FrameData {		
+		Camera camera;
+		Scene scene;
+		Vector<uint32_t> depthPreviewPixels;
+	};
+
 	class RenderSystem {
 		friend class ImGuiSystem;
 	public:
@@ -53,7 +59,7 @@ namespace elm {
 		[[nodiscard]] bool ShouldClose() const;
 
 		void BeginFrame();
-		void RenderScene(const Camera& camera, const Scene& scene, Settings& settings);
+		void Draw(FrameData& frameData, Settings& settings);
 		void EndFrame();
 		void Shutdown();
 
@@ -85,7 +91,7 @@ namespace elm {
 		void InitPipeline();
 		void CreateMeshBuffers();
 		void CreateEngineViewport(uint32_t width, uint32_t height);
-		void UpdateDepthPreviewTexture();
+		void UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels);
 
 		void Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances);
 
@@ -113,8 +119,7 @@ namespace elm {
 		Diligent::ITexture* m_pDepthPreviewTex{ nullptr };
 		Diligent::ITextureView* m_pDepthPreviewSRV{ nullptr };
 		uint32_t m_depthPreviewWidth{ 256 };
-		uint32_t m_depthPreviewHeight{ 144 };
-		Vector<uint32_t> m_depthPreviewPixels;
+		uint32_t m_depthPreviewHeight{ 144 };		
 		bool m_depthPreviewFalseColor{ true };
 
 		// Offscreen render target displayed inside the dockspace.
