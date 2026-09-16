@@ -20,10 +20,6 @@ namespace elm {
 	}
 
 	void OcclusionCullingSystem::CreateDepthPreviewTexture(render::TextureManager& textureManager, uint32_t width, uint32_t height) {
-		if (m_depthPreviewTexture.IsValid()) {
-			textureManager.destroyTexture(m_depthPreviewTexture);
-		}
-
 		Vector<uint32_t> depthPreviewPixels;
 		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height), 0xFF000000);
 
@@ -37,7 +33,7 @@ namespace elm {
 		texInfo.data = depthPreviewPixels.data();
 		texInfo.stride = width * sizeof(uint32_t);
 
-		m_depthPreviewTexture = textureManager.createTexture(texInfo);
+		m_depthPreviewTexture = render::Texture(texInfo);
 	}
 
 	void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels) {

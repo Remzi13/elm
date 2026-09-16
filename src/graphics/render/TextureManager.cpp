@@ -6,12 +6,26 @@
 #include "Graphics/GraphicsEngine/interface/Texture.h"
 #include "Graphics/GraphicsEngine/interface/TextureView.h"
 
+#include <cassert>
+
 namespace elm::render {
 
-	TextureManager::TextureManager() = default;
+	TextureManager* TextureManager::s_instance{ nullptr };
+
+	TextureManager& TextureManager::Get() {
+		assert(s_instance != nullptr && "TextureManager instance is null!");
+		return *s_instance;
+	}
+
+	TextureManager::TextureManager() {
+		s_instance = this;
+	}
 
 	TextureManager::~TextureManager() {
 		clear();
+		if (s_instance == this) {
+			s_instance = nullptr;
+		}
 	}
 
 	bool TextureManager::Init(Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext) {
@@ -20,9 +34,9 @@ namespace elm::render {
 		return m_renderDevice != nullptr;
 	}
 
-	Texture TextureManager::createTexture(const TextureInfo& info) {
+	TextureHandler TextureManager::CreateTexture(const TextureInfo& info) {
 		if (!m_renderDevice) {
-			return Texture{};
+			return TextureHandler{};
 		}
 
 		Diligent::TextureDesc TexDesc;
@@ -46,7 +60,7 @@ namespace elm::render {
 		Diligent::ITexture* pTexture{ nullptr };
 		m_renderDevice->CreateTexture(TexDesc, info.data != nullptr ? &InitData : nullptr, &pTexture);
 		if (!pTexture) {
-			return Texture{};
+			return TextureHandler{};
 		}
 
 		Diligent::ITextureView* pSRV{ nullptr };
@@ -67,7 +81,7 @@ namespace elm::render {
 		texData.height = info.height;
 
 		m_textures.emplace(handler.index, texData);
-		return Texture{ handler, info, this };
+		return handler;
 	}
 
 	Diligent::ITexture* TextureManager::getTextureImpl(const TextureHandler& handler) const {
@@ -86,11 +100,11 @@ namespace elm::render {
 		return nullptr;
 	}
 
-	void TextureManager::updateTexture(const TextureHandler& handler, const void* data, size_t stride) {
-		updateTexture(m_deviceContext, handler, data, stride);
+	void TextureManager::UpdateTexture(const TextureHandler& handler, const void* data, size_t stride) {
+		UpdateTexture(m_deviceContext, handler, data, stride);
 	}
 
-	void TextureManager::updateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const void* data, size_t stride) {
+	void TextureManager::UpdateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const void* data, size_t stride) {
 		if (!deviceContext || !data) return;
 
 		auto it = m_textures.find(handler.index);
@@ -113,7 +127,7 @@ namespace elm::render {
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}
 
-	void TextureManager::destroyTexture(const TextureHandler& handler) {
+	void TextureManager::DestroyTexture(const TextureHandler& handler) {
 		auto it = m_textures.find(handler.index);
 		if (it != m_textures.end()) {
 			if (it->second.pSRV) {
@@ -143,3 +157,4 @@ namespace elm::render {
 	}
 
 } // namespace elm::render
+

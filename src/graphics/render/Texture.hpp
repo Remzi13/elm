@@ -5,8 +5,6 @@
 
 namespace elm::render {
 
-	class TextureManager;
-
 	struct TextureHandler {
 		int index{ -1 };
 
@@ -28,7 +26,14 @@ namespace elm::render {
 	class Texture {
 	public:
 		Texture() = default;
-		Texture(TextureHandler handler, const TextureInfo& info, TextureManager* manager = nullptr);
+		explicit Texture(const TextureInfo& info);
+		~Texture();
+
+		Texture(const Texture&) = delete;
+		Texture& operator=(const Texture&) = delete;
+
+		Texture(Texture&& other) noexcept;
+		Texture& operator=(Texture&& other) noexcept;
 
 		[[nodiscard]] constexpr TextureHandler GetHandler() const noexcept { return m_handler; }
 		[[nodiscard]] constexpr bool IsValid() const noexcept { return m_handler.IsValid(); }
@@ -47,7 +52,6 @@ namespace elm::render {
 	private:
 		TextureHandler m_handler;
 		TextureInfo m_info;
-		TextureManager* m_manager{ nullptr };
 	};
 
 } // namespace elm::render
