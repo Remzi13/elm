@@ -4,10 +4,15 @@
 
 #include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
+#include "graphics/render/Texture.hpp"
 
 #include "Scene/TestScenes.hpp"
 
 namespace elm {
+
+	namespace render {
+		class TextureManager;
+	}
 
 	enum class VisualMode {
 		HideCulled,
@@ -26,7 +31,6 @@ namespace elm {
 		float cullingRatioPercent{ 0.0f };
 	};
 
-
 	struct OccludeeInstance {		
 		AABB localBounds;
 		Matrix4x4 worldTransform;
@@ -41,12 +45,21 @@ namespace elm {
 		OcclusionCullingSystem(uint32_t width = 256, uint32_t height = 144);
 		~OcclusionCullingSystem() = default;
 
-		void SetResolution(uint32_t width, uint32_t height);
+		void Init(render::TextureManager& textureManager);
+		void SetResolution(uint32_t width, uint32_t height, render::TextureManager* textureManager = nullptr);
+		void CreateDepthPreviewTexture(render::TextureManager& textureManager, uint32_t width, uint32_t height);
+		void UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels);
+		void UpdateDepthPreviewTexture(bool falseColor = true);
 
 		void ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees);
 
 		[[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }
 		[[nodiscard]] const SoftwareDepthBuffer& GetDepthBuffer() const noexcept { return m_depthBuffer; }
+		[[nodiscard]] SoftwareDepthBuffer& GetDepthBuffer() noexcept { return m_depthBuffer; }
+		[[nodiscard]] const render::Texture& GetDepthPreviewTexture() const noexcept { return m_depthPreviewTexture; }
+		[[nodiscard]] render::Texture& GetDepthPreviewTexture() noexcept { return m_depthPreviewTexture; }
+		[[nodiscard]] uint32_t GetWidth() const noexcept { return m_depthBuffer.GetWidth(); }
+		[[nodiscard]] uint32_t GetHeight() const noexcept { return m_depthBuffer.GetHeight(); }
 
 		// Settings
 		bool enableFrustumCulling{ true };
@@ -58,6 +71,7 @@ namespace elm {
 	private:
 		SoftwareDepthBuffer m_depthBuffer;
 		CullingStats m_stats;
+		render::Texture m_depthPreviewTexture;
 	};
 
-} // namespace Engine
+} // namespace elm

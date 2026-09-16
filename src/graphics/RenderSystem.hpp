@@ -8,6 +8,7 @@
 #include "Scene/TestScenes.hpp"
 
 #include "graphics/render/BufferManager.hpp"
+#include "graphics/render/TextureManager.hpp"
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/Settings.hpp"
 
@@ -41,7 +42,6 @@ namespace elm {
 	struct FrameData {		
 		Camera camera;
 		Scene scene;
-		Vector<uint32_t> depthPreviewPixels;
 	};
 
 	class RenderSystem {
@@ -73,12 +73,9 @@ namespace elm {
 		[[nodiscard]] uint32_t GetWidth() const { return m_width; }
 		[[nodiscard]] uint32_t GetHeight() const { return m_height; }
 		[[nodiscard]] size_t GetMemAllocated() const;
-		[[nodiscard]] bool IsDepthPreviewFalseColor() const { return m_depthPreviewFalseColor; }
-		void SetDepthPreviewFalseColor(bool falseColor) { m_depthPreviewFalseColor = falseColor; }
-		[[nodiscard]] Diligent::ITextureView* GetDepthPreviewSRV() const { return m_pDepthPreviewSRV; }
-		[[nodiscard]] uint32_t GetDepthPreviewWidth() const { return m_depthPreviewWidth; }
-		[[nodiscard]] uint32_t GetDepthPreviewHeight() const { return m_depthPreviewHeight; }
-		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
+		[[nodiscard]] render::TextureManager& GetTextureManager() noexcept { return m_textureManager; }
+		[[nodiscard]] const render::TextureManager& GetTextureManager() const noexcept { return m_textureManager; }
+		[[nodiscard]] Diligent::ITextureView* GetTextureSRV(const render::Texture& texture) const { return m_textureManager.getTextureSRV(texture); }
 
 	private:
 		struct Mesh {
@@ -91,7 +88,6 @@ namespace elm {
 		void InitPipeline();
 		void CreateMeshBuffers();
 		void CreateEngineViewport(uint32_t width, uint32_t height);
-		void UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels);
 
 		void Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances);
 
@@ -115,13 +111,6 @@ namespace elm {
 		// Dynamic Instance Buffer
 		static constexpr size_t MaxInstances = 30000;
 
-		// Depth Buffer Visualization Texture
-		Diligent::ITexture* m_pDepthPreviewTex{ nullptr };
-		Diligent::ITextureView* m_pDepthPreviewSRV{ nullptr };
-		uint32_t m_depthPreviewWidth{ 256 };
-		uint32_t m_depthPreviewHeight{ 144 };		
-		bool m_depthPreviewFalseColor{ true };
-
 		// Offscreen render target displayed inside the dockspace.
 		Diligent::ITexture* m_pEngineViewportTex{ nullptr };
 		Diligent::ITextureView* m_pEngineViewportRTV{ nullptr };
@@ -136,6 +125,7 @@ namespace elm {
 		Vector<GpuInstanceData> m_culledGpuInstances;
 
 		render::BufferManager m_bufferManager;
+		render::TextureManager m_textureManager;
 		render::DynamicLinearAllocator m_dynamicInstanceBuffer;
 		render::DynamicLinearAllocator m_dynamicUniformBuffer;
 

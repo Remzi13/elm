@@ -1,5 +1,5 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
-
+#include "graphics/render/TextureManager.hpp"
 #include "core/Timer.hpp"
 
 namespace elm {
@@ -8,8 +8,48 @@ namespace elm {
 		: m_depthBuffer(width, height) {
 	}
 
-	void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height) {
+	void OcclusionCullingSystem::Init(render::TextureManager& textureManager) {
+		CreateDepthPreviewTexture(textureManager, m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
+	}
+
+	void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height, render::TextureManager* textureManager) {
 		m_depthBuffer.Resize(width, height);
+		if (textureManager) {
+			CreateDepthPreviewTexture(*textureManager, width, height);
+		}
+	}
+
+	void OcclusionCullingSystem::CreateDepthPreviewTexture(render::TextureManager& textureManager, uint32_t width, uint32_t height) {
+		if (m_depthPreviewTexture.IsValid()) {
+			textureManager.destroyTexture(m_depthPreviewTexture);
+		}
+
+		Vector<uint32_t> depthPreviewPixels;
+		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height), 0xFF000000);
+
+		render::TextureInfo texInfo;
+		texInfo.name = "Software Depth Buffer Preview Texture";
+		texInfo.width = width;
+		texInfo.height = height;
+		texInfo.format = render::TextureFormat::RGBA8_UNORM;
+		texInfo.usage = render::TextureUsage::Default;
+		texInfo.bindFlags = render::TextureBindFlags::BindShaderResource;
+		texInfo.data = depthPreviewPixels.data();
+		texInfo.stride = width * sizeof(uint32_t);
+
+		m_depthPreviewTexture = textureManager.createTexture(texInfo);
+	}
+
+	void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels) {
+		if (!m_depthPreviewTexture.IsValid()) return;
+		m_depthPreviewTexture.Update(depthPreviewPixels.data());
+	}
+
+	void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor) {
+		if (!m_depthPreviewTexture.IsValid()) return;
+		Vector<uint32_t> depthPreviewPixels;
+		m_depthBuffer.GenerateVisualTexture(depthPreviewPixels, falseColor);
+		m_depthPreviewTexture.Update(depthPreviewPixels.data());
 	}
 
 	void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees) {
@@ -100,4 +140,4 @@ namespace elm {
 			: 0.0f;
 	}
 
-} // namespace Engine
+} // namespace elm

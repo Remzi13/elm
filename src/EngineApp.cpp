@@ -1,4 +1,5 @@
 #include "EngineApp.hpp"
+#include "graphics/ui/DepthPreviewWindow.hpp"
 
 #include "core/Timer.hpp"
 
@@ -61,6 +62,11 @@ namespace elm {
 		auto physicsInit = m_physicsSystem->Init();
 		if (!physicsInit) {
 			return std::unexpected(physicsInit.error());
+		}
+
+		m_cullingSystem.Init(m_renderSystem->GetTextureManager());
+		if (auto* depthWindow = m_imguiSystem->GetWindow<DepthPreviewWindow>()) {
+			depthWindow->SetCullingSystem(&m_cullingSystem);
 		}
 
 		m_isRunning = true;
@@ -156,7 +162,9 @@ namespace elm {
 		FrameData data;
 		data.camera = m_camera;
 		data.scene = m_scene;
-		m_cullingSystem.GetDepthBuffer().GenerateVisualTexture(data.depthPreviewPixels);
+
+		const bool falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
+		m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
 
 		m_renderSystem->Draw(data, m_settings);
 		m_imguiSystem->BeginFrame(*m_renderSystem);

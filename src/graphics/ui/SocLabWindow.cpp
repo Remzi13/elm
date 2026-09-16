@@ -21,7 +21,6 @@ namespace elm {
 		const uint32_t height = ResolutionHeights[m_currentResolution];
 		m_settings.Set(Settings::Category::Render, CULLING_RESOLUTION_WIDTH, width);
 		m_settings.Set(Settings::Category::Render, CULLING_RESOLUTION_HEIGHT, height);
-		renderSystem.CreateDepthPreviewTexture(width, height);
 	}
 
 	void SocLabWindow::Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) {

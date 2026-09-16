@@ -1,5 +1,6 @@
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/RenderSystem.hpp"
+#include "graphics/culling/OcclusionCullingSystem.hpp"
 
 #include "imgui.h"
 
@@ -15,16 +16,21 @@ namespace elm {
 			return;
 		}
 
-		const uint32_t depthWidth = renderSystem.GetDepthPreviewWidth();
-		const uint32_t depthHeight = renderSystem.GetDepthPreviewHeight();
+		if (!m_cullingSystem) {
+			ImGui::TextDisabled("No Occlusion Culling System connected.");
+			ImGui::End();
+			return;
+		}
+
+		const uint32_t depthWidth = m_cullingSystem->GetWidth();
+		const uint32_t depthHeight = m_cullingSystem->GetHeight();
 		ImGui::Text("Resolution: %ux%u", depthWidth, depthHeight);
 		ImGui::SameLine();
-		bool falseColor = renderSystem.IsDepthPreviewFalseColor();
+		auto falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
 		if (ImGui::Checkbox("False Color (Heatmap)", &falseColor)) {
-			renderSystem.SetDepthPreviewFalseColor(falseColor);
-			//ImGui::MarkIniSettingsDirty();
+			m_settings.Set(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR, falseColor);
 		}
-		if (auto* texture = renderSystem.GetDepthPreviewSRV()) {
+		if (auto* texture = renderSystem.GetTextureSRV(m_cullingSystem->GetDepthPreviewTexture())) {
 			const float aspect = static_cast<float>(depthWidth) / static_cast<float>(depthHeight);
 			const float width = ImGui::GetContentRegionAvail().x;
 			const float height = width / aspect;
@@ -37,7 +43,7 @@ namespace elm {
 				if (px < depthWidth && py < depthHeight) {
 					ImGui::BeginTooltip();
 					ImGui::Text("Pixel: (%u, %u)", px, py);
-					//ImGui::Text("Normalized Depth: %.4f", renderSystem.GetCullingSystem().GetDepthBuffer().GetDepth(px, py));
+					ImGui::Text("Normalized Depth: %.4f", m_cullingSystem->GetDepthBuffer().GetDepth(px, py));
 					ImGui::EndTooltip();
 				}
 			}
@@ -45,4 +51,4 @@ namespace elm {
 		ImGui::End();
 	}
 
-} // namespace Engine
+} // namespace elm

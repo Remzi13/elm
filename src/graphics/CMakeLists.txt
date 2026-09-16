@@ -20,6 +20,10 @@ engine_add_library(graphics
     render/Render.hpp
     render/BufferManager.hpp
     render/BufferManager.cpp
+    render/Texture.hpp
+    render/Texture.cpp
+    render/TextureManager.hpp
+    render/TextureManager.cpp
     render/DynamicLinearAllocator.hpp
     render/DynamicLinearAllocator.cpp
     render/backends/Utils.hpp

@@ -162,6 +162,8 @@ namespace elm {
 
 		Diligent::EngineD3D12CreateInfo engineCreateInfo;
 		engineCreateInfo.NumDeferredContexts = 0;
+		engineCreateInfo.DynamicHeapSize = 128 << 20;
+		engineCreateInfo.DynamicHeapPageSize = 8 << 20;
 		engineCreateInfo.pRawMemAllocator = &g_Allocator;
 		pFactory->CreateDeviceAndContextsD3D12(engineCreateInfo, &m_renderDevice, &m_deviceContext);
 #else
@@ -172,7 +174,8 @@ namespace elm {
 
 		Diligent::EngineVkCreateInfo engineCreateInfo;
 		engineCreateInfo.NumDeferredContexts = 0;
-		engineCreateInfo.DynamicHeapSize = 32 << 20;
+		engineCreateInfo.DynamicHeapSize = 128 << 20;
+		engineCreateInfo.DynamicHeapPageSize = 8 << 20;
 		engineCreateInfo.pRawMemAllocator = &g_Allocator;
 		pFactory->CreateDeviceAndContextsVk(engineCreateInfo, &m_renderDevice, &m_deviceContext);
 #endif
@@ -209,6 +212,9 @@ namespace elm {
 
 		if (!m_bufferManager.Init(m_renderDevice))
 			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
+
+		if (!m_textureManager.Init(m_renderDevice, m_deviceContext))
+			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Texture Manager "));
 
 		m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
 		m_dynamicUniformBuffer.Init(m_renderDevice, "Dynamic Uniform Linear Allocator", render::BufferType::UniformBuffer, 2 * 1024 * 1024);
@@ -320,8 +326,6 @@ namespace elm {
 		Blend0.DestBlendAlpha = Diligent::BLEND_FACTOR_ZERO;
 		m_renderDevice->CreateGraphicsPipelineState(HighlightPSOCI, &m_pHighlightPSO);
 
-		// Create Depth Preview Texture
-		CreateDepthPreviewTexture(m_depthPreviewWidth, m_depthPreviewHeight);
 		CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
 	}
 
@@ -343,46 +347,6 @@ namespace elm {
 
 		const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
 		createBuffers(groundMesh, m_ground);
-	}
-
-	void RenderSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
-		if (m_pDepthPreviewSRV) {
-			m_pDepthPreviewSRV->Release();
-			m_pDepthPreviewSRV = nullptr;
-		}
-		if (m_pDepthPreviewTex) {
-			m_pDepthPreviewTex->Release();
-			m_pDepthPreviewTex = nullptr;
-		}
-
-		m_depthPreviewWidth = width;
-		m_depthPreviewHeight = height;
-		Vector<uint32_t> depthPreviewPixels;
-		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height), 0xFF000000);
-
-		Diligent::TextureDesc TexDesc;
-		TexDesc.Name = "Software Depth Buffer Preview Texture";
-		TexDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
-		TexDesc.Width = width;
-		TexDesc.Height = height;
-		TexDesc.Format = Diligent::TEX_FORMAT_RGBA8_UNORM;
-		TexDesc.Usage = Diligent::USAGE_DEFAULT;
-		TexDesc.BindFlags = Diligent::BIND_SHADER_RESOURCE;
-
-		Diligent::TextureSubResData Level0Data;
-		Level0Data.pData = depthPreviewPixels.data();
-		Level0Data.Stride = width * sizeof(uint32_t);
-		Diligent::TextureData InitData;
-		InitData.pSubResources = &Level0Data;
-		InitData.NumSubresources = 1;
-
-		m_renderDevice->CreateTexture(TexDesc, &InitData, &m_pDepthPreviewTex);
-		if (m_pDepthPreviewTex) {
-			m_pDepthPreviewSRV = m_pDepthPreviewTex->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
-			if (m_pDepthPreviewSRV) {
-				m_pDepthPreviewSRV->AddRef();
-			}
-		}
 	}
 
 	void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height) {
@@ -431,26 +395,6 @@ namespace elm {
 			m_pEngineViewportDSV = depthTexture->GetDefaultView(Diligent::TEXTURE_VIEW_DEPTH_STENCIL);
 			if (m_pEngineViewportDSV) m_pEngineViewportDSV->AddRef();
 		}
-	}
-
-	void RenderSystem::UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels) {
-		if (!m_pDepthPreviewTex || !m_deviceContext) return;
-
-		//m_cullingSystem.GetDepthBuffer().GenerateVisualTexture(m_depthPreviewPixels, m_depthPreviewFalseColor);
-
-		Diligent::Box UpdateBox;
-		UpdateBox.MinX = 0;
-		UpdateBox.MaxX = m_depthPreviewWidth;
-		UpdateBox.MinY = 0;
-		UpdateBox.MaxY = m_depthPreviewHeight;
-
-		Diligent::TextureSubResData SubresData;
-		SubresData.Stride = m_depthPreviewWidth * sizeof(uint32_t);
-		SubresData.pData = depthPreviewPixels.data();
-
-		m_deviceContext->UpdateTexture(m_pDepthPreviewTex, 0, 0, UpdateBox, SubresData,
-			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
-			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}
 
 	bool RenderSystem::ShouldClose() const {
@@ -509,9 +453,6 @@ namespace elm {
 			m_deviceContext->ClearDepthStencil(m_pEngineViewportDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0,
 				Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
 		}
-		
-		// 2. Update Depth Buffer Texture for ImGui
-		UpdateDepthPreviewTexture(frameData.depthPreviewPixels);
 
 		// 3. Update Camera Constant Buffer
 		{
@@ -604,14 +545,7 @@ namespace elm {
 	void RenderSystem::Shutdown() {
 		if (!m_initialized) return;
 
-		if (m_pDepthPreviewSRV) {
-			m_pDepthPreviewSRV->Release();
-			m_pDepthPreviewSRV = nullptr;
-		}
-		if (m_pDepthPreviewTex) {
-			m_pDepthPreviewTex->Release();
-			m_pDepthPreviewTex = nullptr;
-		}
+		m_textureManager.clear();
 
 		if (m_pEngineViewportSRV) m_pEngineViewportSRV->Release();
 		if (m_pEngineViewportDSV) m_pEngineViewportDSV->Release();

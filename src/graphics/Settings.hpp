@@ -14,6 +14,7 @@ namespace elm
 	constexpr const char* CULLING_ENABLE_OCCLUSION_CULLING = "culling/EnableOcclusionCulling";
 	constexpr const char* CULLING_DEPTH_BIAS = "culling/DepthBias";
 	constexpr const char* CULLING_VISUAL_MODE = "culling/VisualMode";
+	constexpr const char* CULLING_DEPTH_FALSE_COLOR = "culling/DepthFalseColor";
 
 	class Settings
 	{
