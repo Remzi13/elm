@@ -16,7 +16,7 @@ namespace elm {
 		m_currentResolution = std::clamp(index, 0, static_cast<int>(ResolutionWidths.size()) - 1);
 	}
 
-	void SocLabWindow::ApplyResolution(RenderSystem& renderSystem) {
+	void SocLabWindow::ApplyResolution() {
 		const uint32_t width = ResolutionWidths[m_currentResolution];
 		const uint32_t height = ResolutionHeights[m_currentResolution];
 		m_settings.Set(Settings::Category::Render, CULLING_RESOLUTION_WIDTH, width);
@@ -62,7 +62,7 @@ namespace elm {
 			}
 			const char* resolutions[] = { "64x36", "128x72", "256x144 (Recommended)", "320x180", "512x288" };
 			if (ImGui::Combo("SOC Buffer Res", &m_currentResolution, resolutions, IM_ARRAYSIZE(resolutions))) {
-				ApplyResolution(renderSystem);
+				ApplyResolution();
 			}
 		}
 

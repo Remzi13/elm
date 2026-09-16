@@ -20,7 +20,9 @@ namespace elm {
 
 		[[nodiscard]] int GetResolutionIndex() const noexcept { return m_currentResolution; }
 		void SetResolutionIndex(int index) noexcept;
-		void ApplyResolution(RenderSystem& renderSystem);		
+
+	private:
+		void ApplyResolution();
 
 	private:
 		int m_currentResolution{ 2 };
