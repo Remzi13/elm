@@ -21,7 +21,7 @@ namespace Diligent {
 	class IPipelineState;
 	class IShaderResourceBinding;	
 	class ITexture;
-	class ITextureView;
+	struct ITextureView;
 }
 
 namespace elm {
@@ -63,6 +63,7 @@ namespace elm {
 		void EndFrame();
 		void Shutdown();
 
+		[[nodiscard]] Diligent::ITextureView*  GetTextureView(const render::Texture&) const;
 		[[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
 		[[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
 		[[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
@@ -72,10 +73,7 @@ namespace elm {
 		[[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
 		[[nodiscard]] uint32_t GetWidth() const { return m_width; }
 		[[nodiscard]] uint32_t GetHeight() const { return m_height; }
-		[[nodiscard]] size_t GetMemAllocated() const;
-		[[nodiscard]] render::TextureManager& GetTextureManager() noexcept { return m_textureManager; }
-		[[nodiscard]] const render::TextureManager& GetTextureManager() const noexcept { return m_textureManager; }
-		[[nodiscard]] Diligent::ITextureView* GetTextureSRV(const render::Texture& texture) const { return m_textureManager.getTextureSRV(texture); }
+		[[nodiscard]] size_t GetMemAllocated() const;		
 
 	private:
 		struct Mesh {
@@ -118,8 +116,7 @@ namespace elm {
 		Diligent::ITextureView* m_pEngineViewportSRV{ nullptr };
 		uint32_t m_engineViewportWidth{ 1280 };
 		uint32_t m_engineViewportHeight{ 720 };
-		bool m_engineViewportIsShaderResource{ false };
-				
+		bool m_engineViewportIsShaderResource{ false };				
 				
 		Vector<GpuInstanceData> m_visibleGpuInstances;
 		Vector<GpuInstanceData> m_culledGpuInstances;

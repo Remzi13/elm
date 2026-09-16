@@ -84,7 +84,7 @@ namespace elm::render {
 		return handler;
 	}
 
-	Diligent::ITexture* TextureManager::getTextureImpl(const TextureHandler& handler) const {
+	Diligent::ITexture* TextureManager::GetTextureImpl(const TextureHandler& handler) const {
 		auto it = m_textures.find(handler.index);
 		if (it != m_textures.end()) {
 			return it->second.pTexture;
@@ -92,7 +92,7 @@ namespace elm::render {
 		return nullptr;
 	}
 
-	Diligent::ITextureView* TextureManager::getTextureSRV(const TextureHandler& handler) const {
+	Diligent::ITextureView* TextureManager::GetTextureView(TextureHandler handler) const {
 		auto it = m_textures.find(handler.index);
 		if (it != m_textures.end()) {
 			return it->second.pSRV;

@@ -10,10 +10,6 @@
 
 namespace elm {
 
-	namespace render {
-		class TextureManager;
-	}
-
 	enum class VisualMode {
 		HideCulled,
 		HighlightCulled,
@@ -45,9 +41,9 @@ namespace elm {
 		OcclusionCullingSystem(uint32_t width = 256, uint32_t height = 144);
 		~OcclusionCullingSystem() = default;
 
-		void Init(render::TextureManager& textureManager);
-		void SetResolution(uint32_t width, uint32_t height, render::TextureManager* textureManager = nullptr);
-		void CreateDepthPreviewTexture(render::TextureManager& textureManager, uint32_t width, uint32_t height);
+		void Init();
+		void SetResolution(uint32_t width, uint32_t height);
+		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
 		void UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels);
 		void UpdateDepthPreviewTexture(bool falseColor = true);
 
@@ -56,8 +52,7 @@ namespace elm {
 		[[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }
 		[[nodiscard]] const SoftwareDepthBuffer& GetDepthBuffer() const noexcept { return m_depthBuffer; }
 		[[nodiscard]] SoftwareDepthBuffer& GetDepthBuffer() noexcept { return m_depthBuffer; }
-		[[nodiscard]] const render::Texture& GetDepthPreviewTexture() const noexcept { return m_depthPreviewTexture; }
-		[[nodiscard]] render::Texture& GetDepthPreviewTexture() noexcept { return m_depthPreviewTexture; }
+		[[nodiscard]] const render::Texture& GetDepthPreviewTexture() const { return m_depthPreviewTexture; }		
 		[[nodiscard]] uint32_t GetWidth() const noexcept { return m_depthBuffer.GetWidth(); }
 		[[nodiscard]] uint32_t GetHeight() const noexcept { return m_depthBuffer.GetHeight(); }
 

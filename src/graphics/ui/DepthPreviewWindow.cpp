@@ -1,6 +1,7 @@
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/RenderSystem.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
+#include "graphics/render/Texture.hpp"
 
 #include "imgui.h"
 
@@ -30,7 +31,10 @@ namespace elm {
 		if (ImGui::Checkbox("False Color (Heatmap)", &falseColor)) {
 			m_settings.Set(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR, falseColor);
 		}
-		if (auto* texture = renderSystem.GetTextureSRV(m_cullingSystem->GetDepthPreviewTexture())) {
+		
+		Diligent::ITextureView* texture = renderSystem.GetTextureView(m_cullingSystem->GetDepthPreviewTexture());
+		
+		if (texture) {
 			const float aspect = static_cast<float>(depthWidth) / static_cast<float>(depthHeight);
 			const float width = ImGui::GetContentRegionAvail().x;
 			const float height = width / aspect;

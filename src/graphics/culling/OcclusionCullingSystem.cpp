@@ -1,5 +1,4 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
-#include "graphics/render/TextureManager.hpp"
 #include "core/Timer.hpp"
 
 namespace elm {
@@ -8,18 +7,16 @@ namespace elm {
 		: m_depthBuffer(width, height) {
 	}
 
-	void OcclusionCullingSystem::Init(render::TextureManager& textureManager) {
-		CreateDepthPreviewTexture(textureManager, m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
+	void OcclusionCullingSystem::Init() {
+		CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
 	}
 
-	void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height, render::TextureManager* textureManager) {
+	void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height) {
 		m_depthBuffer.Resize(width, height);
-		if (textureManager) {
-			CreateDepthPreviewTexture(*textureManager, width, height);
-		}
+		CreateDepthPreviewTexture(width, height);
 	}
 
-	void OcclusionCullingSystem::CreateDepthPreviewTexture(render::TextureManager& textureManager, uint32_t width, uint32_t height) {
+	void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
 		Vector<uint32_t> depthPreviewPixels;
 		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height), 0xFF000000);
 

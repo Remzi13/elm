@@ -162,7 +162,7 @@ namespace elm {
 
 		Diligent::EngineD3D12CreateInfo engineCreateInfo;
 		engineCreateInfo.NumDeferredContexts = 0;
-		engineCreateInfo.DynamicHeapSize = 128 << 20;
+		//engineCreateInfo.DynamicHeapSize = 128 << 20;
 		engineCreateInfo.DynamicHeapPageSize = 8 << 20;
 		engineCreateInfo.pRawMemAllocator = &g_Allocator;
 		pFactory->CreateDeviceAndContextsD3D12(engineCreateInfo, &m_renderDevice, &m_deviceContext);
@@ -603,5 +603,13 @@ namespace elm {
 	size_t RenderSystem::GetMemAllocated() const {
 		return g_Allocator.GetTotalAllocatedBytes();
 	}
+
+	Diligent::ITextureView* RenderSystem::GetTextureView(const render::Texture& texture) const
+	{ 
+		auto handler = texture.GetHandler();		
+		return m_textureManager.GetTextureView(handler); 
+
+	}
+		
 
 } // namespace Engine

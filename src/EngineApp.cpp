@@ -64,7 +64,7 @@ namespace elm {
 			return std::unexpected(physicsInit.error());
 		}
 
-		m_cullingSystem.Init(m_renderSystem->GetTextureManager());
+		m_cullingSystem.Init();
 		if (auto* depthWindow = m_imguiSystem->GetWindow<DepthPreviewWindow>()) {
 			depthWindow->SetCullingSystem(&m_cullingSystem);
 		}
