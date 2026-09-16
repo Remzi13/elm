@@ -44,18 +44,17 @@ namespace elm {
 		void Init();
 		void SetResolution(uint32_t width, uint32_t height);
 		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
-		void UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels);
 		void UpdateDepthPreviewTexture(bool falseColor = true);
 
 		void ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees);
 
 		[[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }
-		[[nodiscard]] const SoftwareDepthBuffer& GetDepthBuffer() const noexcept { return m_depthBuffer; }
-		[[nodiscard]] SoftwareDepthBuffer& GetDepthBuffer() noexcept { return m_depthBuffer; }
 		[[nodiscard]] const render::Texture& GetDepthPreviewTexture() const { return m_depthPreviewTexture; }		
 		[[nodiscard]] uint32_t GetWidth() const noexcept { return m_depthBuffer.GetWidth(); }
 		[[nodiscard]] uint32_t GetHeight() const noexcept { return m_depthBuffer.GetHeight(); }
+		[[nodiscard]] float GetDepth(uint32_t x, uint32_t y) const { return m_depthBuffer.GetDepth(x, y); }
 
+	private:
 		// Settings
 		bool enableFrustumCulling{ true };
 		bool enableOcclusionCulling{ true };
@@ -63,7 +62,6 @@ namespace elm {
 		float depthBias{ 0.001f };
 		VisualMode visualMode{ VisualMode::HideCulled };
 
-	private:
 		SoftwareDepthBuffer m_depthBuffer;
 		CullingStats m_stats;
 		render::Texture m_depthPreviewTexture;

@@ -33,11 +33,6 @@ namespace elm {
 		m_depthPreviewTexture = render::Texture(texInfo);
 	}
 
-	void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels) {
-		if (!m_depthPreviewTexture.IsValid()) return;
-		m_depthPreviewTexture.Update(depthPreviewPixels.data());
-	}
-
 	void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor) {
 		if (!m_depthPreviewTexture.IsValid()) return;
 		Vector<uint32_t> depthPreviewPixels;
