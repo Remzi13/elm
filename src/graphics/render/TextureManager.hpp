@@ -6,7 +6,7 @@
 namespace Diligent {
 	struct IRenderDevice;
 	struct IDeviceContext;
-	class ITexture;
+	struct ITexture;
 	struct ITextureView;
 }
 
@@ -27,14 +27,14 @@ namespace elm::render {
 		[[nodiscard]] Diligent::ITexture* GetTextureImpl(const TextureHandler& handler) const;		
 		[[nodiscard]] Diligent::ITextureView* GetTextureView(TextureHandler handler) const;		
 
-		void UpdateTexture(const TextureHandler& handler, const void* data, size_t stride = 0);		
-		void UpdateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const void* data, size_t stride = 0);			
+		void UpdateTexture(const TextureHandler& handler, const TextureData& textureData);
+		void UpdateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const TextureData& textureData);
 		void DestroyTexture(const TextureHandler& handler);
 		
 		void clear();
 
 	private:
-		struct TextureData {
+		struct Data {
 			Diligent::ITexture* pTexture{ nullptr };
 			Diligent::ITextureView* pSRV{ nullptr };
 			uint32_t width{ 0 };
@@ -45,7 +45,7 @@ namespace elm::render {
 
 		Diligent::IRenderDevice* m_renderDevice{ nullptr };
 		Diligent::IDeviceContext* m_deviceContext{ nullptr };
-		UnorderedMap<int, TextureData> m_textures;
+		UnorderedMap<int, Data> m_textures;
 		int m_currentIndex{ 0 };
 	};
 

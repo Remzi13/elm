@@ -29,8 +29,8 @@ namespace elm::render {
 		return *this;
 	}
 
-	void Texture::Update(const void* data, size_t stride) {
-		TextureManager::Get().UpdateTexture(m_handler, data, stride);
+	void Texture::Update(const TextureData& textureData) {
+		TextureManager::Get().UpdateTexture(m_handler, textureData);
 	}
 
 } // namespace elm::render

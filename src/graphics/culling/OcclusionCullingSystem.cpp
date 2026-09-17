@@ -17,8 +17,8 @@ namespace elm {
 	}
 
 	void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
-		Vector<uint32_t> depthPreviewPixels;
-		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height), 0xFF000000);
+		Vector<uint8_t> depthPreviewPixels;
+		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(uint32_t), 0);
 
 		render::TextureInfo texInfo;
 		texInfo.name = "Software Depth Buffer Preview Texture";
@@ -27,17 +27,20 @@ namespace elm {
 		texInfo.format = render::TextureFormat::RGBA8_UNORM;
 		texInfo.usage = render::TextureUsage::Default;
 		texInfo.bindFlags = render::TextureBindFlags::BindShaderResource;
-		texInfo.data = depthPreviewPixels.data();
-		texInfo.stride = width * sizeof(uint32_t);
 
 		m_depthPreviewTexture = render::Texture(texInfo);
 	}
 
+	void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels) {
+		if (!m_depthPreviewTexture.IsValid()) return;
+		m_depthPreviewTexture.Update(depthPreviewPixels.data());
+	}
+
 	void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor) {
 		if (!m_depthPreviewTexture.IsValid()) return;
-		Vector<uint32_t> depthPreviewPixels;
+		Vector<uint8_t> depthPreviewPixels;
 		m_depthBuffer.GenerateVisualTexture(depthPreviewPixels, falseColor);
-		m_depthPreviewTexture.Update(depthPreviewPixels.data());
+		m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, m_depthBuffer.GetWidth() * sizeof(uint32_t)));
 	}
 
 	void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees) {

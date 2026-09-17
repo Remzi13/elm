@@ -17,10 +17,10 @@ struct GLFWwindow;
 namespace Diligent {
 	struct IRenderDevice;
 	struct IDeviceContext;
-	class ISwapChain;
-	class IPipelineState;
-	class IShaderResourceBinding;	
-	class ITexture;
+	struct ISwapChain;
+	struct IPipelineState;
+	struct IShaderResourceBinding;
+	struct ITexture;
 	struct ITextureView;
 }
 

@@ -257,32 +257,39 @@ namespace elm {
 		return true;
 	}
 
-	void SoftwareDepthBuffer::GenerateVisualTexture(Vector<uint32_t>& outRgba, bool falseColor) const {
+	void SoftwareDepthBuffer::GenerateVisualTexture(Vector<uint8_t>& outRgba, bool falseColor) const {
 		const size_t totalPixels = static_cast<size_t>(m_width) * static_cast<size_t>(m_height);
-		if (outRgba.size() != totalPixels) {
-			outRgba.resize(totalPixels);
+		const size_t totalBytes = totalPixels * 4;
+
+		if (outRgba.size() != totalBytes) {
+			outRgba.resize(totalBytes);
 		}
 
 		for (size_t i = 0; i < totalPixels; ++i) {
 			const float d = std::clamp(m_depthBuffer[i], 0.0f, 1.0f);
+			const size_t idx = i * 4; // Индекс первого байта текущего пикселя
 
 			if (d >= 0.999f) {
-				// Background / Sky (dark blue/slate)
-				outRgba[i] = 0xFF2A1A14; // RGBA: R=0x14, G=0x1A, B=0x2A, A=0xFF (little-endian uint32)
+				// Background / Sky (R=0x14, G=0x1A, B=0x2A, A=0xFF)
+				outRgba[idx + 0] = 0x14; // Red
+				outRgba[idx + 1] = 0x1A; // Green
+				outRgba[idx + 2] = 0x2A; // Blue
+				outRgba[idx + 3] = 0xFF; // Alpha
 				continue;
 			}
 
-			// Apply non-linear scaling for better depth perception
 			const float depthVal = std::clamp(d, 0.0f, 1.0f);
 
 			if (!falseColor) {
 				// Grayscale: closer is brighter
 				const uint8_t lum = static_cast<uint8_t>((1.0f - depthVal) * 255.0f);
-				outRgba[i] = 0xFF000000 | (static_cast<uint32_t>(lum) << 16) | (static_cast<uint32_t>(lum) << 8) | lum;
+				outRgba[idx + 0] = lum;  // Red
+				outRgba[idx + 1] = lum;  // Green
+				outRgba[idx + 2] = lum;  // Blue
+				outRgba[idx + 3] = 0xFF; // Alpha
 			}
 			else {
-				// False color / Turbo-like heatmap:
-				// near (0.0): Cyan/Green -> Mid: Yellow/Orange -> Far: Red/Purple
+				// False color / Turbo-like heatmap
 				const float t = 1.0f - depthVal; // 1.0 = near, 0.0 = far
 				uint8_t r = 0, g = 0, b = 0;
 
@@ -305,7 +312,10 @@ namespace elm {
 					b = static_cast<uint8_t>((1.0f - localT) * 128.0f);
 				}
 
-				outRgba[i] = 0xFF000000 | (static_cast<uint32_t>(b) << 16) | (static_cast<uint32_t>(g) << 8) | r;
+				outRgba[idx + 0] = r;    // Red
+				outRgba[idx + 1] = g;    // Green
+				outRgba[idx + 2] = b;    // Blue
+				outRgba[idx + 3] = 0xFF; // Alpha
 			}
 		}
 	}

@@ -49,16 +49,10 @@ namespace elm::render {
 		TexDesc.BindFlags = getTextureBindFlags(info.bindFlags);
 
 		Diligent::TextureData InitData;
-		Diligent::TextureSubResData Level0Data;
-		if (info.data != nullptr) {
-			Level0Data.pData = info.data;
-			Level0Data.Stride = info.stride > 0 ? info.stride : info.width * sizeof(uint32_t);
-			InitData.pSubResources = &Level0Data;
-			InitData.NumSubresources = 1;
-		}
+		Diligent::TextureSubResData Level0Data;	
 
 		Diligent::ITexture* pTexture{ nullptr };
-		m_renderDevice->CreateTexture(TexDesc, info.data != nullptr ? &InitData : nullptr, &pTexture);
+		m_renderDevice->CreateTexture(TexDesc, nullptr, &pTexture);
 		if (!pTexture) {
 			return TextureHandler{};
 		}
@@ -74,7 +68,7 @@ namespace elm::render {
 		TextureHandler handler;
 		handler.index = ++m_currentIndex;
 
-		TextureData texData;
+		Data texData;
 		texData.pTexture = pTexture;
 		texData.pSRV = pSRV;
 		texData.width = info.width;
@@ -100,29 +94,29 @@ namespace elm::render {
 		return nullptr;
 	}
 
-	void TextureManager::UpdateTexture(const TextureHandler& handler, const void* data, size_t stride) {
-		UpdateTexture(m_deviceContext, handler, data, stride);
+	void TextureManager::UpdateTexture(const TextureHandler& handler, const TextureData& textureData) {
+		UpdateTexture(m_deviceContext, handler, textureData);
 	}
 
-	void TextureManager::UpdateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const void* data, size_t stride) {
-		if (!deviceContext || !data) return;
+	void TextureManager::UpdateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const TextureData& textureData) {
+		if (!deviceContext || textureData.data.empty()) return;
 
 		auto it = m_textures.find(handler.index);
 		if (it == m_textures.end() || !it->second.pTexture) return;
 
 		const auto& texData = it->second;
 
-		Diligent::Box UpdateBox;
-		UpdateBox.MinX = 0;
-		UpdateBox.MaxX = texData.width;
-		UpdateBox.MinY = 0;
-		UpdateBox.MaxY = texData.height;
+		Diligent::Box updateBox;
+		updateBox.MinX = 0;
+		updateBox.MaxX = texData.width;
+		updateBox.MinY = 0;
+		updateBox.MaxY = texData.height;
 
-		Diligent::TextureSubResData SubresData;
-		SubresData.Stride = stride > 0 ? stride : (texData.width * sizeof(uint32_t));
-		SubresData.pData = data;
+		Diligent::TextureSubResData subresData;
+		subresData.Stride = textureData.stride > 0 ? textureData.stride : (texData.width * sizeof(uint8_t));
+		subresData.pData = textureData.data.data();
 
-		deviceContext->UpdateTexture(texData.pTexture, 0, 0, UpdateBox, SubresData,
+		deviceContext->UpdateTexture(texData.pTexture, 0, 0, updateBox, subresData,
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}

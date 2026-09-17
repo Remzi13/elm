@@ -18,8 +18,12 @@ namespace elm::render {
 		uint32_t height{ 0 };
 		TextureFormat format{ TextureFormat::RGBA8_UNORM };
 		TextureUsage usage{ TextureUsage::Default };
-		uint32_t bindFlags{ TextureBindFlags::BindShaderResource };
-		const void* data{ nullptr };
+		uint32_t bindFlags{ TextureBindFlags::BindShaderResource };		
+	};
+
+	
+	struct TextureData {
+		Vector<uint8_t> data;
 		size_t stride{ 0 };
 	};
 
@@ -46,8 +50,9 @@ namespace elm::render {
 		[[nodiscard]] TextureUsage GetUsage() const noexcept { return m_info.usage; }
 		[[nodiscard]] uint32_t GetBindFlags() const noexcept { return m_info.bindFlags; }
 		[[nodiscard]] StringView GetName() const noexcept { return m_info.name; }
-
-		void Update(const void* data, size_t stride = 0);
+			
+		void Update(const TextureData& textureData);
+		
 
 	private:
 		TextureHandler m_handler;

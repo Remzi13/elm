@@ -38,7 +38,7 @@ namespace elm {
 		[[nodiscard]] bool TestAABB(const AABB& worldAABB, const Matrix4x4& viewProj, float depthBias = 0.001f) const;
 
 		// Generates an RGBA8 texture image for visual debug display in ImGui
-		void GenerateVisualTexture(Vector<uint32_t>& outRgba, bool falseColor = true) const;
+		void GenerateVisualTexture(Vector<uint8_t>& outRgba, bool falseColor = true) const;
 
 	private:
 		void RasterizeTriangleScreen(const Vector3& s0, const Vector3& s1, const Vector3& s2,
