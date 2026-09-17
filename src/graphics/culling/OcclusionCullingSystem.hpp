@@ -43,8 +43,7 @@ namespace elm {
 
 		void Init();
 		void SetResolution(uint32_t width, uint32_t height);
-		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
-		void UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels);
+		void CreateDepthPreviewTexture(uint32_t width, uint32_t height);		
 		void UpdateDepthPreviewTexture(bool falseColor = true);
 
 		void ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees);

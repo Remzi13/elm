@@ -29,11 +29,7 @@ namespace elm {
 		texInfo.bindFlags = render::TextureBindFlags::BindShaderResource;
 
 		m_depthPreviewTexture = render::Texture(texInfo);
-	}
-
-	void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Vector<uint32_t>& depthPreviewPixels) {
-		if (!m_depthPreviewTexture.IsValid()) return;
-		m_depthPreviewTexture.Update(depthPreviewPixels.data());
+		m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, width * sizeof(uint32_t)));
 	}
 
 	void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor) {
