@@ -4,131 +4,132 @@
 
 #include "graphics/Camera.hpp"
 
-#include "Scene/Transform.hpp"
 #include "Scene/TestScenes.hpp"
+#include "Scene/Transform.hpp"
 
-#include "graphics/render/BufferManager.hpp"
-#include "graphics/render/TextureManager.hpp"
-#include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/Settings.hpp"
+#include "graphics/render/BufferManager.hpp"
+#include "graphics/render/DynamicLinearAllocator.hpp"
+#include "graphics/render/TextureManager.hpp"
 
 struct GLFWwindow;
 
 namespace Diligent {
-	struct IRenderDevice;
-	struct IDeviceContext;
-	struct ISwapChain;
-	struct IPipelineState;
-	struct IShaderResourceBinding;
-	struct ITexture;
-	struct ITextureView;
+struct IRenderDevice;
+struct IDeviceContext;
+struct ISwapChain;
+struct IPipelineState;
+struct IShaderResourceBinding;
+struct ITexture;
+struct ITextureView;
 }
 
 namespace elm {
 
-	struct FrameStats {
-		float fps{ 0.0f };
-		float deltaTimeMs{ 0.0f };
-		uint32_t physicsBodyCount{ 0 };
-		Transform boxTransform;
-		Transform groundTransform;
-	};
+struct FrameStats {
+    float fps { 0.0f };
+    float deltaTimeMs { 0.0f };
+    uint32_t physicsBodyCount { 0 };
+    Transform boxTransform;
+    Transform groundTransform;
+};
 
-	struct GpuInstanceData {
-		Matrix4x4 World;
-		Vector4 Color;
-	};
+struct GpuInstanceData {
+    Matrix4x4 World;
+    Vector4 Color;
+};
 
-	struct FrameData {		
-		Camera camera;
-		Scene scene;
-	};
+struct FrameData {
+    Camera camera;
+    Scene scene;
+};
 
-	class RenderSystem {
-		friend class ImGuiSystem;
-	public:
-		RenderSystem();
-		~RenderSystem();
+class RenderSystem {
+    friend class ImGuiSystem;
 
-		RenderSystem(const RenderSystem&) = delete;
-		RenderSystem& operator=(const RenderSystem&) = delete;
-		RenderSystem(RenderSystem&&) noexcept = delete;
-		RenderSystem& operator=(RenderSystem&&) noexcept = delete;
+public:
+    RenderSystem();
+    ~RenderSystem();
 
-		[[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
-		[[nodiscard]] bool ShouldClose() const;
+    RenderSystem(const RenderSystem&) = delete;
+    RenderSystem& operator=(const RenderSystem&) = delete;
+    RenderSystem(RenderSystem&&) noexcept = delete;
+    RenderSystem& operator=(RenderSystem&&) noexcept = delete;
 
-		void BeginFrame();
-		void Draw(FrameData& frameData, Settings& settings);
-		void EndFrame();
-		void Shutdown();
+    [[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
+    [[nodiscard]] bool ShouldClose() const;
 
-		[[nodiscard]] Diligent::ITextureView*  GetTextureView(const render::Texture&) const;
-		[[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
-		[[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
-		[[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
-		[[nodiscard]] Diligent::ISwapChain* GetSwapChain() const { return m_swapChain; }
-		[[nodiscard]] Diligent::ITextureView* GetEngineViewportSRV() const { return m_pEngineViewportSRV; }
-		[[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportWidth; }
-		[[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
-		[[nodiscard]] uint32_t GetWidth() const { return m_width; }
-		[[nodiscard]] uint32_t GetHeight() const { return m_height; }
-		[[nodiscard]] size_t GetMemAllocated() const;		
+    void BeginFrame();
+    void Draw(FrameData& frameData, Settings& settings);
+    void EndFrame();
+    void Shutdown();
 
-	private:
-		struct Mesh {
-			render::BufferHandler vb;
-			render::BufferHandler ib;
-			uint32_t indexCount{ 0 };
-		};
+    [[nodiscard]] Diligent::ITextureView* GetTextureView(const render::Texture&) const;
+    [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
+    [[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
+    [[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
+    [[nodiscard]] Diligent::ISwapChain* GetSwapChain() const { return m_swapChain; }
+    [[nodiscard]] Diligent::ITextureView* GetEngineViewportSRV() const { return m_pEngineViewportSRV; }
+    [[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportWidth; }
+    [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
+    [[nodiscard]] uint32_t GetWidth() const { return m_width; }
+    [[nodiscard]] uint32_t GetHeight() const { return m_height; }
+    [[nodiscard]] size_t GetMemAllocated() const;
 
-	private:
-		void InitPipeline();
-		void CreateMeshBuffers();
-		void CreateEngineViewport(uint32_t width, uint32_t height);
+private:
+    struct Mesh {
+        render::Handler vb;
+        render::Handler ib;
+        uint32_t indexCount { 0 };
+    };
 
-		void Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances);
+private:
+    void InitPipeline();
+    void CreateMeshBuffers();
+    void CreateEngineViewport(uint32_t width, uint32_t height);
 
-	private:
-		GLFWwindow* m_window{ nullptr };
-		
-		// Diligent Engine components
-		Diligent::IRenderDevice* m_renderDevice{ nullptr };
-		Diligent::IDeviceContext* m_deviceContext{ nullptr };
-		Diligent::ISwapChain* m_swapChain{ nullptr };
+    void Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances);
 
-		// Shaders & Pipelines
-		Diligent::IPipelineState* m_pPSO{ nullptr };
-		Diligent::IPipelineState* m_pHighlightPSO{ nullptr };
-		Diligent::IShaderResourceBinding* m_pSRB{ nullptr };
+private:
+    GLFWwindow* m_window { nullptr };
 
-		Mesh m_cube;
-		Mesh m_wall;
-		Mesh m_ground;
+    // Diligent Engine components
+    Diligent::IRenderDevice* m_renderDevice { nullptr };
+    Diligent::IDeviceContext* m_deviceContext { nullptr };
+    Diligent::ISwapChain* m_swapChain { nullptr };
 
-		// Dynamic Instance Buffer
-		static constexpr size_t MaxInstances = 30000;
+    // Shaders & Pipelines
+    Diligent::IPipelineState* m_pPSO { nullptr };
+    Diligent::IPipelineState* m_pHighlightPSO { nullptr };
+    Diligent::IShaderResourceBinding* m_pSRB { nullptr };
 
-		// Offscreen render target displayed inside the dockspace.
-		Diligent::ITexture* m_pEngineViewportTex{ nullptr };
-		Diligent::ITextureView* m_pEngineViewportRTV{ nullptr };
-		Diligent::ITextureView* m_pEngineViewportDSV{ nullptr };
-		Diligent::ITextureView* m_pEngineViewportSRV{ nullptr };
-		uint32_t m_engineViewportWidth{ 1280 };
-		uint32_t m_engineViewportHeight{ 720 };
-		bool m_engineViewportIsShaderResource{ false };				
-				
-		Vector<GpuInstanceData> m_visibleGpuInstances;
-		Vector<GpuInstanceData> m_culledGpuInstances;
+    Mesh m_cube;
+    Mesh m_wall;
+    Mesh m_ground;
 
-		render::BufferManager m_bufferManager;
-		render::TextureManager m_textureManager;
-		render::DynamicLinearAllocator m_dynamicInstanceBuffer;
-		render::DynamicLinearAllocator m_dynamicUniformBuffer;
+    // Dynamic Instance Buffer
+    static constexpr size_t MaxInstances = 30000;
 
-		uint32_t m_width{ 1280 };
-		uint32_t m_height{ 720 };
-		bool m_initialized{ false };
-	};
+    // Offscreen render target displayed inside the dockspace.
+    Diligent::ITexture* m_pEngineViewportTex { nullptr };
+    Diligent::ITextureView* m_pEngineViewportRTV { nullptr };
+    Diligent::ITextureView* m_pEngineViewportDSV { nullptr };
+    Diligent::ITextureView* m_pEngineViewportSRV { nullptr };
+    uint32_t m_engineViewportWidth { 1280 };
+    uint32_t m_engineViewportHeight { 720 };
+    bool m_engineViewportIsShaderResource { false };
+
+    Vector<GpuInstanceData> m_visibleGpuInstances;
+    Vector<GpuInstanceData> m_culledGpuInstances;
+
+    render::BufferManager m_bufferManager;
+    render::TextureManager m_textureManager;
+    render::DynamicLinearAllocator m_dynamicInstanceBuffer;
+    render::DynamicLinearAllocator m_dynamicUniformBuffer;
+
+    uint32_t m_width { 1280 };
+    uint32_t m_height { 720 };
+    bool m_initialized { false };
+};
 
 } // namespace Engine

@@ -167,8 +167,10 @@ namespace elm {
 		m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
 
 		m_renderSystem->Draw(data, m_settings);
+
 		m_imguiSystem->BeginFrame(*m_renderSystem);
 		m_imguiSystem->Render(*m_renderSystem, m_scene, m_currentStats);
+
 		m_renderSystem->EndFrame();
 	}
 

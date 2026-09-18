@@ -34,9 +34,9 @@ namespace elm::render {
 		return m_renderDevice != nullptr;
 	}
 
-	TextureHandler TextureManager::CreateTexture(const TextureInfo& info) {
+	Handler TextureManager::CreateTexture(const TextureInfo& info) {
 		if (!m_renderDevice) {
-			return TextureHandler{};
+			return Handler{};
 		}
 
 		Diligent::TextureDesc TexDesc;
@@ -54,7 +54,7 @@ namespace elm::render {
 		Diligent::ITexture* pTexture{ nullptr };
 		m_renderDevice->CreateTexture(TexDesc, nullptr, &pTexture);
 		if (!pTexture) {
-			return TextureHandler{};
+			return Handler{};
 		}
 
 		Diligent::ITextureView* pSRV{ nullptr };
@@ -65,7 +65,7 @@ namespace elm::render {
 			}
 		}
 
-		TextureHandler handler;
+		Handler handler;
 		handler.index = ++m_currentIndex;
 
 		Data texData;
@@ -78,7 +78,7 @@ namespace elm::render {
 		return handler;
 	}
 
-	Diligent::ITexture* TextureManager::GetTextureImpl(const TextureHandler& handler) const {
+	Diligent::ITexture* TextureManager::GetTextureImpl(const Handler& handler) const {
 		auto it = m_textures.find(handler.index);
 		if (it != m_textures.end()) {
 			return it->second.pTexture;
@@ -86,7 +86,7 @@ namespace elm::render {
 		return nullptr;
 	}
 
-	Diligent::ITextureView* TextureManager::GetTextureView(TextureHandler handler) const {
+	Diligent::ITextureView* TextureManager::GetTextureView(Handler handler) const {
 		auto it = m_textures.find(handler.index);
 		if (it != m_textures.end()) {
 			return it->second.pSRV;
@@ -94,11 +94,11 @@ namespace elm::render {
 		return nullptr;
 	}
 
-	void TextureManager::UpdateTexture(const TextureHandler& handler, const TextureData& textureData) {
+	void TextureManager::UpdateTexture(const Handler& handler, const TextureData& textureData) {
 		UpdateTexture(m_deviceContext, handler, textureData);
 	}
 
-	void TextureManager::UpdateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const TextureData& textureData) {
+	void TextureManager::UpdateTexture(Diligent::IDeviceContext* deviceContext, const Handler& handler, const TextureData& textureData) {
 		if (!deviceContext || textureData.data.empty()) return;
 
 		auto it = m_textures.find(handler.index);
@@ -121,7 +121,7 @@ namespace elm::render {
 			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	}
 
-	void TextureManager::DestroyTexture(const TextureHandler& handler) {
+	void TextureManager::DestroyTexture(const Handler& handler) {
 		auto it = m_textures.find(handler.index);
 		if (it != m_textures.end()) {
 			if (it->second.pSRV) {

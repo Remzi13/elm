@@ -22,14 +22,14 @@ namespace elm::render {
 		bool Init(Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext = nullptr);
 		void SetDeviceContext(Diligent::IDeviceContext* deviceContext) { m_deviceContext = deviceContext; }
 
-		[[nodiscard]] TextureHandler CreateTexture(const TextureInfo& info);	
+		[[nodiscard]] Handler CreateTexture(const TextureInfo& info);	
 
-		[[nodiscard]] Diligent::ITexture* GetTextureImpl(const TextureHandler& handler) const;		
-		[[nodiscard]] Diligent::ITextureView* GetTextureView(TextureHandler handler) const;		
+		[[nodiscard]] Diligent::ITexture* GetTextureImpl(const Handler& handler) const;		
+		[[nodiscard]] Diligent::ITextureView* GetTextureView(Handler handler) const;		
 
-		void UpdateTexture(const TextureHandler& handler, const TextureData& textureData);
-		void UpdateTexture(Diligent::IDeviceContext* deviceContext, const TextureHandler& handler, const TextureData& textureData);
-		void DestroyTexture(const TextureHandler& handler);
+		void UpdateTexture(const Handler& handler, const TextureData& textureData);
+		void UpdateTexture(Diligent::IDeviceContext* deviceContext, const Handler& handler, const TextureData& textureData);
+		void DestroyTexture(const Handler& handler);
 		
 		void clear();
 

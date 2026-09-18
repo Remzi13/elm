@@ -9,36 +9,34 @@ namespace Diligent {
 	struct IBuffer;
 }
 
-namespace elm::render {
-		
-	struct BufferHandler {
-		int index { -1 };
-	};	
+namespace elm {
+namespace render {
 
-	struct BufferInfo {
-		String name;
-		BufferType type;
-		size_t size;
-		void* data;
-	};
+    struct BufferInfo {
+        String name;
+        BufferType type;
+        size_t size;
+        void* data;
+    };
 
-	class BufferManager {
+    class BufferManager {
 
-	public:
-		BufferManager();
+    public:
+        BufferManager();
 
-		bool Init(Diligent::IRenderDevice* renderDevice);
+        bool Init(Diligent::IRenderDevice* renderDevice);
 
-		[[nodiscard]] BufferHandler createBuffer(const BufferInfo& info);
-		[[nodiscard]] Diligent::IBuffer* getBufferImpl(const BufferHandler& handler) const;
-		void destroyBuffer(BufferHandler buffer);
+        [[nodiscard]] Handler createBuffer(const BufferInfo& info);
+        [[nodiscard]] Diligent::IBuffer* getBufferImpl(const Handler& handler) const;
+        void destroyBuffer(Handler buffer);
 
-		void clear();
+        void clear();
 
-	private:
-		Diligent::IRenderDevice* m_renderDevice;
-		UnorderedMap<int, Diligent::IBuffer*> m_buffers;
-		int m_currentIndex{ 0 };
-	};
+    private:
+        Diligent::IRenderDevice* m_renderDevice;
+        UnorderedMap<int, Diligent::IBuffer*> m_buffers;
+        int m_currentIndex { 0 };
+    };
 
+}
 }
