@@ -12,7 +12,7 @@
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/render/TextureManager.hpp"
 
-#include "graphics/render/CommandQueue.h"
+#include "graphics/render/Command.hpp"
 
 struct GLFWwindow;
 

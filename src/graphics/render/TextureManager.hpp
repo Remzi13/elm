@@ -2,7 +2,7 @@
 
 #include "core/Std.hpp"
 #include "graphics/render/Texture.hpp"
-#include "graphics/render/CommandQueue.h"
+#include "graphics/render/Command.hpp"
 
 namespace Diligent {
 	struct IRenderDevice;
