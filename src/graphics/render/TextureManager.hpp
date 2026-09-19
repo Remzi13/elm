@@ -2,6 +2,7 @@
 
 #include "core/Std.hpp"
 #include "graphics/render/Texture.hpp"
+#include "graphics/render/CommandQueue.h"
 
 namespace Diligent {
 	struct IRenderDevice;
@@ -14,12 +15,19 @@ namespace elm::render {
 
 	class TextureManager {
 	public:
+		struct Data {
+			Diligent::ITexture* pTexture{ nullptr };
+			Diligent::ITextureView* pSRV{ nullptr };
+			uint32_t width{ 0 };
+			uint32_t height{ 0 };
+		};
+	public:
 		TextureManager();
 		~TextureManager();
 
 		static TextureManager& Get();
 
-		bool Init(Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext = nullptr);
+		bool Init(CommandList* commandList, Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext = nullptr);
 		void SetDeviceContext(Diligent::IDeviceContext* deviceContext) { m_deviceContext = deviceContext; }
 
 		[[nodiscard]] Handler CreateTexture(const TextureInfo& info);	
@@ -30,16 +38,13 @@ namespace elm::render {
 		void UpdateTexture(const Handler& handler, const TextureData& textureData);
 		void UpdateTexture(Diligent::IDeviceContext* deviceContext, const Handler& handler, const TextureData& textureData);
 		void DestroyTexture(const Handler& handler);
+
+		Data GetTextureData(const Handler& handler);
 		
 		void clear();
 
 	private:
-		struct Data {
-			Diligent::ITexture* pTexture{ nullptr };
-			Diligent::ITextureView* pSRV{ nullptr };
-			uint32_t width{ 0 };
-			uint32_t height{ 0 };
-		};
+
 
 		static TextureManager* s_instance;
 
@@ -47,6 +52,8 @@ namespace elm::render {
 		Diligent::IDeviceContext* m_deviceContext{ nullptr };
 		UnorderedMap<int, Data> m_textures;
 		int m_currentIndex{ 0 };
+
+		CommandList* m_commandList{ nullptr };
 	};
 
 } // namespace elm::render

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <compare>
+
 namespace elm {
 namespace render {
 

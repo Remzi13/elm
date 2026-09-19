@@ -28,7 +28,8 @@ namespace elm::render {
 		}
 	}
 
-	bool TextureManager::Init(Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext) {
+	bool TextureManager::Init(CommandList* commandList, Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext) {
+		m_commandList = commandList;
 		m_renderDevice = renderDevice;
 		m_deviceContext = deviceContext;
 		return m_renderDevice != nullptr;
@@ -75,6 +76,7 @@ namespace elm::render {
 		texData.height = info.height;
 
 		m_textures.emplace(handler.index, texData);
+
 		return handler;
 	}
 
@@ -104,21 +106,7 @@ namespace elm::render {
 		auto it = m_textures.find(handler.index);
 		if (it == m_textures.end() || !it->second.pTexture) return;
 
-		const auto& texData = it->second;
-
-		Diligent::Box updateBox;
-		updateBox.MinX = 0;
-		updateBox.MaxX = texData.width;
-		updateBox.MinY = 0;
-		updateBox.MaxY = texData.height;
-
-		Diligent::TextureSubResData subresData;
-		subresData.Stride = textureData.stride > 0 ? textureData.stride : (texData.width * sizeof(uint8_t));
-		subresData.pData = textureData.data.data();
-
-		deviceContext->UpdateTexture(texData.pTexture, 0, 0, updateBox, subresData,
-			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
-			Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		m_commandList->Push(UploadTexture({ .handler = handler, .data=textureData,}));
 	}
 
 	void TextureManager::DestroyTexture(const Handler& handler) {
@@ -148,6 +136,14 @@ namespace elm::render {
 			}
 		}
 		m_textures.clear();
+	}
+
+	TextureManager::Data TextureManager::GetTextureData(const Handler& handler) {
+		auto it = m_textures.find(handler.index);
+		if (it != m_textures.end()) {
+			return it->second;
+		}
+		return TextureManager::Data();
 	}
 
 } // namespace elm::render

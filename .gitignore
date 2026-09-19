@@ -5,3 +5,5 @@ imgui.ini
 third_party/*-src/
 third_party/*-build/
 third_party/*-subbuild/
+/.idea
+/src/.idea

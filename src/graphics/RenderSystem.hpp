@@ -12,6 +12,8 @@
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/render/TextureManager.hpp"
 
+#include "graphics/render/CommandQueue.h"
+
 struct GLFWwindow;
 
 namespace Diligent {
@@ -130,6 +132,8 @@ private:
     uint32_t m_width { 1280 };
     uint32_t m_height { 720 };
     bool m_initialized { false };
+
+    render::CommandList m_commandList;
 };
 
 } // namespace Engine

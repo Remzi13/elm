@@ -3,10 +3,10 @@
 #include "core/Log.hpp"
 
 // Diligent Engine Includes
-#include "Graphics/GraphicsEngine/interface/RenderDevice.h"
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
-#include "Graphics/GraphicsEngine/interface/SwapChain.h"
 #include "Graphics/GraphicsEngine/interface/EngineFactory.h"
+#include "Graphics/GraphicsEngine/interface/RenderDevice.h"
+#include "Graphics/GraphicsEngine/interface/SwapChain.h"
 #if PLATFORM_WIN32
 #include "Graphics/GraphicsEngineD3D12/interface/EngineFactoryD3D12.h"
 #else
@@ -16,11 +16,10 @@
 
 #include "graphics/render/BufferManager.hpp"
 
-
-#include <iostream>
 #include <cstring>
-#include <fstream>
 #include <filesystem>
+#include <fstream>
+#include <iostream>
 
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 
@@ -34,582 +33,641 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
-
 namespace elm {
 
-	namespace {
-		class DilligentAllocator : public Diligent::IMemoryAllocator
-		{
-		public:
-			virtual ~DilligentAllocator() = default;
+namespace {
+    class Executor {
+    public:
+        Executor(Diligent::IDeviceContext* deviceContext, render::TextureManager& textureManger)
+            : m_deviceContext(deviceContext)
+            , m_textureManger(textureManger)
+        {
+        }
 
-			struct AllocationHeader
-			{
-				void* rawPointer;
-				size_t requestedSize;
-				size_t allocatedSize;
-			};
+        void Execute(render::UploadTexture command)
+        {
 
-			virtual void* Allocate(size_t Size, [[maybe_unused]] const char* DebugDesc, [[maybe_unused]] const char* File, [[maybe_unused]] int Line) override
-			{
-				constexpr size_t Alignment = 64;
-				size_t allocatedSize = Size + Alignment + sizeof(AllocationHeader);
-				void* rawPointer = memory::allocate_impl(allocatedSize);
-				void* ptr = static_cast<char*>(rawPointer) + sizeof(AllocationHeader);
-				size_t availableSize = allocatedSize - sizeof(AllocationHeader);
-				std::align(Alignment, Size, ptr, availableSize);
-				if (!ptr) return nullptr;
+            auto textureData = m_textureManger.GetTextureData(command.handler);
+            if (!textureData.pTexture) {
+                return;
+            }
 
-				auto* header = reinterpret_cast<AllocationHeader*>(ptr) - 1;
-				header->rawPointer = rawPointer;
-				header->requestedSize = Size;
-				header->allocatedSize = allocatedSize;
-				m_TotalAllocated.fetch_add(Size, std::memory_order_relaxed);
+            Diligent::Box updateBox;
+            updateBox.MinX = 0;
+            updateBox.MaxX = textureData.width;
+            updateBox.MinY = 0;
+            updateBox.MaxY = textureData.height;
 
-				return ptr;
-			}
+            Diligent::TextureSubResData subresData;
+            subresData.Stride = command.data.stride > 0 ? command.data.stride : (textureData.width * sizeof(uint8_t));
+            subresData.pData = command.data.data.data();
 
-			virtual void Free(void* Ptr) override
-			{
-				if (!Ptr) return;
+            m_deviceContext->UpdateTexture(textureData.pTexture, 0, 0, updateBox, subresData,
+                Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
+                Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+        }
 
-				auto* header = reinterpret_cast<AllocationHeader*>(Ptr) - 1;
-				void* rawPointer = header->rawPointer;
-				const size_t requestedSize = header->requestedSize;
-				const size_t allocatedSize = header->allocatedSize;
+    private:
+        Diligent::IDeviceContext* m_deviceContext;
+        render::TextureManager& m_textureManger;
+    };
 
-				m_TotalAllocated.fetch_sub(requestedSize, std::memory_order_relaxed);
-				memory::deallocate_impl(rawPointer, allocatedSize);
+    class DilligentAllocator : public Diligent::IMemoryAllocator {
+    public:
+        virtual ~DilligentAllocator() = default;
 
-			}
+        struct AllocationHeader {
+            void* rawPointer;
+            size_t requestedSize;
+            size_t allocatedSize;
+        };
 
-			size_t GetTotalAllocatedBytes() const
-			{
-				return m_TotalAllocated.load(std::memory_order_relaxed);
-			}
+        virtual void* Allocate(size_t Size, [[maybe_unused]] const char* DebugDesc, [[maybe_unused]] const char* File, [[maybe_unused]] int Line) override
+        {
+            constexpr size_t Alignment = 64;
+            size_t allocatedSize = Size + Alignment + sizeof(AllocationHeader);
+            void* rawPointer = memory::allocate_impl(allocatedSize);
+            void* ptr = static_cast<char*>(rawPointer) + sizeof(AllocationHeader);
+            size_t availableSize = allocatedSize - sizeof(AllocationHeader);
+            std::align(Alignment, Size, ptr, availableSize);
+            if (!ptr)
+                return nullptr;
 
-		private:
-			std::atomic<size_t> m_TotalAllocated{ 0 };
-		} g_Allocator;
-	}
+            auto* header = reinterpret_cast<AllocationHeader*>(ptr) - 1;
+            header->rawPointer = rawPointer;
+            header->requestedSize = Size;
+            header->allocatedSize = allocatedSize;
+            m_TotalAllocated.fetch_add(Size, std::memory_order_relaxed);
 
-	// Shaders are loaded from shaders/ at runtime. This keeps shader editing independent
-	// from the executable and also allows the same source to be replaced without a rebuild.
-	static String LoadShaderSource(const char* fileName) {
-		const std::filesystem::path sourceRoot =
-			std::filesystem::path{ __FILE__ }.parent_path().parent_path().parent_path();
-		const std::filesystem::path paths[] = {
-			std::filesystem::current_path() / "shaders" / fileName,
-			std::filesystem::current_path() / "assets/shaders" / fileName,
-			sourceRoot / "shaders" / fileName,
-			sourceRoot / "assets/shaders" / fileName
-		};
-		for (const auto& path : paths) {
-			std::ifstream file(path, std::ios::binary | std::ios::ate);
-			if (!file) continue;
+            return ptr;
+        }
 
-			const auto size = file.tellg();
-			if (size <= 0 || !file.seekg(0)) continue;
+        virtual void Free(void* Ptr) override
+        {
+            if (!Ptr)
+                return;
 
-			String source(static_cast<size_t>(size), '\0');
-			if (file.read(source.data(), size)) {
-				std::cout << "[RenderSystem] Loaded shader: " << path << std::endl;
-				return source;
-			}
-		}
+            auto* header = reinterpret_cast<AllocationHeader*>(Ptr) - 1;
+            void* rawPointer = header->rawPointer;
+            const size_t requestedSize = header->requestedSize;
+            const size_t allocatedSize = header->allocatedSize;
 
-		ERORR_MESSAGE(log::Category::Render, "Shaders", "Cannot load shader from the working directory or project root : %s", fileName);
-		return {};
-	}
+            m_TotalAllocated.fetch_sub(requestedSize, std::memory_order_relaxed);
+            memory::deallocate_impl(rawPointer, allocatedSize);
+        }
 
+        size_t GetTotalAllocatedBytes() const
+        {
+            return m_TotalAllocated.load(std::memory_order_relaxed);
+        }
 
-	RenderSystem::RenderSystem() {
-	}
+    private:
+        std::atomic<size_t> m_TotalAllocated { 0 };
+    } g_Allocator;
+}
 
-	RenderSystem::~RenderSystem() {
-		Shutdown();
-	}
+// Shaders are loaded from shaders/ at runtime. This keeps shader editing independent
+// from the executable and also allows the same source to be replaced without a rebuild.
+static String LoadShaderSource(const char* fileName)
+{
+    const std::filesystem::path sourceRoot = std::filesystem::path { __FILE__ }.parent_path().parent_path().parent_path();
+    const std::filesystem::path paths[] = {
+        std::filesystem::current_path() / "shaders" / fileName,
+        std::filesystem::current_path() / "assets/shaders" / fileName,
+        sourceRoot / "shaders" / fileName,
+        sourceRoot / "assets/shaders" / fileName
+    };
+    for (const auto& path : paths) {
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file)
+            continue;
 
-	auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void> {
-		if (m_initialized) {
-			return {};
-		}
+        const auto size = file.tellg();
+        if (size <= 0 || !file.seekg(0))
+            continue;
 
-		m_width = width;
-		m_height = height;
+        String source(static_cast<size_t>(size), '\0');
+        if (file.read(source.data(), size)) {
+            std::cout << "[RenderSystem] Loaded shader: " << path << std::endl;
+            return source;
+        }
+    }
+
+    ERORR_MESSAGE(log::Category::Render, "Shaders", "Cannot load shader from the working directory or project root : %s", fileName);
+    return { };
+}
+
+RenderSystem::RenderSystem()
+{
+}
+
+RenderSystem::~RenderSystem()
+{
+    Shutdown();
+}
+
+auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>
+{
+    if (m_initialized) {
+        return { };
+    }
+
+    m_width = width;
+    m_height = height;
 
 #if PLATFORM_WIN32
-		SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 #endif
-		if (!glfwInit()) {
-			return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW"));
-		}
+    if (!glfwInit()) {
+        return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW"));
+    }
 
-		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-		m_window = glfwCreateWindow(static_cast<int>(width), static_cast<int>(height), title.data(), nullptr, nullptr);
-		if (!m_window) {
-			glfwTerminate();
-			return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window"));
-		}
+    m_window = glfwCreateWindow(static_cast<int>(width), static_cast<int>(height), title.data(), nullptr, nullptr);
+    if (!m_window) {
+        glfwTerminate();
+        return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window"));
+    }
 
 #if PLATFORM_WIN32
-		auto* pFactory = Diligent::GetEngineFactoryD3D12();
-		if (!pFactory) {
-			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryD3D12"));
-		}
+    auto* pFactory = Diligent::GetEngineFactoryD3D12();
+    if (!pFactory) {
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryD3D12"));
+    }
 
-		Diligent::EngineD3D12CreateInfo engineCreateInfo;
-		engineCreateInfo.NumDeferredContexts = 0;
-		//engineCreateInfo.DynamicHeapSize = 128 << 20;
-		engineCreateInfo.DynamicHeapPageSize = 8 << 20;
-		engineCreateInfo.pRawMemAllocator = &g_Allocator;
-		pFactory->CreateDeviceAndContextsD3D12(engineCreateInfo, &m_renderDevice, &m_deviceContext);
+    Diligent::EngineD3D12CreateInfo engineCreateInfo;
+    engineCreateInfo.NumDeferredContexts = 0;
+    // engineCreateInfo.DynamicHeapSize = 128 << 20;
+    engineCreateInfo.DynamicHeapPageSize = 8 << 20;
+    engineCreateInfo.pRawMemAllocator = &g_Allocator;
+    pFactory->CreateDeviceAndContextsD3D12(engineCreateInfo, &m_renderDevice, &m_deviceContext);
 #else
-		auto* pFactory = Diligent::GetEngineFactoryVk();
-		if (!pFactory) {
-			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryVk"));
-		}
+    auto* pFactory = Diligent::GetEngineFactoryVk();
+    if (!pFactory) {
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryVk"));
+    }
 
-		Diligent::EngineVkCreateInfo engineCreateInfo;
-		engineCreateInfo.NumDeferredContexts = 0;
-		engineCreateInfo.DynamicHeapSize = 128 << 20;
-		engineCreateInfo.DynamicHeapPageSize = 8 << 20;
-		engineCreateInfo.pRawMemAllocator = &g_Allocator;
-		pFactory->CreateDeviceAndContextsVk(engineCreateInfo, &m_renderDevice, &m_deviceContext);
+    Diligent::EngineVkCreateInfo engineCreateInfo;
+    engineCreateInfo.NumDeferredContexts = 0;
+    engineCreateInfo.DynamicHeapSize = 128 << 20;
+    engineCreateInfo.DynamicHeapPageSize = 8 << 20;
+    engineCreateInfo.pRawMemAllocator = &g_Allocator;
+    pFactory->CreateDeviceAndContextsVk(engineCreateInfo, &m_renderDevice, &m_deviceContext);
 #endif
 
-		if (!m_renderDevice || !m_deviceContext) {
-			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts"));
-		}
+    if (!m_renderDevice || !m_deviceContext) {
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts"));
+    }
 
-		Diligent::SwapChainDesc swapChainDesc;
-		swapChainDesc.Width = width;
-		swapChainDesc.Height = height;
+    Diligent::SwapChainDesc swapChainDesc;
+    swapChainDesc.Width = width;
+    swapChainDesc.Height = height;
 
 #if PLATFORM_WIN32
-		Diligent::Win32NativeWindow nativeWindow{ glfwGetWin32Window(m_window) };
-		pFactory->CreateSwapChainD3D12(m_renderDevice, m_deviceContext, swapChainDesc,
-			Diligent::FullScreenModeDesc{}, nativeWindow, &m_swapChain);
+    Diligent::Win32NativeWindow nativeWindow { glfwGetWin32Window(m_window) };
+    pFactory->CreateSwapChainD3D12(m_renderDevice, m_deviceContext, swapChainDesc,
+        Diligent::FullScreenModeDesc { }, nativeWindow, &m_swapChain);
 #else
-		Diligent::LinuxNativeWindow nativeWindow;
-		if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
-			nativeWindow.pDisplay = glfwGetWaylandDisplay();
-			nativeWindow.WindowId = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(glfwGetWaylandWindow(m_window)));
-		}
-		else {
-			nativeWindow.pDisplay = glfwGetX11Display();
-			nativeWindow.WindowId = static_cast<uint32_t>(glfwGetX11Window(m_window));
-		}
+    Diligent::LinuxNativeWindow nativeWindow;
+    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
+        nativeWindow.pDisplay = glfwGetWaylandDisplay();
+        nativeWindow.WindowId = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(glfwGetWaylandWindow(m_window)));
+    } else {
+        nativeWindow.pDisplay = glfwGetX11Display();
+        nativeWindow.WindowId = static_cast<uint32_t>(glfwGetX11Window(m_window));
+    }
 
-		pFactory->CreateSwapChainVk(m_renderDevice, m_deviceContext, swapChainDesc, nativeWindow, &m_swapChain);
+    pFactory->CreateSwapChainVk(m_renderDevice, m_deviceContext, swapChainDesc, nativeWindow, &m_swapChain);
 #endif
 
-		if (!m_swapChain) {
-			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
-		}
-
-		if (!m_bufferManager.Init(m_renderDevice))
-			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
-
-		if (!m_textureManager.Init(m_renderDevice, m_deviceContext))
-			return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Texture Manager "));
-
-		m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
-		m_dynamicUniformBuffer.Init(m_renderDevice, "Dynamic Uniform Linear Allocator", render::BufferType::UniformBuffer, 2 * 1024 * 1024);
-
-		// Initialize 3D Rendering Pipeline
-		InitPipeline();
-
-
-		m_initialized = true;
-		std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
-		return {};
-	}
-
-	void RenderSystem::InitPipeline() {
-		CreateMeshBuffers();
-
-		// Create Shaders
-		Diligent::ShaderCreateInfo ShaderCI;
-		ShaderCI.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
-
-		const String VSSource = LoadShaderSource("mesh.vert.hlsl");
-		const String PSSource = LoadShaderSource("mesh.frag.hlsl");
-		const String PSHighlightSource = LoadShaderSource("highlight.frag.hlsl");
-		if (VSSource.empty() || PSSource.empty() || PSHighlightSource.empty()) {
-			std::cerr << "[RenderSystem] Pipeline creation aborted: shader source is missing." << std::endl;
-			return;
-		}
-
-		Diligent::RefCntAutoPtr<Diligent::IShader> pVS;
-		{
-			ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_VERTEX;
-			ShaderCI.Desc.Name = "Mesh VS";
-			ShaderCI.Source = VSSource.c_str();
-			m_renderDevice->CreateShader(ShaderCI, &pVS);
-		}
-
-		Diligent::RefCntAutoPtr<Diligent::IShader> pPS;
-		{
-			ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
-			ShaderCI.Desc.Name = "Mesh PS";
-			ShaderCI.Source = PSSource.c_str();
-			m_renderDevice->CreateShader(ShaderCI, &pPS);
-		}
-
-		Diligent::RefCntAutoPtr<Diligent::IShader> pHighlightPS;
-		{
-			ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
-			ShaderCI.Desc.Name = "Highlight PS";
-			ShaderCI.Source = PSHighlightSource.c_str();
-			m_renderDevice->CreateShader(ShaderCI, &pHighlightPS);
-		}
-
-		if (!pVS || !pPS || !pHighlightPS) {
-			std::cerr << "[RenderSystem] Pipeline creation aborted: shader compilation failed." << std::endl;
-			return;
-		}
-
-		// Input Layout
-		Diligent::LayoutElement LayoutElems[] = {
-			// Slot 0: Per-vertex
-			Diligent::LayoutElement{0, 0, 3, Diligent::VT_FLOAT32, false},
-			Diligent::LayoutElement{1, 0, 3, Diligent::VT_FLOAT32, false},
-			Diligent::LayoutElement{2, 0, 2, Diligent::VT_FLOAT32, false},
-
-			// Slot 1: Per-instance (Transform Matrix + Color)
-			Diligent::LayoutElement{3, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE},
-			Diligent::LayoutElement{4, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE},
-			Diligent::LayoutElement{5, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE},
-			Diligent::LayoutElement{6, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE},
-			Diligent::LayoutElement{7, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE}
-		};
-
-		// Main Opaque Pipeline State
-		Diligent::GraphicsPipelineStateCreateInfo PSOCI;
-		PSOCI.PSODesc.Name = "Opaque Mesh PSO";
-		auto& Pipeline = PSOCI.GraphicsPipeline;
-		Pipeline.NumRenderTargets = 1;
-		Pipeline.RTVFormats[0] = m_swapChain->GetDesc().ColorBufferFormat;
-		Pipeline.DSVFormat = m_swapChain->GetDesc().DepthBufferFormat;
-		Pipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		Pipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_NONE;
-		Pipeline.DepthStencilDesc.DepthEnable = true;
-		Pipeline.DepthStencilDesc.DepthWriteEnable = true;
-
-		Pipeline.InputLayout.LayoutElements = LayoutElems;
-		Pipeline.InputLayout.NumElements = _countof(LayoutElems);
-
-		PSOCI.pVS = pVS;
-		PSOCI.pPS = pPS;
-
-		PSOCI.PSODesc.ResourceLayout.DefaultVariableType = Diligent::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
-		m_renderDevice->CreateGraphicsPipelineState(PSOCI, &m_pPSO);
-		if (m_pPSO) {
-			auto* pVar = m_pPSO->GetStaticVariableByName(Diligent::SHADER_TYPE_VERTEX, "CameraConstants");
-			if (pVar) pVar->Set(m_dynamicUniformBuffer.GetBuffer());
-			m_pPSO->CreateShaderResourceBinding(&m_pSRB, true);
-		}
-
-		// Highlight (Culled Visualizer) Pipeline State
-		Diligent::GraphicsPipelineStateCreateInfo HighlightPSOCI = PSOCI;
-		HighlightPSOCI.PSODesc.Name = "Highlight Culled PSO";
-		HighlightPSOCI.pPS = pHighlightPS;
-		HighlightPSOCI.GraphicsPipeline.DepthStencilDesc.DepthWriteEnable = false;
-		auto& Blend0 = HighlightPSOCI.GraphicsPipeline.BlendDesc.RenderTargets[0];
-		Blend0.BlendEnable = true;
-		Blend0.SrcBlend = Diligent::BLEND_FACTOR_SRC_ALPHA;
-		Blend0.DestBlend = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
-		Blend0.SrcBlendAlpha = Diligent::BLEND_FACTOR_ONE;
-		Blend0.DestBlendAlpha = Diligent::BLEND_FACTOR_ZERO;
-		m_renderDevice->CreateGraphicsPipelineState(HighlightPSOCI, &m_pHighlightPSO);
-
-		CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
-	}
-
-	void RenderSystem::CreateMeshBuffers() {
-		using namespace render;
-		auto createBuffers = [this](const MeshData& data, Mesh& mesh) {
-
-			mesh.vb = m_bufferManager.createBuffer(BufferInfo{ "Mesh VB", BufferType::VertexBuffer , data.vertices.size() * sizeof(Vertex), (void*)data.vertices.data() });
-			mesh.ib = m_bufferManager.createBuffer(BufferInfo{ "Mesh IB", BufferType::IndexBuffer, data.indices.size() * sizeof(uint32_t), (void*)data.indices.data() });
-
-			mesh.indexCount = static_cast<uint32_t>(data.indices.size());
-			};
-
-		const MeshData cubeMesh = GeometryPrimitives::CreateCube(1.0f);
-		createBuffers(cubeMesh, m_cube);
-
-		const MeshData wallMesh = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
-		createBuffers(wallMesh, m_wall);
-
-		const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
-		createBuffers(groundMesh, m_ground);
-	}
-
-	void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height) {
-		if (m_pEngineViewportSRV) m_pEngineViewportSRV->Release();
-		if (m_pEngineViewportDSV) m_pEngineViewportDSV->Release();
-		if (m_pEngineViewportRTV) m_pEngineViewportRTV->Release();
-		if (m_pEngineViewportTex) m_pEngineViewportTex->Release();
-		m_pEngineViewportSRV = nullptr;
-		m_pEngineViewportDSV = nullptr;
-		m_pEngineViewportRTV = nullptr;
-		m_pEngineViewportTex = nullptr;
-		m_engineViewportIsShaderResource = false;
-
-		m_engineViewportWidth = width;
-		m_engineViewportHeight = height;
-
-		Diligent::TextureDesc colorDesc;
-		colorDesc.Name = "Engine Viewport Color";
-		colorDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
-		colorDesc.Width = width;
-		colorDesc.Height = height;
-		colorDesc.Format = m_swapChain->GetDesc().ColorBufferFormat;
-		colorDesc.Usage = Diligent::USAGE_DEFAULT;
-		colorDesc.BindFlags = Diligent::BIND_RENDER_TARGET | Diligent::BIND_SHADER_RESOURCE;
-		m_renderDevice->CreateTexture(colorDesc, nullptr, &m_pEngineViewportTex);
-		if (!m_pEngineViewportTex) return;
-		m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
-
-		m_pEngineViewportRTV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_RENDER_TARGET);
-		m_pEngineViewportSRV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
-		if (m_pEngineViewportRTV) m_pEngineViewportRTV->AddRef();
-		if (m_pEngineViewportSRV) m_pEngineViewportSRV->AddRef();
-
-		Diligent::TextureDesc depthDesc;
-		depthDesc.Name = "Engine Viewport Depth";
-		depthDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
-		depthDesc.Width = width;
-		depthDesc.Height = height;
-		depthDesc.Format = m_swapChain->GetDesc().DepthBufferFormat;
-		depthDesc.Usage = Diligent::USAGE_DEFAULT;
-		depthDesc.BindFlags = Diligent::BIND_DEPTH_STENCIL;
-		Diligent::RefCntAutoPtr<Diligent::ITexture> depthTexture;
-		m_renderDevice->CreateTexture(depthDesc, nullptr, &depthTexture);
-		if (depthTexture) {
-			depthTexture->SetState(Diligent::RESOURCE_STATE_DEPTH_WRITE);
-			m_pEngineViewportDSV = depthTexture->GetDefaultView(Diligent::TEXTURE_VIEW_DEPTH_STENCIL);
-			if (m_pEngineViewportDSV) m_pEngineViewportDSV->AddRef();
-		}
-	}
-
-	bool RenderSystem::ShouldClose() const {
-		return m_window ? glfwWindowShouldClose(m_window) : true;
-	}
-
-	void RenderSystem::BeginFrame() {
-		if (!m_swapChain || !m_deviceContext) return;
-
-		auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
-		auto* pDSV = m_swapChain->GetDepthBufferDSV();
-
-		const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
-		m_deviceContext->SetRenderTargets(1, &pRTV, pDSV, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		m_deviceContext->ClearRenderTarget(pRTV, clearColor, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-	}
-
-	void RenderSystem::Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances)
-	{
-		auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * instances.size(), 16);
-		std::memcpy(alloc.pCPUAddress, instances.data(), sizeof(GpuInstanceData) * instances.size());
-
-		const Diligent::Uint64 offsets[] = { 0, alloc.offset };
-		Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(mesh.vb), alloc.buffer };
-
-		m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-		m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(mesh.ib), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		Diligent::DrawIndexedAttribs DrawAttrs{ mesh.indexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
-		DrawAttrs.NumInstances = instances.size();
-		m_deviceContext->DrawIndexed(DrawAttrs);
-	}
-
-	void RenderSystem::Draw(FrameData& frameData, Settings& settings) {
-		if (!m_deviceContext || !m_pPSO) return;
-
-		if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
-			if (m_engineViewportIsShaderResource) {
-				Diligent::StateTransitionDesc toRenderTarget{
-					m_pEngineViewportTex,
-					Diligent::RESOURCE_STATE_SHADER_RESOURCE,
-					Diligent::RESOURCE_STATE_RENDER_TARGET
-				};
-				m_deviceContext->TransitionResourceStates(1, &toRenderTarget);
-				m_engineViewportIsShaderResource = false;
-			}
-			m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
-
-			const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
-			m_deviceContext->SetRenderTargets(1, &m_pEngineViewportRTV, m_pEngineViewportDSV,
-				Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
-			m_deviceContext->ClearRenderTarget(m_pEngineViewportRTV, clearColor,
-				Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
-			m_deviceContext->ClearDepthStencil(m_pEngineViewportDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0,
-				Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
-		}
-
-		// 3. Update Camera Constant Buffer
-		{
-			struct CameraCBData {
-				Matrix4x4 ViewProj;
-				Vector4   CameraPos;
-			};
-			auto cameraAlloc = m_dynamicUniformBuffer.Allocate(m_deviceContext, sizeof(CameraCBData), 256);
-			CameraCBData cbData;
-			cbData.ViewProj = frameData.camera.GetViewProjectionMatrix();
-			cbData.CameraPos = Vector4{ frameData.camera.GetPosition(), 1.0f };
-			std::memcpy(cameraAlloc.pCPUAddress, &cbData, sizeof(CameraCBData));
-
-			// Привязываем смещение кадра для переменной CameraConstants в SRB
-			if (m_pSRB) {
-				auto* pVar = m_pSRB->GetVariableByName(Diligent::SHADER_TYPE_VERTEX, "CameraConstants");
-				if (pVar) {
-					pVar->SetBufferOffset(cameraAlloc.offset);
-				}
-			}
-		}
-
-		// 4. Collect Visible and Culled Instances
-		m_visibleGpuInstances.clear();
-		m_culledGpuInstances.clear();
-
-		for (const auto& inst : frameData.scene.instances) {
-			if (inst.visible) {
-				m_visibleGpuInstances.push_back({ inst.worldTransform, inst.color });
-			}
-			else {
-				m_culledGpuInstances.push_back({ inst.worldTransform, Vector4{0.95f, 0.2f, 0.15f, 0.35f} });
-			}
-		}
-
-		// 5. Устанавливаем Pipeline State и финализируем SRB 
-		m_deviceContext->SetPipelineState(m_pPSO);
-		m_deviceContext->CommitShaderResources(m_pSRB, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		// --- Draw Ground ---
-		{
-			Draw(m_ground, { { Matrix4x4::Translation(Vector3{0.0f, 0.0f, 0.0f}), Vector4{0.22f, 0.24f, 0.27f, 1.0f} } });
-		}
-
-		// --- Draw Occluders (Walls) ---
-		const size_t numOccluders = (std::min)(frameData.scene.instances.size(), MaxInstances);
-		if (numOccluders > 0) {
-			Vector<GpuInstanceData> occluderGpuInstances;
-			occluderGpuInstances.reserve(numOccluders);
-			for (size_t i = 0; i < numOccluders; ++i) {
-				occluderGpuInstances.push_back({ frameData.scene.instances[i].worldTransform, Vector4{0.35f, 0.38f, 0.44f, 1.0f} });
-			}
-
-			Draw(m_wall, occluderGpuInstances);
-		}
-
-		// --- Draw Occludees (Cubes) ---
-		auto visualMode = VisualMode(settings.Get<uint32_t>(Settings::Category::Render, CULLING_VISUAL_MODE));
-		if (visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
-
-			Draw(m_cube, m_visibleGpuInstances);
-		}
-
-		// --- Highlight Culled Objects ---
-		if (visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
-
-			Draw(m_cube, m_culledGpuInstances);
-		}
-
-		// 6. Flush аллокаторов в конце кадра
-		m_dynamicInstanceBuffer.Flush(m_deviceContext);
-		m_dynamicUniformBuffer.Flush(m_deviceContext);
-		if (m_pEngineViewportTex) {
-			Diligent::StateTransitionDesc toShaderResource{
-				m_pEngineViewportTex,
-				Diligent::RESOURCE_STATE_RENDER_TARGET,
-				Diligent::RESOURCE_STATE_SHADER_RESOURCE
-			};
-			m_deviceContext->TransitionResourceStates(1, &toShaderResource);
-			m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_SHADER_RESOURCE);
-			m_engineViewportIsShaderResource = true;
-		}
-	}
-
-	void RenderSystem::EndFrame() {
-		if (!m_swapChain || !m_deviceContext) return;
-		m_swapChain->Present();
-	}
-
-	void RenderSystem::Shutdown() {
-		if (!m_initialized) return;
-
-		m_textureManager.clear();
-
-		if (m_pEngineViewportSRV) m_pEngineViewportSRV->Release();
-		if (m_pEngineViewportDSV) m_pEngineViewportDSV->Release();
-		if (m_pEngineViewportRTV) m_pEngineViewportRTV->Release();
-		if (m_pEngineViewportTex) m_pEngineViewportTex->Release();
-		m_pEngineViewportSRV = nullptr;
-		m_pEngineViewportDSV = nullptr;
-		m_pEngineViewportRTV = nullptr;
-		m_pEngineViewportTex = nullptr;
-
-
-		m_bufferManager.clear();
-
-		m_dynamicInstanceBuffer.Release();
-		m_dynamicUniformBuffer.Release();
-
-
-		if (m_pSRB) {
-			m_pSRB->Release();
-			m_pSRB = nullptr;
-		}
-		if (m_pHighlightPSO) {
-			m_pHighlightPSO->Release();
-			m_pHighlightPSO = nullptr;
-		}
-		if (m_pPSO) {
-			m_pPSO->Release();
-			m_pPSO = nullptr;
-		}
-
-		if (m_swapChain) {
-			m_swapChain->Release();
-			m_swapChain = nullptr;
-		}
-		if (m_deviceContext) {
-			m_deviceContext->Release();
-			m_deviceContext = nullptr;
-		}
-		if (m_renderDevice) {
-			m_renderDevice->Release();
-			m_renderDevice = nullptr;
-		}
-
-		if (m_window) {
-			glfwDestroyWindow(m_window);
-			m_window = nullptr;
-		}
-
-		glfwTerminate();
-
-		m_initialized = false;
-		std::cout << "[RenderSystem] Shutdown completed." << std::endl;
-	}
-
-	size_t RenderSystem::GetMemAllocated() const {
-		return g_Allocator.GetTotalAllocatedBytes();
-	}
-
-	Diligent::ITextureView* RenderSystem::GetTextureView(const render::Texture& texture) const
-	{ 
-		auto handler = texture.GetHandler();		
-		return m_textureManager.GetTextureView(handler); 
-
-	}
-		
+    if (!m_swapChain) {
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
+    }
+
+    if (!m_bufferManager.Init(m_renderDevice))
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
+
+    if (!m_textureManager.Init(&m_commandList, m_renderDevice, m_deviceContext))
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Texture Manager "));
+
+    m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
+    m_dynamicUniformBuffer.Init(m_renderDevice, "Dynamic Uniform Linear Allocator", render::BufferType::UniformBuffer, 2 * 1024 * 1024);
+
+    // Initialize 3D Rendering Pipeline
+    InitPipeline();
+
+    m_initialized = true;
+    std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
+    return { };
+}
+
+void RenderSystem::InitPipeline()
+{
+    CreateMeshBuffers();
+
+    // Create Shaders
+    Diligent::ShaderCreateInfo ShaderCI;
+    ShaderCI.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
+
+    const String VSSource = LoadShaderSource("mesh.vert.hlsl");
+    const String PSSource = LoadShaderSource("mesh.frag.hlsl");
+    const String PSHighlightSource = LoadShaderSource("highlight.frag.hlsl");
+    if (VSSource.empty() || PSSource.empty() || PSHighlightSource.empty()) {
+        std::cerr << "[RenderSystem] Pipeline creation aborted: shader source is missing." << std::endl;
+        return;
+    }
+
+    Diligent::RefCntAutoPtr<Diligent::IShader> pVS;
+    {
+        ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_VERTEX;
+        ShaderCI.Desc.Name = "Mesh VS";
+        ShaderCI.Source = VSSource.c_str();
+        m_renderDevice->CreateShader(ShaderCI, &pVS);
+    }
+
+    Diligent::RefCntAutoPtr<Diligent::IShader> pPS;
+    {
+        ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
+        ShaderCI.Desc.Name = "Mesh PS";
+        ShaderCI.Source = PSSource.c_str();
+        m_renderDevice->CreateShader(ShaderCI, &pPS);
+    }
+
+    Diligent::RefCntAutoPtr<Diligent::IShader> pHighlightPS;
+    {
+        ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
+        ShaderCI.Desc.Name = "Highlight PS";
+        ShaderCI.Source = PSHighlightSource.c_str();
+        m_renderDevice->CreateShader(ShaderCI, &pHighlightPS);
+    }
+
+    if (!pVS || !pPS || !pHighlightPS) {
+        std::cerr << "[RenderSystem] Pipeline creation aborted: shader compilation failed." << std::endl;
+        return;
+    }
+
+    // Input Layout
+    Diligent::LayoutElement LayoutElems[] = {
+        // Slot 0: Per-vertex
+        Diligent::LayoutElement { 0, 0, 3, Diligent::VT_FLOAT32, false },
+        Diligent::LayoutElement { 1, 0, 3, Diligent::VT_FLOAT32, false },
+        Diligent::LayoutElement { 2, 0, 2, Diligent::VT_FLOAT32, false },
+
+        // Slot 1: Per-instance (Transform Matrix + Color)
+        Diligent::LayoutElement { 3, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE },
+        Diligent::LayoutElement { 4, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE },
+        Diligent::LayoutElement { 5, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE },
+        Diligent::LayoutElement { 6, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE },
+        Diligent::LayoutElement { 7, 1, 4, Diligent::VT_FLOAT32, false, Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE }
+    };
+
+    // Main Opaque Pipeline State
+    Diligent::GraphicsPipelineStateCreateInfo PSOCI;
+    PSOCI.PSODesc.Name = "Opaque Mesh PSO";
+    auto& Pipeline = PSOCI.GraphicsPipeline;
+    Pipeline.NumRenderTargets = 1;
+    Pipeline.RTVFormats[0] = m_swapChain->GetDesc().ColorBufferFormat;
+    Pipeline.DSVFormat = m_swapChain->GetDesc().DepthBufferFormat;
+    Pipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    Pipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_NONE;
+    Pipeline.DepthStencilDesc.DepthEnable = true;
+    Pipeline.DepthStencilDesc.DepthWriteEnable = true;
+
+    Pipeline.InputLayout.LayoutElements = LayoutElems;
+    Pipeline.InputLayout.NumElements = _countof(LayoutElems);
+
+    PSOCI.pVS = pVS;
+    PSOCI.pPS = pPS;
+
+    PSOCI.PSODesc.ResourceLayout.DefaultVariableType = Diligent::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+    m_renderDevice->CreateGraphicsPipelineState(PSOCI, &m_pPSO);
+    if (m_pPSO) {
+        auto* pVar = m_pPSO->GetStaticVariableByName(Diligent::SHADER_TYPE_VERTEX, "CameraConstants");
+        if (pVar)
+            pVar->Set(m_dynamicUniformBuffer.GetBuffer());
+        m_pPSO->CreateShaderResourceBinding(&m_pSRB, true);
+    }
+
+    // Highlight (Culled Visualizer) Pipeline State
+    Diligent::GraphicsPipelineStateCreateInfo HighlightPSOCI = PSOCI;
+    HighlightPSOCI.PSODesc.Name = "Highlight Culled PSO";
+    HighlightPSOCI.pPS = pHighlightPS;
+    HighlightPSOCI.GraphicsPipeline.DepthStencilDesc.DepthWriteEnable = false;
+    auto& Blend0 = HighlightPSOCI.GraphicsPipeline.BlendDesc.RenderTargets[0];
+    Blend0.BlendEnable = true;
+    Blend0.SrcBlend = Diligent::BLEND_FACTOR_SRC_ALPHA;
+    Blend0.DestBlend = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
+    Blend0.SrcBlendAlpha = Diligent::BLEND_FACTOR_ONE;
+    Blend0.DestBlendAlpha = Diligent::BLEND_FACTOR_ZERO;
+    m_renderDevice->CreateGraphicsPipelineState(HighlightPSOCI, &m_pHighlightPSO);
+
+    CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
+}
+
+void RenderSystem::CreateMeshBuffers()
+{
+    using namespace render;
+    auto createBuffers = [this](const MeshData& data, Mesh& mesh) {
+        mesh.vb = m_bufferManager.createBuffer(BufferInfo { "Mesh VB", BufferType::VertexBuffer, data.vertices.size() * sizeof(Vertex), (void*)data.vertices.data() });
+        mesh.ib = m_bufferManager.createBuffer(BufferInfo { "Mesh IB", BufferType::IndexBuffer, data.indices.size() * sizeof(uint32_t), (void*)data.indices.data() });
+
+        mesh.indexCount = static_cast<uint32_t>(data.indices.size());
+    };
+
+    const MeshData cubeMesh = GeometryPrimitives::CreateCube(1.0f);
+    createBuffers(cubeMesh, m_cube);
+
+    const MeshData wallMesh = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
+    createBuffers(wallMesh, m_wall);
+
+    const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
+    createBuffers(groundMesh, m_ground);
+}
+
+void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
+{
+    if (m_pEngineViewportSRV)
+        m_pEngineViewportSRV->Release();
+    if (m_pEngineViewportDSV)
+        m_pEngineViewportDSV->Release();
+    if (m_pEngineViewportRTV)
+        m_pEngineViewportRTV->Release();
+    if (m_pEngineViewportTex)
+        m_pEngineViewportTex->Release();
+    m_pEngineViewportSRV = nullptr;
+    m_pEngineViewportDSV = nullptr;
+    m_pEngineViewportRTV = nullptr;
+    m_pEngineViewportTex = nullptr;
+    m_engineViewportIsShaderResource = false;
+
+    m_engineViewportWidth = width;
+    m_engineViewportHeight = height;
+
+    Diligent::TextureDesc colorDesc;
+    colorDesc.Name = "Engine Viewport Color";
+    colorDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
+    colorDesc.Width = width;
+    colorDesc.Height = height;
+    colorDesc.Format = m_swapChain->GetDesc().ColorBufferFormat;
+    colorDesc.Usage = Diligent::USAGE_DEFAULT;
+    colorDesc.BindFlags = Diligent::BIND_RENDER_TARGET | Diligent::BIND_SHADER_RESOURCE;
+    m_renderDevice->CreateTexture(colorDesc, nullptr, &m_pEngineViewportTex);
+    if (!m_pEngineViewportTex)
+        return;
+    m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
+
+    m_pEngineViewportRTV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_RENDER_TARGET);
+    m_pEngineViewportSRV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
+    if (m_pEngineViewportRTV)
+        m_pEngineViewportRTV->AddRef();
+    if (m_pEngineViewportSRV)
+        m_pEngineViewportSRV->AddRef();
+
+    Diligent::TextureDesc depthDesc;
+    depthDesc.Name = "Engine Viewport Depth";
+    depthDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
+    depthDesc.Width = width;
+    depthDesc.Height = height;
+    depthDesc.Format = m_swapChain->GetDesc().DepthBufferFormat;
+    depthDesc.Usage = Diligent::USAGE_DEFAULT;
+    depthDesc.BindFlags = Diligent::BIND_DEPTH_STENCIL;
+    Diligent::RefCntAutoPtr<Diligent::ITexture> depthTexture;
+    m_renderDevice->CreateTexture(depthDesc, nullptr, &depthTexture);
+    if (depthTexture) {
+        depthTexture->SetState(Diligent::RESOURCE_STATE_DEPTH_WRITE);
+        m_pEngineViewportDSV = depthTexture->GetDefaultView(Diligent::TEXTURE_VIEW_DEPTH_STENCIL);
+        if (m_pEngineViewportDSV)
+            m_pEngineViewportDSV->AddRef();
+    }
+}
+
+bool RenderSystem::ShouldClose() const
+{
+    return m_window ? glfwWindowShouldClose(m_window) : true;
+}
+
+void RenderSystem::BeginFrame()
+{
+    if (!m_swapChain || !m_deviceContext)
+        return;
+
+    auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
+    auto* pDSV = m_swapChain->GetDepthBufferDSV();
+
+    const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
+    m_deviceContext->SetRenderTargets(1, &pRTV, pDSV, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    m_deviceContext->ClearRenderTarget(pRTV, clearColor, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+}
+
+void RenderSystem::Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances)
+{
+    auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * instances.size(), 16);
+    std::memcpy(alloc.pCPUAddress, instances.data(), sizeof(GpuInstanceData) * instances.size());
+
+    const Diligent::Uint64 offsets[] = { 0, alloc.offset };
+    Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(mesh.vb), alloc.buffer };
+
+    m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
+    m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(mesh.ib), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+    Diligent::DrawIndexedAttribs DrawAttrs { mesh.indexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
+    DrawAttrs.NumInstances = instances.size();
+    m_deviceContext->DrawIndexed(DrawAttrs);
+}
+
+void RenderSystem::Draw(FrameData& frameData, Settings& settings)
+{
+    if (!m_deviceContext || !m_pPSO)
+        return;
+
+    Executor executor(m_deviceContext, m_textureManager);
+    m_commandList.Execute(executor);
+    m_commandList.Clear();
+
+    if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
+        if (m_engineViewportIsShaderResource) {
+            Diligent::StateTransitionDesc toRenderTarget {
+                m_pEngineViewportTex,
+                Diligent::RESOURCE_STATE_SHADER_RESOURCE,
+                Diligent::RESOURCE_STATE_RENDER_TARGET
+            };
+            m_deviceContext->TransitionResourceStates(1, &toRenderTarget);
+            m_engineViewportIsShaderResource = false;
+        }
+        m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
+
+        const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
+        m_deviceContext->SetRenderTargets(1, &m_pEngineViewportRTV, m_pEngineViewportDSV,
+            Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
+        m_deviceContext->ClearRenderTarget(m_pEngineViewportRTV, clearColor,
+            Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
+        m_deviceContext->ClearDepthStencil(m_pEngineViewportDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0,
+            Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
+    }
+
+    // 3. Update Camera Constant Buffer
+    {
+        struct CameraCBData {
+            Matrix4x4 ViewProj;
+            Vector4 CameraPos;
+        };
+        auto cameraAlloc = m_dynamicUniformBuffer.Allocate(m_deviceContext, sizeof(CameraCBData), 256);
+        CameraCBData cbData;
+        cbData.ViewProj = frameData.camera.GetViewProjectionMatrix();
+        cbData.CameraPos = Vector4 { frameData.camera.GetPosition(), 1.0f };
+        std::memcpy(cameraAlloc.pCPUAddress, &cbData, sizeof(CameraCBData));
+
+        // Привязываем смещение кадра для переменной CameraConstants в SRB
+        if (m_pSRB) {
+            auto* pVar = m_pSRB->GetVariableByName(Diligent::SHADER_TYPE_VERTEX, "CameraConstants");
+            if (pVar) {
+                pVar->SetBufferOffset(cameraAlloc.offset);
+            }
+        }
+    }
+
+    // 4. Collect Visible and Culled Instances
+    m_visibleGpuInstances.clear();
+    m_culledGpuInstances.clear();
+
+    for (const auto& inst : frameData.scene.instances) {
+        if (inst.visible) {
+            m_visibleGpuInstances.push_back({ inst.worldTransform, inst.color });
+        } else {
+            m_culledGpuInstances.push_back({ inst.worldTransform, Vector4 { 0.95f, 0.2f, 0.15f, 0.35f } });
+        }
+    }
+
+    // 5. Устанавливаем Pipeline State и финализируем SRB
+    m_deviceContext->SetPipelineState(m_pPSO);
+    m_deviceContext->CommitShaderResources(m_pSRB, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+    // --- Draw Ground ---
+    {
+        Draw(m_ground, { { Matrix4x4::Translation(Vector3 { 0.0f, 0.0f, 0.0f }), Vector4 { 0.22f, 0.24f, 0.27f, 1.0f } } });
+    }
+
+    // --- Draw Occluders (Walls) ---
+    const size_t numOccluders = (std::min)(frameData.scene.instances.size(), MaxInstances);
+    if (numOccluders > 0) {
+        Vector<GpuInstanceData> occluderGpuInstances;
+        occluderGpuInstances.reserve(numOccluders);
+        for (size_t i = 0; i < numOccluders; ++i) {
+            occluderGpuInstances.push_back({ frameData.scene.instances[i].worldTransform, Vector4 { 0.35f, 0.38f, 0.44f, 1.0f } });
+        }
+
+        Draw(m_wall, occluderGpuInstances);
+    }
+
+    // --- Draw Occludees (Cubes) ---
+    auto visualMode = VisualMode(settings.Get<uint32_t>(Settings::Category::Render, CULLING_VISUAL_MODE));
+    if (visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
+
+        Draw(m_cube, m_visibleGpuInstances);
+    }
+
+    // --- Highlight Culled Objects ---
+    if (visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
+
+        Draw(m_cube, m_culledGpuInstances);
+    }
+
+    // 6. Flush аллокаторов в конце кадра
+    m_dynamicInstanceBuffer.Flush(m_deviceContext);
+    m_dynamicUniformBuffer.Flush(m_deviceContext);
+    if (m_pEngineViewportTex) {
+        Diligent::StateTransitionDesc toShaderResource {
+            m_pEngineViewportTex,
+            Diligent::RESOURCE_STATE_RENDER_TARGET,
+            Diligent::RESOURCE_STATE_SHADER_RESOURCE
+        };
+        m_deviceContext->TransitionResourceStates(1, &toShaderResource);
+        m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_SHADER_RESOURCE);
+        m_engineViewportIsShaderResource = true;
+    }
+}
+
+void RenderSystem::EndFrame()
+{
+    if (!m_swapChain || !m_deviceContext)
+        return;
+    m_swapChain->Present();
+}
+
+void RenderSystem::Shutdown()
+{
+    if (!m_initialized)
+        return;
+
+    m_textureManager.clear();
+
+    if (m_pEngineViewportSRV)
+        m_pEngineViewportSRV->Release();
+    if (m_pEngineViewportDSV)
+        m_pEngineViewportDSV->Release();
+    if (m_pEngineViewportRTV)
+        m_pEngineViewportRTV->Release();
+    if (m_pEngineViewportTex)
+        m_pEngineViewportTex->Release();
+    m_pEngineViewportSRV = nullptr;
+    m_pEngineViewportDSV = nullptr;
+    m_pEngineViewportRTV = nullptr;
+    m_pEngineViewportTex = nullptr;
+
+    m_bufferManager.clear();
+
+    m_dynamicInstanceBuffer.Release();
+    m_dynamicUniformBuffer.Release();
+
+    if (m_pSRB) {
+        m_pSRB->Release();
+        m_pSRB = nullptr;
+    }
+    if (m_pHighlightPSO) {
+        m_pHighlightPSO->Release();
+        m_pHighlightPSO = nullptr;
+    }
+    if (m_pPSO) {
+        m_pPSO->Release();
+        m_pPSO = nullptr;
+    }
+
+    if (m_swapChain) {
+        m_swapChain->Release();
+        m_swapChain = nullptr;
+    }
+    if (m_deviceContext) {
+        m_deviceContext->Release();
+        m_deviceContext = nullptr;
+    }
+    if (m_renderDevice) {
+        m_renderDevice->Release();
+        m_renderDevice = nullptr;
+    }
+
+    if (m_window) {
+        glfwDestroyWindow(m_window);
+        m_window = nullptr;
+    }
+
+    glfwTerminate();
+
+    m_initialized = false;
+    std::cout << "[RenderSystem] Shutdown completed." << std::endl;
+}
+
+size_t RenderSystem::GetMemAllocated() const
+{
+    return g_Allocator.GetTotalAllocatedBytes();
+}
+
+Diligent::ITextureView* RenderSystem::GetTextureView(const render::Texture& texture) const
+{
+    auto handler = texture.GetHandler();
+    return m_textureManager.GetTextureView(handler);
+}
 
 } // namespace Engine
