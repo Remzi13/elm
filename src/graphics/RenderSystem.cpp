@@ -16,12 +16,14 @@
 
 #include "graphics/render/BufferManager.hpp"
 
-#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 
+//TODO it is need ?
 #include "graphics/culling/OcclusionCullingSystem.hpp"
+
+#include "graphics/render/backends/Utils.hpp"
 
 #if PLATFORM_WIN32
 #include <windows.h>
@@ -38,15 +40,46 @@ namespace elm {
 namespace {
     class Executor {
     public:
-        Executor(Diligent::IDeviceContext* deviceContext, render::TextureManager& textureManger)
-            : m_deviceContext(deviceContext)
-            , m_textureManger(textureManger)
+        Executor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice, render::TextureManager& textureManger)
+            : m_deviceContext(deviceContext), m_textureManger(textureManger), m_renderDevice(renderDevice)
         {
         }
 
-        void Execute(render::UploadTexture command)
-        {
+        void Execute(render::command::CreateTexture& command) {
+            Diligent::TextureDesc TexDesc;
+            TexDesc.Name = command.info.name.c_str();
+            TexDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
+            TexDesc.Width = command.info.width;
+            TexDesc.Height = command.info.height;
+            TexDesc.Format = getTextureFormat(command.info.format);
+            TexDesc.Usage = getUsage(command.info.usage);
+            TexDesc.BindFlags = render::getTextureBindFlags(command.info.bindFlags);
 
+            Diligent::TextureData InitData;
+            Diligent::TextureSubResData Level0Data;
+
+            Diligent::ITexture* pTexture{ nullptr };
+            m_renderDevice->CreateTexture(TexDesc, nullptr, &pTexture);
+
+            Diligent::ITextureView* pSRV{ nullptr };
+            if (TexDesc.BindFlags & Diligent::BIND_SHADER_RESOURCE) {
+                pSRV = pTexture->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
+                if (pSRV) {
+                    pSRV->AddRef();
+                }
+            }
+
+            render::TextureManager::Data texData;
+            texData.pTexture = pTexture;
+            texData.pSRV = pSRV;
+            texData.width = command.info.width;
+            texData.height = command.info.height;
+
+            m_textureManger.PushTextureData(command.handler, texData);
+        }
+
+        void Execute(render::command::UploadTexture command)
+        {
             auto textureData = m_textureManger.GetTextureData(command.handler);
             if (!textureData.pTexture) {
                 return;
@@ -67,8 +100,10 @@ namespace {
                 Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
         }
 
+
     private:
         Diligent::IDeviceContext* m_deviceContext;
+        Diligent::IRenderDevice* m_renderDevice;
         render::TextureManager& m_textureManger;
     };
 
@@ -249,7 +284,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     if (!m_bufferManager.Init(m_renderDevice))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
 
-    if (!m_textureManager.Init(&m_commandList, m_renderDevice, m_deviceContext))
+    if (!m_textureManager.Init(&m_commandList))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Texture Manager "));
 
     m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
@@ -483,7 +518,7 @@ void RenderSystem::Draw(FrameData& frameData, Settings& settings)
     if (!m_deviceContext || !m_pPSO)
         return;
 
-    Executor executor(m_deviceContext, m_textureManager);
+    Executor executor(m_deviceContext, m_renderDevice, m_textureManager);
     m_commandList.Execute(executor);
     m_commandList.Clear();
 

@@ -4,8 +4,6 @@
 #include "graphics/render/Render.hpp"
 
 namespace elm::render {
-
-
 	struct TextureInfo {
 		String name;
 		uint32_t width{ 0 };

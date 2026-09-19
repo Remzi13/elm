@@ -5,8 +5,6 @@
 #include "graphics/render/Command.hpp"
 
 namespace Diligent {
-	struct IRenderDevice;
-	struct IDeviceContext;
 	struct ITexture;
 	struct ITextureView;
 }
@@ -27,8 +25,7 @@ namespace elm::render {
 
 		static TextureManager& Get();
 
-		bool Init(CommandList* commandList, Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext = nullptr);
-		void SetDeviceContext(Diligent::IDeviceContext* deviceContext) { m_deviceContext = deviceContext; }
+		bool Init(CommandList* commandList);
 
 		[[nodiscard]] Handler CreateTexture(const TextureInfo& info);	
 
@@ -36,20 +33,15 @@ namespace elm::render {
 		[[nodiscard]] Diligent::ITextureView* GetTextureView(Handler handler) const;		
 
 		void UpdateTexture(const Handler& handler, const TextureData& textureData);
-		void UpdateTexture(Diligent::IDeviceContext* deviceContext, const Handler& handler, const TextureData& textureData);
 		void DestroyTexture(const Handler& handler);
 
 		Data GetTextureData(const Handler& handler);
+		void PushTextureData(const Handler& handler, const Data& textureData);
 		
 		void clear();
 
 	private:
-
-
 		static TextureManager* s_instance;
-
-		Diligent::IRenderDevice* m_renderDevice{ nullptr };
-		Diligent::IDeviceContext* m_deviceContext{ nullptr };
 		UnorderedMap<int, Data> m_textures;
 		int m_currentIndex{ 0 };
 
