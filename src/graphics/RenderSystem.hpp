@@ -11,6 +11,7 @@
 #include "graphics/render/BufferManager.hpp"
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/render/TextureManager.hpp"
+#include "graphics/render/MeshManager.h"
 
 #include "graphics/render/Command.hpp"
 
@@ -79,18 +80,11 @@ public:
     [[nodiscard]] size_t GetMemAllocated() const;
 
 private:
-    struct Mesh {
-        render::Handler vb;
-        render::Handler ib;
-        uint32_t indexCount { 0 };
-    };
-
-private:
     void InitPipeline();
     void CreateMeshBuffers();
     void CreateEngineViewport(uint32_t width, uint32_t height);
 
-    void Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances);
+    void Draw(const render::Handler handler, const Vector<GpuInstanceData>& instances);
 
 private:
     GLFWwindow* m_window { nullptr };
@@ -105,9 +99,9 @@ private:
     Diligent::IPipelineState* m_pHighlightPSO { nullptr };
     Diligent::IShaderResourceBinding* m_pSRB { nullptr };
 
-    Mesh m_cube;
-    Mesh m_wall;
-    Mesh m_ground;
+    render::Handler m_cube;
+    render::Handler m_wall;
+    render::Handler m_ground;
 
     // Dynamic Instance Buffer
     static constexpr size_t MaxInstances = 30000;
@@ -126,6 +120,7 @@ private:
 
     render::BufferManager m_bufferManager;
     render::TextureManager m_textureManager;
+    render::MeshManager m_meshManager;
     render::DynamicLinearAllocator m_dynamicInstanceBuffer;
     render::DynamicLinearAllocator m_dynamicUniformBuffer;
 

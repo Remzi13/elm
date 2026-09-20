@@ -20,7 +20,7 @@
 #include <fstream>
 #include <iostream>
 
-//TODO it is need ?
+// TODO it is need ?
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 
 #include "graphics/render/backends/Utils.hpp"
@@ -40,12 +40,17 @@ namespace elm {
 namespace {
     class Executor {
     public:
-        Executor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice, render::TextureManager& textureManger)
-            : m_deviceContext(deviceContext), m_textureManger(textureManger), m_renderDevice(renderDevice)
+        Executor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice, render::TextureManager& textureManger, render::MeshManager& meshManager, render::BufferManager& bufferManager)
+            : m_deviceContext(deviceContext)
+            , m_textureManger(textureManger)
+            , m_renderDevice(renderDevice)
+            , m_meshManager(meshManager)
+            , m_bufferManager(bufferManager)
         {
         }
 
-        void Execute(render::command::CreateTexture& command) {
+        void Execute(render::command::CreateTexture& command)
+        {
             Diligent::TextureDesc TexDesc;
             TexDesc.Name = command.info.name.c_str();
             TexDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
@@ -58,10 +63,10 @@ namespace {
             Diligent::TextureData InitData;
             Diligent::TextureSubResData Level0Data;
 
-            Diligent::ITexture* pTexture{ nullptr };
+            Diligent::ITexture* pTexture { nullptr };
             m_renderDevice->CreateTexture(TexDesc, nullptr, &pTexture);
 
-            Diligent::ITextureView* pSRV{ nullptr };
+            Diligent::ITextureView* pSRV { nullptr };
             if (TexDesc.BindFlags & Diligent::BIND_SHADER_RESOURCE) {
                 pSRV = pTexture->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
                 if (pSRV) {
@@ -100,11 +105,24 @@ namespace {
                 Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
         }
 
+        void Execute(render::command::CreateMesh& command)
+        {
+            using namespace render;
+            Mesh mesh;
+            mesh.vb = m_bufferManager.createBuffer(BufferInfo { "Mesh VB", BufferType::VertexBuffer, command.data.vertices.size() * sizeof(Vertex), (void*)command.data.vertices.data() });
+            mesh.ib = m_bufferManager.createBuffer(BufferInfo { "Mesh IB", BufferType::IndexBuffer, command.data.indices.size() * sizeof(uint32_t), (void*)command.data.indices.data() });
+
+            mesh.indexCount = static_cast<uint32_t>(command.data.indices.size());
+
+            m_meshManager.PushMesh(command.handler, mesh);
+        }
 
     private:
         Diligent::IDeviceContext* m_deviceContext;
         Diligent::IRenderDevice* m_renderDevice;
         render::TextureManager& m_textureManger;
+        render::BufferManager& m_bufferManager;
+        render::MeshManager& m_meshManager;
     };
 
     class DilligentAllocator : public Diligent::IMemoryAllocator {
@@ -287,6 +305,9 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     if (!m_textureManager.Init(&m_commandList))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Texture Manager "));
 
+    if (!m_meshManager.Init(&m_commandList))
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Mesh Manager "));
+
     m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
     m_dynamicUniformBuffer.Init(m_renderDevice, "Dynamic Uniform Linear Allocator", render::BufferType::UniformBuffer, 2 * 1024 * 1024);
 
@@ -404,21 +425,15 @@ void RenderSystem::InitPipeline()
 void RenderSystem::CreateMeshBuffers()
 {
     using namespace render;
-    auto createBuffers = [this](const MeshData& data, Mesh& mesh) {
-        mesh.vb = m_bufferManager.createBuffer(BufferInfo { "Mesh VB", BufferType::VertexBuffer, data.vertices.size() * sizeof(Vertex), (void*)data.vertices.data() });
-        mesh.ib = m_bufferManager.createBuffer(BufferInfo { "Mesh IB", BufferType::IndexBuffer, data.indices.size() * sizeof(uint32_t), (void*)data.indices.data() });
-
-        mesh.indexCount = static_cast<uint32_t>(data.indices.size());
-    };
 
     const MeshData cubeMesh = GeometryPrimitives::CreateCube(1.0f);
-    createBuffers(cubeMesh, m_cube);
+    m_cube = m_meshManager.CreateMesh(cubeMesh);
 
     const MeshData wallMesh = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
-    createBuffers(wallMesh, m_wall);
+    m_wall = m_meshManager.CreateMesh(wallMesh);
 
     const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
-    createBuffers(groundMesh, m_ground);
+    m_ground = m_meshManager.CreateMesh(groundMesh);
 }
 
 void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
@@ -497,8 +512,10 @@ void RenderSystem::BeginFrame()
     m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 }
 
-void RenderSystem::Draw(const Mesh& mesh, const Vector<GpuInstanceData>& instances)
+void RenderSystem::Draw(const render::Handler handler, const Vector<GpuInstanceData>& instances)
 {
+    const auto& mesh = m_meshManager.GetMesh(handler);
+
     auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * instances.size(), 16);
     std::memcpy(alloc.pCPUAddress, instances.data(), sizeof(GpuInstanceData) * instances.size());
 
@@ -518,7 +535,7 @@ void RenderSystem::Draw(FrameData& frameData, Settings& settings)
     if (!m_deviceContext || !m_pPSO)
         return;
 
-    Executor executor(m_deviceContext, m_renderDevice, m_textureManager);
+    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
     m_commandList.Execute(executor);
     m_commandList.Clear();
 

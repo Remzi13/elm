@@ -3,6 +3,7 @@
 #include "core/Std.hpp"
 
 #include "math/Vector.hpp"
+#include "math/Matrix.hpp"
 
 namespace elm {
 	using namespace math;

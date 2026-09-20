@@ -5,11 +5,19 @@
 namespace elm {
 namespace render {
 
+    // TODO - надо сделать полноценный класс который можно испольовать в асиоцитивных контейниарх
+    // и функцю для генерации уникального хенделара
     struct Handler {
         int index { -1 };
 
         [[nodiscard]] constexpr bool IsValid() const noexcept { return index >= 0; }
         constexpr auto operator<=>(const Handler&) const noexcept = default;
+    };
+
+    struct Mesh {
+        Handler vb;
+        Handler ib;
+        uint32_t indexCount { 0 };
     };
 
     enum BufferType {

@@ -18,12 +18,15 @@ engine_add_library(graphics
     ui/SocLabWindow.cpp
     
     render/Render.hpp
+    render/Command.hpp
     render/BufferManager.hpp
     render/BufferManager.cpp
     render/Texture.hpp
     render/Texture.cpp
     render/TextureManager.hpp
     render/TextureManager.cpp
+    render/MeshManager.h
+    render/MeshManager.cpp
     render/DynamicLinearAllocator.hpp
     render/DynamicLinearAllocator.cpp
     render/backends/Utils.hpp
