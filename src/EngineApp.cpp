@@ -178,7 +178,7 @@ void EngineApp::Render([[maybe_unused]] float deltaTime)
     const bool falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
     m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
 
-    m_renderSystem->Draw(data, m_settings);
+    m_renderSystem->Draw(data);
 
     m_imguiSystem->BeginFrame(*m_renderSystem);
     m_imguiSystem->Render(*m_renderSystem, m_scene, m_currentStats);

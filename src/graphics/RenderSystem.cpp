@@ -555,7 +555,7 @@ void RenderSystem::Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>&
     }
 }
 
-void RenderSystem::Draw(FrameData& frameData, Settings& settings)
+void RenderSystem::Draw(FrameData& frameData)
 {
     if (!m_deviceContext || !m_pPSO)
         return;

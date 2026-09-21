@@ -7,7 +7,6 @@
 #include "Scene/TestScenes.hpp"
 #include "Scene/Transform.hpp"
 
-#include "graphics/Settings.hpp"
 #include "graphics/render/BufferManager.hpp"
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/render/MeshManager.h"
@@ -63,7 +62,7 @@ public:
     [[nodiscard]] bool ShouldClose() const;
 
     void BeginFrame();
-    void Draw(FrameData& frameData, Settings& settings);
+    void Draw(FrameData& frameData);
     void EndFrame();
     void Shutdown();
 
