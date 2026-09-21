@@ -22,9 +22,12 @@ namespace render {
             core::Handler handler;
             core::Handler meshData;
         };
+        struct DestroyMesh {
+            core::Handler handler;
+        };
     }
 
-    using RenderCommandVariant = std::variant<command::UploadTexture, command::CreateTexture, command::CreateMesh>;
+    using RenderCommandVariant = std::variant<command::UploadTexture, command::CreateTexture, command::CreateMesh, command::DestroyMesh>;
 
     using CommandList = BasicCommandList<RenderCommandVariant>;
 

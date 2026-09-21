@@ -10,8 +10,8 @@
 #include "graphics/Settings.hpp"
 #include "graphics/render/BufferManager.hpp"
 #include "graphics/render/DynamicLinearAllocator.hpp"
-#include "graphics/render/TextureManager.hpp"
 #include "graphics/render/MeshManager.h"
+#include "graphics/render/TextureManager.hpp"
 
 #include "graphics/render/Command.hpp"
 
@@ -37,14 +37,14 @@ struct FrameStats {
     Transform groundTransform;
 };
 
-struct GpuInstanceData {
-    Matrix4x4 World;
-    Vector4 Color;
+struct RenderObject {
+    Matrix4x4 transform;
+    Vector4 color;
 };
 
 struct FrameData {
     Camera camera;
-    Scene scene;
+    UnorderedMap<core::Handler, Vector<RenderObject>> objects;
 };
 
 class RenderSystem {
@@ -84,7 +84,7 @@ private:
     void CreateMeshBuffers();
     void CreateEngineViewport(uint32_t width, uint32_t height);
 
-    void Draw(const core::Handler handler, const Vector<GpuInstanceData>& instances);
+    void Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>& objects);
 
 private:
     GLFWwindow* m_window { nullptr };
@@ -114,9 +114,6 @@ private:
     uint32_t m_engineViewportWidth { 1280 };
     uint32_t m_engineViewportHeight { 720 };
     bool m_engineViewportIsShaderResource { false };
-
-    Vector<GpuInstanceData> m_visibleGpuInstances;
-    Vector<GpuInstanceData> m_culledGpuInstances;
 
     render::BufferManager m_bufferManager;
     render::TextureManager m_textureManager;

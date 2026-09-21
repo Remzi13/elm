@@ -27,11 +27,11 @@ namespace render {
 
         bool Init(Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext);
 
-        [[nodiscard]] core::Handler createBuffer(const BufferInfo& info);
-        [[nodiscard]] Diligent::IBuffer* getBufferImpl(const core::Handler& handler) const;
-        void destroyBuffer(core::Handler buffer);
+        [[nodiscard]] core::Handler CreateBuffer(const BufferInfo& info);
+        [[nodiscard]] Diligent::IBuffer* GetBufferImpl(const core::Handler& handler) const;
+        void DestroyBuffer(core::Handler buffer);
 
-        void clear();
+        void Clear();
 
     private:
         Diligent::IRenderDevice* m_renderDevice;

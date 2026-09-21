@@ -12,8 +12,11 @@ namespace render {
         bool Init(CommandList* commandList);
 
         [[nodiscard]] core::Handler CreateMesh(const MeshData& data);
-        [[nodiscard]] const Mesh& GetMesh(core::Handler handler);
+        void DestroyMesh(const core::Handler& handler);
+        [[nodiscard]] const Mesh& GetMesh(core::Handler handler) const;
+        [[nodiscard]] const Mesh& GetMeshByData(core::Handler meshData) const;
         void PushMesh(core::Handler handler, const core::Handler& meshData, const Mesh& mesh);
+        void PopMesh(core::Handler handler, Mesh& mesh);
 
     private:
         Mesh m_emptyMesh;
@@ -23,5 +26,6 @@ namespace render {
     };
 
     [[nodiscard]] core::Handler createMesh(const MeshData& data);
+    void destroyMesh(const core::Handler& handler);
 }
 }

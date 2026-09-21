@@ -23,6 +23,10 @@ namespace {
 
 void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene)
 {
+    for (const auto& isnt : scene.instances)
+    {
+        render::destroyMesh(isnt.renderMesh);
+    }
     scene.instances.clear();
 
     switch (preset) {

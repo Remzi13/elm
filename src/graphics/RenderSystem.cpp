@@ -111,15 +111,26 @@ namespace {
         void Execute(render::command::CreateMesh& command)
         {
             using namespace render;
+            Mesh mesh = m_meshManager.GetMeshByData(command.meshData);
+            if (!mesh.ib.IsValid() || !mesh.vb.IsValid()) {
+                const auto& meshData = getMeshData(command.meshData);
 
-            const auto& meshData = getMeshData(command.meshData);
-            Mesh mesh;
-            mesh.vb = m_bufferManager.createBuffer(BufferInfo { "Mesh VB", BufferType::VertexBuffer, meshData.vertices.size() * sizeof(Vertex), (void*)meshData.vertices.data() });
-            mesh.ib = m_bufferManager.createBuffer(BufferInfo { "Mesh IB", BufferType::IndexBuffer, meshData.indices.size() * sizeof(uint32_t), (void*)meshData.indices.data() });
+                mesh.vb = m_bufferManager.CreateBuffer(BufferInfo { "Mesh VB", BufferType::VertexBuffer, meshData.vertices.size() * sizeof(Vertex), (void*)meshData.vertices.data() });
+                mesh.ib = m_bufferManager.CreateBuffer(BufferInfo { "Mesh IB", BufferType::IndexBuffer, meshData.indices.size() * sizeof(uint32_t), (void*)meshData.indices.data() });
 
-            mesh.indexCount = static_cast<uint32_t>(meshData.indices.size());
-
+                mesh.indexCount = static_cast<uint32_t>(meshData.indices.size());
+            }
             m_meshManager.PushMesh(command.handler, command.meshData, mesh);
+        }
+
+        void Execute(render::command::DestroyMesh& command)
+        {
+            render::Mesh mesh;
+            m_meshManager.PopMesh(command.handler, mesh);
+            if (mesh.ib.IsValid() && mesh.vb.IsValid()) {
+                m_bufferManager.DestroyBuffer(mesh.ib);
+                m_bufferManager.DestroyBuffer(mesh.vb);
+            }
         }
 
     private:
@@ -520,22 +531,28 @@ void RenderSystem::BeginFrame()
     m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 }
 
-void RenderSystem::Draw(const core::Handler handler, const Vector<GpuInstanceData>& instances)
+void RenderSystem::Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>& objects)
 {
-    const auto& mesh = m_meshManager.GetMesh(handler);
+    if (objects.empty()) {
+        return;
+    }
 
-    auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(GpuInstanceData) * instances.size(), 16);
-    std::memcpy(alloc.pCPUAddress, instances.data(), sizeof(GpuInstanceData) * instances.size());
+    for (const auto& obj : objects) {
+        const auto& mesh = m_meshManager.GetMesh(obj.first);
 
-    const Diligent::Uint64 offsets[] = { 0, alloc.offset };
-    Diligent::IBuffer* pVBs[] = { m_bufferManager.getBufferImpl(mesh.vb), alloc.buffer };
+        auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(RenderObject) * obj.second.size(), 16);
+        std::memcpy(alloc.pCPUAddress, obj.second.data(), sizeof(RenderObject) * obj.second.size());
 
-    m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-    m_deviceContext->SetIndexBuffer(m_bufferManager.getBufferImpl(mesh.ib), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+        const Diligent::Uint64 offsets[] = { 0, alloc.offset };
+        Diligent::IBuffer* pVBs[] = { m_bufferManager.GetBufferImpl(mesh.vb), alloc.buffer };
 
-    Diligent::DrawIndexedAttribs DrawAttrs { mesh.indexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
-    DrawAttrs.NumInstances = instances.size();
-    m_deviceContext->DrawIndexed(DrawAttrs);
+        m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
+        m_deviceContext->SetIndexBuffer(m_bufferManager.GetBufferImpl(mesh.ib), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+        Diligent::DrawIndexedAttribs DrawAttrs { mesh.indexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
+        DrawAttrs.NumInstances = obj.second.size();
+        m_deviceContext->DrawIndexed(DrawAttrs);
+    }
 }
 
 void RenderSystem::Draw(FrameData& frameData, Settings& settings)
@@ -589,51 +606,11 @@ void RenderSystem::Draw(FrameData& frameData, Settings& settings)
         }
     }
 
-    // 4. Collect Visible and Culled Instances
-    m_visibleGpuInstances.clear();
-    m_culledGpuInstances.clear();
-
-    for (const auto& inst : frameData.scene.instances) {
-        if (inst.visible) {
-            m_visibleGpuInstances.push_back({ inst.worldTransform, inst.color });
-        } else {
-            m_culledGpuInstances.push_back({ inst.worldTransform, Vector4 { 0.95f, 0.2f, 0.15f, 0.35f } });
-        }
-    }
-
     // 5. Устанавливаем Pipeline State и финализируем SRB
     m_deviceContext->SetPipelineState(m_pPSO);
     m_deviceContext->CommitShaderResources(m_pSRB, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
-    // --- Draw Ground ---
-    {
-        Draw(m_ground, { { Matrix4x4::Translation(Vector3 { 0.0f, 0.0f, 0.0f }), Vector4 { 0.22f, 0.24f, 0.27f, 1.0f } } });
-    }
-
-    // --- Draw Occluders (Walls) ---
-    const size_t numOccluders = (std::min)(frameData.scene.instances.size(), MaxInstances);
-    if (numOccluders > 0) {
-        Vector<GpuInstanceData> occluderGpuInstances;
-        occluderGpuInstances.reserve(numOccluders);
-        for (size_t i = 0; i < numOccluders; ++i) {
-            occluderGpuInstances.push_back({ frameData.scene.instances[i].worldTransform, Vector4 { 0.35f, 0.38f, 0.44f, 1.0f } });
-        }
-
-        Draw(m_wall, occluderGpuInstances);
-    }
-
-    // --- Draw Occludees (Cubes) ---
-    auto visualMode = VisualMode(settings.Get<uint32_t>(Settings::Category::Render, CULLING_VISUAL_MODE));
-    if (visualMode != VisualMode::OccludersOnly && !m_visibleGpuInstances.empty()) {
-
-        Draw(m_cube, m_visibleGpuInstances);
-    }
-
-    // --- Highlight Culled Objects ---
-    if (visualMode == VisualMode::HighlightCulled && !m_culledGpuInstances.empty()) {
-
-        Draw(m_cube, m_culledGpuInstances);
-    }
+    Draw(frameData.objects);
 
     // 6. Flush аллокаторов в конце кадра
     m_dynamicInstanceBuffer.Flush(m_deviceContext);
@@ -677,7 +654,7 @@ void RenderSystem::Shutdown()
     m_pEngineViewportRTV = nullptr;
     m_pEngineViewportTex = nullptr;
 
-    m_bufferManager.clear();
+    m_bufferManager.Clear();
 
     m_dynamicInstanceBuffer.Release();
     m_dynamicUniformBuffer.Release();

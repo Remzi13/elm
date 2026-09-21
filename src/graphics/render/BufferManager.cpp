@@ -19,7 +19,7 @@ namespace render {
         return true;
     }
 
-    core::Handler BufferManager::createBuffer(const BufferInfo& info)
+    core::Handler BufferManager::CreateBuffer(const BufferInfo& info)
     {
         Diligent::BufferDesc VBDesc;
         VBDesc.Name = info.name.c_str();
@@ -49,7 +49,7 @@ namespace render {
         return handler;
     }
 
-    Diligent::IBuffer* BufferManager::getBufferImpl(const core::Handler& handler) const
+    Diligent::IBuffer* BufferManager::GetBufferImpl(const core::Handler& handler) const
     {
         auto it = m_buffers.find(handler);
         if (it != m_buffers.end())
@@ -57,7 +57,7 @@ namespace render {
         return nullptr;
     }
 
-    void BufferManager::destroyBuffer(core::Handler handler)
+    void BufferManager::DestroyBuffer(core::Handler handler)
     {
         auto it = m_buffers.find(handler);
         if (it != m_buffers.end()) {
@@ -66,7 +66,7 @@ namespace render {
         }
     }
 
-    void BufferManager::clear()
+    void BufferManager::Clear()
     {
         for (auto& pair : m_buffers) {
             pair.second->Release();
