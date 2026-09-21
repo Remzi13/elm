@@ -18,10 +18,10 @@
 
 #include "graphics/MeshDataStorage.hpp"
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <cstring>
 
 // TODO it is need ?
 #include "graphics/culling/OcclusionCullingSystem.hpp"
@@ -511,10 +511,6 @@ void RenderSystem::BeginFrame()
     if (!m_swapChain || !m_deviceContext)
         return;
 
-    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
-    m_commandList.Execute(executor);
-    m_commandList.Clear();
-
     auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
     auto* pDSV = m_swapChain->GetDepthBufferDSV();
 
@@ -547,7 +543,9 @@ void RenderSystem::Draw(FrameData& frameData, Settings& settings)
     if (!m_deviceContext || !m_pPSO)
         return;
 
-
+    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
+    m_commandList.Execute(executor);
+    m_commandList.Clear();
 
     if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
         if (m_engineViewportIsShaderResource) {

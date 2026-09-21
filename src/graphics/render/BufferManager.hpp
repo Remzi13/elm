@@ -37,7 +37,7 @@ namespace render {
         Diligent::IRenderDevice* m_renderDevice;
         Diligent::IDeviceContext* m_deviceContext;
         UnorderedMap<core::Handler, Diligent::IBuffer*> m_buffers;
-        int m_currentIndex { 0 };
+        core::Handler::ValueType m_currentIndex { 0 };
     };
 
 }

@@ -23,7 +23,7 @@ namespace {
         }
 
     private:
-        int m_index { 0 };
+        core::Handler::ValueType m_index { 0 };
         UnorderedMap<core::Handler, MeshData> m_data;
     } g_meshData;
 }

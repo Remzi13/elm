@@ -18,7 +18,7 @@ namespace render {
     private:
         Mesh m_emptyMesh;
         CommandList* m_commandList { nullptr };
-        int m_index { 0 };
+        core::Handler::ValueType m_index { 0 };
         Vector<std::pair<core::Handler, std::pair<core::Handler, Mesh>>> m_meshes;
     };
 

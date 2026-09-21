@@ -14,6 +14,8 @@ namespace core {
             None
         };
 
+        using ValueType = int;
+
     public:
         Handler() = default;
 
@@ -30,11 +32,11 @@ namespace core {
         
         Type GetType() const { return m_type; }
 
-        int GetValue() const { return m_value; }
+        ValueType GetValue() const { return m_value; }
 
     public:
         Type m_type { Type::None };
-        int m_value { -1 };
+        ValueType m_value { -1 };
     };
 }
 }
