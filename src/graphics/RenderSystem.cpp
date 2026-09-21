@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <cstring>
 
 // TODO it is need ?
 #include "graphics/culling/OcclusionCullingSystem.hpp"

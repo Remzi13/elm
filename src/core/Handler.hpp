@@ -33,8 +33,8 @@ namespace core {
         int GetValue() const { return m_value; }
 
     public:
-        int m_value { -1 };
         Type m_type { Type::None };
+        int m_value { -1 };
     };
 }
 }
