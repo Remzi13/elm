@@ -6,6 +6,7 @@
 
 namespace Diligent {
 	struct IRenderDevice;
+    struct IDeviceContext;
 	struct IBuffer;
 }
 
@@ -24,17 +25,18 @@ namespace render {
     public:
         BufferManager();
 
-        bool Init(Diligent::IRenderDevice* renderDevice);
+        bool Init(Diligent::IRenderDevice* renderDevice, Diligent::IDeviceContext* deviceContext);
 
-        [[nodiscard]] Handler createBuffer(const BufferInfo& info);
-        [[nodiscard]] Diligent::IBuffer* getBufferImpl(const Handler& handler) const;
-        void destroyBuffer(Handler buffer);
+        [[nodiscard]] core::Handler createBuffer(const BufferInfo& info);
+        [[nodiscard]] Diligent::IBuffer* getBufferImpl(const core::Handler& handler) const;
+        void destroyBuffer(core::Handler buffer);
 
         void clear();
 
     private:
         Diligent::IRenderDevice* m_renderDevice;
-        UnorderedMap<int, Diligent::IBuffer*> m_buffers;
+        Diligent::IDeviceContext* m_deviceContext;
+        UnorderedMap<core::Handler, Diligent::IBuffer*> m_buffers;
         int m_currentIndex { 0 };
     };
 

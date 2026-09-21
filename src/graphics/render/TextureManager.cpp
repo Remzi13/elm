@@ -1,4 +1,5 @@
 #include "graphics/render/TextureManager.hpp"
+
 #include "graphics/render/backends/Utils.hpp"
 
 #include "Graphics/GraphicsEngine/interface/Texture.h"
@@ -31,43 +32,42 @@ namespace elm::render {
 		return m_commandList != nullptr;
 	}
 
-	Handler TextureManager::CreateTexture(const TextureInfo& info) {
+	core::Handler TextureManager::CreateTexture(const TextureInfo& info) {
 
-		Handler handler;
-		handler.index = ++m_currentIndex;
+		core::Handler handler(++m_currentIndex, core::Handler::Render);		
 
 		m_commandList->Push(command::CreateTexture({ .handler = handler, .info=info}));
 		return handler;
 	}
 
-	Diligent::ITexture* TextureManager::GetTextureImpl(const Handler& handler) const {
-		auto it = m_textures.find(handler.index);
+	Diligent::ITexture* TextureManager::GetTextureImpl(const core::Handler& handler) const {
+		auto it = m_textures.find(handler);
 		if (it != m_textures.end()) {
 			return it->second.pTexture;
 		}
 		return nullptr;
 	}
 
-	Diligent::ITextureView* TextureManager::GetTextureView(Handler handler) const {
-		auto it = m_textures.find(handler.index);
+	Diligent::ITextureView* TextureManager::GetTextureView(core::Handler handler) const {
+		auto it = m_textures.find(handler);
 		if (it != m_textures.end()) {
 			return it->second.pSRV;
 		}
 		return nullptr;
 	}
 
-	void TextureManager::UpdateTexture(const Handler& handler, const TextureData& textureData) {
+	void TextureManager::UpdateTexture(const core::Handler& handler, const TextureData& textureData) {
 
 		if (textureData.data.empty()) return;
 
-		auto it = m_textures.find(handler.index);
+		auto it = m_textures.find(handler);
 		if (it == m_textures.end() || !it->second.pTexture) return;
 
 		m_commandList->Push(command::UploadTexture({ .handler = handler, .data=textureData,}));
 	}
 
-	void TextureManager::DestroyTexture(const Handler& handler) {
-		auto it = m_textures.find(handler.index);
+	void TextureManager::DestroyTexture(const core::Handler& handler) {
+		auto it = m_textures.find(handler);
 		if (it != m_textures.end()) {
 			if (it->second.pSRV) {
 				it->second.pSRV->Release();
@@ -95,17 +95,17 @@ namespace elm::render {
 		m_textures.clear();
 	}
 
-	TextureManager::Data TextureManager::GetTextureData(const Handler& handler) {
-		auto it = m_textures.find(handler.index);
+	TextureManager::Data TextureManager::GetTextureData(const core::Handler& handler) {
+		auto it = m_textures.find(handler);
 		if (it != m_textures.end()) {
 			return it->second;
 		}
 		return TextureManager::Data();
 	}
 
-	void TextureManager::PushTextureData(const Handler& handler, const Data& textureData)
+	void TextureManager::PushTextureData(const core::Handler& handler, const Data& textureData)
 	{
-		m_textures[handler.index] = TextureManager::Data(textureData);
+		m_textures[handler] = TextureManager::Data(textureData);
 	}
 
 } // namespace elm::render

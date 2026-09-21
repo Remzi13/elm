@@ -10,6 +10,8 @@ engine_add_library(core
     Timer.cpp
     Threading.hpp
     Threading.cpp
+    Handler.hpp
+    Handler.cpp
 )
 
 target_include_directories(core PUBLIC

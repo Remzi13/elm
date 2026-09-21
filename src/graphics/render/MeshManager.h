@@ -11,14 +11,17 @@ namespace render {
     public:
         bool Init(CommandList* commandList);
 
-        [[nodiscard]] Handler CreateMesh(const MeshData& data);
-        [[nodiscard]] const Mesh& GetMesh(Handler handler);
-        void PushMesh(Handler handler, const Mesh& mesh);
+        [[nodiscard]] core::Handler CreateMesh(const MeshData& data);
+        [[nodiscard]] const Mesh& GetMesh(core::Handler handler);
+        void PushMesh(core::Handler handler, const core::Handler& meshData, const Mesh& mesh);
 
     private:
+        Mesh m_emptyMesh;
         CommandList* m_commandList { nullptr };
         int m_index { 0 };
-        UnorderedMap<int, Mesh> m_meshes;
+        Vector<std::pair<core::Handler, std::pair<core::Handler, Mesh>>> m_meshes;
     };
+
+    [[nodiscard]] core::Handler createMesh(const MeshData& data);
 }
 }

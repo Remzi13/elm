@@ -30,7 +30,7 @@ namespace elm::render {
 		Texture(Texture&& other) noexcept;
 		Texture& operator=(Texture&& other) noexcept;
 
-		[[nodiscard]] constexpr Handler GetHandler() const noexcept { return m_handler; }
+		[[nodiscard]] core::Handler GetHandler() const  { return m_handler; }
 		[[nodiscard]] constexpr bool IsValid() const noexcept { return m_handler.IsValid(); }
 		constexpr explicit operator bool() const noexcept { return IsValid(); }
 
@@ -45,7 +45,7 @@ namespace elm::render {
 		void Update(const TextureData& textureData);
 
 	private:
-		Handler m_handler;
+		core::Handler m_handler;
 		TextureInfo m_info;
 	};
 

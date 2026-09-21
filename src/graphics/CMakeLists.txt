@@ -6,6 +6,9 @@ engine_add_library(graphics
     CameraController.cpp
     Settings.hpp
     Settings.cpp
+    MeshDataStorage.hpp
+    MeshDataStorage.cpp
+
     culling/SoftwareDepthBuffer.hpp
     culling/SoftwareDepthBuffer.cpp
     culling/OcclusionCullingSystem.hpp

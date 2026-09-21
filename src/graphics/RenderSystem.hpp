@@ -84,7 +84,7 @@ private:
     void CreateMeshBuffers();
     void CreateEngineViewport(uint32_t width, uint32_t height);
 
-    void Draw(const render::Handler handler, const Vector<GpuInstanceData>& instances);
+    void Draw(const core::Handler handler, const Vector<GpuInstanceData>& instances);
 
 private:
     GLFWwindow* m_window { nullptr };
@@ -99,9 +99,9 @@ private:
     Diligent::IPipelineState* m_pHighlightPSO { nullptr };
     Diligent::IShaderResourceBinding* m_pSRB { nullptr };
 
-    render::Handler m_cube;
-    render::Handler m_wall;
-    render::Handler m_ground;
+    core::Handler m_cube;
+    core::Handler m_wall;
+    core::Handler m_ground;
 
     // Dynamic Instance Buffer
     static constexpr size_t MaxInstances = 30000;

@@ -11,16 +11,16 @@ namespace render {
 
     namespace command {
         struct CreateTexture {
-            Handler handler;
+            core::Handler handler;
             TextureInfo info;
         };
         struct UploadTexture {
-            Handler handler;
+            core::Handler handler;
             TextureData data;
         };
         struct CreateMesh {
-            Handler handler;
-            MeshData data;
+            core::Handler handler;
+            core::Handler meshData;
         };
     }
 

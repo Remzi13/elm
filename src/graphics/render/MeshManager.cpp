@@ -1,29 +1,54 @@
 #include "graphics/render/MeshManager.h"
 
+#include "graphics/MeshDataStorage.hpp"
+
 namespace elm {
 namespace render {
 
+    namespace {
+        MeshManager* g_meshManager { nullptr };
+    }
+
     bool MeshManager::Init(CommandList* commandList)
-    {
+    {        
         m_commandList = commandList;
+        g_meshManager = this;
         return m_commandList != nullptr;
     }
 
-    Handler MeshManager::CreateMesh(const MeshData& data)
+    core::Handler MeshManager::CreateMesh(const MeshData& data)
     {
-        auto handler = Handler { m_index++ };
-        m_commandList->Push(command::CreateMesh { handler, data });
+        const auto& meshData = storeMeshData(data);
+        for ( const auto& m : m_meshes )
+        {
+            if ( m.second.first == meshData )
+            {
+                return m.first;
+            }
+        }
+        auto handler = core::Handler(m_index++, core::Handler::Render);
+        m_commandList->Push(command::CreateMesh { handler, meshData });
         return handler;
     }
 
-    void MeshManager::PushMesh(Handler handler, const Mesh& mesh)
+    void MeshManager::PushMesh(core::Handler handler, const core::Handler& meshData, const Mesh& mesh)
     {
-        m_meshes[handler.index] = mesh;
+        m_meshes.push_back(std::make_pair(handler, std::make_pair(meshData, mesh)));
     }
 
-    const Mesh& MeshManager::GetMesh(Handler handler)
+    const Mesh& MeshManager::GetMesh(core::Handler handler)
     {
-        return m_meshes[handler.index];
+        for ( const auto& m : m_meshes )
+        {
+            if (m.first == handler)
+                return m.second.second;
+        }
+        return m_emptyMesh;
+    }
+
+    core::Handler createMesh( const MeshData& data )
+    {
+        return g_meshManager->CreateMesh(data);
     }
 
 } // namespace render

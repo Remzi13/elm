@@ -16,6 +16,8 @@
 
 #include "graphics/render/BufferManager.hpp"
 
+#include "graphics/MeshDataStorage.hpp"
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -108,13 +110,15 @@ namespace {
         void Execute(render::command::CreateMesh& command)
         {
             using namespace render;
+
+            const auto& meshData = getMeshData(command.meshData);
             Mesh mesh;
-            mesh.vb = m_bufferManager.createBuffer(BufferInfo { "Mesh VB", BufferType::VertexBuffer, command.data.vertices.size() * sizeof(Vertex), (void*)command.data.vertices.data() });
-            mesh.ib = m_bufferManager.createBuffer(BufferInfo { "Mesh IB", BufferType::IndexBuffer, command.data.indices.size() * sizeof(uint32_t), (void*)command.data.indices.data() });
+            mesh.vb = m_bufferManager.createBuffer(BufferInfo { "Mesh VB", BufferType::VertexBuffer, meshData.vertices.size() * sizeof(Vertex), (void*)meshData.vertices.data() });
+            mesh.ib = m_bufferManager.createBuffer(BufferInfo { "Mesh IB", BufferType::IndexBuffer, meshData.indices.size() * sizeof(uint32_t), (void*)meshData.indices.data() });
 
-            mesh.indexCount = static_cast<uint32_t>(command.data.indices.size());
+            mesh.indexCount = static_cast<uint32_t>(meshData.indices.size());
 
-            m_meshManager.PushMesh(command.handler, mesh);
+            m_meshManager.PushMesh(command.handler, command.meshData, mesh);
         }
 
     private:
@@ -299,7 +303,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
     }
 
-    if (!m_bufferManager.Init(m_renderDevice))
+    if (!m_bufferManager.Init(m_renderDevice, m_deviceContext))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
 
     if (!m_textureManager.Init(&m_commandList))
@@ -427,12 +431,15 @@ void RenderSystem::CreateMeshBuffers()
     using namespace render;
 
     const MeshData cubeMesh = GeometryPrimitives::CreateCube(1.0f);
+    storeMeshData(cubeMesh);
     m_cube = m_meshManager.CreateMesh(cubeMesh);
 
     const MeshData wallMesh = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
+    storeMeshData(wallMesh);
     m_wall = m_meshManager.CreateMesh(wallMesh);
 
     const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
+    storeMeshData(groundMesh);
     m_ground = m_meshManager.CreateMesh(groundMesh);
 }
 
@@ -503,6 +510,10 @@ void RenderSystem::BeginFrame()
     if (!m_swapChain || !m_deviceContext)
         return;
 
+    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
+    m_commandList.Execute(executor);
+    m_commandList.Clear();
+
     auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
     auto* pDSV = m_swapChain->GetDepthBufferDSV();
 
@@ -512,7 +523,7 @@ void RenderSystem::BeginFrame()
     m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 }
 
-void RenderSystem::Draw(const render::Handler handler, const Vector<GpuInstanceData>& instances)
+void RenderSystem::Draw(const core::Handler handler, const Vector<GpuInstanceData>& instances)
 {
     const auto& mesh = m_meshManager.GetMesh(handler);
 
@@ -535,9 +546,7 @@ void RenderSystem::Draw(FrameData& frameData, Settings& settings)
     if (!m_deviceContext || !m_pPSO)
         return;
 
-    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
-    m_commandList.Execute(executor);
-    m_commandList.Clear();
+
 
     if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
         if (m_engineViewportIsShaderResource) {

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core/Std.hpp"
+#include "core/Handler.hpp"
+
 #include "graphics/render/Texture.hpp"
 #include "graphics/render/Command.hpp"
 
@@ -27,22 +29,22 @@ namespace elm::render {
 
 		bool Init(CommandList* commandList);
 
-		[[nodiscard]] Handler CreateTexture(const TextureInfo& info);	
+		[[nodiscard]] core::Handler CreateTexture(const TextureInfo& info);	
 
-		[[nodiscard]] Diligent::ITexture* GetTextureImpl(const Handler& handler) const;		
-		[[nodiscard]] Diligent::ITextureView* GetTextureView(Handler handler) const;		
+		[[nodiscard]] Diligent::ITexture* GetTextureImpl(const core::Handler& handler) const;		
+		[[nodiscard]] Diligent::ITextureView* GetTextureView(core::Handler handler) const;		
 
-		void UpdateTexture(const Handler& handler, const TextureData& textureData);
-		void DestroyTexture(const Handler& handler);
+		void UpdateTexture(const core::Handler& handler, const TextureData& textureData);
+		void DestroyTexture(const core::Handler& handler);
 
-		Data GetTextureData(const Handler& handler);
-		void PushTextureData(const Handler& handler, const Data& textureData);
+		Data GetTextureData(const core::Handler& handler);
+		void PushTextureData(const core::Handler& handler, const Data& textureData);
 		
 		void clear();
 
 	private:
 		static TextureManager* s_instance;
-		UnorderedMap<int, Data> m_textures;
+		UnorderedMap<core::Handler, Data> m_textures;
 		int m_currentIndex{ 0 };
 
 		CommandList* m_commandList{ nullptr };

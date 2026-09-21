@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/Handler.hpp"
 #include "core/Std.hpp"
 
 #include "math/Matrix.hpp"
@@ -7,37 +8,38 @@
 
 namespace elm {
 
-	using namespace math;
+using namespace math;
 
-	enum class ScenePreset {
-		Box,
-		WallAndGrid,
-		RoomsAndCorridors,
-		PhysicsSandbox
-	};
+enum class ScenePreset {
+    Box,
+    WallAndGrid,
+    RoomsAndCorridors,
+    PhysicsSandbox
+};
 
-	struct Scene
-	{
-		struct Instance {
-			MeshData mesh;
-			Matrix4x4 worldTransform;
-			Vector4 color{ 0.8f, 0.8f, 0.8f, 1.0f };
-			bool visible{ true };
-		};
+struct Scene {
+    struct Instance {
+        core::Handler meshData;
+        core::Handler renderMesh;
+        AABB localBounds;
+        Matrix4x4 worldTransform;
+        Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
+        bool visible { true };
+    };
 
-		ScenePreset preset;
-		Vector<Instance> instances;
-	};
+    ScenePreset preset;
+    Vector<Instance> instances;
+};
 
-	class TestScenes {
-	public:
-		static void BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene);
+class TestScenes {
+public:
+    static void BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene);
 
-	private:
-		static void BuildWallAndGrid(uint32_t count, Scene& scene);
-		static void BuildRooms(uint32_t count, Scene& scene);
-		static void BuildPhysicsSandbox(uint32_t count, Scene& scene);
-		static void BuildBox(uint32_t count, Scene& scene);
-	};
+private:
+    static void BuildWallAndGrid(uint32_t count, Scene& scene);
+    static void BuildRooms(uint32_t count, Scene& scene);
+    static void BuildPhysicsSandbox(uint32_t count, Scene& scene);
+    static void BuildBox(uint32_t count, Scene& scene);
+};
 
 } // namespace Engine

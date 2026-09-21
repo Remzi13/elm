@@ -1,130 +1,142 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
+
 #include "core/Timer.hpp"
+
+#include "graphics/MeshDataStorage.hpp"
 
 namespace elm {
 
-	OcclusionCullingSystem::OcclusionCullingSystem(uint32_t width, uint32_t height)
-		: m_depthBuffer(width, height) {
-	}
+OcclusionCullingSystem::OcclusionCullingSystem(uint32_t width, uint32_t height)
+    : m_depthBuffer(width, height)
+{
+}
 
-	void OcclusionCullingSystem::Init() {
-		CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
-	}
+void OcclusionCullingSystem::Init()
+{
+    CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
+}
 
-	void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height) {
-		m_depthBuffer.Resize(width, height);
-		CreateDepthPreviewTexture(width, height);
-	}
+void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height)
+{
+    m_depthBuffer.Resize(width, height);
+    CreateDepthPreviewTexture(width, height);
+}
 
-	void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height) {
-		Vector<uint8_t> depthPreviewPixels;
-		depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(uint32_t), 0);
+void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height)
+{
+    Vector<uint8_t> depthPreviewPixels;
+    depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(uint32_t), 0);
 
-		render::TextureInfo texInfo;
-		texInfo.name = "Software Depth Buffer Preview Texture";
-		texInfo.width = width;
-		texInfo.height = height;
-		texInfo.format = render::TextureFormat::RGBA8_UNORM;
-		texInfo.usage = render::TextureUsage::Default;
-		texInfo.bindFlags = render::TextureBindFlags::BindShaderResource;
+    render::TextureInfo texInfo;
+    texInfo.name = "Software Depth Buffer Preview Texture";
+    texInfo.width = width;
+    texInfo.height = height;
+    texInfo.format = render::TextureFormat::RGBA8_UNORM;
+    texInfo.usage = render::TextureUsage::Default;
+    texInfo.bindFlags = render::TextureBindFlags::BindShaderResource;
 
-		m_depthPreviewTexture = render::Texture(texInfo);
-		m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, width * sizeof(uint32_t)));
-	}
+    m_depthPreviewTexture = render::Texture(texInfo);
+    m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, width * sizeof(uint32_t)));
+}
 
-	void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor) {
-		if (!m_depthPreviewTexture.IsValid()) return;
-		Vector<uint8_t> depthPreviewPixels;
-		m_depthBuffer.GenerateVisualTexture(depthPreviewPixels, falseColor);
-		m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, m_depthBuffer.GetWidth() * sizeof(uint32_t)));
-	}
+void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor)
+{
+    if (!m_depthPreviewTexture.IsValid())
+        return;
+    Vector<uint8_t> depthPreviewPixels;
+    m_depthBuffer.GenerateVisualTexture(depthPreviewPixels, falseColor);
+    m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, m_depthBuffer.GetWidth() * sizeof(uint32_t)));
+}
 
-	void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees) {
-		const auto tStart = core::getTimeStamp();
+void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees)
+{
+    const auto tStart = core::getTimeStamp();
 
-		occludees.clear();
+    occludees.clear();
 
-		// 1. Clear depth buffer
-		m_depthBuffer.Clear(1.0f);
+    // 1. Clear depth buffer
+    m_depthBuffer.Clear(1.0f);
 
-		// 2. Rasterize occluders to software depth buffer
-		const auto tRasterStart = core::getTimeStamp();
-		if (enableOcclusionCulling) {
-			for (const auto& inst : scene.instances) {
-				const Matrix4x4 wvp = cullingViewProj * inst.worldTransform;
-				Vector<Vector3> positions;
-				positions.reserve(inst.mesh.vertices.size());
-				for (const auto& v : inst.mesh.vertices) {
-					positions.push_back(v.position);
-				}
-				m_depthBuffer.RasterizeMesh(positions, inst.mesh.indices, wvp);
-			}
-		}
-		const auto tRasterEnd = core::getTimeStamp();
+    // 2. Rasterize occluders to software depth buffer
+    const auto tRasterStart = core::getTimeStamp();
+    if (enableOcclusionCulling) {
+        for (const auto& inst : scene.instances) {
+            const Matrix4x4 wvp = cullingViewProj * inst.worldTransform;
 
-		// 3. Test occludees against frustum and software depth buffer
-		const auto tQueryStart = core::getTimeStamp();
+            const auto& meshData = getMeshData(inst.meshData);
+            Vector<Vector3> positions;
+            positions.reserve(meshData.vertices.size());
+            for (const auto& v : meshData.vertices) {
+                positions.push_back(v.position);
+            }
+            m_depthBuffer.RasterizeMesh(positions, meshData.indices, wvp);
+        }
+    }
+    const auto tRasterEnd = core::getTimeStamp();
 
-		const Frustum frustum = Frustum::FromViewProj(cullingViewProj);
+    // 3. Test occludees against frustum and software depth buffer
+    const auto tQueryStart = core::getTimeStamp();
 
-		m_stats.totalObjects = static_cast<uint32_t>(scene.instances.size());
-		m_stats.visibleCount = 0;
-		m_stats.frustumCulledCount = 0;
-		m_stats.occlusionCulledCount = 0;
+    const Frustum frustum = Frustum::FromViewProj(cullingViewProj);
 
-		for (auto& inst : scene.instances) {
+    m_stats.totalObjects = static_cast<uint32_t>(scene.instances.size());
+    m_stats.visibleCount = 0;
+    m_stats.frustumCulledCount = 0;
+    m_stats.occlusionCulledCount = 0;
 
-			OccludeeInstance occInst;
-			occInst.isFrustumCulled = false;
-			occInst.isOcclusionCulled = false;
-			occInst.isVisible = true;
-			occInst.worldTransform = inst.worldTransform;
-			occInst.localBounds = inst.mesh.localBounds;
-			occInst.color = inst.color;
+    for (auto& inst : scene.instances) {
 
-			const AABB worldBounds = occInst.localBounds.Transformed(occInst.worldTransform);
+        OccludeeInstance occInst;
+        occInst.isFrustumCulled = false;
+        occInst.isOcclusionCulled = false;
+        occInst.isVisible = true;
+        occInst.worldTransform = inst.worldTransform;
+        occInst.localBounds = inst.localBounds;
+        occInst.color = inst.color;
 
-			// Frustum Culling
-			if (enableFrustumCulling) {
-				if (!frustum.IntersectsAABB(worldBounds)) {
-					occInst.isFrustumCulled = true;
-					occInst.isVisible = false;
-					inst.visible = false;
-					m_stats.frustumCulledCount++;
-					occludees.emplace_back(occInst);
-					continue;
-				}
-			}
+        const AABB worldBounds = occInst.localBounds.Transformed(occInst.worldTransform);
 
-			// Software Occlusion Culling
-			if (enableOcclusionCulling) {
-				if (m_depthBuffer.TestAABB(worldBounds, cullingViewProj, depthBias)) {
-					occInst.isOcclusionCulled = true;
-					occInst.isVisible = false;
-					inst.visible = false;
-					m_stats.occlusionCulledCount++;
-					occludees.emplace_back(occInst);
-					continue;
-				}
-			}
+        // Frustum Culling
+        if (enableFrustumCulling) {
+            if (!frustum.IntersectsAABB(worldBounds)) {
+                occInst.isFrustumCulled = true;
+                occInst.isVisible = false;
+                inst.visible = false;
+                m_stats.frustumCulledCount++;
+                occludees.emplace_back(occInst);
+                continue;
+            }
+        }
 
-			occInst.isVisible = true;
-			inst.visible = true;
-			occludees.emplace_back(occInst);
-			m_stats.visibleCount++;
-		}
+        // Software Occlusion Culling
+        if (enableOcclusionCulling) {
+            if (m_depthBuffer.TestAABB(worldBounds, cullingViewProj, depthBias)) {
+                occInst.isOcclusionCulled = true;
+                occInst.isVisible = false;
+                inst.visible = false;
+                m_stats.occlusionCulledCount++;
+                occludees.emplace_back(occInst);
+                continue;
+            }
+        }
 
-		const auto tQueryEnd = core::getTimeStamp();
-		const auto tEnd = core::getTimeStamp();
+        occInst.isVisible = true;
+        inst.visible = true;
+        occludees.emplace_back(occInst);
+        m_stats.visibleCount++;
+    }
 
-		m_stats.rasterizeTimeUs = static_cast<float>(core::getMicroseconds(tRasterStart, tRasterEnd));
-		m_stats.queryTimeUs = static_cast<float>(core::getMicroseconds(tQueryStart, tQueryEnd));
-		m_stats.totalCullingTimeUs = static_cast<float>(core::getMicroseconds(tStart, tEnd));
+    const auto tQueryEnd = core::getTimeStamp();
+    const auto tEnd = core::getTimeStamp();
 
-		const uint32_t culledTotal = m_stats.frustumCulledCount + m_stats.occlusionCulledCount;
-		m_stats.cullingRatioPercent = (m_stats.totalObjects > 0)
-			? (static_cast<float>(culledTotal) / static_cast<float>(m_stats.totalObjects)) * 100.0f
-			: 0.0f;
-	}
+    m_stats.rasterizeTimeUs = static_cast<float>(core::getMicroseconds(tRasterStart, tRasterEnd));
+    m_stats.queryTimeUs = static_cast<float>(core::getMicroseconds(tQueryStart, tQueryEnd));
+    m_stats.totalCullingTimeUs = static_cast<float>(core::getMicroseconds(tStart, tEnd));
+
+    const uint32_t culledTotal = m_stats.frustumCulledCount + m_stats.occlusionCulledCount;
+    m_stats.cullingRatioPercent = (m_stats.totalObjects > 0)
+        ? (static_cast<float>(culledTotal) / static_cast<float>(m_stats.totalObjects)) * 100.0f
+        : 0.0f;
+}
 
 } // namespace elm
