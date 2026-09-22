@@ -80,7 +80,6 @@ public:
 
 private:
     void InitPipeline();
-    void CreateMeshBuffers();
     void CreateEngineViewport(uint32_t width, uint32_t height);
 
     void Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>& objects);
@@ -97,11 +96,7 @@ private:
     Diligent::IPipelineState* m_pPSO { nullptr };
     Diligent::IPipelineState* m_pHighlightPSO { nullptr };
     Diligent::IShaderResourceBinding* m_pSRB { nullptr };
-
-    core::Handler m_cube;
-    core::Handler m_wall;
-    core::Handler m_ground;
-
+        
     // Dynamic Instance Buffer
     static constexpr size_t MaxInstances = 30000;
 

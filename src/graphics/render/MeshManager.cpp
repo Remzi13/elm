@@ -1,5 +1,7 @@
 #include "graphics/render/MeshManager.h"
 
+#include "core/Debug.hpp"
+
 #include "graphics/MeshDataStorage.hpp"
 
 namespace elm {
@@ -26,11 +28,16 @@ namespace render {
 
     void MeshManager::DestroyMesh(const core::Handler& handler)
     {
+        ELM_ASSERT(handler.GetType() == core::Handler::Type::Render);
+
         m_commandList->Push(command::DestroyMesh { handler });
     }
 
     void MeshManager::PushMesh(core::Handler handler, const core::Handler& meshData, const Mesh& mesh)
     {
+        ELM_ASSERT(handler.GetType() == core::Handler::Type::Render);
+        ELM_ASSERT(meshData.GetType() == core::Handler::Type::Resource);
+
         m_meshes.push_back(std::make_pair(handler, std::make_pair(meshData, mesh)));
     }
 
@@ -54,6 +61,8 @@ namespace render {
 
     const Mesh& MeshManager::GetMesh(core::Handler handler) const
     {
+        ELM_ASSERT(handler.GetType() == core::Handler::Type::Render);
+
         for (const auto& m : m_meshes) {
             if (m.first == handler)
                 return m.second.second;
@@ -63,6 +72,8 @@ namespace render {
 
     const Mesh& MeshManager::GetMeshByData(core::Handler meshData) const
     {
+        ELM_ASSERT(meshData.GetType() == core::Handler::Type::Resource);
+
         for (const auto& m : m_meshes) {
             if (m.second.first == meshData)
                 return m.second.second;

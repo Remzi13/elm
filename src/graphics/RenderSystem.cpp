@@ -337,8 +337,6 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
 
 void RenderSystem::InitPipeline()
 {
-    CreateMeshBuffers();
-
     // Create Shaders
     Diligent::ShaderCreateInfo ShaderCI;
     ShaderCI.SourceLanguage = Diligent::SHADER_SOURCE_LANGUAGE_HLSL;
@@ -436,23 +434,6 @@ void RenderSystem::InitPipeline()
     m_renderDevice->CreateGraphicsPipelineState(HighlightPSOCI, &m_pHighlightPSO);
 
     CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
-}
-
-void RenderSystem::CreateMeshBuffers()
-{
-    using namespace render;
-
-    const MeshData cubeMesh = GeometryPrimitives::CreateCube(1.0f);
-    storeMeshData(cubeMesh);
-    m_cube = m_meshManager.CreateMesh(cubeMesh);
-
-    const MeshData wallMesh = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
-    storeMeshData(wallMesh);
-    m_wall = m_meshManager.CreateMesh(wallMesh);
-
-    const MeshData groundMesh = GeometryPrimitives::CreateGroundPlane(160.0f, 160.0f);
-    storeMeshData(groundMesh);
-    m_ground = m_meshManager.CreateMesh(groundMesh);
 }
 
 void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)

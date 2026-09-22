@@ -1,5 +1,7 @@
 #include "graphics/render/BufferManager.hpp"
 
+#include "core/Debug.hpp"
+
 #include "graphics/render/backends/Utils.hpp"
 
 #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
@@ -51,6 +53,8 @@ namespace render {
 
     Diligent::IBuffer* BufferManager::GetBufferImpl(const core::Handler& handler) const
     {
+        ELM_ASSERT(handler.GetType() == core::Handler::Type::Render);
+
         auto it = m_buffers.find(handler);
         if (it != m_buffers.end())
             return it->second;
@@ -59,6 +63,8 @@ namespace render {
 
     void BufferManager::DestroyBuffer(core::Handler handler)
     {
+        ELM_ASSERT(handler.GetType() == core::Handler::Type::Render);
+
         auto it = m_buffers.find(handler);
         if (it != m_buffers.end()) {
             it->second->Release();
