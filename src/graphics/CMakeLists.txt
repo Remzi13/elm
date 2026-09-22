@@ -22,6 +22,9 @@ engine_add_library(graphics
     
     render/Render.hpp
     render/Command.hpp
+    render/CommandList.hpp
+    render/CommandQueue.hpp
+    render/CommandQueue.cpp
     render/BufferManager.hpp
     render/BufferManager.cpp
     render/Texture.hpp

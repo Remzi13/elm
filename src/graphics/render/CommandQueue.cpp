@@ -1,4 +1,4 @@
-#include "graphics/render/CommandQueue.h"
+#include "graphics/render/CommandQueue.hpp"
 
 namespace elm {
 namespace render {

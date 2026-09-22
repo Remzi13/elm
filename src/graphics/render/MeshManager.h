@@ -1,15 +1,18 @@
 #pragma once
 
+#include "core/Handler.hpp"
 #include "core/Std.hpp"
 
-#include "graphics/render/Command.hpp"
+#include "math/Primitivs.hpp"
+
+#include "graphics/render/CommandQueue.hpp"
 #include "graphics/render/Render.hpp"
 
 namespace elm {
 namespace render {
     class MeshManager {
     public:
-        bool Init(CommandList* commandList);
+        bool Init(CommandQueue* commandQueue);
 
         [[nodiscard]] core::Handler CreateMesh(const MeshData& data);
         void DestroyMesh(const core::Handler& handler);
@@ -20,7 +23,7 @@ namespace render {
 
     private:
         Mesh m_emptyMesh;
-        CommandList* m_commandList { nullptr };
+        CommandQueue* m_commandQuee { nullptr };
         core::Handler::ValueType m_index { 0 };
         Vector<std::pair<core::Handler, std::pair<core::Handler, Mesh>>> m_meshes;
     };

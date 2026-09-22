@@ -318,10 +318,10 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     if (!m_bufferManager.Init(m_renderDevice, m_deviceContext))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
 
-    if (!m_textureManager.Init(&m_commandList))
+    if (!m_textureManager.Init(&m_commandQueue))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Texture Manager "));
 
-    if (!m_meshManager.Init(&m_commandList))
+    if (!m_meshManager.Init(&m_commandQueue))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Mesh Manager "));
 
     m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
@@ -503,6 +503,8 @@ void RenderSystem::BeginFrame()
     if (!m_swapChain || !m_deviceContext)
         return;
 
+    m_commandQueue.BeginFrame();
+
     auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
     auto* pDSV = m_swapChain->GetDepthBufferDSV();
 
@@ -541,9 +543,8 @@ void RenderSystem::Draw(FrameData& frameData)
     if (!m_deviceContext || !m_pPSO)
         return;
 
-    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
-    m_commandList.Execute(executor);
-    m_commandList.Clear();
+    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);    
+    m_commandQueue.Execute(executor);
 
     if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
         if (m_engineViewportIsShaderResource) {

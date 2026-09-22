@@ -12,7 +12,7 @@
 #include "graphics/render/MeshManager.h"
 #include "graphics/render/TextureManager.hpp"
 
-#include "graphics/render/Command.hpp"
+#include "graphics/render/CommandQueue.hpp"
 
 struct GLFWwindow;
 
@@ -119,7 +119,8 @@ private:
     uint32_t m_height { 720 };
     bool m_initialized { false };
 
-    render::CommandList m_commandList;
+    render::CommandQueue m_commandQueue;
+
 };
 
 } // namespace Engine

@@ -4,7 +4,7 @@
 #include "core/Handler.hpp"
 
 #include "graphics/render/Texture.hpp"
-#include "graphics/render/Command.hpp"
+#include "graphics/render/CommandQueue.hpp"
 
 namespace Diligent {
 	struct ITexture;
@@ -27,7 +27,7 @@ namespace elm::render {
 
 		static TextureManager& Get();
 
-		bool Init(CommandList* commandList);
+		bool Init(CommandQueue* commandQueue);
 
 		[[nodiscard]] core::Handler CreateTexture(const TextureInfo& info);	
 
@@ -47,7 +47,7 @@ namespace elm::render {
 		UnorderedMap<core::Handler, Data> m_textures;
 		int m_currentIndex{ 0 };
 
-		CommandList* m_commandList{ nullptr };
+		CommandQueue* m_commandQueue{ nullptr };
 	};
 
 } // namespace elm::render

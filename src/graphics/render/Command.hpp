@@ -1,9 +1,7 @@
 #pragma once
 
-#include "math/Primitivs.hpp"
 
 #include "graphics/render/CommandList.hpp"
-#include "graphics/render/Render.hpp"
 #include "graphics/render/Texture.hpp"
 
 namespace elm {

@@ -1,6 +1,7 @@
 #include "graphics/render/MeshManager.h"
 
 #include "core/Debug.hpp"
+#include "core/Handler.hpp"
 
 #include "graphics/MeshDataStorage.hpp"
 
@@ -11,18 +12,18 @@ namespace render {
         MeshManager* g_meshManager { nullptr };
     }
 
-    bool MeshManager::Init(CommandList* commandList)
+    bool MeshManager::Init(CommandQueue* commandQueue)
     {
-        m_commandList = commandList;
+        m_commandQuee = commandQueue;
         g_meshManager = this;
-        return m_commandList != nullptr;
+        return m_commandQuee != nullptr;
     }
 
     core::Handler MeshManager::CreateMesh(const MeshData& data)
     {
         const auto& meshData = storeMeshData(data);
-        auto handler = core::Handler(m_index++, core::Handler::Render);
-        m_commandList->Push(command::CreateMesh { handler, meshData });
+        auto handler = core::Handler(m_index++, core::Handler::Type::Render);
+        m_commandQuee->Push(command::CreateMesh { handler, meshData });
         return handler;
     }
 
@@ -30,7 +31,7 @@ namespace render {
     {
         ELM_ASSERT(handler.GetType() == core::Handler::Type::Render);
 
-        m_commandList->Push(command::DestroyMesh { handler });
+        m_commandQuee->Push(command::DestroyMesh { handler });
     }
 
     void MeshManager::PushMesh(core::Handler handler, const core::Handler& meshData, const Mesh& mesh)
