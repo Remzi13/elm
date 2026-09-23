@@ -23,7 +23,7 @@ namespace render {
 
     private:
         Mesh m_emptyMesh;
-        CommandQueue* m_commandQuee { nullptr };
+        CommandQueue* m_commandQueue { nullptr };
         core::Handler::ValueType m_index { 0 };
         Vector<std::pair<core::Handler, std::pair<core::Handler, Mesh>>> m_meshes;
     };
