@@ -62,6 +62,7 @@ public:
     [[nodiscard]] bool ShouldClose() const;
 
     void BeginFrame();
+    void CommitCommands();
     void Draw(FrameData& frameData);
     void EndFrame();
     void Shutdown();

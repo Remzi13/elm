@@ -498,6 +498,11 @@ bool RenderSystem::ShouldClose() const
     return m_window ? glfwWindowShouldClose(m_window) : true;
 }
 
+void RenderSystem::CommitCommands()
+{
+    m_commandQueue.CommitFrame();
+}
+
 void RenderSystem::BeginFrame()
 {
     if (!m_swapChain || !m_deviceContext)
@@ -521,19 +526,32 @@ void RenderSystem::Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>&
     }
 
     for (const auto& obj : objects) {
+        if (obj.second.empty()) {
+            continue;
+        }
+
         const auto& mesh = m_meshManager.GetMesh(obj.first);
+        if (mesh.indexCount == 0 || !mesh.vb.IsValid() || !mesh.ib.IsValid()) {
+            continue;
+        }
+
+        Diligent::IBuffer* pVB = m_bufferManager.GetBufferImpl(mesh.vb);
+        Diligent::IBuffer* pIB = m_bufferManager.GetBufferImpl(mesh.ib);
+        if (!pVB || !pIB) {
+            continue;
+        }
 
         auto alloc = m_dynamicInstanceBuffer.Allocate(m_deviceContext, sizeof(RenderObject) * obj.second.size(), 16);
         std::memcpy(alloc.pCPUAddress, obj.second.data(), sizeof(RenderObject) * obj.second.size());
 
         const Diligent::Uint64 offsets[] = { 0, alloc.offset };
-        Diligent::IBuffer* pVBs[] = { m_bufferManager.GetBufferImpl(mesh.vb), alloc.buffer };
+        Diligent::IBuffer* pVBs[] = { pVB, alloc.buffer };
 
         m_deviceContext->SetVertexBuffers(0, 2, pVBs, offsets, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-        m_deviceContext->SetIndexBuffer(m_bufferManager.GetBufferImpl(mesh.ib), 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+        m_deviceContext->SetIndexBuffer(pIB, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
         Diligent::DrawIndexedAttribs DrawAttrs { mesh.indexCount, Diligent::VT_UINT32, Diligent::DRAW_FLAG_VERIFY_ALL };
-        DrawAttrs.NumInstances = obj.second.size();
+        DrawAttrs.NumInstances = static_cast<Diligent::Uint32>(obj.second.size());
         m_deviceContext->DrawIndexed(DrawAttrs);
     }
 }

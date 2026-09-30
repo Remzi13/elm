@@ -13,8 +13,14 @@ engine_add_library(core
     Threading.cpp
     Handler.hpp
     Handler.cpp
+    Profiling.hpp
 )
 
 target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
+
+if(TARGET TracyClient)
+    target_link_libraries(core PUBLIC TracyClient)
+endif()
+

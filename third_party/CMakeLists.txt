@@ -89,6 +89,30 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(JoltPhysics)
 
+# ------------------------------------------------------------------------------
+# Tracy Profiler
+# ------------------------------------------------------------------------------
+set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+    tracy
+    GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+    GIT_TAG        v0.11.1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(tracy)
+
+# Build the Tracy Profiler GUI executable (tracy-profiler) in dependencies
+if(EXISTS "${tracy_SOURCE_DIR}/profiler")
+    set(NO_PARALLEL_STL ON CACHE BOOL "" FORCE)
+    set(LEGACY ON CACHE BOOL "" FORCE)
+    add_subdirectory(${tracy_SOURCE_DIR}/profiler ${CMAKE_BINARY_DIR}/tracy-profiler)
+endif()
+
+
+
+
 set_dependency_folder("${glfw_SOURCE_DIR}")
 set_dependency_folder("${diligentengine_SOURCE_DIR}")
 set_dependency_folder("${JoltPhysics_SOURCE_DIR}")
@@ -97,3 +121,5 @@ set_dependency_folder("${JoltPhysics_SOURCE_DIR}")
 set(glfw_SOURCE_DIR "${glfw_SOURCE_DIR}" PARENT_SCOPE)
 set(diligentengine_SOURCE_DIR "${diligentengine_SOURCE_DIR}" PARENT_SCOPE)
 set(JoltPhysics_SOURCE_DIR "${JoltPhysics_SOURCE_DIR}" PARENT_SCOPE)
+set(tracy_SOURCE_DIR "${tracy_SOURCE_DIR}" PARENT_SCOPE)
+

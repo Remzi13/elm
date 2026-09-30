@@ -1,6 +1,7 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 
 #include "core/Timer.hpp"
+#include "core/Profiling.hpp"
 
 #include "graphics/MeshDataStorage.hpp"
 
@@ -50,7 +51,9 @@ void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor)
 
 void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees)
 {
+    ELM_PROFILE_SCOPE_N("Execute Culling");
     const auto tStart = core::getTimeStamp();
+
 
     occludees.clear();
 

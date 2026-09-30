@@ -2,6 +2,7 @@
 #include "graphics/ui/DepthPreviewWindow.hpp"
 
 #include "core/Timer.hpp"
+#include "core/Profiling.hpp"
 
 #include <iostream>
 
@@ -83,34 +84,43 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 // ─────────────────────────────────────────────────────────────────────────────
 void EngineApp::RenderThreadFunc()
 {
+    ELM_PROFILE_THREAD("Render Thread");
+
     while (true) {
-        // ── Wait for a new frame packet from the update thread ────────
         size_t readIndex;
         {
+            ELM_PROFILE_SCOPE_N("Wait For Frame Packet");
             std::unique_lock lock(m_frameMutex);
             m_frameCv.wait(lock, [this] { return m_frameReady || m_shouldExit.load(std::memory_order_relaxed); });
 
             if (m_shouldExit.load(std::memory_order_relaxed) && !m_frameReady)
                 break;
 
-            // The update thread just finished writing to m_packetWriteIndex,
-            // then flipped it. So we read from the *previous* index.
             readIndex = (m_packetWriteIndex + kPacketCount - 1) % kPacketCount;
             m_frameReady = false;
         }
 
         // ── Render the frame ──────────────────────────────────────────
-        FramePacket& packet = m_framePackets[readIndex];
+        {
+            ELM_PROFILE_SCOPE_N("Render Thread Execute Frame");
+            FramePacket& packet = m_framePackets[readIndex];
 
-        if (m_renderSystem) {
-            m_renderSystem->BeginFrame();
+            if (m_renderSystem) {
+                m_renderSystem->BeginFrame();
 
-            m_renderSystem->Draw(packet.frameData);
+                {
+                    ELM_PROFILE_SCOPE_N("Draw Scene Objects");
+                    m_renderSystem->Draw(packet.frameData);
+                }
 
-            m_imguiSystem->BeginFrame(*m_renderSystem);
-            m_imguiSystem->Render(*m_renderSystem, m_scene, packet.stats);
+                {
+                    ELM_PROFILE_SCOPE_N("Render ImGui UI");
+                    m_imguiSystem->BeginFrame(*m_renderSystem);
+                    m_imguiSystem->Render(*m_renderSystem, m_scene, packet.stats);
+                }
 
-            m_renderSystem->EndFrame();
+                m_renderSystem->EndFrame();
+            }
         }
 
         // ── Signal the update thread that rendering is done ──────────
@@ -132,6 +142,7 @@ auto EngineApp::Run() -> EngineResult<void>
     }
 
     std::cout << "[EngineApp] Entering main loop with pipelined Update/Render." << std::endl;
+    ELM_PROFILE_THREAD("Main Thread");
 
     // Start the render thread
     m_renderThread = std::thread(&EngineApp::RenderThreadFunc, this);
@@ -140,6 +151,9 @@ auto EngineApp::Run() -> EngineResult<void>
     float accumulator = 0.0f;
 
     while (m_isRunning && !m_renderSystem->ShouldClose()) {
+        ELM_PROFILE_FRAME();
+        ELM_PROFILE_SCOPE_N("Main Thread Loop");
+
         auto currentTime = core::getTimeStamp();
         float deltaTime = static_cast<float>(core::getMilliseconds(lastTime, currentTime)) / 1000.f;
         lastTime = currentTime;
@@ -152,7 +166,10 @@ auto EngineApp::Run() -> EngineResult<void>
         accumulator += deltaTime;
 
         // ── 1. Process input (must be on main thread for GLFW) ────────
-        m_inputSystem->BeginFrame();
+        {
+            ELM_PROFILE_SCOPE_N("Process Input");
+            m_inputSystem->BeginFrame();
+        }
 
         // ── 2. Fixed Timestep Physics Update ──────────────────────────
         while (accumulator >= m_fixedTimeStep) {
@@ -163,10 +180,9 @@ auto EngineApp::Run() -> EngineResult<void>
         // ── 3. Variable-rate game logic update ────────────────────────
         Update(deltaTime);
 
-        // Update depth preview texture on the main thread — must happen
-        // after ExecuteCulling (inside Update) so the depth buffer is stable,
-        // and before the render thread picks it up via CommandQueue.
+        // Update depth preview texture on the main thread
         {
+            ELM_PROFILE_SCOPE_N("Update Depth Preview Texture");
             const bool falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
             m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
         }
@@ -174,8 +190,8 @@ auto EngineApp::Run() -> EngineResult<void>
         m_settings.Flash();
 
         // ── 4. Wait for the render thread to finish the previous frame ─
-        //    (back-pressure: we don't get more than 1 frame ahead)
         {
+            ELM_PROFILE_SCOPE_N("Wait For Render Thread (Backpressure)");
             std::unique_lock lock(m_frameMutex);
             m_frameCv.wait(lock, [this] { return m_renderDone; });
             m_renderDone = false;
@@ -183,6 +199,7 @@ auto EngineApp::Run() -> EngineResult<void>
 
         // ── 5. Build the FramePacket for this frame ───────────────────
         {
+            ELM_PROFILE_SCOPE_N("Build FramePacket Snapshot");
             FramePacket& packet = m_framePackets[m_packetWriteIndex];
 
             packet.deltaTime = deltaTime;
@@ -201,6 +218,11 @@ auto EngineApp::Run() -> EngineResult<void>
 
             // Flip the write index for next frame
             m_packetWriteIndex = (m_packetWriteIndex + 1) % kPacketCount;
+        }
+
+        // Commit queued render commands atomically to lock-free queue
+        if (m_renderSystem) {
+            m_renderSystem->CommitCommands();
         }
 
         // ── 6. Signal the render thread that a new frame is ready ─────
@@ -224,6 +246,7 @@ auto EngineApp::Run() -> EngineResult<void>
 
 void EngineApp::FixedUpdate(float fixedDeltaTime)
 {
+    ELM_PROFILE_SCOPE_N("FixedUpdate Physics Step");
     if (m_physicsSystem) {
         m_physicsSystem->Step(fixedDeltaTime);
     }
@@ -231,6 +254,8 @@ void EngineApp::FixedUpdate(float fixedDeltaTime)
 
 void EngineApp::Update(float deltaTime)
 {
+    ELM_PROFILE_SCOPE_N("Update Engine Logic");
+
     // Accumulate FPS statistics
     m_frameCounterTime += deltaTime;
     m_frameCount++;
@@ -257,6 +282,7 @@ void EngineApp::Update(float deltaTime)
         m_currentStats.groundTransform = m_physicsSystem->GetGroundTransform();
     }
 }
+
 
 void EngineApp::Shutdown()
 {
