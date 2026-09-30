@@ -43,6 +43,7 @@ namespace elm::render {
 		void clear();
 
 	private:
+		std::mutex m_textureMangerMutex;
 		static TextureManager* s_instance;
 		UnorderedMap<core::Handler, Data> m_textures;
 		int m_currentIndex{ 0 };

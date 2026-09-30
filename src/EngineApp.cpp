@@ -76,13 +76,65 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     return { };
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render thread — runs on a dedicated std::thread.
+// Consumes FramePackets produced by the update (main) thread.
+// ─────────────────────────────────────────────────────────────────────────────
+void EngineApp::RenderThreadFunc()
+{
+    while (true) {
+        // ── Wait for a new frame packet from the update thread ────────
+        size_t readIndex;
+        {
+            std::unique_lock lock(m_frameMutex);
+            m_frameCv.wait(lock, [this] { return m_frameReady || m_shouldExit.load(std::memory_order_relaxed); });
+
+            if (m_shouldExit.load(std::memory_order_relaxed) && !m_frameReady)
+                break;
+
+            // The update thread just finished writing to m_packetWriteIndex,
+            // then flipped it. So we read from the *previous* index.
+            readIndex = (m_packetWriteIndex + kPacketCount - 1) % kPacketCount;
+            m_frameReady = false;
+        }
+
+        // ── Render the frame ──────────────────────────────────────────
+        FramePacket& packet = m_framePackets[readIndex];
+
+        if (m_renderSystem) {
+            m_renderSystem->BeginFrame();
+
+            m_renderSystem->Draw(packet.frameData);
+
+            m_imguiSystem->BeginFrame(*m_renderSystem);
+            m_imguiSystem->Render(*m_renderSystem, m_scene, packet.stats);
+
+            m_renderSystem->EndFrame();
+        }
+
+        // ── Signal the update thread that rendering is done ──────────
+        {
+            std::lock_guard lock(m_frameMutex);
+            m_renderDone = true;
+        }
+        m_frameCv.notify_one();
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main loop — runs on the main thread (required for GLFW event polling).
+// ─────────────────────────────────────────────────────────────────────────────
 auto EngineApp::Run() -> EngineResult<void>
 {
     if (!m_isRunning) {
         return std::unexpected(EngineError(ErrorCode::UnknownError, "EngineApp::Run called without prior successful initialization"));
     }
 
-    std::cout << "[EngineApp] Entering main loop with fixed timestep physics accumulator." << std::endl;
+    std::cout << "[EngineApp] Entering main loop with pipelined Update/Render." << std::endl;
+
+    // Start the render thread
+    m_renderThread = std::thread(&EngineApp::RenderThreadFunc, this);
 
     auto lastTime = core::getTimeStamp();
     float accumulator = 0.0f;
@@ -99,24 +151,71 @@ auto EngineApp::Run() -> EngineResult<void>
 
         accumulator += deltaTime;
 
-        //
+        // ── 1. Process input (must be on main thread for GLFW) ────────
+        m_inputSystem->BeginFrame();
+
+        // ── 2. Fixed Timestep Physics Update ──────────────────────────
+        while (accumulator >= m_fixedTimeStep) {
+            FixedUpdate(m_fixedTimeStep);
+            accumulator -= m_fixedTimeStep;
+        }
+
+        // ── 3. Variable-rate game logic update ────────────────────────
+        Update(deltaTime);
+
+        // Update depth preview texture on the main thread — must happen
+        // after ExecuteCulling (inside Update) so the depth buffer is stable,
+        // and before the render thread picks it up via CommandQueue.
         {
-            m_inputSystem->BeginFrame();
-            // Fixed Timestep Physics Update
-            while (accumulator >= m_fixedTimeStep) {
-                FixedUpdate(m_fixedTimeStep);
-                accumulator -= m_fixedTimeStep;
+            const bool falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
+            m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
+        }
+
+        m_settings.Flash();
+
+        // ── 4. Wait for the render thread to finish the previous frame ─
+        //    (back-pressure: we don't get more than 1 frame ahead)
+        {
+            std::unique_lock lock(m_frameMutex);
+            m_frameCv.wait(lock, [this] { return m_renderDone; });
+            m_renderDone = false;
+        }
+
+        // ── 5. Build the FramePacket for this frame ───────────────────
+        {
+            FramePacket& packet = m_framePackets[m_packetWriteIndex];
+
+            packet.deltaTime = deltaTime;
+            packet.stats = m_currentStats;
+
+            // Camera snapshot
+            packet.frameData.camera = m_camera;
+
+            // Visible object list snapshot
+            packet.frameData.objects.clear();
+            for (const auto& inst : m_scene.instances) {
+                if (inst.visible) {
+                    packet.frameData.objects[inst.renderMesh].push_back({ inst.worldTransform, inst.color });
+                }
             }
 
-            // Frame variable update & rendering
-            Update(deltaTime);
+            // Flip the write index for next frame
+            m_packetWriteIndex = (m_packetWriteIndex + 1) % kPacketCount;
+        }
 
-            m_settings.Flash();
-        }
-        // Draw
+        // ── 6. Signal the render thread that a new frame is ready ─────
         {
-            Render(deltaTime);
+            std::lock_guard lock(m_frameMutex);
+            m_frameReady = true;
         }
+        m_frameCv.notify_one();
+    }
+
+    // ── Signal render thread to exit ──────────────────────────────────────
+    m_shouldExit.store(true, std::memory_order_release);
+    m_frameCv.notify_one();
+    if (m_renderThread.joinable()) {
+        m_renderThread.join();
     }
 
     std::cout << "[EngineApp] Main loop exited." << std::endl;
@@ -159,39 +258,19 @@ void EngineApp::Update(float deltaTime)
     }
 }
 
-void EngineApp::Render([[maybe_unused]] float deltaTime)
-{
-    if (!m_renderSystem)
-        return;
-
-    m_renderSystem->BeginFrame();
-
-    FrameData data;
-    data.camera = m_camera;
-
-    for (const auto& inst : m_scene.instances) {
-        if (inst.visible) {
-            data.objects[inst.renderMesh].push_back({ inst.worldTransform, inst.color });
-        }
-    }
-
-    const bool falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
-    m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
-
-    m_renderSystem->Draw(data);
-
-    m_imguiSystem->BeginFrame(*m_renderSystem);
-    m_imguiSystem->Render(*m_renderSystem, m_scene, m_currentStats);
-
-    m_renderSystem->EndFrame();
-}
-
 void EngineApp::Shutdown()
 {
     if (!m_isRunning)
         return;
 
     std::cout << "[EngineApp] Shutting down systems..." << std::endl;
+
+    // Ensure the render thread is stopped before destroying resources
+    m_shouldExit.store(true, std::memory_order_release);
+    m_frameCv.notify_one();
+    if (m_renderThread.joinable()) {
+        m_renderThread.join();
+    }
 
     if (m_physicsSystem) {
         m_physicsSystem->Shutdown();

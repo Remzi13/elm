@@ -46,7 +46,7 @@ namespace render {
     }
 
     Diligent::ITexture* TextureManager::GetTextureImpl(const core::Handler& handler) const
-    {
+    {     
         auto it = m_textures.find(handler);
         if (it != m_textures.end()) {
             return it->second.pTexture;
@@ -55,7 +55,7 @@ namespace render {
     }
 
     Diligent::ITextureView* TextureManager::GetTextureView(core::Handler handler) const
-    {
+    {        
         auto it = m_textures.find(handler);
         if (it != m_textures.end()) {
             return it->second.pSRV;
@@ -65,7 +65,7 @@ namespace render {
 
     void TextureManager::UpdateTexture(const core::Handler& handler, const TextureData& textureData)
     {
-
+        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
         if (textureData.data.empty())
             return;
 
@@ -81,6 +81,7 @@ namespace render {
 
     void TextureManager::DestroyTexture(const core::Handler& handler)
     {
+        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
         auto it = m_textures.find(handler);
         if (it != m_textures.end()) {
             if (it->second.pSRV) {
@@ -97,6 +98,7 @@ namespace render {
 
     void TextureManager::clear()
     {
+        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
         for (auto& [_, texData] : m_textures) {
             if (texData.pSRV) {
                 texData.pSRV->Release();
