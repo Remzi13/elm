@@ -461,14 +461,21 @@ void RenderSystem::InitPipeline()
 
 }
 
-void RenderSystem::InitializeEngineViewportTexture(core::Handler colorTexture, core::Handler depthTexture,
+void RenderSystem::InitializeEngineViewportTexture(const render::TextureInfo& colorTextureInfo,
+    const render::TextureInfo& depthTextureInfo,
     uint32_t width, uint32_t height)
 {
-    if (!m_initialized || !colorTexture.IsValid() || !depthTexture.IsValid())
+    if (!m_initialized)
         return;
 
-    m_engineViewportTexture = colorTexture;
-    m_engineViewportDepthTexture = depthTexture;
+    auto& textureManager = render::TextureManager::Get();
+    auto colorTexture = textureManager.CreateTexture(colorTextureInfo);
+    auto depthTexture = textureManager.CreateTexture(depthTextureInfo);
+    if (!colorTexture.IsValid() || !depthTexture.IsValid())
+        return;
+
+    m_engineViewportTexture = std::move(colorTexture);
+    m_engineViewportDepthTexture = std::move(depthTexture);
     const ViewportSize requestedSize { width, height };
     m_engineViewportSize.store(requestedSize, std::memory_order_release);
     if (width > 0 && height > 0)
@@ -478,8 +485,8 @@ void RenderSystem::InitializeEngineViewportTexture(core::Handler colorTexture, c
 void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
 {
     const ViewportSize requestedSize { width, height };
-    const auto colorHandler = m_engineViewportTexture;
-    const auto depthHandler = m_engineViewportDepthTexture;
+    const auto colorHandler = m_engineViewportTexture.GetHandler();
+    const auto depthHandler = m_engineViewportDepthTexture.GetHandler();
     const auto* colorData = m_textureStore.Find(colorHandler);
     const auto* depthData = m_textureStore.Find(depthHandler);
     const auto currentSize = m_engineViewportSize.load(std::memory_order_acquire);
@@ -757,11 +764,8 @@ void RenderSystem::Shutdown()
         return;
 
     m_resourceProvider.reset();
-    auto& textureManager = render::TextureManager::Get();
     m_engineViewportRenderTarget = {};
     m_engineViewportDepthStencil = {};
-    textureManager.DestroyTexture(m_engineViewportTexture);
-    textureManager.DestroyTexture(m_engineViewportDepthTexture);
     m_engineViewportTexture = {};
     m_engineViewportDepthTexture = {};
 

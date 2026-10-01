@@ -21,7 +21,6 @@ namespace elm::render {
 	class Texture {
 	public:
 		Texture() = default;
-		explicit Texture(const TextureInfo& info);
 		Texture(const TextureInfo& info, core::Handler handler);
 		~Texture();
 

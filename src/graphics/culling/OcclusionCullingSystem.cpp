@@ -4,6 +4,7 @@
 #include "core/Profiling.hpp"
 
 #include "graphics/MeshDataStorage.hpp"
+#include "graphics/render/TextureManager.hpp"
 
 namespace elm {
 
@@ -36,7 +37,7 @@ void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t 
     texInfo.usage = render::TextureUsage::Default;
     texInfo.bindFlags = render::TextureBindFlags::BindShaderResource;
 
-    m_depthPreviewTexture = render::Texture(texInfo);
+    m_depthPreviewTexture = render::TextureManager::Get().CreateTexture(texInfo);
     m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, width * sizeof(uint32_t)));
 }
 

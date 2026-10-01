@@ -3,11 +3,6 @@
 
 namespace elm::render {
 
-	Texture::Texture(const TextureInfo& info)
-		: m_info(info) {
-		m_handler = TextureManager::Get().CreateTexture(info);
-	}
-
 	Texture::Texture(const TextureInfo& info, core::Handler handler)
 		: m_handler(handler)
 		, m_info(info) {

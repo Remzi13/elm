@@ -47,15 +47,13 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     viewportTextureInfo.height = height;
     viewportTextureInfo.format = render::TextureFormat::Unknown;
     viewportTextureInfo.bindFlags = render::TextureBindFlags::BindRenderTarget | render::TextureBindFlags::BindShaderResource;
-    const core::Handler viewportTexture = textureManager.AllocateHandler(viewportTextureInfo);
     render::TextureInfo viewportDepthInfo;
     viewportDepthInfo.name = "Engine Viewport Depth";
     viewportDepthInfo.width = width;
     viewportDepthInfo.height = height;
     viewportDepthInfo.format = render::TextureFormat::Unknown;
     viewportDepthInfo.bindFlags = render::TextureBindFlags::BindDepthStencil;
-    const core::Handler viewportDepth = textureManager.AllocateHandler(viewportDepthInfo);
-    m_renderSystem->InitializeEngineViewportTexture(viewportTexture, viewportDepth, width, height);
+    m_renderSystem->InitializeEngineViewportTexture(viewportTextureInfo, viewportDepthInfo, width, height);
     m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
     m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 

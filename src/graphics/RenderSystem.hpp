@@ -11,6 +11,7 @@
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/render/MeshManager.h"
 #include "graphics/render/SwapChain.hpp"
+#include "graphics/render/Texture.hpp"
 #include "graphics/render/TextureStore.hpp"
 
 #include "graphics/render/CommandQueue.hpp"
@@ -69,7 +70,8 @@ public:
     [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
         void* nativeDisplay, bool withDepthBuffer = true);
     [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_commandQueue; }
-    void InitializeEngineViewportTexture(core::Handler colorTexture, core::Handler depthTexture,
+    void InitializeEngineViewportTexture(const render::TextureInfo& colorTextureInfo,
+        const render::TextureInfo& depthTextureInfo,
         uint32_t width, uint32_t height);
     void QueueEngineViewportResize(uint32_t width, uint32_t height);
 
@@ -87,7 +89,7 @@ public:
 
     // --- Main thread, except atomic engine-viewport dimensions ---
     [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
-    [[nodiscard]] core::Handler GetEngineViewportTexture() const { return m_engineViewportTexture; }
+    [[nodiscard]] core::Handler GetEngineViewportTexture() const { return m_engineViewportTexture.GetHandler(); }
     [[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportSize.load(std::memory_order_acquire).width; }
     [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportSize.load(std::memory_order_acquire).height; }
     [[nodiscard]] float GetEngineViewportAspectRatio() const {
@@ -129,8 +131,8 @@ private:
     static constexpr size_t MaxInstances = 30000;
 
     // Offscreen render target displayed inside the dockspace.
-    core::Handler m_engineViewportTexture;
-    core::Handler m_engineViewportDepthTexture;
+    render::Texture m_engineViewportTexture;
+    render::Texture m_engineViewportDepthTexture;
     render::ResourceView m_engineViewportRenderTarget;
     render::ResourceView m_engineViewportDepthStencil;
     std::atomic<ViewportSize> m_engineViewportSize { ViewportSize{} };

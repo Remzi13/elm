@@ -29,27 +29,19 @@ namespace render {
         m_textureInfos.clear();
     }
 
-    core::Handler TextureManager::AllocateHandler(const TextureInfo& info)
+    Texture TextureManager::CreateTexture(const TextureInfo& info)
     {
         if (!m_commandQueue) {
             return {};
         }
 
         const core::Handler handler(++m_currentIndex, core::Handler::Render);
-        std::lock_guard<std::mutex> lock(m_textureInfosMutex);
-        m_textureInfos.emplace(handler, info);
-        return handler;
-    }
-
-    core::Handler TextureManager::CreateTexture(const TextureInfo& info)
-    {
-        const core::Handler handler = AllocateHandler(info);
-        if (!handler.IsValid()) {
-            return {};
+        {
+            std::lock_guard<std::mutex> lock(m_textureInfosMutex);
+            m_textureInfos.emplace(handler, info);
         }
-
         m_commandQueue->Push(command::CreateTexture({ .handler = handler, .info = info }));
-        return handler;
+        return Texture(info, handler);
     }
 
     void TextureManager::UpdateTexture(const core::Handler& handler, const TextureData& textureData)
