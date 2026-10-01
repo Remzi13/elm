@@ -2,6 +2,8 @@
 
 #include "core/Log.hpp"
 
+#include "core/Profiling.hpp"
+
 // Diligent Engine Includes
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
 #include "Graphics/GraphicsEngine/interface/EngineFactory.h"
@@ -662,6 +664,7 @@ void RenderSystem::EndFrame()
 {
     if (!m_swapChain || !m_deviceContext)
         return;
+    ELM_PROFILE_SCOPE_N("Present");
     m_swapChain->Present();
 }
 
