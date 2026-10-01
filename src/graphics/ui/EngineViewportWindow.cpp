@@ -18,16 +18,14 @@ namespace elm {
 
 		if (auto texture = ImGuiSystem::ToTextureId(renderSystem.GetEngineViewportTexture())) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
-			const float aspect = static_cast<float>(renderSystem.GetEngineViewportWidth()) /
-				static_cast<float>(renderSystem.GetEngineViewportHeight());
-			ImVec2 size = available;
-			if (size.x / aspect < size.y) {
-				size.y = size.x / aspect;
+			const auto* viewport = ImGui::GetWindowViewport();
+			const float dpiScale = viewport ? viewport->DpiScale : 1.0f;
+			if (available.x > 0.0f && available.y > 0.0f) {
+				renderSystem.QueueEngineViewportResize(
+					static_cast<uint32_t>(available.x * dpiScale),
+					static_cast<uint32_t>(available.y * dpiScale));
+				ImGui::Image(texture, available);
 			}
-			else {
-				size.x = size.y * aspect;
-			}
-			ImGui::Image(texture, size);
 		}
 		ImGui::End();
 	}

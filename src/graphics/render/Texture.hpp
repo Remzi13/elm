@@ -22,6 +22,7 @@ namespace elm::render {
 	public:
 		Texture() = default;
 		explicit Texture(const TextureInfo& info);
+		Texture(const TextureInfo& info, core::Handler handler);
 		~Texture();
 
 		Texture(const Texture&) = delete;

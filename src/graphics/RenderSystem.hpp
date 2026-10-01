@@ -14,6 +14,9 @@
 #include "graphics/render/TextureStore.hpp"
 
 #include "graphics/render/CommandQueue.hpp"
+#include "graphics/render/ResourceView.hpp"
+
+#include <atomic>
 
 struct GLFWwindow;
 
@@ -66,7 +69,9 @@ public:
     [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
         void* nativeDisplay, bool withDepthBuffer = true);
     [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_commandQueue; }
-    void InitializeEngineViewportTexture(core::Handler textureHandler);
+    void InitializeEngineViewportTexture(core::Handler colorTexture, core::Handler depthTexture,
+        uint32_t width, uint32_t height);
+    void QueueEngineViewportResize(uint32_t width, uint32_t height);
 
     // --- Main thread ---
     void CommitCommands();
@@ -80,18 +85,30 @@ public:
 
     void Shutdown();
 
-    // --- Any thread: immutable after Init or atomic ---
+    // --- Main thread, except atomic engine-viewport dimensions ---
     [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
     [[nodiscard]] core::Handler GetEngineViewportTexture() const { return m_engineViewportTexture; }
-    [[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportWidth; }
-    [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
-    [[nodiscard]] uint32_t GetWidth() const { return m_width; }
-    [[nodiscard]] uint32_t GetHeight() const { return m_height; }
+    [[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportSize.load(std::memory_order_acquire).width; }
+    [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportSize.load(std::memory_order_acquire).height; }
+    [[nodiscard]] float GetEngineViewportAspectRatio() const {
+        const auto size = m_engineViewportSize.load(std::memory_order_acquire);
+        return size.height > 0 ? static_cast<float>(size.width) / static_cast<float>(size.height) : 1.0f;
+    }
+    [[nodiscard]] uint32_t GetWidth() const { return m_windowWidth; }
+    [[nodiscard]] uint32_t GetHeight() const { return m_windowHeight; }
     [[nodiscard]] size_t GetMemAllocated() const;
 
 private:
+    class Executor;
+    struct ViewportSize {
+        uint32_t width{ 1280 };
+        uint32_t height{ 720 };
+    };
+
     void InitPipeline();
     void CreateEngineViewport(uint32_t width, uint32_t height);
+    void ApplyMainSwapChainResize(uint32_t width, uint32_t height);
+    static void OnFramebufferSizeChanged(GLFWwindow* window, int width, int height);
 
     void Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>& objects);
 
@@ -112,13 +129,11 @@ private:
     static constexpr size_t MaxInstances = 30000;
 
     // Offscreen render target displayed inside the dockspace.
-    Diligent::ITexture* m_pEngineViewportTex { nullptr };
-    Diligent::ITextureView* m_pEngineViewportRTV { nullptr };
-    Diligent::ITextureView* m_pEngineViewportDSV { nullptr };
-    Diligent::ITextureView* m_pEngineViewportSRV { nullptr };
     core::Handler m_engineViewportTexture;
-    uint32_t m_engineViewportWidth { 1280 };
-    uint32_t m_engineViewportHeight { 720 };
+    core::Handler m_engineViewportDepthTexture;
+    render::ResourceView m_engineViewportRenderTarget;
+    render::ResourceView m_engineViewportDepthStencil;
+    std::atomic<ViewportSize> m_engineViewportSize { ViewportSize{} };
     bool m_engineViewportIsShaderResource { false };
 
     render::BufferManager m_bufferManager;    
@@ -127,8 +142,8 @@ private:
     render::DynamicLinearAllocator m_dynamicInstanceBuffer;
     render::DynamicLinearAllocator m_dynamicUniformBuffer;
 
-    uint32_t m_width { 1280 };
-    uint32_t m_height { 720 };
+    uint32_t m_windowWidth { 1280 };
+    uint32_t m_windowHeight { 720 };
     bool m_initialized { false };
 
     render::CommandQueue m_commandQueue;

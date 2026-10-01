@@ -66,12 +66,19 @@ SwapChain ImGuiRenderer::CreateViewportSwapChain(const ImGuiViewportEvent& event
 void ImGuiRenderer::ApplyViewportEvents(const ImGuiFrame& frame, uint64_t& releasedViewportCount)
 {
     for (const auto& event : frame.viewportEvents) {
-        m_viewportSwapChains.erase(event.id);
         if (event.type == ImGuiViewportEvent::Type::Destroy) {
+            m_viewportSwapChains.erase(event.id);
             ++releasedViewportCount;
             continue;
         }
 
+        if (event.type == ImGuiViewportEvent::Type::Resize) {
+            if (auto it = m_viewportSwapChains.find(event.id); it != m_viewportSwapChains.end())
+                it->second.ResizeIfNeeded(event.width, event.height);
+            continue;
+        }
+
+        m_viewportSwapChains.erase(event.id);
         auto swapChain = CreateViewportSwapChain(event);
         if (swapChain)
             m_viewportSwapChains.emplace(event.id, std::move(swapChain));
@@ -113,7 +120,6 @@ uint64_t ImGuiRenderer::RenderFrame(ImGuiFrame& frame)
         }
         else if (auto it = m_viewportSwapChains.find(snapshot.id); it != m_viewportSwapChains.end()) {
             viewportSwapChain = &it->second;
-            viewportSwapChain->ResizeIfNeeded(snapshot.framebufferWidth, snapshot.framebufferHeight);
             swapChain = viewportSwapChain;
         }
         if (!swapChain)

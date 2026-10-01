@@ -113,7 +113,7 @@ namespace elm {
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
 		// Renderer callbacks only record events; RenderSystem's backend applies and draws them on the render thread.
-		// Swap chain resize is not needed as a callback: RenderFrame() matches it to the captured framebuffer size.
+		// Secondary swap-chain resize events are captured with the frame and applied by the render thread.
 		auto& platformIO = ImGui::GetPlatformIO();
 		platformIO.Renderer_CreateWindow = &ImGuiSystem::OnRendererCreateWindow;
 		platformIO.Renderer_DestroyWindow = &ImGuiSystem::OnRendererDestroyWindow;
@@ -252,11 +252,22 @@ namespace elm {
 		for ( int i = 0; i < platformIO.Viewports.Size; ++i ) {
 			ImGuiViewport* viewport = platformIO.Viewports[i];
 			const bool isMain = ( i == 0 );
-			if ( !viewport->DrawData || viewport->DrawData->CmdListsCount == 0 ) continue;
 			if ( !isMain && ( !viewport->PlatformWindowCreated || ( viewport->Flags & ImGuiViewportFlags_IsMinimized ) ) ) continue;
 
 			auto* window = isMain ? m_window : static_cast<GLFWwindow*>( viewport->PlatformHandle );
 			if ( !window ) continue;
+			uint32_t framebufferWidth = 1;
+			uint32_t framebufferHeight = 1;
+			getFramebufferSize( window, framebufferWidth, framebufferHeight );
+			if ( !isMain ) {
+				ImGuiViewportEvent resizeEvent;
+				resizeEvent.type = ImGuiViewportEvent::Type::Resize;
+				resizeEvent.id = viewport->ID;
+				resizeEvent.width = framebufferWidth;
+				resizeEvent.height = framebufferHeight;
+				frame.viewportEvents.push_back( resizeEvent );
+			}
+			if ( !viewport->DrawData || viewport->DrawData->CmdListsCount == 0 ) continue;
 
 			int windowWidth = 0;
 			int windowHeight = 0;
@@ -265,7 +276,8 @@ namespace elm {
 			auto& snapshot = frame.viewports.emplace_back();
 			snapshot.id = viewport->ID;
 			snapshot.isMain = isMain;
-			getFramebufferSize( window, snapshot.framebufferWidth, snapshot.framebufferHeight );
+			snapshot.framebufferWidth = framebufferWidth;
+			snapshot.framebufferHeight = framebufferHeight;
 			snapshot.drawData = *viewport->DrawData;
 			if ( !isMain && windowWidth > 0 && windowHeight > 0 ) {
 				snapshot.drawData.FramebufferScale = ImVec2(

@@ -25,7 +25,8 @@ class ImGuiRenderer;
 	struct ImGuiViewportEvent {
 		enum class Type {
 			Create,
-			Destroy
+			Destroy,
+			Resize
 		};
 
 		Type type{ Type::Create };

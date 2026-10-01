@@ -4,6 +4,7 @@
 #include "graphics/render/CommandList.hpp"
 #include "graphics/render/Texture.hpp"
 
+#include <cstdint>
 
 namespace elm {
 namespace render {
@@ -27,9 +28,18 @@ namespace render {
         struct DestroyMesh {
             core::Handler handler;
         };
+        struct ResizeMainSwapChain {
+            uint32_t width;
+            uint32_t height;
+        };
+        struct ResizeEngineViewport {
+            uint32_t width;
+            uint32_t height;
+        };
     }
 
-    using RenderCommandVariant = std::variant<command::UploadTexture, command::CreateTexture, command::DestroyTexture, command::CreateMesh, command::DestroyMesh>;
+    using RenderCommandVariant = std::variant<command::UploadTexture, command::CreateTexture, command::DestroyTexture,
+        command::CreateMesh, command::DestroyMesh, command::ResizeMainSwapChain, command::ResizeEngineViewport>;
 
     using CommandList = BasicCommandList<RenderCommandVariant>;
 

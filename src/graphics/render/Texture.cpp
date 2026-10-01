@@ -8,6 +8,11 @@ namespace elm::render {
 		m_handler = TextureManager::Get().CreateTexture(info);
 	}
 
+	Texture::Texture(const TextureInfo& info, core::Handler handler)
+		: m_handler(handler)
+		, m_info(info) {
+	}
+
 	Texture::~Texture() {
 		if (m_handler.IsValid()) {
 			TextureManager::Get().DestroyTexture(m_handler);
@@ -28,6 +33,7 @@ namespace elm::render {
 		}
 		return *this;
 	}
+
 
 	void Texture::Update(const TextureData& textureData) {
 		TextureManager::Get().UpdateTexture(m_handler, textureData);

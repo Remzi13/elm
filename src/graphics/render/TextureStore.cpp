@@ -1,17 +1,13 @@
 #include "graphics/render/TextureStore.hpp"
 
+#include "Graphics/GraphicsEngine/interface/RenderDevice.h"
 #include "Graphics/GraphicsEngine/interface/Texture.h"
 #include "Graphics/GraphicsEngine/interface/TextureView.h"
-
 namespace elm::render {
 
 namespace {
 	void ReleaseData(TextureStore::Data& data)
 	{
-		if (data.pSRV) {
-			data.pSRV->Release();
-			data.pSRV = nullptr;
-		}
 		if (data.pTexture) {
 			data.pTexture->Release();
 			data.pTexture = nullptr;
@@ -22,6 +18,21 @@ namespace {
 TextureStore::~TextureStore()
 {
 	Clear();
+}
+
+core::Handler TextureStore::Create(Diligent::IRenderDevice* renderDevice, core::Handler handler,
+	const Diligent::TextureDesc& description)
+{
+	if (!renderDevice || !handler.IsValid())
+		return {};
+
+	Diligent::ITexture* texture = nullptr;
+	renderDevice->CreateTexture(description, nullptr, &texture);
+	if (!texture)
+		return {};
+
+	Insert(handler, { texture, description.Width, description.Height });
+	return handler;
 }
 
 void TextureStore::Insert(core::Handler handler, Data data)
@@ -35,16 +46,6 @@ void TextureStore::Insert(core::Handler handler, Data data)
 	m_textures.emplace(handler, data);
 }
 
-void TextureStore::Register(core::Handler handler, const Data& data)
-{
-	Data ownedData = data;
-	if (ownedData.pTexture)
-		ownedData.pTexture->AddRef();
-	if (ownedData.pSRV)
-		ownedData.pSRV->AddRef();
-	Insert(handler, ownedData);
-}
-
 const TextureStore::Data* TextureStore::Find(const core::Handler& handler) const
 {
 	const auto it = m_textures.find(handler);
@@ -54,7 +55,9 @@ const TextureStore::Data* TextureStore::Find(const core::Handler& handler) const
 Diligent::ITextureView* TextureStore::GetTextureView(const core::Handler& handler) const
 {
 	const Data* data = Find(handler);
-	return data ? data->pSRV : nullptr;
+	return data && data->pTexture
+		? data->pTexture->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE)
+		: nullptr;
 }
 
 void TextureStore::Release(const core::Handler& handler)

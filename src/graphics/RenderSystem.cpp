@@ -1,5 +1,6 @@
 #include "graphics/RenderSystem.hpp"
 #include "graphics/render/RenderResourceProvider.hpp"
+#include "graphics/render/TextureManager.hpp"
 
 #include "core/Log.hpp"
 
@@ -20,10 +21,12 @@
 
 #include "graphics/MeshDataStorage.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 
 // TODO it is need ?
 #include "graphics/culling/OcclusionCullingSystem.hpp"
@@ -44,9 +47,12 @@ namespace elm {
 
 namespace {
 
-    class Executor {
+    std::unordered_map<GLFWwindow*, RenderSystem*> g_renderSystemsByWindow;
+
+    class ResourceCommandExecutor {
     public:
-        Executor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice, render::TextureStore& textureStore, render::MeshManager& meshManager, render::BufferManager& bufferManager)
+        ResourceCommandExecutor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice,
+            render::TextureStore& textureStore, render::MeshManager& meshManager, render::BufferManager& bufferManager)
             : m_deviceContext(deviceContext)
             , m_textureStore(textureStore)
             , m_renderDevice(renderDevice)
@@ -69,27 +75,8 @@ namespace {
             Diligent::TextureData InitData;
             Diligent::TextureSubResData Level0Data;
 
-            Diligent::ITexture* pTexture { nullptr };
-            m_renderDevice->CreateTexture(TexDesc, nullptr, &pTexture);
-            if (!pTexture) {
+            if (!m_textureStore.Create(m_renderDevice, command.handler, TexDesc).IsValid())
                 return;
-            }
-
-            Diligent::ITextureView* pSRV { nullptr };
-            if (TexDesc.BindFlags & Diligent::BIND_SHADER_RESOURCE) {
-                pSRV = pTexture->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
-                if (pSRV) {
-                    pSRV->AddRef();
-                }
-            }
-
-            render::TextureStore::Data texData;
-            texData.pTexture = pTexture;
-            texData.pSRV = pSRV;
-            texData.width = command.info.width;
-            texData.height = command.info.height;
-
-            m_textureStore.Insert(command.handler, texData);
         }
 
         void Execute(render::command::UploadTexture command)
@@ -206,6 +193,33 @@ namespace {
     } g_Allocator;
 }
 
+class RenderSystem::Executor : public ResourceCommandExecutor {
+public:
+    explicit Executor(RenderSystem& renderSystem)
+        : ResourceCommandExecutor(renderSystem.m_deviceContext, renderSystem.m_renderDevice, renderSystem.m_textureStore,
+            renderSystem.m_meshManager, renderSystem.m_bufferManager)
+        , m_renderSystem(renderSystem)
+    {
+    }
+
+    using ResourceCommandExecutor::Execute;
+
+    void Execute(render::command::ResizeMainSwapChain& command)
+    {
+        if (command.width > 0 && command.height > 0)
+            m_renderSystem.ApplyMainSwapChainResize(command.width, command.height);
+    }
+
+    void Execute(render::command::ResizeEngineViewport& command)
+    {
+        if (command.width > 0 && command.height > 0)
+            m_renderSystem.CreateEngineViewport(command.width, command.height);
+    }
+
+private:
+    RenderSystem& m_renderSystem;
+};
+
 // Shaders are loaded from shaders/ at runtime. This keeps shader editing independent
 // from the executable and also allows the same source to be replaced without a rebuild.
 static String LoadShaderSource(const char* fileName)
@@ -250,8 +264,8 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
         return { };
     }
 
-    m_width = width;
-    m_height = height;
+    m_windowWidth = width;
+    m_windowHeight = height;
 
 #if PLATFORM_WIN32
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -267,6 +281,15 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     if (!m_window) {
         glfwTerminate();
         return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window"));
+    }
+
+    glfwSetFramebufferSizeCallback(m_window, &RenderSystem::OnFramebufferSizeChanged);
+    int framebufferWidth = 0;
+    int framebufferHeight = 0;
+    glfwGetFramebufferSize(m_window, &framebufferWidth, &framebufferHeight);
+    if (framebufferWidth > 0 && framebufferHeight > 0) {
+        width = static_cast<uint32_t>(framebufferWidth);
+        height = static_cast<uint32_t>(framebufferHeight);
     }
 
 #if PLATFORM_WIN32
@@ -332,6 +355,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     // Initialize 3D Rendering Pipeline
     InitPipeline();
 
+    g_renderSystemsByWindow[m_window] = this;
     m_initialized = true;
     std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
     return { };
@@ -437,36 +461,32 @@ void RenderSystem::InitPipeline()
 
 }
 
-void RenderSystem::InitializeEngineViewportTexture(core::Handler textureHandler)
+void RenderSystem::InitializeEngineViewportTexture(core::Handler colorTexture, core::Handler depthTexture,
+    uint32_t width, uint32_t height)
 {
-    if (!m_initialized || !textureHandler.IsValid())
+    if (!m_initialized || !colorTexture.IsValid() || !depthTexture.IsValid())
         return;
 
-    m_engineViewportTexture = textureHandler;
-    CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
+    m_engineViewportTexture = colorTexture;
+    m_engineViewportDepthTexture = depthTexture;
+    const ViewportSize requestedSize { width, height };
+    m_engineViewportSize.store(requestedSize, std::memory_order_release);
+    if (width > 0 && height > 0)
+        m_commandQueue.Push(render::command::ResizeEngineViewport { width, height });
 }
 
 void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
 {
-    if (m_pEngineViewportSRV)
-        m_pEngineViewportSRV->Release();
-    if (m_pEngineViewportDSV)
-        m_pEngineViewportDSV->Release();
-    if (m_pEngineViewportRTV)
-        m_pEngineViewportRTV->Release();
-    if (m_pEngineViewportTex)
-        m_pEngineViewportTex->Release();
-    m_pEngineViewportSRV = nullptr;
-    m_pEngineViewportDSV = nullptr;
-    m_pEngineViewportRTV = nullptr;
-    m_pEngineViewportTex = nullptr;
-    m_engineViewportIsShaderResource = false;
-    if (m_engineViewportTexture.IsValid()) {
-        m_textureStore.Release(m_engineViewportTexture);
-    }
-
-    m_engineViewportWidth = width;
-    m_engineViewportHeight = height;
+    const ViewportSize requestedSize { width, height };
+    const auto colorHandler = m_engineViewportTexture;
+    const auto depthHandler = m_engineViewportDepthTexture;
+    const auto* colorData = m_textureStore.Find(colorHandler);
+    const auto* depthData = m_textureStore.Find(depthHandler);
+    const auto currentSize = m_engineViewportSize.load(std::memory_order_acquire);
+    if (!colorHandler.IsValid() || !depthHandler.IsValid() || width == 0 || height == 0 ||
+        (colorData && colorData->pTexture && depthData && depthData->pTexture &&
+            currentSize.width == requestedSize.width && currentSize.height == requestedSize.height))
+        return;
 
     Diligent::TextureDesc colorDesc;
     colorDesc.Name = "Engine Viewport Color";
@@ -476,21 +496,6 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     colorDesc.Format = m_swapChain.GetDesc().ColorBufferFormat;
     colorDesc.Usage = Diligent::USAGE_DEFAULT;
     colorDesc.BindFlags = Diligent::BIND_RENDER_TARGET | Diligent::BIND_SHADER_RESOURCE;
-    m_renderDevice->CreateTexture(colorDesc, nullptr, &m_pEngineViewportTex);
-    if (!m_pEngineViewportTex)
-        return;
-    m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
-
-    m_pEngineViewportRTV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_RENDER_TARGET);
-    m_pEngineViewportSRV = m_pEngineViewportTex->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE);
-    if (m_pEngineViewportRTV)
-        m_pEngineViewportRTV->AddRef();
-    if (m_pEngineViewportSRV)
-        m_pEngineViewportSRV->AddRef();
-
-    // UI refers to the viewport image by handler, the view itself is resolved on the render thread.
-    m_textureStore.Register(m_engineViewportTexture, { m_pEngineViewportTex, m_pEngineViewportSRV, width, height });
-
     Diligent::TextureDesc depthDesc;
     depthDesc.Name = "Engine Viewport Depth";
     depthDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
@@ -499,14 +504,79 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     depthDesc.Format = m_swapChain.GetDesc().DepthBufferFormat;
     depthDesc.Usage = Diligent::USAGE_DEFAULT;
     depthDesc.BindFlags = Diligent::BIND_DEPTH_STENCIL;
-    Diligent::RefCntAutoPtr<Diligent::ITexture> depthTexture;
-    m_renderDevice->CreateTexture(depthDesc, nullptr, &depthTexture);
-    if (depthTexture) {
-        depthTexture->SetState(Diligent::RESOURCE_STATE_DEPTH_WRITE);
-        m_pEngineViewportDSV = depthTexture->GetDefaultView(Diligent::TEXTURE_VIEW_DEPTH_STENCIL);
-        if (m_pEngineViewportDSV)
-            m_pEngineViewportDSV->AddRef();
+    const auto createdColor = m_textureStore.Create(m_renderDevice, colorHandler, colorDesc);
+    if (!createdColor.IsValid())
+        return;
+    const auto createdDepth = m_textureStore.Create(m_renderDevice, depthHandler, depthDesc);
+    if (!createdDepth.IsValid()) {
+        m_engineViewportRenderTarget = {};
+        m_engineViewportDepthStencil = {};
+        m_textureStore.Release(createdColor);
+        m_textureStore.Release(depthHandler);
+        return;
     }
+
+    const auto* createdColorData = m_textureStore.Find(createdColor);
+    const auto* createdDepthData = m_textureStore.Find(createdDepth);
+    if (!createdColorData || !createdDepthData || !createdColorData->pTexture || !createdDepthData->pTexture) {
+        m_engineViewportRenderTarget = {};
+        m_engineViewportDepthStencil = {};
+        m_textureStore.Release(createdColor);
+        m_textureStore.Release(createdDepth);
+        return;
+    }
+
+    render::ResourceView colorView(createdColorData->pTexture, render::ResourceViewType::RenderTarget);
+    render::ResourceView depthView(createdDepthData->pTexture, render::ResourceViewType::DepthStencil);
+    if (!colorView.IsValid() || !depthView.IsValid()) {
+        m_engineViewportRenderTarget = {};
+        m_engineViewportDepthStencil = {};
+        m_textureStore.Release(createdColor);
+        m_textureStore.Release(createdDepth);
+        return;
+    }
+
+    createdColorData->pTexture->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
+    createdDepthData->pTexture->SetState(Diligent::RESOURCE_STATE_DEPTH_WRITE);
+    m_engineViewportRenderTarget = std::move(colorView);
+    m_engineViewportDepthStencil = std::move(depthView);
+    m_engineViewportIsShaderResource = false;
+    m_engineViewportSize.store(requestedSize, std::memory_order_release);
+}
+
+void RenderSystem::OnFramebufferSizeChanged(GLFWwindow* window, int width, int height)
+{
+    const auto it = g_renderSystemsByWindow.find(window);
+    if (it == g_renderSystemsByWindow.end())
+        return;
+    auto* system = it->second;
+
+    int windowWidth = 0;
+    int windowHeight = 0;
+    glfwGetWindowSize(window, &windowWidth, &windowHeight);
+    system->m_windowWidth = static_cast<uint32_t>((std::max)(windowWidth, 0));
+    system->m_windowHeight = static_cast<uint32_t>((std::max)(windowHeight, 0));
+    if (width > 0 && height > 0)
+        system->m_commandQueue.Push(render::command::ResizeMainSwapChain {
+            static_cast<uint32_t>(width), static_cast<uint32_t>(height)
+        });
+}
+
+void RenderSystem::QueueEngineViewportResize(uint32_t width, uint32_t height)
+{
+    const auto currentSize = m_engineViewportSize.load(std::memory_order_acquire);
+    if (width == 0 || height == 0 || (currentSize.width == width && currentSize.height == height))
+        return;
+
+    m_commandQueue.Push(render::command::ResizeEngineViewport { width, height });
+}
+
+void RenderSystem::ApplyMainSwapChainResize(uint32_t width, uint32_t height)
+{
+    if (!m_swapChain)
+        return;
+
+    m_swapChain.ResizeIfNeeded(width, height);
 }
 
 bool RenderSystem::ShouldClose() const
@@ -539,7 +609,7 @@ void RenderSystem::FlushCommands()
 
     m_commandQueue.CommitFrame();
     m_commandQueue.BeginFrame();
-    Executor executor(m_deviceContext, m_renderDevice, m_textureStore, m_meshManager, m_bufferManager);
+    Executor executor(*this);
     m_commandQueue.Execute(executor);
 }
 
@@ -549,6 +619,8 @@ void RenderSystem::BeginFrame()
         return;
 
     m_commandQueue.BeginFrame();
+    Executor executor(*this);
+    m_commandQueue.Execute(executor);
 
     auto* pRTV = m_swapChain.GetCurrentBackBufferRTV();
     auto* pDSV = m_swapChain.GetDepthBufferDSV();
@@ -601,28 +673,32 @@ void RenderSystem::Draw(FrameData& frameData)
     if (!m_deviceContext || !m_pPSO)
         return;
 
-    Executor executor(m_deviceContext, m_renderDevice, m_textureStore, m_meshManager, m_bufferManager);
-    m_commandQueue.Execute(executor);
-
-    if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
+    const auto viewportColor = m_engineViewportRenderTarget.Resolve();
+    const auto viewportDepth = m_engineViewportDepthStencil.Resolve();
+    auto* viewportTexture = viewportColor.texture;
+    auto* viewportRTV = viewportColor.view;
+    auto* viewportDSV = viewportDepth.view;
+    bool viewportRendered = false;
+    if (viewportTexture && viewportRTV && viewportDSV) {
         if (m_engineViewportIsShaderResource) {
             Diligent::StateTransitionDesc toRenderTarget {
-                m_pEngineViewportTex,
+                viewportTexture,
                 Diligent::RESOURCE_STATE_SHADER_RESOURCE,
                 Diligent::RESOURCE_STATE_RENDER_TARGET
             };
             m_deviceContext->TransitionResourceStates(1, &toRenderTarget);
             m_engineViewportIsShaderResource = false;
         }
-        m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
+        viewportTexture->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
 
         const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
-        m_deviceContext->SetRenderTargets(1, &m_pEngineViewportRTV, m_pEngineViewportDSV,
+        m_deviceContext->SetRenderTargets(1, &viewportRTV, viewportDSV,
             Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
-        m_deviceContext->ClearRenderTarget(m_pEngineViewportRTV, clearColor,
+        m_deviceContext->ClearRenderTarget(viewportRTV, clearColor,
             Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
-        m_deviceContext->ClearDepthStencil(m_pEngineViewportDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0,
+        m_deviceContext->ClearDepthStencil(viewportDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0,
             Diligent::RESOURCE_STATE_TRANSITION_MODE_NONE);
+        viewportRendered = true;
     }
 
     // 3. Update Camera Constant Buffer
@@ -655,14 +731,14 @@ void RenderSystem::Draw(FrameData& frameData)
     // 6. Flush аллокаторов в конце кадра
     m_dynamicInstanceBuffer.Flush(m_deviceContext);
     m_dynamicUniformBuffer.Flush(m_deviceContext);
-    if (m_pEngineViewportTex) {
+    if (viewportRendered) {
         Diligent::StateTransitionDesc toShaderResource {
-            m_pEngineViewportTex,
+            viewportTexture,
             Diligent::RESOURCE_STATE_RENDER_TARGET,
             Diligent::RESOURCE_STATE_SHADER_RESOURCE
         };
         m_deviceContext->TransitionResourceStates(1, &toShaderResource);
-        m_pEngineViewportTex->SetState(Diligent::RESOURCE_STATE_SHADER_RESOURCE);
+        viewportTexture->SetState(Diligent::RESOURCE_STATE_SHADER_RESOURCE);
         m_engineViewportIsShaderResource = true;
     }
 }
@@ -681,25 +757,18 @@ void RenderSystem::Shutdown()
         return;
 
     m_resourceProvider.reset();
+    auto& textureManager = render::TextureManager::Get();
+    m_engineViewportRenderTarget = {};
+    m_engineViewportDepthStencil = {};
+    textureManager.DestroyTexture(m_engineViewportTexture);
+    textureManager.DestroyTexture(m_engineViewportDepthTexture);
+    m_engineViewportTexture = {};
+    m_engineViewportDepthTexture = {};
 
     // Render thread is stopped at this point: execute what is still queued (e.g. texture releases)
     FlushCommands();
 
     m_textureStore.Clear();
-    m_engineViewportTexture = { };
-
-    if (m_pEngineViewportSRV)
-        m_pEngineViewportSRV->Release();
-    if (m_pEngineViewportDSV)
-        m_pEngineViewportDSV->Release();
-    if (m_pEngineViewportRTV)
-        m_pEngineViewportRTV->Release();
-    if (m_pEngineViewportTex)
-        m_pEngineViewportTex->Release();
-    m_pEngineViewportSRV = nullptr;
-    m_pEngineViewportDSV = nullptr;
-    m_pEngineViewportRTV = nullptr;
-    m_pEngineViewportTex = nullptr;
 
     m_bufferManager.Clear();
 
@@ -730,6 +799,7 @@ void RenderSystem::Shutdown()
     }
 
     if (m_window) {
+        g_renderSystemsByWindow.erase(m_window);
         glfwDestroyWindow(m_window);
         m_window = nullptr;
     }
