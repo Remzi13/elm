@@ -25,6 +25,12 @@ engine_add_library(graphics
     render/CommandList.hpp
     render/CommandQueue.hpp
     render/CommandQueue.cpp
+    render/SwapChain.hpp
+    render/SwapChain.cpp
+    render/RenderResourceProvider.hpp
+    render/RenderResourceProvider.cpp
+    render/ImGuiRenderer.hpp
+    render/ImGuiRenderer.cpp
     render/BufferManager.hpp
     render/BufferManager.cpp
     render/Texture.hpp

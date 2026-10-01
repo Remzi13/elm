@@ -1,4 +1,5 @@
 #include "graphics/ImGuiSystem.hpp"
+#include "graphics/render/ImGuiRenderer.hpp"
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ui/SocLabWindow.hpp"
@@ -14,37 +15,8 @@
 #include <GLFW/glfw3native.h>
 #endif
 
-#include "Graphics/GraphicsEngine/interface/DeviceContext.h"
-#include "Graphics/GraphicsEngine/interface/SwapChain.h"
-#if PLATFORM_WIN32
-#include "Graphics/GraphicsEngineD3D12/interface/EngineFactoryD3D12.h"
-#else
-#include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
-#define GLFW_EXPOSE_NATIVE_X11
-#define GLFW_EXPOSE_NATIVE_WAYLAND
-#include <GLFW/glfw3native.h>
-#endif
-#include "ImGuiDiligentRenderer.hpp"
-#include "ImGuiImplDiligent.hpp"
 #include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
-
-namespace Diligent {
-
-	class ImGuiImplDiligentViewport : public ImGuiImplDiligent {
-	public:
-		using ImGuiImplDiligent::ImGuiImplDiligent;
-
-		void SetRenderSurface( Uint32 width, Uint32 height, SURFACE_TRANSFORM transform ) {
-			m_pRenderer->NewFrame( width, height, transform );
-		}
-
-		void RenderDrawData( IDeviceContext* context, ImDrawData* drawData ) {
-			m_pRenderer->RenderDrawData( context, drawData );
-		}
-	};
-
-} // namespace Diligent
 
 namespace elm {
 
@@ -106,13 +78,13 @@ namespace elm {
 		AddWindow( MakeUnique<EngineViewportWindow>(settings) );
 		AddWindow( MakeUnique<DepthPreviewWindow>(settings) );
 
-		// Renderer device objects (including the font atlas) are created here, before the render thread starts
-		const auto& swapChainDesc = renderSystem.GetSwapChain()->GetDesc();
-		Diligent::ImGuiDiligentCreateInfo createInfo;
-		createInfo.pDevice = renderSystem.GetRenderDevice();
-		createInfo.BackBufferFmt = swapChainDesc.ColorBufferFormat;
-		createInfo.DepthBufferFmt = Diligent::TEX_FORMAT_UNKNOWN;
-		m_imGui = MakeUnique<Diligent::ImGuiImplDiligentViewport>( createInfo );
+		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem, renderSystem.GetResourceProvider() );
+		if ( !m_renderer->IsInitialized() ) {
+			m_renderer.reset();
+			Shutdown();
+			return std::unexpected( elm::EngineError( elm::ErrorCode::UnknownError, "Failed to initialize ImGui renderer" ) );
+		}
+		m_rendererInitialized = true;
 		auto& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable | ImGuiConfigFlags_ViewportsEnable |
 			ImGuiConfigFlags_DpiEnableScaleViewports | ImGuiConfigFlags_DpiEnableScaleFonts;
@@ -140,7 +112,7 @@ namespace elm {
 		}
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
-		// Renderer callbacks only record events: swap chains live on the render thread and are drawn in RenderFrame().
+		// Renderer callbacks only record events; RenderSystem's backend applies and draws them on the render thread.
 		// Swap chain resize is not needed as a callback: RenderFrame() matches it to the captured framebuffer size.
 		auto& platformIO = ImGui::GetPlatformIO();
 		platformIO.Renderer_CreateWindow = &ImGuiSystem::OnRendererCreateWindow;
@@ -313,119 +285,20 @@ namespace elm {
 
 	// --- Render thread ---
 
-	void ImGuiSystem::ApplyViewportEvents( RenderSystem& renderSystem, const Vector<ImGuiViewportEvent>& events ) {
-		for ( const auto& event : events ) {
-			auto it = m_viewportSwapChains.find( event.id );
-			if ( it != m_viewportSwapChains.end() ) {
-				if ( it->second ) it->second->Release();
-				m_viewportSwapChains.erase( it );
-			}
-
-			if ( event.type == ImGuiViewportEvent::Type::Destroy ) {
-				// Lets the main thread destroy the platform window
-				m_releasedViewportCount.fetch_add( 1, std::memory_order_release );
-				continue;
-			}
-
-			Diligent::SwapChainDesc description = renderSystem.GetSwapChain()->GetDesc();
-			description.Width = event.width;
-			description.Height = event.height;
-			description.DepthBufferFormat = Diligent::TEX_FORMAT_UNKNOWN;
-
-			Diligent::ISwapChain* swapChain = nullptr;
-#if PLATFORM_WIN32
-			Diligent::Win32NativeWindow nativeWindow{ event.nativeHandle };
-			Diligent::GetEngineFactoryD3D12()->CreateSwapChainD3D12( renderSystem.GetRenderDevice(),
-				renderSystem.GetDeviceContext(), description,
-				Diligent::FullScreenModeDesc{}, nativeWindow, &swapChain );
-#else
-			Diligent::LinuxNativeWindow nativeWindow;
-			nativeWindow.pDisplay = event.nativeDisplay;
-			nativeWindow.WindowId = static_cast<uint32_t>( reinterpret_cast<uintptr_t>( event.nativeHandle ) );
-			Diligent::GetEngineFactoryVk()->CreateSwapChainVk( renderSystem.GetRenderDevice(),
-				renderSystem.GetDeviceContext(), description,
-				nativeWindow, &swapChain );
-#endif
-			m_viewportSwapChains[event.id] = swapChain;
-		}
-	}
-
-	void ImGuiSystem::ReleaseViewportSwapChains() {
-		for ( auto& [id, swapChain] : m_viewportSwapChains ) {
-			if ( swapChain ) swapChain->Release();
-		}
-		m_viewportSwapChains.clear();
-	}
-
-	void ImGuiSystem::ResolveTextureIds( RenderSystem& renderSystem, ImGuiViewportSnapshot& snapshot ) {
-		for ( ImDrawList* list : snapshot.drawLists ) {
-			for ( ImDrawCmd& cmd : list->CmdBuffer ) {
-				const auto value = reinterpret_cast<uintptr_t>( cmd.TextureId );
-				if ( ( value & 1 ) == 0 ) continue;
-
-				const core::Handler handler( static_cast<core::Handler::ValueType>( value >> 1 ), core::Handler::Render );
-				cmd.TextureId = renderSystem.GetTextureView( handler );
-				if ( !cmd.TextureId ) {
-					// Texture is not created yet or already destroyed
-					cmd.ElemCount = 0;
-				}
-			}
-		}
-	}
-
 	void ImGuiSystem::RenderFrame( RenderSystem& renderSystem, ImGuiFrame& frame ) {
 		if ( !m_initialized ) return;
-
-		ApplyViewportEvents( renderSystem, frame.viewportEvents );
-
-		auto* context = renderSystem.GetDeviceContext();
-		const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
-		Vector<Diligent::ISwapChain*> presentList;
-
-		for ( auto& snapshot : frame.viewports ) {
-			Diligent::ISwapChain* swapChain = nullptr;
-			if ( snapshot.isMain ) {
-				swapChain = renderSystem.GetSwapChain();
-			}
-			else if ( auto it = m_viewportSwapChains.find( snapshot.id ); it != m_viewportSwapChains.end() ) {
-				swapChain = it->second;
-			}
-			if ( !swapChain ) continue;
-
-			// Main swap chain belongs to RenderSystem; viewport ones follow the window size captured this frame
-			if ( !snapshot.isMain ) {
-				const auto& desc = swapChain->GetDesc();
-				if ( desc.Width != snapshot.framebufferWidth || desc.Height != snapshot.framebufferHeight ) {
-					swapChain->Resize( snapshot.framebufferWidth, snapshot.framebufferHeight );
-				}
-			}
-
-			auto* renderTarget = swapChain->GetCurrentBackBufferRTV();
-			if ( !renderTarget ) continue;
-
-			ResolveTextureIds( renderSystem, snapshot );
-			snapshot.drawData.CmdLists = snapshot.drawLists.data();
-
-			m_imGui->SetRenderSurface( snapshot.framebufferWidth, snapshot.framebufferHeight, swapChain->GetDesc().PreTransform );
-			context->SetRenderTargets( 1, &renderTarget, nullptr, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION );
-			if ( !snapshot.isMain ) {
-				context->ClearRenderTarget( renderTarget, clearColor, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION );
-				presentList.push_back( swapChain );
-			}
-			m_imGui->RenderDrawData( context, &snapshot.drawData );
-		}
-
-		// Main swap chain is presented by RenderSystem::EndFrame()
-		for ( auto* swapChain : presentList ) {
-			swapChain->Present();
-		}
+		if ( !m_renderer ) return;
+		const uint64_t releasedViewportCount = m_renderer->RenderFrame( frame );
+		m_releasedViewportCount.fetch_add( releasedViewportCount, std::memory_order_release );
 	}
 
 	// --- Main thread, render thread must be stopped ---
 
 	void ImGuiSystem::Shutdown() {
-		// Swap chains first: their windows are destroyed below
-		ReleaseViewportSwapChains();
+		if ( !m_rendererInitialized && !m_glfwInitialized && !m_initialized && !m_renderSystem ) return;
+		if ( m_rendererInitialized && m_renderer ) {
+			m_renderer->ReleaseViewportSwapChains();
+		}
 		m_destroyPlatformWindowsImmediately = true;
 		if ( m_platformDestroyWindow ) {
 			DestroyReleasedPlatformWindows( true );
@@ -442,8 +315,14 @@ namespace elm {
 			ImGui_ImplGlfw_Shutdown();
 			m_glfwInitialized = false;
 		}
-		if ( m_imGui ) ImGui::DestroyPlatformWindows();
-		m_imGui.reset();
+		if ( m_rendererInitialized ) {
+			ImGui::DestroyPlatformWindows();
+		}
+		if ( m_renderer ) {
+			m_renderer->Shutdown();
+			m_renderer.reset();
+		}
+		m_rendererInitialized = false;
 		m_pendingViewportEvents.clear();
 		m_platformDestroyWindow = nullptr;
 		m_windows.clear();

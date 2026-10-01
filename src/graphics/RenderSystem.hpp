@@ -10,6 +10,7 @@
 #include "graphics/render/BufferManager.hpp"
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/render/MeshManager.h"
+#include "graphics/render/SwapChain.hpp"
 #include "graphics/render/TextureStore.hpp"
 
 #include "graphics/render/CommandQueue.hpp"
@@ -19,7 +20,6 @@ struct GLFWwindow;
 namespace Diligent {
 struct IRenderDevice;
 struct IDeviceContext;
-struct ISwapChain;
 struct IPipelineState;
 struct IShaderResourceBinding;
 struct ITexture;
@@ -27,6 +27,10 @@ struct ITextureView;
 }
 
 namespace elm {
+
+namespace render {
+class RenderResourceProvider;
+}
 
 struct FrameStats {
     float fps { 0.0f };
@@ -47,8 +51,6 @@ struct FrameData {
 };
 
 class RenderSystem {
-    friend class ImGuiSystem;
-
 public:
     RenderSystem();
     ~RenderSystem();
@@ -60,6 +62,9 @@ public:
 
     [[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
     [[nodiscard]] bool ShouldClose() const;
+    [[nodiscard]] render::RenderResourceProvider& GetResourceProvider() noexcept;
+    [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
+        void* nativeDisplay, bool withDepthBuffer = true);
     [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_commandQueue; }
     void InitializeEngineViewportTexture(core::Handler textureHandler);
 
@@ -72,10 +77,6 @@ public:
     void BeginFrame();
     void Draw(FrameData& frameData);
     void EndFrame();
-    [[nodiscard]] Diligent::ITextureView* GetTextureView(core::Handler texture) const;
-    [[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
-    [[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
-    [[nodiscard]] Diligent::ISwapChain* GetSwapChain() const { return m_swapChain; }
 
     void Shutdown();
 
@@ -100,7 +101,7 @@ private:
     // Diligent Engine components
     Diligent::IRenderDevice* m_renderDevice { nullptr };
     Diligent::IDeviceContext* m_deviceContext { nullptr };
-    Diligent::ISwapChain* m_swapChain { nullptr };
+    render::SwapChain m_swapChain;
 
     // Shaders & Pipelines
     Diligent::IPipelineState* m_pPSO { nullptr };
@@ -131,6 +132,7 @@ private:
     bool m_initialized { false };
 
     render::CommandQueue m_commandQueue;
+    UniquePtr<render::RenderResourceProvider> m_resourceProvider;
 
 };
 

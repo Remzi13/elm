@@ -13,11 +13,11 @@
 #include <memory>
 #include <span>
 
-namespace Diligent {
-	class ImGuiImplDiligentViewport;
-}
-
 namespace elm {
+
+namespace render {
+class ImGuiRenderer;
+}
 
 	class SocLabWindow;
 
@@ -64,7 +64,7 @@ namespace elm {
 
 	// Threading:
 	//  - main thread: Init, BuildFrame, Shutdown (render thread must be stopped), all ImGui/GLFW calls
-	//  - render thread: RenderFrame, owns the swap chains of secondary viewports
+	//  - render thread: RenderFrame; RenderSystem's ImGui backend owns secondary viewport swap chains
 	// Platform (GLFW) windows are destroyed on the main thread only after the render thread released their swap chains.
 	class ImGuiSystem {
 	public:
@@ -109,11 +109,6 @@ namespace elm {
 		void CaptureViewports(ImGuiFrame& frame);
 		void DestroyReleasedPlatformWindows(bool all);
 
-		// Render thread
-		void ApplyViewportEvents(RenderSystem& renderSystem, const Vector<ImGuiViewportEvent>& events);
-		void ReleaseViewportSwapChains();
-		static void ResolveTextureIds(RenderSystem& renderSystem, ImGuiViewportSnapshot& snapshot);
-
 		struct SavedLabSettings {
 			int preset{ 0 };
 			int instanceCount{ 1000 };
@@ -136,8 +131,9 @@ namespace elm {
 		};
 
 		GLFWwindow* m_window{ nullptr };
-		UniquePtr<Diligent::ImGuiImplDiligentViewport> m_imGui; // renderer: render thread after Init
 		RenderSystem* m_renderSystem{ nullptr };
+		UniquePtr<render::ImGuiRenderer> m_renderer;
+		bool m_rendererInitialized{ false };
 		bool m_initialized{ false };
 		bool m_glfwInitialized{ false };
 		String m_title;
@@ -156,9 +152,6 @@ namespace elm {
 		uint64_t m_destroyedViewportCount{ 0 };
 		void (*m_platformDestroyWindow)(ImGuiViewport*) { nullptr };
 		bool m_destroyPlatformWindowsImmediately{ false };
-
-		// --- Render thread ---
-		UnorderedMap<ImGuiID, Diligent::ISwapChain*> m_viewportSwapChains;
 
 		// --- Shared: number of Destroy events applied by the render thread ---
 		std::atomic<uint64_t> m_releasedViewportCount{ 0 };

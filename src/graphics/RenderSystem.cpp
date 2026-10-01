@@ -1,4 +1,5 @@
 #include "graphics/RenderSystem.hpp"
+#include "graphics/render/RenderResourceProvider.hpp"
 
 #include "core/Log.hpp"
 
@@ -15,7 +16,6 @@
 #include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
 #endif
 #include "Graphics/GraphicsTools/interface/MapHelper.hpp"
-
 #include "graphics/render/BufferManager.hpp"
 
 #include "graphics/MeshDataStorage.hpp"
@@ -237,9 +237,7 @@ static String LoadShaderSource(const char* fileName)
     return { };
 }
 
-RenderSystem::RenderSystem()
-{
-}
+RenderSystem::RenderSystem() = default;
 
 RenderSystem::~RenderSystem()
 {
@@ -301,30 +299,26 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts"));
     }
 
-    Diligent::SwapChainDesc swapChainDesc;
-    swapChainDesc.Width = width;
-    swapChainDesc.Height = height;
-
+    void* nativeHandle = nullptr;
+    void* nativeDisplay = nullptr;
 #if PLATFORM_WIN32
-    Diligent::Win32NativeWindow nativeWindow { glfwGetWin32Window(m_window) };
-    pFactory->CreateSwapChainD3D12(m_renderDevice, m_deviceContext, swapChainDesc,
-        Diligent::FullScreenModeDesc { }, nativeWindow, &m_swapChain);
+    nativeHandle = glfwGetWin32Window(m_window);
 #else
-    Diligent::LinuxNativeWindow nativeWindow;
     if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
-        nativeWindow.pDisplay = glfwGetWaylandDisplay();
-        nativeWindow.WindowId = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(glfwGetWaylandWindow(m_window)));
+        nativeDisplay = glfwGetWaylandDisplay();
+        nativeHandle = glfwGetWaylandWindow(m_window);
     } else {
-        nativeWindow.pDisplay = glfwGetX11Display();
-        nativeWindow.WindowId = static_cast<uint32_t>(glfwGetX11Window(m_window));
+        nativeDisplay = glfwGetX11Display();
+        nativeHandle = reinterpret_cast<void*>(static_cast<uintptr_t>(glfwGetX11Window(m_window)));
     }
-
-    pFactory->CreateSwapChainVk(m_renderDevice, m_deviceContext, swapChainDesc, nativeWindow, &m_swapChain);
 #endif
 
+    m_resourceProvider = MakeUnique<render::RenderResourceProvider>(m_renderDevice, m_deviceContext, m_textureStore);
+    m_swapChain = CreateSwapChain(width, height, nativeHandle, nativeDisplay);
     if (!m_swapChain) {
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
     }
+    m_resourceProvider->SetMainSwapChain(&m_swapChain);
 
     if (!m_bufferManager.Init(m_renderDevice, m_deviceContext))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
@@ -406,8 +400,8 @@ void RenderSystem::InitPipeline()
     PSOCI.PSODesc.Name = "Opaque Mesh PSO";
     auto& Pipeline = PSOCI.GraphicsPipeline;
     Pipeline.NumRenderTargets = 1;
-    Pipeline.RTVFormats[0] = m_swapChain->GetDesc().ColorBufferFormat;
-    Pipeline.DSVFormat = m_swapChain->GetDesc().DepthBufferFormat;
+    Pipeline.RTVFormats[0] = m_swapChain.GetDesc().ColorBufferFormat;
+    Pipeline.DSVFormat = m_swapChain.GetDesc().DepthBufferFormat;
     Pipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     Pipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_NONE;
     Pipeline.DepthStencilDesc.DepthEnable = true;
@@ -479,7 +473,7 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     colorDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
     colorDesc.Width = width;
     colorDesc.Height = height;
-    colorDesc.Format = m_swapChain->GetDesc().ColorBufferFormat;
+    colorDesc.Format = m_swapChain.GetDesc().ColorBufferFormat;
     colorDesc.Usage = Diligent::USAGE_DEFAULT;
     colorDesc.BindFlags = Diligent::BIND_RENDER_TARGET | Diligent::BIND_SHADER_RESOURCE;
     m_renderDevice->CreateTexture(colorDesc, nullptr, &m_pEngineViewportTex);
@@ -502,7 +496,7 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     depthDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
     depthDesc.Width = width;
     depthDesc.Height = height;
-    depthDesc.Format = m_swapChain->GetDesc().DepthBufferFormat;
+    depthDesc.Format = m_swapChain.GetDesc().DepthBufferFormat;
     depthDesc.Usage = Diligent::USAGE_DEFAULT;
     depthDesc.BindFlags = Diligent::BIND_DEPTH_STENCIL;
     Diligent::RefCntAutoPtr<Diligent::ITexture> depthTexture;
@@ -518,6 +512,19 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
 bool RenderSystem::ShouldClose() const
 {
     return m_window ? glfwWindowShouldClose(m_window) : true;
+}
+
+render::RenderResourceProvider& RenderSystem::GetResourceProvider() noexcept
+{
+    return *m_resourceProvider;
+}
+
+render::SwapChain RenderSystem::CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
+    void* nativeDisplay, bool withDepthBuffer)
+{
+    return m_resourceProvider
+        ? m_resourceProvider->CreateSwapChain(width, height, nativeHandle, nativeDisplay, withDepthBuffer)
+        : render::SwapChain{};
 }
 
 void RenderSystem::CommitCommands()
@@ -543,8 +550,8 @@ void RenderSystem::BeginFrame()
 
     m_commandQueue.BeginFrame();
 
-    auto* pRTV = m_swapChain->GetCurrentBackBufferRTV();
-    auto* pDSV = m_swapChain->GetDepthBufferDSV();
+    auto* pRTV = m_swapChain.GetCurrentBackBufferRTV();
+    auto* pDSV = m_swapChain.GetDepthBufferDSV();
 
     const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
     m_deviceContext->SetRenderTargets(1, &pRTV, pDSV, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -665,13 +672,15 @@ void RenderSystem::EndFrame()
     if (!m_swapChain || !m_deviceContext)
         return;
     ELM_PROFILE_SCOPE_N("Present");
-    m_swapChain->Present();
+    m_swapChain.Present();
 }
 
 void RenderSystem::Shutdown()
 {
     if (!m_initialized)
         return;
+
+    m_resourceProvider.reset();
 
     // Render thread is stopped at this point: execute what is still queued (e.g. texture releases)
     FlushCommands();
@@ -710,10 +719,7 @@ void RenderSystem::Shutdown()
         m_pPSO = nullptr;
     }
 
-    if (m_swapChain) {
-        m_swapChain->Release();
-        m_swapChain = nullptr;
-    }
+    m_swapChain.Reset();
     if (m_deviceContext) {
         m_deviceContext->Release();
         m_deviceContext = nullptr;
@@ -737,11 +743,6 @@ void RenderSystem::Shutdown()
 size_t RenderSystem::GetMemAllocated() const
 {
     return g_Allocator.GetTotalAllocatedBytes();
-}
-
-Diligent::ITextureView* RenderSystem::GetTextureView(core::Handler texture) const
-{
-    return m_textureStore.GetTextureView(texture);
 }
 
 } // namespace Engine
