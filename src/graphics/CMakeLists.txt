@@ -31,6 +31,8 @@ engine_add_library(graphics
     render/Texture.cpp
     render/TextureManager.hpp
     render/TextureManager.cpp
+    render/TextureStore.hpp
+    render/TextureStore.cpp
     render/MeshManager.h
     render/MeshManager.cpp
     render/DynamicLinearAllocator.hpp

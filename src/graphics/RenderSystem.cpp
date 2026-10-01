@@ -41,11 +41,12 @@
 namespace elm {
 
 namespace {
+
     class Executor {
     public:
-        Executor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice, render::TextureManager& textureManger, render::MeshManager& meshManager, render::BufferManager& bufferManager)
+        Executor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice, render::TextureStore& textureStore, render::MeshManager& meshManager, render::BufferManager& bufferManager)
             : m_deviceContext(deviceContext)
-            , m_textureManger(textureManger)
+            , m_textureStore(textureStore)
             , m_renderDevice(renderDevice)
             , m_meshManager(meshManager)
             , m_bufferManager(bufferManager)
@@ -68,6 +69,9 @@ namespace {
 
             Diligent::ITexture* pTexture { nullptr };
             m_renderDevice->CreateTexture(TexDesc, nullptr, &pTexture);
+            if (!pTexture) {
+                return;
+            }
 
             Diligent::ITextureView* pSRV { nullptr };
             if (TexDesc.BindFlags & Diligent::BIND_SHADER_RESOURCE) {
@@ -77,40 +81,40 @@ namespace {
                 }
             }
 
-            render::TextureManager::Data texData;
+            render::TextureStore::Data texData;
             texData.pTexture = pTexture;
             texData.pSRV = pSRV;
             texData.width = command.info.width;
             texData.height = command.info.height;
 
-            m_textureManger.PushTextureData(command.handler, texData);
+            m_textureStore.Insert(command.handler, texData);
         }
 
         void Execute(render::command::UploadTexture command)
         {
-            auto textureData = m_textureManger.GetTextureData(command.handler);
-            if (!textureData.pTexture) {
+            const auto* textureData = m_textureStore.Find(command.handler);
+            if (!textureData || !textureData->pTexture) {
                 return;
             }
 
             Diligent::Box updateBox;
             updateBox.MinX = 0;
-            updateBox.MaxX = textureData.width;
+            updateBox.MaxX = textureData->width;
             updateBox.MinY = 0;
-            updateBox.MaxY = textureData.height;
+            updateBox.MaxY = textureData->height;
 
             Diligent::TextureSubResData subresData;
-            subresData.Stride = command.data.stride > 0 ? command.data.stride : (textureData.width * sizeof(uint8_t));
+            subresData.Stride = command.data.stride > 0 ? command.data.stride : (textureData->width * sizeof(uint8_t));
             subresData.pData = command.data.data.data();
 
-            m_deviceContext->UpdateTexture(textureData.pTexture, 0, 0, updateBox, subresData,
+            m_deviceContext->UpdateTexture(textureData->pTexture, 0, 0, updateBox, subresData,
                 Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
                 Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
         }
 
         void Execute(render::command::DestroyTexture& command)
         {
-            m_textureManger.ReleaseTexture(command.handler);
+            m_textureStore.Release(command.handler);
         }
 
         void Execute(render::command::CreateMesh& command)
@@ -141,7 +145,7 @@ namespace {
     private:
         Diligent::IDeviceContext* m_deviceContext;
         Diligent::IRenderDevice* m_renderDevice;
-        render::TextureManager& m_textureManger;
+        render::TextureStore& m_textureStore;
         render::BufferManager& m_bufferManager;
         render::MeshManager& m_meshManager;
     };
@@ -323,9 +327,6 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     if (!m_bufferManager.Init(m_renderDevice, m_deviceContext))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Buffer Manager "));
 
-    if (!m_textureManager.Init(&m_commandQueue))
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Texture Manager "));
-
     if (!m_meshManager.Init(&m_commandQueue))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Mesh Manager "));
 
@@ -438,6 +439,14 @@ void RenderSystem::InitPipeline()
     Blend0.DestBlendAlpha = Diligent::BLEND_FACTOR_ZERO;
     m_renderDevice->CreateGraphicsPipelineState(HighlightPSOCI, &m_pHighlightPSO);
 
+}
+
+void RenderSystem::InitializeEngineViewportTexture(core::Handler textureHandler)
+{
+    if (!m_initialized || !textureHandler.IsValid())
+        return;
+
+    m_engineViewportTexture = textureHandler;
     CreateEngineViewport(m_engineViewportWidth, m_engineViewportHeight);
 }
 
@@ -457,8 +466,7 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     m_pEngineViewportTex = nullptr;
     m_engineViewportIsShaderResource = false;
     if (m_engineViewportTexture.IsValid()) {
-        m_textureManager.ReleaseTexture(m_engineViewportTexture);
-        m_engineViewportTexture = { };
+        m_textureStore.Release(m_engineViewportTexture);
     }
 
     m_engineViewportWidth = width;
@@ -484,8 +492,8 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     if (m_pEngineViewportSRV)
         m_pEngineViewportSRV->AddRef();
 
-    // UI refers to the viewport image by handler, the view itself is resolved on the render thread
-    m_engineViewportTexture = m_textureManager.RegisterTexture({ m_pEngineViewportTex, m_pEngineViewportSRV, width, height });
+    // UI refers to the viewport image by handler, the view itself is resolved on the render thread.
+    m_textureStore.Register(m_engineViewportTexture, { m_pEngineViewportTex, m_pEngineViewportSRV, width, height });
 
     Diligent::TextureDesc depthDesc;
     depthDesc.Name = "Engine Viewport Depth";
@@ -522,7 +530,7 @@ void RenderSystem::FlushCommands()
 
     m_commandQueue.CommitFrame();
     m_commandQueue.BeginFrame();
-    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
+    Executor executor(m_deviceContext, m_renderDevice, m_textureStore, m_meshManager, m_bufferManager);
     m_commandQueue.Execute(executor);
 }
 
@@ -584,7 +592,7 @@ void RenderSystem::Draw(FrameData& frameData)
     if (!m_deviceContext || !m_pPSO)
         return;
 
-    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);    
+    Executor executor(m_deviceContext, m_renderDevice, m_textureStore, m_meshManager, m_bufferManager);
     m_commandQueue.Execute(executor);
 
     if (m_pEngineViewportRTV && m_pEngineViewportDSV) {
@@ -665,7 +673,7 @@ void RenderSystem::Shutdown()
     // Render thread is stopped at this point: execute what is still queued (e.g. texture releases)
     FlushCommands();
 
-    m_textureManager.clear();
+    m_textureStore.Clear();
     m_engineViewportTexture = { };
 
     if (m_pEngineViewportSRV)
@@ -730,7 +738,7 @@ size_t RenderSystem::GetMemAllocated() const
 
 Diligent::ITextureView* RenderSystem::GetTextureView(core::Handler texture) const
 {
-    return m_textureManager.GetTextureView(texture);
+    return m_textureStore.GetTextureView(texture);
 }
 
 } // namespace Engine

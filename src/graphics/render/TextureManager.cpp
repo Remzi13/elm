@@ -1,35 +1,19 @@
 #include "graphics/render/TextureManager.hpp"
 
-#include "graphics/render/backends/Utils.hpp"
-
-#include "Graphics/GraphicsEngine/interface/Texture.h"
-#include "Graphics/GraphicsEngine/interface/TextureView.h"
-
-#include <cassert>
-#include <mutex>
-
 namespace elm {
 namespace render {
 
-    TextureManager* TextureManager::s_instance { nullptr };
-
     TextureManager& TextureManager::Get()
     {
-        assert(s_instance != nullptr && "TextureManager instance is null!");
-        return *s_instance;
+        static TextureManager instance;
+        return instance;
     }
 
-    TextureManager::TextureManager()
-    {
-        s_instance = this;
-    }
+    TextureManager::TextureManager() = default;
 
     TextureManager::~TextureManager()
     {
-        clear();
-        if (s_instance == this) {
-            s_instance = nullptr;
-        }
+        Shutdown();
     }
 
     bool TextureManager::Init(CommandQueue* commandQueue)
@@ -38,35 +22,39 @@ namespace render {
         return m_commandQueue != nullptr;
     }
 
+    void TextureManager::Shutdown()
+    {
+        m_commandQueue = nullptr;
+        std::lock_guard<std::mutex> lock(m_textureInfosMutex);
+        m_textureInfos.clear();
+    }
+
+    core::Handler TextureManager::AllocateHandler(const TextureInfo& info)
+    {
+        if (!m_commandQueue) {
+            return {};
+        }
+
+        const core::Handler handler(++m_currentIndex, core::Handler::Render);
+        std::lock_guard<std::mutex> lock(m_textureInfosMutex);
+        m_textureInfos.emplace(handler, info);
+        return handler;
+    }
+
     core::Handler TextureManager::CreateTexture(const TextureInfo& info)
     {
-        core::Handler handler(++m_currentIndex, core::Handler::Render);
+        const core::Handler handler = AllocateHandler(info);
+        if (!handler.IsValid()) {
+            return {};
+        }
 
         m_commandQueue->Push(command::CreateTexture({ .handler = handler, .info = info }));
         return handler;
     }
 
-    Diligent::ITexture* TextureManager::GetTextureImpl(const core::Handler& handler) const
-    {     
-        auto it = m_textures.find(handler);
-        if (it != m_textures.end()) {
-            return it->second.pTexture;
-        }
-        return nullptr;
-    }
-
-    Diligent::ITextureView* TextureManager::GetTextureView(core::Handler handler) const
-    {        
-        auto it = m_textures.find(handler);
-        if (it != m_textures.end()) {
-            return it->second.pSRV;
-        }
-        return nullptr;
-    }
-
     void TextureManager::UpdateTexture(const core::Handler& handler, const TextureData& textureData)
     {
-        if (textureData.data.empty() || !handler.IsValid())
+        if (!m_commandQueue || textureData.data.empty() || !handler.IsValid())
             return;
 
         // Texture existence is checked by the executor on the render thread
@@ -76,69 +64,33 @@ namespace render {
         }));
     }
 
+    std::optional<TextureInfo> TextureManager::GetTextureInfo(const core::Handler& handler) const
+    {
+        std::lock_guard<std::mutex> lock(m_textureInfosMutex);
+        const auto it = m_textureInfos.find(handler);
+        if (it == m_textureInfos.end()) {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    void TextureManager::UnregisterTexture(const core::Handler& handler)
+    {
+        std::lock_guard<std::mutex> lock(m_textureInfosMutex);
+        m_textureInfos.erase(handler);
+    }
+
     void TextureManager::DestroyTexture(const core::Handler& handler)
     {
+        if (!handler.IsValid())
+            return;
+
+        UnregisterTexture(handler);
+        if (!m_commandQueue)
+            return;
+
         // The render thread may still draw with this texture, so it is released there
         m_commandQueue->Push(command::DestroyTexture { handler });
-    }
-
-    core::Handler TextureManager::RegisterTexture(const Data& textureData)
-    {
-        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
-        core::Handler handler(++m_currentIndex, core::Handler::Render);
-        if (textureData.pTexture)
-            textureData.pTexture->AddRef();
-        if (textureData.pSRV)
-            textureData.pSRV->AddRef();
-        m_textures[handler] = textureData;
-        return handler;
-    }
-
-    void TextureManager::ReleaseTexture(const core::Handler& handler)
-    {
-        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
-        auto it = m_textures.find(handler);
-        if (it != m_textures.end()) {
-            if (it->second.pSRV) {
-                it->second.pSRV->Release();
-                it->second.pSRV = nullptr;
-            }
-            if (it->second.pTexture) {
-                it->second.pTexture->Release();
-                it->second.pTexture = nullptr;
-            }
-            m_textures.erase(it);
-        }
-    }
-
-    void TextureManager::clear()
-    {
-        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
-        for (auto& [_, texData] : m_textures) {
-            if (texData.pSRV) {
-                texData.pSRV->Release();
-                texData.pSRV = nullptr;
-            }
-            if (texData.pTexture) {
-                texData.pTexture->Release();
-                texData.pTexture = nullptr;
-            }
-        }
-        m_textures.clear();
-    }
-
-    TextureManager::Data TextureManager::GetTextureData(const core::Handler& handler)
-    {
-        auto it = m_textures.find(handler);
-        if (it != m_textures.end()) {
-            return it->second;
-        }
-        return TextureManager::Data();
-    }
-
-    void TextureManager::PushTextureData(const core::Handler& handler, const Data& textureData)
-    {
-        m_textures[handler] = TextureManager::Data(textureData);
     }
 
 } // namespace elm::render

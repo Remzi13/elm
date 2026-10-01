@@ -1,5 +1,6 @@
 #include "EngineApp.hpp"
 #include "graphics/ui/DepthPreviewWindow.hpp"
+#include "graphics/render/TextureManager.hpp"
 
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
@@ -28,16 +29,33 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
 
-    // Initialize Render System
+    // Initialize the render backend and its command queue first.
     auto renderInit = m_renderSystem->Init(width, height, title);
     if (!renderInit) {
         return std::unexpected(renderInit.error());
     }
+
+    auto& textureManager = render::TextureManager::Get();
+    if (!textureManager.Init(&m_renderSystem->GetCommandQueue())) {
+        m_renderSystem->Shutdown();
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to initialize Texture Manager"));
+    }
+
+    render::TextureInfo viewportTextureInfo;
+    viewportTextureInfo.name = "Engine Viewport Color";
+    viewportTextureInfo.width = width;
+    viewportTextureInfo.height = height;
+    viewportTextureInfo.format = render::TextureFormat::Unknown;
+    viewportTextureInfo.bindFlags = render::TextureBindFlags::BindRenderTarget | render::TextureBindFlags::BindShaderResource;
+    const core::Handler viewportTexture = textureManager.AllocateHandler(viewportTextureInfo);
+    m_renderSystem->InitializeEngineViewportTexture(viewportTexture);
     m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
     m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
     auto imguiInit = m_imguiSystem->Init(*m_renderSystem, m_settings, "Engine Debug UI");
     if (!imguiInit) {
+        m_renderSystem->Shutdown();
+        textureManager.Shutdown();
         return std::unexpected(imguiInit.error());
     }
 
@@ -64,6 +82,9 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     // Initialize Physics System
     auto physicsInit = m_physicsSystem->Init();
     if (!physicsInit) {
+        m_imguiSystem->Shutdown();
+        m_renderSystem->Shutdown();
+        textureManager.Shutdown();
         return std::unexpected(physicsInit.error());
     }
 
@@ -320,6 +341,7 @@ void EngineApp::Shutdown()
     if (m_renderSystem) {
         m_renderSystem->Shutdown();
     }
+    render::TextureManager::Get().Shutdown();
 
     m_isRunning = false;
     std::cout << "[EngineApp] Engine shutdown finished." << std::endl;

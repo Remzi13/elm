@@ -28,7 +28,8 @@ namespace render {
         RGBA8_UNORM,
         RGBA8_UNORM_SRGB,
         R32_FLOAT,
-        D32_FLOAT
+        D32_FLOAT,
+        Unknown
     };
 
     enum TextureUsage {

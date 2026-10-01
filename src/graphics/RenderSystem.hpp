@@ -10,7 +10,7 @@
 #include "graphics/render/BufferManager.hpp"
 #include "graphics/render/DynamicLinearAllocator.hpp"
 #include "graphics/render/MeshManager.h"
-#include "graphics/render/TextureManager.hpp"
+#include "graphics/render/TextureStore.hpp"
 
 #include "graphics/render/CommandQueue.hpp"
 
@@ -60,6 +60,8 @@ public:
 
     [[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
     [[nodiscard]] bool ShouldClose() const;
+    [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_commandQueue; }
+    void InitializeEngineViewportTexture(core::Handler textureHandler);
 
     // --- Main thread ---
     void CommitCommands();
@@ -118,8 +120,8 @@ private:
     uint32_t m_engineViewportHeight { 720 };
     bool m_engineViewportIsShaderResource { false };
 
-    render::BufferManager m_bufferManager;
-    render::TextureManager m_textureManager;
+    render::BufferManager m_bufferManager;    
+    render::TextureStore m_textureStore;
     render::MeshManager m_meshManager;
     render::DynamicLinearAllocator m_dynamicInstanceBuffer;
     render::DynamicLinearAllocator m_dynamicUniformBuffer;

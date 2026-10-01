@@ -25,6 +25,8 @@ namespace elm::render {
 			return Diligent::TEX_FORMAT_R32_FLOAT;
 		case TextureFormat::D32_FLOAT:
 			return Diligent::TEX_FORMAT_D32_FLOAT;
+		case TextureFormat::Unknown:
+			return Diligent::TEX_FORMAT_UNKNOWN;
 		default:
 			return Diligent::TEX_FORMAT_UNKNOWN;
 		}

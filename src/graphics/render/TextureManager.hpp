@@ -7,22 +7,11 @@
 #include "graphics/render/CommandQueue.hpp"
 
 #include <mutex>
-
-namespace Diligent {
-	struct ITexture;
-	struct ITextureView;
-}
+#include <optional>
 
 namespace elm::render {
 
 	class TextureManager {
-	public:
-		struct Data {
-			Diligent::ITexture* pTexture{ nullptr };
-			Diligent::ITextureView* pSRV{ nullptr };
-			uint32_t width{ 0 };
-			uint32_t height{ 0 };
-		};
 	public:
 		TextureManager();
 		~TextureManager();
@@ -30,33 +19,23 @@ namespace elm::render {
 		static TextureManager& Get();
 
 		bool Init(CommandQueue* commandQueue);
+		void Shutdown();
 
-		// Main thread: only allocate handlers and push commands
+		// Producer thread: allocate handlers and push commands
 		[[nodiscard]] core::Handler CreateTexture(const TextureInfo& info);
+		[[nodiscard]] core::Handler AllocateHandler(const TextureInfo& info);
 		void UpdateTexture(const core::Handler& handler, const TextureData& textureData);
 		void DestroyTexture(const core::Handler& handler);
+		void UnregisterTexture(const core::Handler& handler);
 
-		// Registers a texture created by the render system itself; the manager takes its own references.
-		// Called during initialization, before the render thread starts
-		[[nodiscard]] core::Handler RegisterTexture(const Data& textureData);
-
-		// Render thread only
-		[[nodiscard]] Diligent::ITexture* GetTextureImpl(const core::Handler& handler) const;
-		[[nodiscard]] Diligent::ITextureView* GetTextureView(core::Handler handler) const;
-
-		Data GetTextureData(const core::Handler& handler);
-		void PushTextureData(const core::Handler& handler, const Data& textureData);
-		void ReleaseTexture(const core::Handler& handler);
-		
-		void clear();
+		[[nodiscard]] std::optional<TextureInfo> GetTextureInfo(const core::Handler& handler) const;
 
 	private:
-		std::mutex m_textureMangerMutex;
-		static TextureManager* s_instance;
-		UnorderedMap<core::Handler, Data> m_textures;
 		int m_currentIndex{ 0 };
 
 		CommandQueue* m_commandQueue{ nullptr };
+		mutable std::mutex m_textureInfosMutex;
+		UnorderedMap<core::Handler, TextureInfo> m_textureInfos;
 	};
 
 } // namespace elm::render
