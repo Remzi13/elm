@@ -107,7 +107,19 @@ FetchContent_MakeAvailable(tracy)
 if(EXISTS "${tracy_SOURCE_DIR}/profiler")
     set(NO_PARALLEL_STL ON CACHE BOOL "" FORCE)
     set(LEGACY ON CACHE BOOL "" FORCE)
+    # Profiler vendors old dependencies (freetype requires CMake 3.0), CMake 4 rejects policies < 3.5
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
     add_subdirectory(${tracy_SOURCE_DIR}/profiler ${CMAKE_BINARY_DIR}/tracy-profiler)
+    # Tracy 0.11.1 uses std::chrono without including <chrono>, recent MSVC STL no longer pulls it transitively
+    # (per-source: Visual Studio generators cannot split target compile options by language, and the target has C sources)
+    if(MSVC AND TARGET tracy-profiler)
+        get_target_property(tracy_profiler_sources tracy-profiler SOURCES)
+        list(FILTER tracy_profiler_sources INCLUDE REGEX "\\.cpp$")
+        list(TRANSFORM tracy_profiler_sources REPLACE "^([^/:][^:]*)$" "${tracy_SOURCE_DIR}/profiler/\\1")
+        set_property(SOURCE ${tracy_profiler_sources}
+            DIRECTORY ${tracy_SOURCE_DIR}/profiler
+            APPEND PROPERTY COMPILE_OPTIONS /FIchrono)
+    endif()
 endif()
 
 

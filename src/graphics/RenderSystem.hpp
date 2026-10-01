@@ -61,18 +61,25 @@ public:
     [[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
     [[nodiscard]] bool ShouldClose() const;
 
-    void BeginFrame();
+    // --- Main thread ---
     void CommitCommands();
+    // Executes queued work on the calling thread. Only when the render thread is stopped
+    void FlushCommands();
+
+    // --- Render thread ---
+    void BeginFrame();
     void Draw(FrameData& frameData);
     void EndFrame();
-    void Shutdown();
-
-    [[nodiscard]] Diligent::ITextureView* GetTextureView(const render::Texture&) const;
-    [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
+    [[nodiscard]] Diligent::ITextureView* GetTextureView(core::Handler texture) const;
     [[nodiscard]] Diligent::IRenderDevice* GetRenderDevice() const { return m_renderDevice; }
     [[nodiscard]] Diligent::IDeviceContext* GetDeviceContext() const { return m_deviceContext; }
     [[nodiscard]] Diligent::ISwapChain* GetSwapChain() const { return m_swapChain; }
-    [[nodiscard]] Diligent::ITextureView* GetEngineViewportSRV() const { return m_pEngineViewportSRV; }
+
+    void Shutdown();
+
+    // --- Any thread: immutable after Init or atomic ---
+    [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
+    [[nodiscard]] core::Handler GetEngineViewportTexture() const { return m_engineViewportTexture; }
     [[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportWidth; }
     [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportHeight; }
     [[nodiscard]] uint32_t GetWidth() const { return m_width; }
@@ -106,6 +113,7 @@ private:
     Diligent::ITextureView* m_pEngineViewportRTV { nullptr };
     Diligent::ITextureView* m_pEngineViewportDSV { nullptr };
     Diligent::ITextureView* m_pEngineViewportSRV { nullptr };
+    core::Handler m_engineViewportTexture;
     uint32_t m_engineViewportWidth { 1280 };
     uint32_t m_engineViewportHeight { 720 };
     bool m_engineViewportIsShaderResource { false };

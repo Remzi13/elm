@@ -4,6 +4,7 @@
 #include "graphics/render/CommandList.hpp"
 #include "graphics/render/Texture.hpp"
 
+
 namespace elm {
 namespace render {
 
@@ -16,6 +17,9 @@ namespace render {
             core::Handler handler;
             TextureData data;
         };
+        struct DestroyTexture {
+            core::Handler handler;
+        };
         struct CreateMesh {
             core::Handler handler;
             core::Handler meshData;
@@ -25,7 +29,7 @@ namespace render {
         };
     }
 
-    using RenderCommandVariant = std::variant<command::UploadTexture, command::CreateTexture, command::CreateMesh, command::DestroyMesh>;
+    using RenderCommandVariant = std::variant<command::UploadTexture, command::CreateTexture, command::DestroyTexture, command::CreateMesh, command::DestroyMesh>;
 
     using CommandList = BasicCommandList<RenderCommandVariant>;
 

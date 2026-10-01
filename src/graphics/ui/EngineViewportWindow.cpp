@@ -1,4 +1,5 @@
 #include "graphics/ui/EngineViewportWindow.hpp"
+#include "graphics/ImGuiSystem.hpp"
 #include "graphics/RenderSystem.hpp"
 
 #include "imgui.h"
@@ -15,7 +16,7 @@ namespace elm {
 			return;
 		}
 
-		if (auto* texture = renderSystem.GetEngineViewportSRV()) {
+		if (auto texture = ImGuiSystem::ToTextureId(renderSystem.GetEngineViewportTexture())) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
 			const float aspect = static_cast<float>(renderSystem.GetEngineViewportWidth()) /
 				static_cast<float>(renderSystem.GetEngineViewportHeight());
@@ -26,7 +27,7 @@ namespace elm {
 			else {
 				size.x = size.y * aspect;
 			}
-			ImGui::Image(reinterpret_cast<ImTextureID>(texture), size);
+			ImGui::Image(texture, size);
 		}
 		ImGui::End();
 	}

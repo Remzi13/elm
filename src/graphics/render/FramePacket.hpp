@@ -1,5 +1,6 @@
 #pragma once
 
+#include "graphics/ImGuiSystem.hpp"
 #include "graphics/RenderSystem.hpp"
 
 namespace elm {
@@ -9,6 +10,7 @@ namespace elm {
 struct FramePacket {
     FrameData   frameData;
     FrameStats  stats;
+    ImGuiFrame  ui;
     float       deltaTime { 0.0f };
 };
 

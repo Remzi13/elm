@@ -6,6 +6,7 @@
 #include "Graphics/GraphicsEngine/interface/TextureView.h"
 
 #include <cassert>
+#include <mutex>
 
 namespace elm {
 namespace render {
@@ -65,14 +66,10 @@ namespace render {
 
     void TextureManager::UpdateTexture(const core::Handler& handler, const TextureData& textureData)
     {
-        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
-        if (textureData.data.empty())
+        if (textureData.data.empty() || !handler.IsValid())
             return;
 
-        auto it = m_textures.find(handler);
-        if (it == m_textures.end() || !it->second.pTexture)
-            return;
-
+        // Texture existence is checked by the executor on the render thread
         m_commandQueue->Push(command::UploadTexture({
             .handler = handler,
             .data = textureData,
@@ -80,6 +77,24 @@ namespace render {
     }
 
     void TextureManager::DestroyTexture(const core::Handler& handler)
+    {
+        // The render thread may still draw with this texture, so it is released there
+        m_commandQueue->Push(command::DestroyTexture { handler });
+    }
+
+    core::Handler TextureManager::RegisterTexture(const Data& textureData)
+    {
+        std::lock_guard<std::mutex> lock(m_textureMangerMutex);
+        core::Handler handler(++m_currentIndex, core::Handler::Render);
+        if (textureData.pTexture)
+            textureData.pTexture->AddRef();
+        if (textureData.pSRV)
+            textureData.pSRV->AddRef();
+        m_textures[handler] = textureData;
+        return handler;
+    }
+
+    void TextureManager::ReleaseTexture(const core::Handler& handler)
     {
         std::lock_guard<std::mutex> lock(m_textureMangerMutex);
         auto it = m_textures.find(handler);

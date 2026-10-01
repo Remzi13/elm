@@ -108,6 +108,11 @@ namespace {
                 Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
         }
 
+        void Execute(render::command::DestroyTexture& command)
+        {
+            m_textureManger.ReleaseTexture(command.handler);
+        }
+
         void Execute(render::command::CreateMesh& command)
         {
             using namespace render;
@@ -451,6 +456,10 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     m_pEngineViewportRTV = nullptr;
     m_pEngineViewportTex = nullptr;
     m_engineViewportIsShaderResource = false;
+    if (m_engineViewportTexture.IsValid()) {
+        m_textureManager.ReleaseTexture(m_engineViewportTexture);
+        m_engineViewportTexture = { };
+    }
 
     m_engineViewportWidth = width;
     m_engineViewportHeight = height;
@@ -474,6 +483,9 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
         m_pEngineViewportRTV->AddRef();
     if (m_pEngineViewportSRV)
         m_pEngineViewportSRV->AddRef();
+
+    // UI refers to the viewport image by handler, the view itself is resolved on the render thread
+    m_engineViewportTexture = m_textureManager.RegisterTexture({ m_pEngineViewportTex, m_pEngineViewportSRV, width, height });
 
     Diligent::TextureDesc depthDesc;
     depthDesc.Name = "Engine Viewport Depth";
@@ -501,6 +513,17 @@ bool RenderSystem::ShouldClose() const
 void RenderSystem::CommitCommands()
 {
     m_commandQueue.CommitFrame();
+}
+
+void RenderSystem::FlushCommands()
+{
+    if (!m_deviceContext)
+        return;
+
+    m_commandQueue.CommitFrame();
+    m_commandQueue.BeginFrame();
+    Executor executor(m_deviceContext, m_renderDevice, m_textureManager, m_meshManager, m_bufferManager);
+    m_commandQueue.Execute(executor);
 }
 
 void RenderSystem::BeginFrame()
@@ -639,7 +662,11 @@ void RenderSystem::Shutdown()
     if (!m_initialized)
         return;
 
+    // Render thread is stopped at this point: execute what is still queued (e.g. texture releases)
+    FlushCommands();
+
     m_textureManager.clear();
+    m_engineViewportTexture = { };
 
     if (m_pEngineViewportSRV)
         m_pEngineViewportSRV->Release();
@@ -701,10 +728,9 @@ size_t RenderSystem::GetMemAllocated() const
     return g_Allocator.GetTotalAllocatedBytes();
 }
 
-Diligent::ITextureView* RenderSystem::GetTextureView(const render::Texture& texture) const
+Diligent::ITextureView* RenderSystem::GetTextureView(core::Handler texture) const
 {
-    auto handler = texture.GetHandler();
-    return m_textureManager.GetTextureView(handler);
+    return m_textureManager.GetTextureView(texture);
 }
 
 } // namespace Engine

@@ -1,4 +1,5 @@
 #include "graphics/ui/DepthPreviewWindow.hpp"
+#include "graphics/ImGuiSystem.hpp"
 #include "graphics/RenderSystem.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/render/Texture.hpp"
@@ -32,14 +33,14 @@ namespace elm {
 			m_settings.Set(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR, falseColor);
 		}
 		
-		Diligent::ITextureView* texture = renderSystem.GetTextureView(m_cullingSystem->GetDepthPreviewTexture());
+		const ImTextureID texture = ImGuiSystem::ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandler());
 		
 		if (texture) {
 			const float aspect = static_cast<float>(depthWidth) / static_cast<float>(depthHeight);
 			const float width = ImGui::GetContentRegionAvail().x;
 			const float height = width / aspect;
 			const ImVec2 imagePos = ImGui::GetCursorScreenPos();
-			ImGui::Image(reinterpret_cast<ImTextureID>(texture), ImVec2(width, height));
+			ImGui::Image(texture, ImVec2(width, height));
 			if (ImGui::IsItemHovered()) {
 				const ImVec2 mouse = ImGui::GetMousePos();
 				const uint32_t px = static_cast<uint32_t>(((mouse.x - imagePos.x) / width) * depthWidth);

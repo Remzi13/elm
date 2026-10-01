@@ -114,9 +114,9 @@ void EngineApp::RenderThreadFunc()
                 }
 
                 {
+                    // Only draws the UI captured on the main thread: ImGui/GLFW logic must not run here
                     ELM_PROFILE_SCOPE_N("Render ImGui UI");
-                    m_imguiSystem->BeginFrame(*m_renderSystem);
-                    m_imguiSystem->Render(*m_renderSystem, m_scene, packet.stats);
+                    m_imguiSystem->RenderFrame(*m_renderSystem, packet.ui);
                 }
 
                 m_renderSystem->EndFrame();
@@ -185,6 +185,13 @@ auto EngineApp::Run() -> EngineResult<void>
             ELM_PROFILE_SCOPE_N("Update Depth Preview Texture");
             const bool falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
             m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
+        }
+
+        // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread.
+        // The write slot is not read by the render thread: it renders the other one.
+        {
+            ELM_PROFILE_SCOPE_N("Build ImGui Frame");
+            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_currentStats, m_framePackets[m_packetWriteIndex].ui);
         }
 
         m_settings.Flash();
@@ -300,6 +307,11 @@ void EngineApp::Shutdown()
 
     if (m_physicsSystem) {
         m_physicsSystem->Shutdown();
+    }
+
+    // ImGui draw list copies are freed while the ImGui context is alive
+    for (auto& packet : m_framePackets) {
+        packet.ui.Clear();
     }
 
     if (m_imguiSystem) {

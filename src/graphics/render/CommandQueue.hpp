@@ -64,6 +64,8 @@ namespace render {
         {
             if (m_consumerBuffer) {
                 m_consumerBuffer->Execute(executor);
+                // BeginFrame() keeps this buffer when nothing new was committed: never execute commands twice
+                m_consumerBuffer->Clear();
             }
         }
 
