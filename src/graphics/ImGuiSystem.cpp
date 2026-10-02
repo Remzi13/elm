@@ -2,6 +2,7 @@
 #include "graphics/render/ImGuiRenderer.hpp"
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
+#include "graphics/ui/LogWindow.hpp"
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 #include "graphics/ui/SocLabWindow.hpp"
 
@@ -77,6 +78,7 @@ namespace elm {
 		EmplaceWindow<SceneHierarchyWindow>( settings );
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<DepthPreviewWindow>( settings );
+		EmplaceWindow<LogWindow>( settings );
 
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem, renderSystem.GetResourceProvider() );
 		if ( !m_renderer->IsInitialized() ) {

@@ -1,5 +1,7 @@
 #include "physics/PhysicsSystem.hpp"
 
+#include "core/Log.hpp"
+
 // Jolt includes
 #include <Jolt/Jolt.h>
 #include <Jolt/RegisterTypes.h>
@@ -128,8 +130,8 @@ auto PhysicsSystem::Init() -> elm::EngineResult<void> {
     );
 
     m_initialized = true;
-    std::cout << "[PhysicsSystem] Initialized Jolt Physics engine successfully." << std::endl;
-
+    LOG_MESSAGE( log::Category::Physics, "PhysicsSystem", "Initialized Jolt Physics engine successfully." );
+    
     CreateDefaultScene();
 
     return {};
@@ -145,7 +147,7 @@ void PhysicsSystem::CreateDefaultScene() {
     JPH::ShapeSettings::ShapeResult groundShapeResult = groundShapeSettings.Create();
 
     if (groundShapeResult.HasError()) {
-        std::cout << "[PhysicsSystem] Failed to create ground shape: " << groundShapeResult.GetError().c_str() << std::endl;
+        LOG_MESSAGE( log::Category::Physics, "PhysicsSystem", "Failed to create ground shape: %s", groundShapeResult.GetError().c_str() );
         return;
     }
 
@@ -168,7 +170,7 @@ void PhysicsSystem::CreateDefaultScene() {
     JPH::ShapeSettings::ShapeResult boxShapeResult = boxShapeSettings.Create();
 
     if (boxShapeResult.HasError()) {
-        std::cout << "[PhysicsSystem] Failed to create box shape: " << boxShapeResult.GetError().c_str() << std::endl;
+        LOG_MESSAGE( log::Category::Physics, "PhysicsSystem", "Failed to create box shape: %s", boxShapeResult.GetError().c_str() );
         return;
     }
 
@@ -187,7 +189,7 @@ void PhysicsSystem::CreateDefaultScene() {
     }
 
     m_physicsSystem->OptimizeBroadPhase();
-    std::cout << "[PhysicsSystem] Default scene initialized with ground and dynamic box." << std::endl;
+    LOG_MESSAGE( log::Category::Physics, "PhysicsSystem", "Default scene initialized with ground and dynamic box." );
 }
 
 void PhysicsSystem::Step(float deltaTime) {
@@ -250,7 +252,7 @@ void PhysicsSystem::Shutdown() {
     JPH::UnregisterTypes();
 
     m_initialized = false;
-    std::cout << "[PhysicsSystem] Shutdown completed." << std::endl;
+    LOG_MESSAGE( log::Category::Physics, "PhysicsSystem", "Shutdown completed." );
 }
 
 } // namespace Engine

@@ -1,12 +1,13 @@
 #include "EngineApp.hpp"
 #include <iostream>
 
-int main(int argc, char** argv) {
-    std::cout << "==================================================" << std::endl;
-    std::cout << " Starting C++23 Cross-Platform 3D Engine Core " << std::endl;
-    std::cout << " Diligent Engine | Jolt Physics | Dear ImGui " << std::endl;
-    std::cout << "==================================================" << std::endl;
+#include "core/Log.hpp"
 
+int main(int argc, char** argv) {
+    using namespace elm;
+
+    LOG_MESSAGE( log::Category::Core, "Main", "Starting C++23 Cross-Platform 3D Engine Core..." );
+    
     elm::EngineApp app;
 
     // Initialize application using C++23 std::expected error checking
@@ -24,6 +25,6 @@ int main(int argc, char** argv) {
     }
 
     app.Shutdown();
-    std::cout << "[Main] Application terminated gracefully." << std::endl;
+    LOG_MESSAGE( log::Category::Core, "Main", "Application terminated gracefully." );
     return 0;
 }

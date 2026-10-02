@@ -242,7 +242,7 @@ static String LoadShaderSource(const char* fileName)
 
         String source(static_cast<size_t>(size), '\0');
         if (file.read(source.data(), size)) {
-            std::cout << "[RenderSystem] Loaded shader: " << path << std::endl;
+            LOG_MESSAGE(log::Category::Render, "Shaders", "Loaded shader: %s", path.string().c_str());            
             return source;
         }
     }
@@ -358,7 +358,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
 
     g_renderSystemsByWindow[m_window] = this;
     m_initialized = true;
-    std::cout << "[RenderSystem] Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized." << std::endl;
+    LOG_MESSAGE(log::Category::Render, "RenderSystem", "Diligent Engine, 3D Mesh Pipeline, and SOC Testbed initialized.");
     return { };
 }
 
@@ -812,7 +812,7 @@ void RenderSystem::Shutdown()
     glfwTerminate();
 
     m_initialized = false;
-    std::cout << "[RenderSystem] Shutdown completed." << std::endl;
+    LOG_MESSAGE(log::Category::Render, "RenderSystem", "Shutdown completed.");
 }
 
 size_t RenderSystem::GetMemAllocated() const

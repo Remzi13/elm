@@ -4,6 +4,7 @@
 
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
+#include "core/Log.hpp"
 
 #include <iostream>
 
@@ -25,7 +26,8 @@ EngineApp::~EngineApp()
 
 auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>
 {
-    std::cout << "[EngineApp] Initializing 3D Engine Core (C++23)..." << std::endl;
+ 
+    LOG_MESSAGE( log::Category::Core, "EngineApp", "Initializing 3D Engine Core (C++23)..." );    
 
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
 
@@ -99,7 +101,9 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     }
 
     m_isRunning = true;
-    std::cout << "[EngineApp] Engine initialization completed successfully." << std::endl;
+    
+    LOG_MESSAGE( log::Category::Core, "EngineApp", "Engine initialization completed successfully." );
+    
     return { };
 }
 
@@ -167,7 +171,8 @@ auto EngineApp::Run() -> EngineResult<void>
         return std::unexpected(EngineError(ErrorCode::UnknownError, "EngineApp::Run called without prior successful initialization"));
     }
 
-    std::cout << "[EngineApp] Entering main loop with pipelined Update/Render." << std::endl;
+    LOG_MESSAGE( log::Category::Core, "EngineApp", "Entering main loop with pipelined Update/Render." );
+    
     ELM_PROFILE_THREAD("Main Thread");
 
     // Start the render thread

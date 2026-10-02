@@ -1,0 +1,1 @@
+#define ELM_LOG_TO_CONSOLE 1

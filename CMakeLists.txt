@@ -5,6 +5,8 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(ELM_LOG_TO_CONSOLE "Duplicate log messages to the system console" OFF)
+
 # Include custom compile options
 include(cmake/CompileOptions.cmake)
 

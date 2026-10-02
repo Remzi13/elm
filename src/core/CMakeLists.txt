@@ -1,4 +1,5 @@
 engine_add_library(core
+    config.hpp
     Std.hpp
     Debug.hpp
     Memory.hpp
@@ -24,4 +25,3 @@ target_include_directories(core PUBLIC
 if(TARGET TracyClient)
     target_link_libraries(core PUBLIC TracyClient)
 endif()
-
