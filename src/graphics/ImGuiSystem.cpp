@@ -68,15 +68,12 @@ namespace elm {
 	auto ImGuiSystem::Init( RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
 		m_window = renderSystem.GetWindowHandle();
 		m_renderSystem = &renderSystem;
-		m_settings = &settings;
 		m_title = title;
 
 		// Register standard engine editor windows
-		auto socLab = MakeUnique<SocLabWindow>(settings);
-		m_socLabWindow = socLab.get();
-		AddWindow( std::move( socLab ) );
-		AddWindow( MakeUnique<EngineViewportWindow>(settings) );
-		AddWindow( MakeUnique<DepthPreviewWindow>(settings) );
+		m_socLabWindow = &EmplaceWindow<SocLabWindow>( settings );
+		EmplaceWindow<EngineViewportWindow>( settings );
+		EmplaceWindow<DepthPreviewWindow>( settings );
 
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem, renderSystem.GetResourceProvider() );
 		if ( !m_renderer->IsInitialized() ) {

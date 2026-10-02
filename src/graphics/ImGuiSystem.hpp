@@ -12,6 +12,8 @@
 #include <atomic>
 #include <memory>
 #include <span>
+#include <type_traits>
+#include <utility>
 
 namespace elm {
 
@@ -87,6 +89,14 @@ class ImGuiRenderer;
 
 		// Window management
 		void AddWindow(UniquePtr<IImGuiWindow> window);
+		template <typename T, typename... Args>
+		[[nodiscard]] T& EmplaceWindow(Settings& settings, Args&&... args) {
+			static_assert(std::is_base_of_v<IImGuiWindow, T>);
+			auto window = MakeUnique<T>(settings, std::forward<Args>(args)...);
+			T& result = *window;
+			AddWindow(std::move(window));
+			return result;
+		}
 		[[nodiscard]] std::span<const UniquePtr<IImGuiWindow>> GetWindows() const noexcept { return m_windows; }
 
 		template <typename T>
@@ -144,8 +154,6 @@ class ImGuiRenderer;
 		DockSpaceView m_dockSpace;
 		Vector<UniquePtr<IImGuiWindow>> m_windows;
 		SocLabWindow* m_socLabWindow{ nullptr };
-
-		Settings* m_settings;
 
 		// --- Main thread ---
 		Vector<ImGuiViewportEvent> m_pendingViewportEvents;

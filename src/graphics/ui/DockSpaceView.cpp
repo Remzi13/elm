@@ -22,7 +22,18 @@ namespace elm {
 		ImGui::PopStyleVar(3);
 
 		if (ImGui::BeginMenuBar()) {
-			if (ImGui::BeginMenu("View")) {
+			if (ImGui::BeginMenu("Windows")) {
+				if (ImGui::MenuItem("Show All")) {
+					for (const auto& window : windows) {
+						if (window) window->SetVisible(true);
+					}
+				}
+				if (ImGui::MenuItem("Hide All")) {
+					for (const auto& window : windows) {
+						if (window) window->SetVisible(false);
+					}
+				}
+				ImGui::Separator();
 				for (const auto& window : windows) {
 					if (!window) continue;
 					bool visible = window->IsVisible();
