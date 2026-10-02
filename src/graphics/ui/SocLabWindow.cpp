@@ -39,13 +39,6 @@ namespace elm {
 		ImGui::Text("FPS: %.1f | Frame: %.2f ms | Mem: All %lld KB | Render CPU %llu KB", stats.fps, stats.deltaTimeMs, allocatedMemoryKb, renderCpuMemoryKb);
 		ImGui::Separator();
 
-		if (ImGui::CollapsingHeader("Scene Configuration", ImGuiTreeNodeFlags_DefaultOpen)) {
-			const char* presets[] = { "Box", "The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox" };
-			int preset = static_cast<int>(scene.preset);
-			if (ImGui::Combo("Preset", &preset, presets, IM_ARRAYSIZE(presets))) {
-				TestScenes::BuildScene(static_cast<ScenePreset>(preset), static_cast<uint32_t>(1500), scene);
-			}
-		}
 		if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
 
 			auto enableFrustumCulling = m_settings.Get<bool>(Settings::Category::Render, CULLING_ENABLE_FRUSTUM_CULLING);

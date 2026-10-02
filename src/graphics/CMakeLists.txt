@@ -17,6 +17,8 @@ engine_add_library(graphics
     ui/DockSpaceView.cpp
     ui/EngineViewportWindow.hpp
     ui/EngineViewportWindow.cpp
+    ui/SceneHierarchyWindow.hpp
+    ui/SceneHierarchyWindow.cpp
     ui/SocLabWindow.hpp
     ui/SocLabWindow.cpp
     
