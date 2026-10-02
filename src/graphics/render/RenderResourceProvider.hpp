@@ -3,8 +3,8 @@
 #include "graphics/render/SwapChain.hpp"
 
 namespace Diligent {
-class IRenderDevice;
-class IDeviceContext;
+struct IRenderDevice;
+struct IDeviceContext;
 }
 
 namespace elm::render {

@@ -3,8 +3,8 @@
 #include <cstdint>
 
 namespace Diligent {
-class ISwapChain;
-class ITextureView;
+struct ISwapChain;
+struct ITextureView;
 struct SwapChainDesc;
 }
 

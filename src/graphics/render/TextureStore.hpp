@@ -4,7 +4,7 @@
 #include "core/Handler.hpp"
 
 namespace Diligent {
-	class IRenderDevice;
+	struct IRenderDevice;
 	struct ITexture;
 	struct ITextureView;
 	struct TextureDesc;

@@ -5,7 +5,7 @@
 
 namespace Diligent {
 struct ITexture;
-class ITextureView;
+struct ITextureView;
 }
 
 namespace elm::render {

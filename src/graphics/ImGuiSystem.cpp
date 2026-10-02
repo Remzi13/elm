@@ -55,6 +55,7 @@ namespace elm {
 
 	void ImGuiSystem::AddWindow( UniquePtr<IImGuiWindow> window ) {
 		if ( window ) {
+			window->Attach(m_windowMessageBus);
 			m_windows.push_back( std::move( window ) );
 		}
 	}
@@ -73,9 +74,9 @@ namespace elm {
 
 		// Register standard engine editor windows
 		m_socLabWindow = &EmplaceWindow<SocLabWindow>( settings );
+		EmplaceWindow<SceneHierarchyWindow>( settings );
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<DepthPreviewWindow>( settings );
-		EmplaceWindow<SceneHierarchyWindow>( settings );
 
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem, renderSystem.GetResourceProvider() );
 		if ( !m_renderer->IsInitialized() ) {
@@ -218,7 +219,7 @@ namespace elm {
 		m_pendingPlatformWindows.erase( m_pendingPlatformWindows.begin(), m_pendingPlatformWindows.begin() + count );
 	}
 
-	void ImGuiSystem::BuildFrame( RenderSystem& renderSystem, Scene& scene, const FrameStats& stats, ImGuiFrame& frame ) {
+	void ImGuiSystem::BuildFrame( RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats, ImGuiFrame& frame ) {
 		// The frame slot was rendered already: its events are applied and draw lists are no longer used
 		frame.Clear();
 		if ( !m_initialized ) return;
@@ -231,7 +232,7 @@ namespace elm {
 		m_dockSpace.Render( m_windows );
 		for ( const auto& window : m_windows ) {
 			if ( window && window->IsVisible() ) {
-				window->Render( renderSystem, scene, stats );
+				window->Render( renderSystem, scene, camera, stats );
 			}
 		}
 

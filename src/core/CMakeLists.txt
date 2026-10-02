@@ -14,6 +14,7 @@ engine_add_library(core
     Handler.hpp
     Handler.cpp
     Profiling.hpp
+    MessageBus.hpp
 )
 
 target_include_directories(core PUBLIC

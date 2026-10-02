@@ -17,6 +17,7 @@ engine_add_library(graphics
     ui/DockSpaceView.cpp
     ui/EngineViewportWindow.hpp
     ui/EngineViewportWindow.cpp
+    ui/WindowMessages.hpp
     ui/SceneHierarchyWindow.hpp
     ui/SceneHierarchyWindow.cpp
     ui/SocLabWindow.hpp
@@ -54,7 +55,7 @@ engine_add_library(graphics
     ui/DepthPreviewWindow.cpp
 )
 
-target_link_libraries(graphics PUBLIC glfw Diligent-Imgui imgui_glfw)
+target_link_libraries(graphics PUBLIC glfw Diligent-Imgui imgui_glfw imguizmo)
 
 target_link_libraries(graphics PRIVATE core)
 

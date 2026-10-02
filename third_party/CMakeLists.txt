@@ -51,6 +51,27 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(DiligentEngine)
 set_property(TARGET Diligent-Imgui PROPERTY FOLDER "third party")
 
+# ImGuizmo
+FetchContent_Declare(
+    imguizmo
+    GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
+    GIT_TAG        1.83
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(imguizmo)
+
+add_library(imguizmo STATIC
+    ${imguizmo_SOURCE_DIR}/ImGuizmo.cpp
+    ${imguizmo_SOURCE_DIR}/ImGuizmo.h
+)
+target_include_directories(imguizmo SYSTEM PUBLIC
+    ${imguizmo_SOURCE_DIR}
+    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui
+)
+target_compile_definitions(imguizmo PRIVATE IMGUI_DEFINE_MATH_OPERATORS)
+target_link_libraries(imguizmo PUBLIC Diligent-Imgui)
+set_property(TARGET imguizmo PROPERTY FOLDER "third party")
+
 # ImGui GLFW backend
 add_library(imgui_glfw STATIC
     ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp
@@ -134,4 +155,3 @@ set(glfw_SOURCE_DIR "${glfw_SOURCE_DIR}" PARENT_SCOPE)
 set(diligentengine_SOURCE_DIR "${diligentengine_SOURCE_DIR}" PARENT_SCOPE)
 set(JoltPhysics_SOURCE_DIR "${JoltPhysics_SOURCE_DIR}" PARENT_SCOPE)
 set(tracy_SOURCE_DIR "${tracy_SOURCE_DIR}" PARENT_SCOPE)
-

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Error.hpp"
+#include "core/MessageBus.hpp"
 
 #include "graphics/RenderSystem.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
@@ -79,7 +80,7 @@ class ImGuiRenderer;
 
 		[[nodiscard]] auto Init(RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame
-		void BuildFrame(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats, ImGuiFrame& frame);
+		void BuildFrame(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats, ImGuiFrame& frame);
 		// Render thread: applies viewport events, draws and presents secondary viewports
 		void RenderFrame(RenderSystem& renderSystem, ImGuiFrame& frame);
 		void Shutdown();
@@ -152,6 +153,7 @@ class ImGuiRenderer;
 		SavedLabSettings m_savedSettings;
 
 		DockSpaceView m_dockSpace;
+		MessageBus m_windowMessageBus;
 		Vector<UniquePtr<IImGuiWindow>> m_windows;
 		SocLabWindow* m_socLabWindow{ nullptr };
 

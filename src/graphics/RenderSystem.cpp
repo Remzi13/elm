@@ -338,8 +338,9 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
 
     m_resourceProvider = MakeUnique<render::RenderResourceProvider>(m_renderDevice, m_deviceContext, m_textureStore);
     m_swapChain = CreateSwapChain(width, height, nativeHandle, nativeDisplay);
-    if (!m_swapChain) {
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent SwapChain"));
+    if (!m_swapChain || !m_swapChain.GetCurrentBackBufferRTV() || !m_swapChain.GetDepthBufferDSV()) {
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed,
+            "Failed to create Diligent SwapChain with required color and depth-stencil views"));
     }
     m_resourceProvider->SetMainSwapChain(&m_swapChain);
 

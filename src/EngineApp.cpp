@@ -217,7 +217,7 @@ auto EngineApp::Run() -> EngineResult<void>
         // The write slot is not read by the render thread: it renders the other one.
         {
             ELM_PROFILE_SCOPE_N("Build ImGui Frame");
-            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_currentStats, m_framePackets[m_packetWriteIndex].ui);
+            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_camera, m_currentStats, m_framePackets[m_packetWriteIndex].ui);
         }
 
         m_settings.Flash();

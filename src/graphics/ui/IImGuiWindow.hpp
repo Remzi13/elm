@@ -1,9 +1,14 @@
 #pragma once
 
 #include "core/Std.hpp"
+#include "core/MessageBus.hpp"
 
 #include "Scene/TestScenes.hpp"
+#include "graphics/Camera.hpp"
 #include "graphics/Settings.hpp"
+
+#include <optional>
+#include <utility>
 
 namespace elm {
 
@@ -15,8 +20,7 @@ namespace elm {
 		IImGuiWindow(Settings& settings) : m_settings(settings) {}
 		virtual ~IImGuiWindow() = default;
 
-		
-		virtual void Render(RenderSystem& renderSystem, Scene& scene, const FrameStats& stats) = 0;
+		virtual void Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats) = 0;
 		[[nodiscard]] virtual StringView GetName() const = 0;
 
 		[[nodiscard]] bool IsVisible() const noexcept { return m_visible; }
@@ -24,8 +28,30 @@ namespace elm {
 		bool* GetVisiblePtr() noexcept { return &m_visible; }
 
 	protected:
+		template <typename Query>
+		[[nodiscard]] std::optional<Query> Request() const {
+			return m_messageBus->Request<Query>();
+		}
+
+		template <typename Query, typename Handler>
+		[[nodiscard]] MessageBus::Subscription RegisterQuery(Handler&& handler) {
+			return m_messageBus->RegisterQuery<Query>(std::forward<Handler>(handler));
+		}
+
+		virtual void OnAttach() {}
+
 		Settings& m_settings;
 		bool m_visible{ true };
+
+	private:
+		friend class ImGuiSystem;
+
+		void Attach(MessageBus& messageBus) {
+			m_messageBus = &messageBus;
+			OnAttach();
+		}
+
+		MessageBus* m_messageBus{ nullptr };
 	};
 
 } // namespace Engine

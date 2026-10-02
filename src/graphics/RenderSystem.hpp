@@ -70,9 +70,7 @@ public:
     [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
         void* nativeDisplay, bool withDepthBuffer = true);
     [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_commandQueue; }
-    void InitializeEngineViewportTexture(const render::TextureInfo& colorTextureInfo,
-        const render::TextureInfo& depthTextureInfo,
-        uint32_t width, uint32_t height);
+    void InitializeEngineViewportTexture(const render::TextureInfo& colorTextureInfo, const render::TextureInfo& depthTextureInfo, uint32_t width, uint32_t height);
     void QueueEngineViewportResize(uint32_t width, uint32_t height);
 
     // --- Main thread ---
