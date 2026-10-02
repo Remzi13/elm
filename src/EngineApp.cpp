@@ -45,13 +45,13 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     viewportTextureInfo.name = "Engine Viewport Color";
     viewportTextureInfo.width = width;
     viewportTextureInfo.height = height;
-    viewportTextureInfo.format = render::TextureFormat::Unknown;
+    viewportTextureInfo.format = render::TextureFormat::RGBA8_UNORM_SRGB;
     viewportTextureInfo.bindFlags = render::TextureBindFlags::BindRenderTarget | render::TextureBindFlags::BindShaderResource;
     render::TextureInfo viewportDepthInfo;
     viewportDepthInfo.name = "Engine Viewport Depth";
     viewportDepthInfo.width = width;
     viewportDepthInfo.height = height;
-    viewportDepthInfo.format = render::TextureFormat::Unknown;
+    viewportDepthInfo.format = render::TextureFormat::D32_FLOAT;
     viewportDepthInfo.bindFlags = render::TextureBindFlags::BindDepthStencil;
     m_renderSystem->InitializeEngineViewportTexture(viewportTextureInfo, viewportDepthInfo, width, height);
     m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
