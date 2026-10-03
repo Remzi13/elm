@@ -6,7 +6,18 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 #include "graphics/ui/SocLabWindow.hpp"
 
+// Include Wayland and X11 system headers first to ensure types like wl_display or Window are defined
+#if defined(__linux__)
+    #include <wayland-client.h>
+    #include <X11/Xlib.h>
+#endif
+
 #include <GLFW/glfw3.h>
+
+// Expose native platform functions
+#define GLFW_EXPOSE_NATIVE_WAYLAND
+#define GLFW_EXPOSE_NATIVE_X11
+#include <GLFW/glfw3native.h>
 
 #include <algorithm>
 #include <filesystem>
