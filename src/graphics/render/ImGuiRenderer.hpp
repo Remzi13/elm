@@ -2,45 +2,34 @@
 
 #include <cstdint>
 #include <memory>
-#include <unordered_map>
-
-namespace Diligent {
-class ImGuiImplDiligentViewport;
-}
+#include <unordered_set>
 
 namespace elm {
 class RenderSystem;
 struct ImGuiFrame;
-struct ImGuiViewportSnapshot;
-struct ImGuiViewportEvent;
 
 namespace render {
-class RenderResourceProvider;
-class SwapChain;
+class Texture;
 
 class ImGuiRenderer {
 public:
-    ImGuiRenderer(RenderSystem& renderSystem, RenderResourceProvider& resourceProvider);
+    ImGuiRenderer();
     ~ImGuiRenderer();
 
     ImGuiRenderer(const ImGuiRenderer&) = delete;
     ImGuiRenderer& operator=(const ImGuiRenderer&) = delete;
 
     [[nodiscard]] bool IsInitialized() const noexcept;
-    [[nodiscard]] uint64_t RenderFrame(ImGuiFrame& frame);
-    void ReleaseViewportSwapChains();
+    [[nodiscard]] uint64_t RenderFrame(RenderSystem& renderSystem, ImGuiFrame& frame);
+    void ReleaseViewportSurfaces(RenderSystem& renderSystem);
     void Shutdown();
 
 private:
-    [[nodiscard]] SwapChain CreateViewportSwapChain(const ImGuiViewportEvent& event);
-    void ApplyViewportEvents(const ImGuiFrame& frame, uint64_t& releasedViewportCount);
-    void ResolveTextureIds(ImGuiViewportSnapshot& snapshot);
+    [[nodiscard]] bool InitializeTextures();
 
-    RenderSystem& m_renderSystem;
-    RenderResourceProvider& m_resourceProvider;
-    SwapChain* m_mainSwapChain;
-    std::unique_ptr<Diligent::ImGuiImplDiligentViewport> m_imguiRenderer;
-    std::unordered_map<uint32_t, SwapChain> m_viewportSwapChains;
+    std::unique_ptr<Texture> m_fontTexture;
+    std::unique_ptr<Texture> m_whiteTexture;
+    std::unordered_set<uint32_t> m_viewportSurfaceIds;
 };
 
 } // namespace render

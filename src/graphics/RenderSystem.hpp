@@ -18,6 +18,7 @@
 #include "graphics/render/ResourceView.hpp"
 
 #include <atomic>
+#include <unordered_map>
 
 struct GLFWwindow;
 
@@ -66,13 +67,10 @@ public:
 
     [[nodiscard]] auto Init(Size size, StringView title) -> EngineResult<void>;
     [[nodiscard]] bool ShouldClose() const;
-    [[nodiscard]] render::RenderResourceProvider& GetResourceProvider() noexcept;
-    [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
-        void* nativeDisplay, bool withDepthBuffer = true);
     [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_commandQueue; }
+    void ExecuteCommands(render::CommandList& commands);
     void InitializeEngineViewportTexture(const render::TextureInfo& colorTextureInfo, const render::TextureInfo& depthTextureInfo, uint32_t width, uint32_t height);
     void QueueEngineViewportResize(uint32_t width, uint32_t height);
-
     // --- Main thread ---
     void CommitCommands();
     // Executes queued work on the calling thread. Only when the render thread is stopped
@@ -101,11 +99,19 @@ private:
     class Executor;
 
     void InitPipeline();
+    [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
+        void* nativeDisplay, bool withDepthBuffer = true);
     void CreateEngineViewport(uint32_t width, uint32_t height);
     void ApplyMainSwapChainResize(uint32_t width, uint32_t height);
     static void OnFramebufferSizeChanged(GLFWwindow* window, int width, int height);
 
     void Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>& objects);
+    void CreateRenderSurface(const render::command::CreateRenderSurface& command);
+    void ResizeRenderSurface(const render::command::ResizeRenderSurface& command);
+    void DestroyRenderSurface(const render::command::DestroyRenderSurface& command);
+    void BeginRenderPass(const render::command::BeginRenderPass& command);
+    void DrawIndexed(const render::command::DrawIndexed& command);
+    void EndRenderPass(const render::command::EndRenderPass& command);
 
 private:
     GLFWwindow* m_window { nullptr };
@@ -118,6 +124,7 @@ private:
     // Shaders & Pipelines
     Diligent::IPipelineState* m_pPSO { nullptr };
     Diligent::IPipelineState* m_pHighlightPSO { nullptr };
+    Diligent::IPipelineState* m_pOverlayPSO { nullptr };
     Diligent::IShaderResourceBinding* m_pSRB { nullptr };
         
     // Dynamic Instance Buffer
@@ -142,6 +149,9 @@ private:
 
     render::CommandQueue m_commandQueue;
     UniquePtr<render::RenderResourceProvider> m_resourceProvider;
+    std::unordered_map<render::RenderSurfaceId, render::SwapChain> m_renderSurfaces;
+    render::RenderSurfaceId m_activeRenderSurface{ 0 };
+    Size m_activeRenderSurfaceSize;
 
 };
 

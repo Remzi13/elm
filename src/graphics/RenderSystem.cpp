@@ -8,9 +8,13 @@
 
 // Diligent Engine Includes
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
-#include "Graphics/GraphicsEngine/interface/EngineFactory.h"
+#include "Graphics/GraphicsEngine/interface/Buffer.h"
+#include "Graphics/GraphicsEngine/interface/PipelineResourceSignature.h"
+#include "Graphics/GraphicsEngine/interface/PipelineState.h"
 #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
-#include "Graphics/GraphicsEngine/interface/SwapChain.h"
+#include "Graphics/GraphicsEngine/interface/ShaderResourceBinding.h"
+#include "Graphics/GraphicsAccessories/interface/GraphicsAccessories.hpp"
+
 #if PLATFORM_WIN32
 #include "Graphics/GraphicsEngineD3D12/interface/EngineFactoryD3D12.h"
 #else
@@ -26,7 +30,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <unordered_map>
+#include <utility>
 
 // TODO it is need ?
 #include "graphics/culling/OcclusionCullingSystem.hpp"
@@ -51,11 +57,9 @@ namespace {
 
     class ResourceCommandExecutor {
     public:
-        ResourceCommandExecutor(Diligent::IDeviceContext* deviceContext, Diligent::IRenderDevice* renderDevice,
-            render::TextureStore& textureStore, render::MeshManager& meshManager, render::BufferManager& bufferManager)
-            : m_deviceContext(deviceContext)
-            , m_textureStore(textureStore)
-            , m_renderDevice(renderDevice)
+        ResourceCommandExecutor(render::RenderResourceProvider& resourceProvider,
+            render::MeshManager& meshManager, render::BufferManager& bufferManager)
+            : m_resourceProvider(resourceProvider)
             , m_meshManager(meshManager)
             , m_bufferManager(bufferManager)
         {
@@ -63,47 +67,17 @@ namespace {
 
         void Execute(render::command::CreateTexture& command)
         {
-            Diligent::TextureDesc TexDesc;
-            TexDesc.Name = command.info.name.c_str();
-            TexDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
-            TexDesc.Width = command.info.width;
-            TexDesc.Height = command.info.height;
-            TexDesc.Format = getTextureFormat(command.info.format);
-            TexDesc.Usage = getUsage(command.info.usage);
-            TexDesc.BindFlags = render::getTextureBindFlags(command.info.bindFlags);
-
-            Diligent::TextureData InitData;
-            Diligent::TextureSubResData Level0Data;
-
-            if (!m_textureStore.Create(m_renderDevice, command.handler, TexDesc).IsValid())
-                return;
+            (void)m_resourceProvider.CreateTexture(command.handler, command.info);
         }
 
         void Execute(render::command::UploadTexture command)
         {
-            const auto* textureData = m_textureStore.Find(command.handler);
-            if (!textureData || !textureData->pTexture) {
-                return;
-            }
-
-            Diligent::Box updateBox;
-            updateBox.MinX = 0;
-            updateBox.MaxX = textureData->width;
-            updateBox.MinY = 0;
-            updateBox.MaxY = textureData->height;
-
-            Diligent::TextureSubResData subresData;
-            subresData.Stride = command.data.stride > 0 ? command.data.stride : (textureData->width * sizeof(uint8_t));
-            subresData.pData = command.data.data.data();
-
-            m_deviceContext->UpdateTexture(textureData->pTexture, 0, 0, updateBox, subresData,
-                Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION,
-                Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+            m_resourceProvider.UpdateTexture(command.handler, command.data);
         }
 
         void Execute(render::command::DestroyTexture& command)
         {
-            m_textureStore.Release(command.handler);
+            m_resourceProvider.ReleaseTexture(command.handler);
         }
 
         void Execute(render::command::CreateMesh& command)
@@ -132,9 +106,7 @@ namespace {
         }
 
     private:
-        Diligent::IDeviceContext* m_deviceContext;
-        Diligent::IRenderDevice* m_renderDevice;
-        render::TextureStore& m_textureStore;
+        render::RenderResourceProvider& m_resourceProvider;
         render::BufferManager& m_bufferManager;
         render::MeshManager& m_meshManager;
     };
@@ -196,7 +168,7 @@ namespace {
 class RenderSystem::Executor : public ResourceCommandExecutor {
 public:
     explicit Executor(RenderSystem& renderSystem)
-        : ResourceCommandExecutor(renderSystem.m_deviceContext, renderSystem.m_renderDevice, renderSystem.m_textureStore,
+        : ResourceCommandExecutor(*renderSystem.m_resourceProvider,
             renderSystem.m_meshManager, renderSystem.m_bufferManager)
         , m_renderSystem(renderSystem)
     {
@@ -214,6 +186,36 @@ public:
     {
         if (command.width > 0 && command.height > 0)
             m_renderSystem.CreateEngineViewport(command.width, command.height);
+    }
+
+    void Execute(render::command::CreateRenderSurface& command)
+    {
+        m_renderSystem.CreateRenderSurface(command);
+    }
+
+    void Execute(render::command::ResizeRenderSurface& command)
+    {
+        m_renderSystem.ResizeRenderSurface(command);
+    }
+
+    void Execute(render::command::DestroyRenderSurface& command)
+    {
+        m_renderSystem.DestroyRenderSurface(command);
+    }
+
+    void Execute(render::command::BeginRenderPass& command)
+    {
+        m_renderSystem.BeginRenderPass(command);
+    }
+
+    void Execute(render::command::DrawIndexed& command)
+    {
+        m_renderSystem.DrawIndexed(command);
+    }
+
+    void Execute(render::command::EndRenderPass& command)
+    {
+        m_renderSystem.EndRenderPass(command);
     }
 
 private:
@@ -459,6 +461,80 @@ void RenderSystem::InitPipeline()
     Blend0.DestBlendAlpha = Diligent::BLEND_FACTOR_ZERO;
     m_renderDevice->CreateGraphicsPipelineState(HighlightPSOCI, &m_pHighlightPSO);
 
+    const String OverlayVSSource = LoadShaderSource("overlay.vert.hlsl");
+    const String OverlayPSSource = LoadShaderSource("overlay.frag.hlsl");
+    if (OverlayVSSource.empty() || OverlayPSSource.empty())
+        return;
+
+    Diligent::RefCntAutoPtr<Diligent::IShader> pOverlayVS;
+    ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_VERTEX;
+    ShaderCI.Desc.Name = "Overlay VS";
+    ShaderCI.Source = OverlayVSSource.c_str();
+    m_renderDevice->CreateShader(ShaderCI, &pOverlayVS);
+
+    Diligent::RefCntAutoPtr<Diligent::IShader> pOverlayPS;
+    ShaderCI.Desc.ShaderType = Diligent::SHADER_TYPE_PIXEL;
+    ShaderCI.Desc.Name = "Overlay PS";
+    ShaderCI.Source = OverlayPSSource.c_str();
+    const Diligent::ShaderMacro OverlayGammaMacro[] {
+        { "OVERLAY_MANUAL_SRGB", "1" }
+    };
+    if (Diligent::GetTextureFormatAttribs(m_swapChain.GetDesc().ColorBufferFormat).ComponentType ==
+        Diligent::COMPONENT_TYPE_UNORM_SRGB) {
+        ShaderCI.Macros = { OverlayGammaMacro, _countof(OverlayGammaMacro) };
+    } else {
+        ShaderCI.Macros = {};
+    }
+    m_renderDevice->CreateShader(ShaderCI, &pOverlayPS);
+    if (!pOverlayVS || !pOverlayPS)
+        return;
+
+    Diligent::LayoutElement OverlayLayout[] = {
+        Diligent::LayoutElement { 0, 0, 2, Diligent::VT_FLOAT32, false },
+        Diligent::LayoutElement { 1, 0, 2, Diligent::VT_FLOAT32, false },
+        Diligent::LayoutElement { 2, 0, 4, Diligent::VT_FLOAT32, false }
+    };
+    Diligent::GraphicsPipelineStateCreateInfo OverlayPSOCI;
+    OverlayPSOCI.PSODesc.Name = "Overlay PSO";
+    auto& OverlayPipeline = OverlayPSOCI.GraphicsPipeline;
+    OverlayPipeline.NumRenderTargets = 1;
+    OverlayPipeline.RTVFormats[0] = m_swapChain.GetDesc().ColorBufferFormat;
+    OverlayPipeline.DSVFormat = Diligent::TEX_FORMAT_UNKNOWN;
+    OverlayPipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    OverlayPipeline.RasterizerDesc.CullMode = Diligent::CULL_MODE_NONE;
+    OverlayPipeline.RasterizerDesc.ScissorEnable = true;
+    OverlayPipeline.DepthStencilDesc.DepthEnable = false;
+    OverlayPipeline.InputLayout.LayoutElements = OverlayLayout;
+    OverlayPipeline.InputLayout.NumElements = _countof(OverlayLayout);
+    auto& OverlayBlend = OverlayPipeline.BlendDesc.RenderTargets[0];
+    OverlayBlend.BlendEnable = true;
+    OverlayBlend.SrcBlend = Diligent::BLEND_FACTOR_ONE;
+    OverlayBlend.DestBlend = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
+    OverlayBlend.SrcBlendAlpha = Diligent::BLEND_FACTOR_ONE;
+    OverlayBlend.DestBlendAlpha = Diligent::BLEND_FACTOR_INV_SRC_ALPHA;
+    OverlayPSOCI.pVS = pOverlayVS;
+    OverlayPSOCI.pPS = pOverlayPS;
+
+    Diligent::ShaderResourceVariableDesc OverlayVariable {
+        Diligent::SHADER_TYPE_PIXEL,
+        "g_Texture",
+        Diligent::SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE
+    };
+    OverlayPSOCI.PSODesc.ResourceLayout.DefaultVariableType = Diligent::SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+    OverlayPSOCI.PSODesc.ResourceLayout.Variables = &OverlayVariable;
+    OverlayPSOCI.PSODesc.ResourceLayout.NumVariables = 1;
+    Diligent::ImmutableSamplerDesc OverlaySampler;
+    OverlaySampler.ShaderStages = Diligent::SHADER_TYPE_PIXEL;
+    OverlaySampler.SamplerOrTextureName = "g_Texture_sampler";
+    OverlaySampler.Desc.MinFilter = Diligent::FILTER_TYPE_LINEAR;
+    OverlaySampler.Desc.MagFilter = Diligent::FILTER_TYPE_LINEAR;
+    OverlaySampler.Desc.MipFilter = Diligent::FILTER_TYPE_LINEAR;
+    OverlaySampler.Desc.AddressU = Diligent::TEXTURE_ADDRESS_CLAMP;
+    OverlaySampler.Desc.AddressV = Diligent::TEXTURE_ADDRESS_CLAMP;
+    OverlaySampler.Desc.AddressW = Diligent::TEXTURE_ADDRESS_CLAMP;
+    OverlayPSOCI.PSODesc.ResourceLayout.ImmutableSamplers = &OverlaySampler;
+    OverlayPSOCI.PSODesc.ResourceLayout.NumImmutableSamplers = 1;
+    m_renderDevice->CreateGraphicsPipelineState(OverlayPSOCI, &m_pOverlayPSO);
 }
 
 void RenderSystem::InitializeEngineViewportTexture(const render::TextureInfo& colorTextureInfo,
@@ -487,64 +563,26 @@ void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
     const Size requestedSize { width, height };
     const auto colorHandler = m_engineViewportTexture.GetHandler();
     const auto depthHandler = m_engineViewportDepthTexture.GetHandler();
-    const auto* colorData = m_textureStore.Find(colorHandler);
-    const auto* depthData = m_textureStore.Find(depthHandler);
     const auto currentSize = m_engineViewportSize.load(std::memory_order_acquire);
     if (!colorHandler.IsValid() || !depthHandler.IsValid() || width == 0 || height == 0 ||
-        (colorData && colorData->pTexture && depthData && depthData->pTexture &&
+        (m_resourceProvider->HasTexture(colorHandler) && m_resourceProvider->HasTexture(depthHandler) &&
             currentSize.width == requestedSize.width && currentSize.height == requestedSize.height))
         return;
 
-    Diligent::TextureDesc colorDesc;
-    colorDesc.Name = "Engine Viewport Color";
-    colorDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
-    colorDesc.Width = width;
-    colorDesc.Height = height;
-    colorDesc.Format = m_swapChain.GetDesc().ColorBufferFormat;
-    colorDesc.Usage = Diligent::USAGE_DEFAULT;
-    colorDesc.BindFlags = Diligent::BIND_RENDER_TARGET | Diligent::BIND_SHADER_RESOURCE;
-    Diligent::TextureDesc depthDesc;
-    depthDesc.Name = "Engine Viewport Depth";
-    depthDesc.Type = Diligent::RESOURCE_DIM_TEX_2D;
-    depthDesc.Width = width;
-    depthDesc.Height = height;
-    depthDesc.Format = m_swapChain.GetDesc().DepthBufferFormat;
-    depthDesc.Usage = Diligent::USAGE_DEFAULT;
-    depthDesc.BindFlags = Diligent::BIND_DEPTH_STENCIL;
-    const auto createdColor = m_textureStore.Create(m_renderDevice, colorHandler, colorDesc);
-    if (!createdColor.IsValid())
+    auto colorView = m_resourceProvider->CreateRenderTexture(colorHandler, width, height,
+        render::ResourceViewType::RenderTarget);
+    if (!colorView.IsValid())
         return;
-    const auto createdDepth = m_textureStore.Create(m_renderDevice, depthHandler, depthDesc);
-    if (!createdDepth.IsValid()) {
+    auto depthView = m_resourceProvider->CreateRenderTexture(depthHandler, width, height,
+        render::ResourceViewType::DepthStencil);
+    if (!depthView.IsValid()) {
         m_engineViewportRenderTarget = {};
         m_engineViewportDepthStencil = {};
-        m_textureStore.Release(createdColor);
-        m_textureStore.Release(depthHandler);
+        m_resourceProvider->ReleaseTexture(colorHandler);
+        m_resourceProvider->ReleaseTexture(depthHandler);
         return;
     }
 
-    const auto* createdColorData = m_textureStore.Find(createdColor);
-    const auto* createdDepthData = m_textureStore.Find(createdDepth);
-    if (!createdColorData || !createdDepthData || !createdColorData->pTexture || !createdDepthData->pTexture) {
-        m_engineViewportRenderTarget = {};
-        m_engineViewportDepthStencil = {};
-        m_textureStore.Release(createdColor);
-        m_textureStore.Release(createdDepth);
-        return;
-    }
-
-    render::ResourceView colorView(createdColorData->pTexture, render::ResourceViewType::RenderTarget);
-    render::ResourceView depthView(createdDepthData->pTexture, render::ResourceViewType::DepthStencil);
-    if (!colorView.IsValid() || !depthView.IsValid()) {
-        m_engineViewportRenderTarget = {};
-        m_engineViewportDepthStencil = {};
-        m_textureStore.Release(createdColor);
-        m_textureStore.Release(createdDepth);
-        return;
-    }
-
-    createdColorData->pTexture->SetState(Diligent::RESOURCE_STATE_RENDER_TARGET);
-    createdDepthData->pTexture->SetState(Diligent::RESOURCE_STATE_DEPTH_WRITE);
     m_engineViewportRenderTarget = std::move(colorView);
     m_engineViewportDepthStencil = std::move(depthView);
     m_engineViewportIsShaderResource = false;
@@ -591,11 +629,6 @@ bool RenderSystem::ShouldClose() const
     return m_window ? glfwWindowShouldClose(m_window) : true;
 }
 
-render::RenderResourceProvider& RenderSystem::GetResourceProvider() noexcept
-{
-    return *m_resourceProvider;
-}
-
 render::SwapChain RenderSystem::CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
     void* nativeDisplay, bool withDepthBuffer)
 {
@@ -604,9 +637,161 @@ render::SwapChain RenderSystem::CreateSwapChain(uint32_t width, uint32_t height,
         : render::SwapChain{};
 }
 
+void RenderSystem::CreateRenderSurface(const render::command::CreateRenderSurface& command)
+{
+    if (command.id == 0 || !m_resourceProvider || !command.nativeHandle ||
+        command.width == 0 || command.height == 0)
+        return;
+
+    auto surface = m_resourceProvider->CreateSwapChain(command.width, command.height,
+        command.nativeHandle, command.nativeDisplay, false);
+    if (surface)
+        m_renderSurfaces.insert_or_assign(command.id, std::move(surface));
+}
+
+void RenderSystem::ResizeRenderSurface(const render::command::ResizeRenderSurface& command)
+{
+    if (command.id == 0 || command.width == 0 || command.height == 0)
+        return;
+    if (const auto it = m_renderSurfaces.find(command.id); it != m_renderSurfaces.end())
+        it->second.ResizeIfNeeded(command.width, command.height);
+}
+
+void RenderSystem::DestroyRenderSurface(const render::command::DestroyRenderSurface& command)
+{
+    if (command.id != 0)
+        m_renderSurfaces.erase(command.id);
+}
+
+void RenderSystem::BeginRenderPass(const render::command::BeginRenderPass& command)
+{
+    if (!m_deviceContext || command.width == 0 || command.height == 0)
+        return;
+
+    render::SwapChain* surface = nullptr;
+    if (command.surface == 0) {
+        surface = &m_swapChain;
+    } else if (const auto it = m_renderSurfaces.find(command.surface); it != m_renderSurfaces.end()) {
+        surface = &it->second;
+    }
+    if (!surface)
+        return;
+
+    auto* renderTarget = surface->GetCurrentBackBufferRTV();
+    if (!renderTarget)
+        return;
+
+    m_activeRenderSurface = command.surface;
+    m_activeRenderSurfaceSize = Size { command.width, command.height };
+    m_deviceContext->SetRenderTargets(1, &renderTarget, nullptr,
+        Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    const Diligent::Viewport viewport {
+        0.0f, 0.0f, static_cast<float>(command.width), static_cast<float>(command.height), 0.0f, 1.0f
+    };
+    m_deviceContext->SetViewports(1, &viewport, command.width, command.height);
+    if (command.clear) {
+        const float clearColor[] = { 0.11f, 0.13f, 0.16f, 1.0f };
+        m_deviceContext->ClearRenderTarget(renderTarget, clearColor,
+            Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    }
+}
+
+void RenderSystem::DrawIndexed(const render::command::DrawIndexed& command)
+{
+    if (!m_deviceContext || !m_resourceProvider || !m_pOverlayPSO ||
+        command.surface != m_activeRenderSurface ||
+        command.vertices.empty() || command.indices.empty() ||
+        command.indices.size() > (std::numeric_limits<Diligent::Uint32>::max)() ||
+        command.scissor.right <= command.scissor.left ||
+        command.scissor.bottom <= command.scissor.top)
+        return;
+
+    auto textureView = m_resourceProvider->GetShaderResourceView(command.texture);
+    const auto resolvedTexture = textureView.Resolve();
+    if (!resolvedTexture.view)
+        return;
+
+    const size_t vertexBytes = command.vertices.size() * sizeof(render::RenderVertex);
+    const size_t indexBytes = command.indices.size() * sizeof(uint32_t);
+    const auto vertexBuffer = m_bufferManager.CreateBuffer({
+        "Overlay Vertex Buffer", render::BufferType::VertexBuffer, vertexBytes,
+        const_cast<render::RenderVertex*>(command.vertices.data())
+    });
+    const auto indexBuffer = m_bufferManager.CreateBuffer({
+        "Overlay Index Buffer", render::BufferType::IndexBuffer, indexBytes,
+        const_cast<uint32_t*>(command.indices.data())
+    });
+    auto* vertexBufferImpl = m_bufferManager.GetBufferImpl(vertexBuffer);
+    auto* indexBufferImpl = m_bufferManager.GetBufferImpl(indexBuffer);
+    if (!vertexBufferImpl || !indexBufferImpl) {
+        m_bufferManager.DestroyBuffer(vertexBuffer);
+        m_bufferManager.DestroyBuffer(indexBuffer);
+        return;
+    }
+
+    Diligent::IShaderResourceBinding* binding = nullptr;
+    m_pOverlayPSO->CreateShaderResourceBinding(&binding, true);
+    if (!binding) {
+        m_bufferManager.DestroyBuffer(vertexBuffer);
+        m_bufferManager.DestroyBuffer(indexBuffer);
+        return;
+    }
+    auto* textureVariable = binding->GetVariableByName(Diligent::SHADER_TYPE_PIXEL, "g_Texture");
+    if (!textureVariable) {
+        binding->Release();
+        m_bufferManager.DestroyBuffer(vertexBuffer);
+        m_bufferManager.DestroyBuffer(indexBuffer);
+        return;
+    }
+    textureVariable->Set(resolvedTexture.view);
+
+    m_deviceContext->SetPipelineState(m_pOverlayPSO);
+    m_deviceContext->CommitShaderResources(binding, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    const Diligent::Uint64 offset = 0;
+    m_deviceContext->SetVertexBuffers(0, 1, &vertexBufferImpl, &offset,
+        Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
+    m_deviceContext->SetIndexBuffer(indexBufferImpl, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+    const Diligent::Rect scissor {
+        static_cast<int32_t>(command.scissor.left),
+        static_cast<int32_t>(command.scissor.top),
+        static_cast<int32_t>(command.scissor.right),
+        static_cast<int32_t>(command.scissor.bottom)
+    };
+    m_deviceContext->SetScissorRects(1, &scissor,
+        m_activeRenderSurfaceSize.width, m_activeRenderSurfaceSize.height);
+    const Diligent::DrawIndexedAttribs draw {
+        static_cast<Diligent::Uint32>(command.indices.size()),
+        Diligent::VT_UINT32,
+        Diligent::DRAW_FLAG_VERIFY_ALL
+    };
+    m_deviceContext->DrawIndexed(draw);
+
+    binding->Release();
+    m_bufferManager.DestroyBuffer(vertexBuffer);
+    m_bufferManager.DestroyBuffer(indexBuffer);
+}
+
+void RenderSystem::EndRenderPass(const render::command::EndRenderPass& command)
+{
+    if (command.surface != m_activeRenderSurface)
+        return;
+    if (command.present) {
+        if (const auto it = m_renderSurfaces.find(command.surface); it != m_renderSurfaces.end())
+            it->second.Present();
+    }
+    m_activeRenderSurface = 0;
+    m_activeRenderSurfaceSize = {};
+}
+
 void RenderSystem::CommitCommands()
 {
     m_commandQueue.CommitFrame();
+}
+
+void RenderSystem::ExecuteCommands(render::CommandList& commands)
+{
+    Executor executor(*this);
+    commands.Execute(executor);
 }
 
 void RenderSystem::FlushCommands()
@@ -755,6 +940,8 @@ void RenderSystem::EndFrame()
     if (!m_swapChain || !m_deviceContext)
         return;
     ELM_PROFILE_SCOPE_N("Present");
+    Executor executor(*this);
+    m_commandQueue.Execute(executor);
     m_swapChain.Present();
 }
 
@@ -763,7 +950,6 @@ void RenderSystem::Shutdown()
     if (!m_initialized)
         return;
 
-    m_resourceProvider.reset();
     m_engineViewportRenderTarget = {};
     m_engineViewportDepthStencil = {};
     m_engineViewportTexture = {};
@@ -772,7 +958,9 @@ void RenderSystem::Shutdown()
     // Render thread is stopped at this point: execute what is still queued (e.g. texture releases)
     FlushCommands();
 
-    m_textureStore.Clear();
+    m_renderSurfaces.clear();
+    m_resourceProvider->ClearTextures();
+    m_resourceProvider.reset();
 
     m_bufferManager.Clear();
 
@@ -786,6 +974,10 @@ void RenderSystem::Shutdown()
     if (m_pHighlightPSO) {
         m_pHighlightPSO->Release();
         m_pHighlightPSO = nullptr;
+    }
+    if (m_pOverlayPSO) {
+        m_pOverlayPSO->Release();
+        m_pOverlayPSO = nullptr;
     }
     if (m_pPSO) {
         m_pPSO->Release();

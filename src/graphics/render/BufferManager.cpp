@@ -67,7 +67,8 @@ namespace render {
 
         auto it = m_buffers.find(handler);
         if (it != m_buffers.end()) {
-            it->second->Release();
+            if (it->second)
+                it->second->Release();
             m_buffers.erase(it);
         }
     }
@@ -75,7 +76,8 @@ namespace render {
     void BufferManager::Clear()
     {
         for (auto& pair : m_buffers) {
-            pair.second->Release();
+            if (pair.second)
+                pair.second->Release();
         }
         m_buffers.clear();
     }

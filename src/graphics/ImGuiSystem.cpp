@@ -85,6 +85,12 @@ namespace elm {
 		m_renderSystem = &renderSystem;
 		m_title = title;
 
+		if ( !ImGui::GetCurrentContext() ) {
+			IMGUI_CHECKVERSION();
+			ImGui::CreateContext();
+			m_imguiContextCreated = true;
+		}
+
 		// Register standard engine editor windows
 		m_socLabWindow = &EmplaceWindow<SocLabWindow>( settings );
 		EmplaceWindow<SceneHierarchyWindow>( settings );
@@ -93,7 +99,7 @@ namespace elm {
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 
-		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem, renderSystem.GetResourceProvider() );
+		m_renderer = MakeUnique<render::ImGuiRenderer>();
 		if ( !m_renderer->IsInitialized() ) {
 			m_renderer.reset();
 			Shutdown();
@@ -315,7 +321,7 @@ namespace elm {
 	void ImGuiSystem::RenderFrame( RenderSystem& renderSystem, ImGuiFrame& frame ) {
 		if ( !m_initialized ) return;
 		if ( !m_renderer ) return;
-		const uint64_t releasedViewportCount = m_renderer->RenderFrame( frame );
+		const uint64_t releasedViewportCount = m_renderer->RenderFrame(renderSystem, frame);
 		m_releasedViewportCount.fetch_add( releasedViewportCount, std::memory_order_release );
 	}
 
@@ -323,8 +329,8 @@ namespace elm {
 
 	void ImGuiSystem::Shutdown() {
 		if ( !m_rendererInitialized && !m_glfwInitialized && !m_initialized && !m_renderSystem ) return;
-		if ( m_rendererInitialized && m_renderer ) {
-			m_renderer->ReleaseViewportSwapChains();
+		if ( m_rendererInitialized && m_renderer && m_renderSystem ) {
+			m_renderer->ReleaseViewportSurfaces(*m_renderSystem);
 		}
 		m_destroyPlatformWindowsImmediately = true;
 		if ( m_platformDestroyWindow ) {
@@ -348,6 +354,10 @@ namespace elm {
 		if ( m_renderer ) {
 			m_renderer->Shutdown();
 			m_renderer.reset();
+		}
+		if ( m_imguiContextCreated ) {
+			ImGui::DestroyContext();
+			m_imguiContextCreated = false;
 		}
 		m_rendererInitialized = false;
 		m_pendingViewportEvents.clear();

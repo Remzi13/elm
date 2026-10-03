@@ -5,6 +5,7 @@
 #include <array>
 #include <atomic>
 #include <variant>
+#include <vector>
 
 namespace elm {
 namespace render {

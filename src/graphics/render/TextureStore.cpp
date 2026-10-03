@@ -2,16 +2,13 @@
 
 #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
 #include "Graphics/GraphicsEngine/interface/Texture.h"
-#include "Graphics/GraphicsEngine/interface/TextureView.h"
 namespace elm::render {
 
-namespace {
-	void ReleaseData(TextureStore::Data& data)
-	{
-		if (data.pTexture) {
-			data.pTexture->Release();
-			data.pTexture = nullptr;
-		}
+void TextureStore::ReleaseData(Data& data)
+{
+	if (data.pTexture) {
+		data.pTexture->Release();
+		data.pTexture = nullptr;
 	}
 }
 
@@ -50,14 +47,6 @@ const TextureStore::Data* TextureStore::Find(const core::Handler& handler) const
 {
 	const auto it = m_textures.find(handler);
 	return it != m_textures.end() ? &it->second : nullptr;
-}
-
-Diligent::ITextureView* TextureStore::GetTextureView(const core::Handler& handler) const
-{
-	const Data* data = Find(handler);
-	return data && data->pTexture
-		? data->pTexture->GetDefaultView(Diligent::TEXTURE_VIEW_SHADER_RESOURCE)
-		: nullptr;
 }
 
 void TextureStore::Release(const core::Handler& handler)

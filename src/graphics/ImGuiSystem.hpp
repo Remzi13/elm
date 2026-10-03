@@ -7,6 +7,7 @@
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
 #include "graphics/Settings.hpp"
+#include "graphics/render/ImGuiRenderer.hpp"
 
 #include "imgui.h"
 
@@ -17,10 +18,6 @@
 #include <utility>
 
 namespace elm {
-
-namespace render {
-class ImGuiRenderer;
-}
 
 	class SocLabWindow;
 
@@ -68,7 +65,7 @@ class ImGuiRenderer;
 
 	// Threading:
 	//  - main thread: Init, BuildFrame, Shutdown (render thread must be stopped), all ImGui/GLFW calls
-	//  - render thread: RenderFrame; RenderSystem's ImGui backend owns secondary viewport swap chains
+	//  - render thread: RenderFrame submits generic graphics commands for secondary viewports
 	// Platform (GLFW) windows are destroyed on the main thread only after the render thread released their swap chains.
 	class ImGuiSystem {
 	public:
@@ -146,6 +143,7 @@ class ImGuiRenderer;
 		RenderSystem* m_renderSystem{ nullptr };
 		UniquePtr<render::ImGuiRenderer> m_renderer;
 		bool m_rendererInitialized{ false };
+		bool m_imguiContextCreated{ false };
 		bool m_initialized{ false };
 		bool m_glfwInitialized{ false };
 		String m_title;
