@@ -258,14 +258,13 @@ RenderSystem::~RenderSystem()
     Shutdown();
 }
 
-auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>
+auto RenderSystem::Init(Size size, StringView title) -> EngineResult<void>
 {
     if (m_initialized) {
         return { };
     }
 
-    m_windowWidth = width;
-    m_windowHeight = height;
+    m_size = size;    
 
 #if PLATFORM_WIN32
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -277,7 +276,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-    m_window = glfwCreateWindow(static_cast<int>(width), static_cast<int>(height), title.data(), nullptr, nullptr);
+    m_window = glfwCreateWindow(static_cast<int>(m_size.width), static_cast<int>(m_size.height), title.data(), nullptr, nullptr);
     if (!m_window) {
         glfwTerminate();
         return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window"));
@@ -288,8 +287,8 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
     int framebufferHeight = 0;
     glfwGetFramebufferSize(m_window, &framebufferWidth, &framebufferHeight);
     if (framebufferWidth > 0 && framebufferHeight > 0) {
-        width = static_cast<uint32_t>(framebufferWidth);
-        height = static_cast<uint32_t>(framebufferHeight);
+        m_size.width = static_cast<uint32_t>(framebufferWidth);
+        m_size.height = static_cast<uint32_t>(framebufferHeight);
     }
 
 #if PLATFORM_WIN32
@@ -337,7 +336,7 @@ auto RenderSystem::Init(uint32_t width, uint32_t height, StringView title) -> En
 #endif
 
     m_resourceProvider = MakeUnique<render::RenderResourceProvider>(m_renderDevice, m_deviceContext, m_textureStore);
-    m_swapChain = CreateSwapChain(width, height, nativeHandle, nativeDisplay);
+    m_swapChain = CreateSwapChain(m_size.width, m_size.height, nativeHandle, nativeDisplay);
     if (!m_swapChain || !m_swapChain.GetCurrentBackBufferRTV() || !m_swapChain.GetDepthBufferDSV()) {
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed,
             "Failed to create Diligent SwapChain with required color and depth-stencil views"));
@@ -477,7 +476,7 @@ void RenderSystem::InitializeEngineViewportTexture(const render::TextureInfo& co
 
     m_engineViewportTexture = std::move(colorTexture);
     m_engineViewportDepthTexture = std::move(depthTexture);
-    const ViewportSize requestedSize { width, height };
+    const Size requestedSize { width, height };
     m_engineViewportSize.store(requestedSize, std::memory_order_release);
     if (width > 0 && height > 0)
         m_commandQueue.Push(render::command::ResizeEngineViewport { width, height });
@@ -485,7 +484,7 @@ void RenderSystem::InitializeEngineViewportTexture(const render::TextureInfo& co
 
 void RenderSystem::CreateEngineViewport(uint32_t width, uint32_t height)
 {
-    const ViewportSize requestedSize { width, height };
+    const Size requestedSize { width, height };
     const auto colorHandler = m_engineViewportTexture.GetHandler();
     const auto depthHandler = m_engineViewportDepthTexture.GetHandler();
     const auto* colorData = m_textureStore.Find(colorHandler);
@@ -562,8 +561,8 @@ void RenderSystem::OnFramebufferSizeChanged(GLFWwindow* window, int width, int h
     int windowWidth = 0;
     int windowHeight = 0;
     glfwGetWindowSize(window, &windowWidth, &windowHeight);
-    system->m_windowWidth = static_cast<uint32_t>((std::max)(windowWidth, 0));
-    system->m_windowHeight = static_cast<uint32_t>((std::max)(windowHeight, 0));
+    system->m_size.width = static_cast<uint32_t>((std::max)(windowWidth, 0));
+    system->m_size.height = static_cast<uint32_t>((std::max)(windowHeight, 0));
     if (width > 0 && height > 0)
         system->m_commandQueue.Push(render::command::ResizeMainSwapChain {
             static_cast<uint32_t>(width), static_cast<uint32_t>(height)

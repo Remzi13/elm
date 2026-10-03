@@ -11,7 +11,7 @@ namespace elm {
 	void DepthPreviewWindow::Render(RenderSystem& renderSystem, Scene& scene, const Camera&, const FrameStats&) {
 		if (!m_visible) return;
 
-		ImGui::SetNextWindowPos(ImVec2(static_cast<float>(renderSystem.GetWidth()) - 460.0f, 10.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowPos(ImVec2(static_cast<float>(renderSystem.GetSize().width) - 460.0f, 10.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(450.0f, 350.0f), ImGuiCond_FirstUseEver);
 		if (!ImGui::Begin(GetName().data(), &m_visible)) {
 			ImGui::End();

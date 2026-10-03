@@ -8,6 +8,24 @@
 namespace elm {
 using namespace math;
 
+struct Size
+{
+    std::uint32_t width { 0 };
+    std::uint32_t height { 0 };
+
+    constexpr Size() = default;
+    constexpr Size(std::uint32_t inWidth, std::uint32_t inHeight)
+        : width(inWidth)
+        , height(inHeight)
+    {
+    }
+
+    [[nodiscard]] constexpr bool IsEmpty() const noexcept
+    {
+        return width <= 0.0f || height <= 0.0f;
+    }
+};
+
 struct AABB {
     Vector3 minBounds { 1e30f, 1e30f, 1e30f };
     Vector3 maxBounds { -1e30f, -1e30f, -1e30f };

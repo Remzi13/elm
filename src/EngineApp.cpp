@@ -25,14 +25,14 @@ EngineApp::~EngineApp()
 }
 
 auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>
-{
+{ 
  
     LOG_MESSAGE( log::Category::Core, "EngineApp", "Initializing 3D Engine Core (C++23)..." );    
 
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
 
     // Initialize the render backend and its command queue first.
-    auto renderInit = m_renderSystem->Init(width, height, title);
+    auto renderInit = m_renderSystem->Init(Size(width, height), title);
     if (!renderInit) {
         return std::unexpected(renderInit.error());
     }

@@ -64,7 +64,7 @@ public:
     RenderSystem(RenderSystem&&) noexcept = delete;
     RenderSystem& operator=(RenderSystem&&) noexcept = delete;
 
-    [[nodiscard]] auto Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>;
+    [[nodiscard]] auto Init(Size size, StringView title) -> EngineResult<void>;
     [[nodiscard]] bool ShouldClose() const;
     [[nodiscard]] render::RenderResourceProvider& GetResourceProvider() noexcept;
     [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
@@ -88,22 +88,17 @@ public:
     // --- Main thread, except atomic engine-viewport dimensions ---
     [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
     [[nodiscard]] core::Handler GetEngineViewportTexture() const { return m_engineViewportTexture.GetHandler(); }
-    [[nodiscard]] uint32_t GetEngineViewportWidth() const { return m_engineViewportSize.load(std::memory_order_acquire).width; }
-    [[nodiscard]] uint32_t GetEngineViewportHeight() const { return m_engineViewportSize.load(std::memory_order_acquire).height; }
+    [[nodiscard]] Size GetEngineViewportSize() const { return m_engineViewportSize.load(std::memory_order_acquire); }
     [[nodiscard]] float GetEngineViewportAspectRatio() const {
         const auto size = m_engineViewportSize.load(std::memory_order_acquire);
         return size.height > 0 ? static_cast<float>(size.width) / static_cast<float>(size.height) : 1.0f;
     }
-    [[nodiscard]] uint32_t GetWidth() const { return m_windowWidth; }
-    [[nodiscard]] uint32_t GetHeight() const { return m_windowHeight; }
+
+    [[nodiscard]] Size GetSize() const { return m_size; }    
     [[nodiscard]] size_t GetMemAllocated() const;
 
 private:
     class Executor;
-    struct ViewportSize {
-        uint32_t width{ 1280 };
-        uint32_t height{ 720 };
-    };
 
     void InitPipeline();
     void CreateEngineViewport(uint32_t width, uint32_t height);
@@ -133,7 +128,7 @@ private:
     render::Texture m_engineViewportDepthTexture;
     render::ResourceView m_engineViewportRenderTarget;
     render::ResourceView m_engineViewportDepthStencil;
-    std::atomic<ViewportSize> m_engineViewportSize { ViewportSize{} };
+    std::atomic<Size> m_engineViewportSize { Size{} };
     bool m_engineViewportIsShaderResource { false };
 
     render::BufferManager m_bufferManager;    
@@ -142,8 +137,7 @@ private:
     render::DynamicLinearAllocator m_dynamicInstanceBuffer;
     render::DynamicLinearAllocator m_dynamicUniformBuffer;
 
-    uint32_t m_windowWidth { 1280 };
-    uint32_t m_windowHeight { 720 };
+    Size m_size { 1280, 720 };    
     bool m_initialized { false };
 
     render::CommandQueue m_commandQueue;
