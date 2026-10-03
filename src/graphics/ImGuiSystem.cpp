@@ -7,6 +7,7 @@
 #include "graphics/ui/SocLabWindow.hpp"
 #include "graphics/ui/ProfilerWindow.hpp"
 
+#include <GLFW/glfw3.h>
 // Include Wayland and X11 system headers first to ensure types like wl_display or Window are defined
 #if defined(__linux__)
     #include <wayland-client.h>
@@ -17,7 +18,6 @@
 #include <GLFW/glfw3native.h>
 #endif
 
-#include <GLFW/glfw3.h>
 
 
 #include <algorithm>
