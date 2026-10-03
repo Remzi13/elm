@@ -5,6 +5,7 @@
 #include "graphics/ui/LogWindow.hpp"
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 #include "graphics/ui/SocLabWindow.hpp"
+#include "graphics/ui/ProfilerWindow.hpp"
 
 // Include Wayland and X11 system headers first to ensure types like wl_display or Window are defined
 #if defined(__linux__)
@@ -90,6 +91,7 @@ namespace elm {
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<DepthPreviewWindow>( settings );
 		EmplaceWindow<LogWindow>( settings );
+		EmplaceWindow<ProfilerWindow>( settings );
 
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem, renderSystem.GetResourceProvider() );
 		if ( !m_renderer->IsInitialized() ) {

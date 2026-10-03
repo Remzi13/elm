@@ -55,6 +55,8 @@ engine_add_library(graphics
 
     ui/DepthPreviewWindow.hpp
     ui/DepthPreviewWindow.cpp
+    ui/ProfilerWindow.hpp
+    ui/ProfilerWindow.cpp
 )
 
 target_link_libraries(graphics PUBLIC glfw Diligent-Imgui imgui_glfw imguizmo)
