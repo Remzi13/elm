@@ -11,14 +11,14 @@
 #if defined(__linux__)
     #include <wayland-client.h>
     #include <X11/Xlib.h>
-#endif
-
-#include <GLFW/glfw3.h>
-
 // Expose native platform functions
 #define GLFW_EXPOSE_NATIVE_WAYLAND
 #define GLFW_EXPOSE_NATIVE_X11
 #include <GLFW/glfw3native.h>
+#endif
+
+#include <GLFW/glfw3.h>
+
 
 #include <algorithm>
 #include <filesystem>
