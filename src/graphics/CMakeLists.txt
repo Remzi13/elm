@@ -27,6 +27,7 @@ engine_add_library(graphics
     
     render/IRenderPass.hpp
     render/ViewPort.hpp
+    render/OverlayFrame.hpp
     render/OverlayRenderPass.hpp
     render/OverlayRenderPass.cpp
     render/SceneRenderPass.hpp

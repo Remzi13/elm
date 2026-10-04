@@ -39,7 +39,7 @@ namespace elm {
 		void FixedUpdate(float fixedDeltaTime);
 		void Update(float deltaTime);
 
-		/// Render thread entry point — runs BeginFrame/Draw/ImGui/EndFrame loop.
+		/// Render thread entry point — runs BeginFrame/RenderFrame/EndFrame.
 		void RenderThreadFunc();
 
 	private:

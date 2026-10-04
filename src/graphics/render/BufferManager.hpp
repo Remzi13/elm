@@ -17,7 +17,7 @@ namespace render {
         String name;
         BufferType type;
         size_t size;
-        void* data;
+        const void* data;
     };
 
     class BufferManager {

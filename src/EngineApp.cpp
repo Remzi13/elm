@@ -150,10 +150,10 @@ void EngineApp::RenderThreadFunc()
                 m_renderSystem->BeginFrame();
 
                 {
-                    // ImGui/GLFW was captured on the main thread; the render graph draws scene then overlay.
+                    // UI data was captured on the main thread; the render graph consumes engine-owned structures.
                     ELM_PROFILE_SCOPE_N("Render Graph");
-                    [[maybe_unused]] const auto renderedFrameNumber = m_renderSystem->RenderFrame(packet.frameData, packet.ui);
-                    m_imguiSystem->NotifyViewportSurfacesReleased(packet.ui.releasedViewportCount);
+                    [[maybe_unused]] const auto renderedFrameNumber = m_renderSystem->RenderFrame(packet.frameData, packet.overlay);
+                    m_imguiSystem->NotifyViewportSurfacesReleased(packet.overlay.releasedSurfaceCount);
                 }
 
                 m_renderSystem->EndFrame();
@@ -231,7 +231,7 @@ auto EngineApp::Run() -> EngineResult<void>
             ELM_PROFILE_SCOPE_N("Build ImGui Frame");
             m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_camera, m_currentStats,
                 m_engineViewPort,
-                m_framePackets[m_packetWriteIndex].ui);
+                m_framePackets[m_packetWriteIndex].overlay);
         }
 
         m_settings.Flash();
@@ -349,9 +349,8 @@ void EngineApp::Shutdown()
         m_physicsSystem->Shutdown();
     }
 
-    // ImGui draw list copies are freed while the ImGui context is alive
     for (auto& packet : m_framePackets) {
-        packet.ui.Clear();
+        packet.overlay.Clear();
     }
 
     if (m_imguiSystem) {

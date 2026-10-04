@@ -4,6 +4,7 @@
 #include "core/MessageBus.hpp"
 
 #include "graphics/RenderSystem.hpp"
+#include "graphics/render/OverlayFrame.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
 #include "graphics/Settings.hpp"
@@ -21,51 +22,6 @@ namespace elm {
 
 	class SocLabWindow;
 
-	// Lifetime change of an ImGui platform viewport, recorded on the main thread and applied on the render thread
-	struct ImGuiViewportEvent {
-		enum class Type {
-			Create,
-			Destroy,
-			Resize
-		};
-
-		Type type{ Type::Create };
-		ImGuiID id{ 0 };
-		// Native window resolved on the main thread: HWND / X11 Window / wl_surface* and X11 Display* / wl_display*
-		void* nativeHandle{ nullptr };
-		void* nativeDisplay{ nullptr };
-		uint32_t width{ 1 };
-		uint32_t height{ 1 };
-	};
-
-	// Copy of the ImGui draw data of one platform viewport
-	struct ImGuiViewportSnapshot {
-		ImGuiID id{ 0 };
-		bool isMain{ false };
-		ImDrawData drawData;
-		Vector<ImDrawList*> drawLists;
-		uint32_t framebufferWidth{ 1 };
-		uint32_t framebufferHeight{ 1 };
-	};
-
-	// ImGui output of one frame. Every built frame must be rendered: it carries viewport events.
-	// Draw lists are allocated by ImGui, so Clear() must be called on the main thread.
-	struct ImGuiFrame {
-		ImGuiFrame() = default;
-		~ImGuiFrame() { Clear(); }
-
-		ImGuiFrame(const ImGuiFrame&) = delete;
-		ImGuiFrame& operator=(const ImGuiFrame&) = delete;
-
-		void Clear();
-
-		Vector<ImGuiViewportEvent> viewportEvents; // applied before drawing, in order
-		Vector<ImGuiViewportSnapshot> viewports;   // [0] - main viewport
-		render::ViewPort::Snapshot viewPort;
-		core::Handler fallbackTexture;
-		uint64_t releasedViewportCount{ 0 };
-	};
-
 	// Threading:
 	//  - main thread: Init, BuildFrame, Shutdown (render thread must be stopped), all ImGui/GLFW calls
 	//  - render thread: RenderSystem executes the render graph using captured frame data
@@ -81,7 +37,7 @@ namespace elm {
 		[[nodiscard]] auto Init(RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame
 		void BuildFrame(RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
-			render::ViewPort& viewPort, ImGuiFrame& frame);
+			render::ViewPort& viewPort, render::OverlayFrame& frame);
 		// Render thread: reports viewport surfaces released by the render graph
 		void NotifyViewportSurfacesReleased(uint64_t count);
 		void Shutdown();
@@ -119,7 +75,7 @@ namespace elm {
 		static float GetViewportDpiScale(ImGuiViewport* viewport);
 
 		// Main thread
-		void CaptureViewports(ImGuiFrame& frame);
+		void CaptureViewports(render::OverlayFrame& frame);
 		void DestroyReleasedPlatformWindows(bool all);
 
 		struct SavedLabSettings {
@@ -159,7 +115,7 @@ namespace elm {
 		SocLabWindow* m_socLabWindow{ nullptr };
 
 		// --- Main thread ---
-		Vector<ImGuiViewportEvent> m_pendingViewportEvents;
+		Vector<render::OverlaySurfaceEvent> m_pendingViewportEvents;
 		Vector<PendingPlatformWindow> m_pendingPlatformWindows;
 		uint64_t m_destroyedViewportCount{ 0 };
 		void (*m_platformDestroyWindow)(ImGuiViewport*) { nullptr };

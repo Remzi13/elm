@@ -48,20 +48,13 @@ namespace elm {
 			height = static_cast<uint32_t>( (std::max)( framebufferHeight, 1 ) );
 		}
 
-	} // namespace
-
-	void ImGuiFrame::Clear() {
-		for ( auto& snapshot : viewports ) {
-			for ( ImDrawList* list : snapshot.drawLists ) {
-				IM_DELETE( list );
-			}
+		core::Handler getTextureHandler( ImTextureID textureId, core::Handler fallback ) {
+			const auto value = reinterpret_cast<uintptr_t>( textureId );
+			if ( ( value & 1 ) == 0 ) return fallback;
+			return core::Handler( static_cast<core::Handler::ValueType>( value >> 1 ), core::Handler::Render );
 		}
-		viewports.clear();
-		viewportEvents.clear();
-		viewPort = {};
-		fallbackTexture = {};
-		releasedViewportCount = 0;
-	}
+
+	} // namespace
 
 	ImGuiSystem::ImGuiSystem() = default;
 
@@ -156,8 +149,8 @@ namespace elm {
 		auto* window = static_cast<GLFWwindow*>( viewport->PlatformHandle );
 		if ( !system || !window ) return;
 
-		ImGuiViewportEvent event;
-		event.type = ImGuiViewportEvent::Type::Create;
+		render::OverlaySurfaceEvent event;
+		event.type = render::OverlaySurfaceEvent::Type::Create;
 		event.id = viewport->ID;
 		getFramebufferSize( window, event.width, event.height );
 #if PLATFORM_WIN32
@@ -179,8 +172,8 @@ namespace elm {
 		auto* system = getSystem();
 		if ( !system ) return;
 
-		ImGuiViewportEvent event;
-		event.type = ImGuiViewportEvent::Type::Destroy;
+		render::OverlaySurfaceEvent event;
+		event.type = render::OverlaySurfaceEvent::Type::Destroy;
 		event.id = viewport->ID;
 		system->m_pendingViewportEvents.push_back( event );
 		++system->m_destroyedViewportCount;
@@ -243,8 +236,7 @@ namespace elm {
 	}
 
 	void ImGuiSystem::BuildFrame( RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
-		render::ViewPort& viewPort, ImGuiFrame& frame ) {
-		// The frame slot was rendered already: its events are applied and draw lists are no longer used
+		render::ViewPort& viewPort, render::OverlayFrame& frame ) {
 		frame.Clear();
 		if ( !m_initialized ) {
 			frame.viewPort = viewPort.GetSnapshot();
@@ -273,13 +265,13 @@ namespace elm {
 		ImGui::UpdatePlatformWindows();
 
 		// Events go with the draw data of the same frame, so the render thread sees them in order
-		frame.viewportEvents.swap( m_pendingViewportEvents );
+		frame.surfaceEvents.swap( m_pendingViewportEvents );
 		m_pendingViewportEvents.clear();
 
 		CaptureViewports( frame );
 	}
 
-	void ImGuiSystem::CaptureViewports( ImGuiFrame& frame ) {
+	void ImGuiSystem::CaptureViewports( render::OverlayFrame& frame ) {
 		auto& platformIO = ImGui::GetPlatformIO();
 		for ( int i = 0; i < platformIO.Viewports.Size; ++i ) {
 			ImGuiViewport* viewport = platformIO.Viewports[i];
@@ -292,14 +284,15 @@ namespace elm {
 			uint32_t framebufferHeight = 1;
 			getFramebufferSize( window, framebufferWidth, framebufferHeight );
 			if ( !isMain ) {
-				ImGuiViewportEvent resizeEvent;
-				resizeEvent.type = ImGuiViewportEvent::Type::Resize;
+				render::OverlaySurfaceEvent resizeEvent;
+				resizeEvent.type = render::OverlaySurfaceEvent::Type::Resize;
 				resizeEvent.id = viewport->ID;
 				resizeEvent.width = framebufferWidth;
 				resizeEvent.height = framebufferHeight;
-				frame.viewportEvents.push_back( resizeEvent );
+				frame.surfaceEvents.push_back( resizeEvent );
 			}
-			if ( !viewport->DrawData || viewport->DrawData->CmdListsCount == 0 ) continue;
+			if ( !viewport->DrawData || viewport->DrawData->CmdListsCount == 0 ||
+				viewport->DrawData->DisplaySize.x <= 0.0f || viewport->DrawData->DisplaySize.y <= 0.0f ) continue;
 
 			int windowWidth = 0;
 			int windowHeight = 0;
@@ -310,20 +303,58 @@ namespace elm {
 			snapshot.isMain = isMain;
 			snapshot.framebufferWidth = framebufferWidth;
 			snapshot.framebufferHeight = framebufferHeight;
-			snapshot.drawData = *viewport->DrawData;
+			auto framebufferScale = viewport->DrawData->FramebufferScale;
 			if ( !isMain && windowWidth > 0 && windowHeight > 0 ) {
-				snapshot.drawData.FramebufferScale = ImVec2(
+				framebufferScale = ImVec2(
 					static_cast<float>( snapshot.framebufferWidth ) / static_cast<float>( windowWidth ),
 					static_cast<float>( snapshot.framebufferHeight ) / static_cast<float>( windowHeight ) );
 			}
 
-			// ImGui reuses its draw lists in the next NewFrame(), so the render thread gets copies
-			snapshot.drawLists.reserve( static_cast<size_t>( viewport->DrawData->CmdListsCount ) );
+			const auto& drawData = *viewport->DrawData;
+			snapshot.drawLists.reserve( static_cast<size_t>( drawData.CmdListsCount ) );
 			for ( int n = 0; n < viewport->DrawData->CmdListsCount; ++n ) {
-				snapshot.drawLists.push_back( viewport->DrawData->CmdLists[n]->CloneOutput() );
+				const auto& sourceList = *drawData.CmdLists[n];
+				auto& drawList = snapshot.drawLists.emplace_back();
+				drawList.vertices.reserve( static_cast<size_t>( sourceList.VtxBuffer.Size ) );
+				for ( const ImDrawVert& sourceVertex : sourceList.VtxBuffer ) {
+					const auto color = static_cast<uint32_t>( sourceVertex.col );
+					constexpr float colorScale = 1.0f / 255.0f;
+					drawList.vertices.push_back( {
+						{
+							( ( sourceVertex.pos.x - drawData.DisplayPos.x ) / drawData.DisplaySize.x ) * 2.0f - 1.0f,
+							1.0f - ( ( sourceVertex.pos.y - drawData.DisplayPos.y ) / drawData.DisplaySize.y ) * 2.0f
+						},
+						{ sourceVertex.uv.x, sourceVertex.uv.y },
+						{
+							static_cast<float>( ( color >> IM_COL32_R_SHIFT ) & 0xff ) * colorScale,
+							static_cast<float>( ( color >> IM_COL32_G_SHIFT ) & 0xff ) * colorScale,
+							static_cast<float>( ( color >> IM_COL32_B_SHIFT ) & 0xff ) * colorScale,
+							static_cast<float>( ( color >> IM_COL32_A_SHIFT ) & 0xff ) * colorScale
+						}
+					} );
+				}
+
+				drawList.indices.reserve( static_cast<size_t>( sourceList.IdxBuffer.Size ) );
+				for ( const ImDrawIdx index : sourceList.IdxBuffer )
+					drawList.indices.push_back( static_cast<uint32_t>( index ) );
+
+				drawList.commands.reserve( static_cast<size_t>( sourceList.CmdBuffer.Size ) );
+				for ( const ImDrawCmd& sourceCommand : sourceList.CmdBuffer ) {
+					drawList.commands.push_back( {
+						{
+							( sourceCommand.ClipRect.x - drawData.DisplayPos.x ) * framebufferScale.x,
+							( sourceCommand.ClipRect.y - drawData.DisplayPos.y ) * framebufferScale.y,
+							( sourceCommand.ClipRect.z - drawData.DisplayPos.x ) * framebufferScale.x,
+							( sourceCommand.ClipRect.w - drawData.DisplayPos.y ) * framebufferScale.y
+						},
+						static_cast<uint32_t>( sourceCommand.IdxOffset ),
+						static_cast<uint32_t>( sourceCommand.VtxOffset ),
+						static_cast<uint32_t>( sourceCommand.ElemCount ),
+						getTextureHandler( sourceCommand.TextureId, frame.fallbackTexture ),
+						sourceCommand.UserCallback != nullptr
+					} );
+				}
 			}
-			snapshot.drawData.CmdLists = nullptr; // set in RenderFrame(): the snapshot may still move
-			snapshot.drawData.OwnerViewport = nullptr;
 		}
 	}
 

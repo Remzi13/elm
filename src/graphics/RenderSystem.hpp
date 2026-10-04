@@ -35,8 +35,6 @@ struct ITextureView;
 
 namespace elm {
 
-struct ImGuiFrame;
-
 namespace render {
 class RenderResourceProvider;
 }
@@ -84,7 +82,7 @@ public:
     // BeginFrame consumes deferred cross-thread work; RenderFrame executes the render graph
     // and returns its 1-based frame number; EndFrame presents after all graph passes complete.
     void BeginFrame();
-    [[nodiscard]] uint64_t RenderFrame(FrameData& frameData, ImGuiFrame& uiFrame);
+    [[nodiscard]] uint64_t RenderFrame(FrameData& frameData, render::OverlayFrame& overlay);
     void EndFrame();
 
     void Shutdown();
@@ -103,7 +101,7 @@ private:
     void ApplyMainSwapChainResize(uint32_t width, uint32_t height);
     static void OnFramebufferSizeChanged(GLFWwindow* window, int width, int height);
 
-    void ExecuteRenderGraph(FrameData& frameData, ImGuiFrame& uiFrame);
+    void ExecuteRenderGraph(FrameData& frameData, render::OverlayFrame& overlay);
 
     /// Builds the shared resource view passed to render passes.
     [[nodiscard]] render::RenderPassContext CreatePassContext();

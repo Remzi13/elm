@@ -1,5 +1,4 @@
 #include "graphics/RenderSystem.hpp"
-#include "graphics/ImGuiSystem.hpp"
 #include "graphics/render/OverlayRenderPass.hpp"
 #include "graphics/render/RenderResourceProvider.hpp"
 #include "graphics/render/SceneRenderPass.hpp"
@@ -402,11 +401,11 @@ void RenderSystem::CommitCommands()
     m_deferredCommandQueue.CommitFrame();
 }
 
-void RenderSystem::ExecuteRenderGraph(FrameData& frameData, ImGuiFrame& uiFrame)
+void RenderSystem::ExecuteRenderGraph(FrameData& frameData, render::OverlayFrame& overlay)
 {
     auto passContext = CreatePassContext();
     render::RenderFrameContext frameContext {
-        passContext, frameData, uiFrame.viewPort, &uiFrame, uiFrame.fallbackTexture
+        passContext, frameData, overlay.viewPort, overlay
     };
     for (const auto& pass : m_renderGraph)
         pass->Execute(frameContext);
@@ -441,9 +440,9 @@ void RenderSystem::BeginFrame()
     m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 }
 
-uint64_t RenderSystem::RenderFrame(FrameData& frameData, ImGuiFrame& uiFrame)
+uint64_t RenderSystem::RenderFrame(FrameData& frameData, render::OverlayFrame& overlay)
 {
-    ExecuteRenderGraph(frameData, uiFrame);
+    ExecuteRenderGraph(frameData, overlay);
     return ++m_renderedFrameNumber;
 }
 

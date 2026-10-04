@@ -1,7 +1,7 @@
 #pragma once
 
-#include "graphics/ImGuiSystem.hpp"
 #include "graphics/RenderSystem.hpp"
+#include "graphics/render/OverlayFrame.hpp"
 
 namespace elm {
 
@@ -10,7 +10,7 @@ namespace elm {
 struct FramePacket {
     FrameData   frameData;
     FrameStats  stats;
-    ImGuiFrame  ui;
+    render::OverlayFrame overlay;
     float       deltaTime { 0.0f };
 };
 

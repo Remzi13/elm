@@ -2,6 +2,7 @@
 
 #include "core/Handler.hpp"
 #include "core/Std.hpp"
+#include "graphics/render/OverlayFrame.hpp"
 #include "graphics/render/ViewPort.hpp"
 
 namespace Diligent {
@@ -11,7 +12,6 @@ struct IDeviceContext;
 namespace elm {
 
 struct FrameData;
-struct ImGuiFrame;
 
 namespace render {
 
@@ -36,8 +36,7 @@ struct RenderFrameContext {
     RenderPassContext& resources;
     FrameData& frameData;
     const ViewPort::Snapshot& viewPort;
-    ImGuiFrame* uiFrame = nullptr;
-    core::Handler fallbackTexture;
+    OverlayFrame& overlay;
 };
 
 /// A render pass draws directly from frame data and shared GPU resources.

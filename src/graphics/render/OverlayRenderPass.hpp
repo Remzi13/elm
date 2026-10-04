@@ -12,16 +12,11 @@ struct IRenderDevice;
 struct IPipelineState;
 }
 
-namespace elm {
-struct ImGuiFrame;
-struct ImGuiViewportSnapshot;
-}
-
 namespace elm::render {
 
 using RenderSurfaceId = uint32_t;
 
-/// Draws ImGui viewports directly. RenderSystem controls when this pass runs.
+/// Draws captured overlay viewports. RenderSystem controls when this pass runs.
 class OverlayRenderPass final : public IRenderPass {
 public:
     OverlayRenderPass() = default;

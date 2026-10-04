@@ -1,6 +1,5 @@
 #include "graphics/render/OverlayRenderPass.hpp"
 
-#include "graphics/ImGuiSystem.hpp"
 #include "graphics/render/BufferManager.hpp"
 #include "graphics/render/RenderResourceProvider.hpp"
 
@@ -13,8 +12,6 @@
 #include "Graphics/GraphicsEngine/interface/ShaderResourceBinding.h"
 #include "Graphics/GraphicsEngine/interface/ShaderResourceVariable.h"
 
-#include "imgui.h"
-
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
@@ -25,12 +22,6 @@
 namespace elm::render {
 
 namespace {
-
-struct OverlayVertex {
-    float position[2];
-    float uv[2];
-    float color[4];
-};
 
 String LoadOverlayShaderSource(const char* fileName)
 {
@@ -55,33 +46,6 @@ String LoadOverlayShaderSource(const char* fileName)
     return { };
 }
 
-core::Handler GetTextureHandler(ImTextureID textureId, core::Handler fallback)
-{
-    const auto value = reinterpret_cast<uintptr_t>(textureId);
-    if ((value & 1) == 0)
-        return fallback;
-    return core::Handler(static_cast<core::Handler::ValueType>(value >> 1), core::Handler::Render);
-}
-
-OverlayVertex ConvertVertex(const ImDrawVert& vertex, const ImVec2& displayPosition, const ImVec2& displaySize)
-{
-    const auto color = static_cast<uint32_t>(vertex.col);
-    constexpr float colorScale = 1.0f / 255.0f;
-    return {
-        {
-            ((vertex.pos.x - displayPosition.x) / displaySize.x) * 2.0f - 1.0f,
-            1.0f - ((vertex.pos.y - displayPosition.y) / displaySize.y) * 2.0f
-        },
-        { vertex.uv.x, vertex.uv.y },
-        {
-            static_cast<float>((color >> IM_COL32_R_SHIFT) & 0xff) * colorScale,
-            static_cast<float>((color >> IM_COL32_G_SHIFT) & 0xff) * colorScale,
-            static_cast<float>((color >> IM_COL32_B_SHIFT) & 0xff) * colorScale,
-            static_cast<float>((color >> IM_COL32_A_SHIFT) & 0xff) * colorScale
-        }
-    };
-}
-
 class OverlayFrameRenderer {
 public:
     OverlayFrameRenderer(RenderFrameContext& frameContext, Diligent::IPipelineState* pipelineState,
@@ -92,31 +56,31 @@ public:
     {
     }
 
-    [[nodiscard]] uint64_t Render(const ImGuiFrame& frame, core::Handler fallbackTexture)
+    [[nodiscard]] uint64_t Render(const OverlayFrame& frame)
     {
         uint64_t releasedViewportCount = 0;
-        for (const auto& event : frame.viewportEvents) {
+        for (const auto& event : frame.surfaceEvents) {
             switch (event.type) {
-            case ImGuiViewportEvent::Type::Create:
+            case OverlaySurfaceEvent::Type::Create:
                 CreateViewportSurface(event);
                 break;
-            case ImGuiViewportEvent::Type::Destroy:
+            case OverlaySurfaceEvent::Type::Destroy:
                 m_viewportSurfaces.erase(event.id);
                 ++releasedViewportCount;
                 break;
-            case ImGuiViewportEvent::Type::Resize:
+            case OverlaySurfaceEvent::Type::Resize:
                 ResizeViewportSurface(event);
                 break;
             }
         }
 
         for (const auto& snapshot : frame.viewports)
-            RenderViewport(snapshot, fallbackTexture);
+            RenderViewport(snapshot, frame.fallbackTexture);
         return releasedViewportCount;
     }
 
 private:
-    void CreateViewportSurface(const ImGuiViewportEvent& event)
+    void CreateViewportSurface(const OverlaySurfaceEvent& event)
     {
         if (event.id == 0 || !m_resources.resourceProvider || !event.nativeHandle ||
             event.width == 0 || event.height == 0)
@@ -128,7 +92,7 @@ private:
             m_viewportSurfaces.insert_or_assign(event.id, std::move(surface));
     }
 
-    void ResizeViewportSurface(const ImGuiViewportEvent& event)
+    void ResizeViewportSurface(const OverlaySurfaceEvent& event)
     {
         if (event.id == 0 || event.width == 0 || event.height == 0)
             return;
@@ -136,7 +100,7 @@ private:
             it->second.ResizeIfNeeded(event.width, event.height);
     }
 
-    void RenderViewport(const ImGuiViewportSnapshot& snapshot, core::Handler fallbackTexture)
+    void RenderViewport(const OverlayViewport& snapshot, core::Handler fallbackTexture)
     {
         const auto surfaceId = snapshot.isMain ? 0 : snapshot.id;
         SwapChain* surface = nullptr;
@@ -146,8 +110,7 @@ private:
             surface = &it->second;
         }
         if (!surface || !m_resources.deviceContext ||
-            snapshot.framebufferWidth == 0 || snapshot.framebufferHeight == 0 ||
-            snapshot.drawData.DisplaySize.x <= 0.0f || snapshot.drawData.DisplaySize.y <= 0.0f)
+            snapshot.framebufferWidth == 0 || snapshot.framebufferHeight == 0)
             return;
 
         auto* renderTarget = surface->GetCurrentBackBufferRTV();
@@ -168,63 +131,58 @@ private:
                 Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
         }
 
-        for (const ImDrawList* list : snapshot.drawLists) {
-            for (const ImDrawCmd& drawCommand : list->CmdBuffer)
-                DrawCommand(snapshot, *list, drawCommand, fallbackTexture);
+        for (const auto& list : snapshot.drawLists) {
+            for (const auto& drawCommand : list.commands)
+                DrawCommand(snapshot, list, drawCommand, fallbackTexture);
         }
 
         if (!snapshot.isMain)
             surface->Present();
     }
 
-    void DrawCommand(const ImGuiViewportSnapshot& snapshot, const ImDrawList& list,
-        const ImDrawCmd& drawCommand, core::Handler fallbackTexture)
+    void DrawCommand(const OverlayViewport& snapshot, const OverlayDrawList& list,
+        const OverlayDrawCommand& drawCommand, core::Handler fallbackTexture)
     {
-        if (drawCommand.UserCallback || drawCommand.ElemCount == 0 ||
+        if (drawCommand.hasUserCallback || drawCommand.elementCount == 0 ||
             !m_resources.deviceContext || !m_resources.resourceProvider || !m_resources.bufferManager ||
-            !m_pipelineState || drawCommand.ElemCount > (std::numeric_limits<Diligent::Uint32>::max)())
+            !m_pipelineState || drawCommand.elementCount > (std::numeric_limits<Diligent::Uint32>::max)())
             return;
 
-        const auto& drawData = snapshot.drawData;
-        const float clipLeft = (drawCommand.ClipRect.x - drawData.DisplayPos.x) * drawData.FramebufferScale.x;
-        const float clipTop = (drawCommand.ClipRect.y - drawData.DisplayPos.y) * drawData.FramebufferScale.y;
-        const float clipRight = (drawCommand.ClipRect.z - drawData.DisplayPos.x) * drawData.FramebufferScale.x;
-        const float clipBottom = (drawCommand.ClipRect.w - drawData.DisplayPos.y) * drawData.FramebufferScale.y;
-        const auto left = static_cast<uint32_t>(std::clamp(clipLeft, 0.0f, static_cast<float>(snapshot.framebufferWidth)));
-        const auto top = static_cast<uint32_t>(std::clamp(clipTop, 0.0f, static_cast<float>(snapshot.framebufferHeight)));
-        const auto right = static_cast<uint32_t>(std::clamp(clipRight, 0.0f, static_cast<float>(snapshot.framebufferWidth)));
-        const auto bottom = static_cast<uint32_t>(std::clamp(clipBottom, 0.0f, static_cast<float>(snapshot.framebufferHeight)));
+        const auto left = static_cast<uint32_t>(std::clamp(drawCommand.clipRect[0], 0.0f, static_cast<float>(snapshot.framebufferWidth)));
+        const auto top = static_cast<uint32_t>(std::clamp(drawCommand.clipRect[1], 0.0f, static_cast<float>(snapshot.framebufferHeight)));
+        const auto right = static_cast<uint32_t>(std::clamp(drawCommand.clipRect[2], 0.0f, static_cast<float>(snapshot.framebufferWidth)));
+        const auto bottom = static_cast<uint32_t>(std::clamp(drawCommand.clipRect[3], 0.0f, static_cast<float>(snapshot.framebufferHeight)));
         if (right <= left || bottom <= top)
             return;
 
         auto textureView = m_resources.resourceProvider->GetShaderResourceView(
-            GetTextureHandler(drawCommand.TextureId, fallbackTexture));
+            drawCommand.texture.IsValid() ? drawCommand.texture : fallbackTexture);
         const auto resolvedTexture = textureView.Resolve();
         if (!resolvedTexture.view)
             return;
 
-        Vector<OverlayVertex> vertices;
-        vertices.reserve(static_cast<size_t>(list.VtxBuffer.Size));
-        for (const ImDrawVert& vertex : list.VtxBuffer)
-            vertices.push_back(ConvertVertex(vertex, drawData.DisplayPos, drawData.DisplaySize));
-
         Vector<uint32_t> indices;
-        indices.reserve(static_cast<size_t>(drawCommand.ElemCount));
-        for (uint32_t index = 0; index < drawCommand.ElemCount; ++index) {
-            const auto sourceIndex = drawCommand.IdxOffset + index;
-            if (sourceIndex >= static_cast<uint32_t>(list.IdxBuffer.Size))
+        indices.reserve(static_cast<size_t>(drawCommand.elementCount));
+        for (uint32_t index = 0; index < drawCommand.elementCount; ++index) {
+            const auto sourceIndex = drawCommand.indexOffset + index;
+            if (sourceIndex >= list.indices.size())
                 return;
-            indices.push_back(static_cast<uint32_t>(list.IdxBuffer[sourceIndex]) + drawCommand.VtxOffset);
+            const auto vertexIndex = static_cast<uint64_t>(list.indices[sourceIndex]) + drawCommand.vertexOffset;
+            if (vertexIndex >= list.vertices.size())
+                return;
+            indices.push_back(static_cast<uint32_t>(vertexIndex));
         }
 
-        const auto vertexBuffer = m_resources.bufferManager->CreateBuffer({
+        const BufferInfo vertexBufferInfo {
             "Overlay Vertex Buffer", BufferType::VertexBuffer,
-            vertices.size() * sizeof(OverlayVertex), vertices.data()
-        });
-        const auto indexBuffer = m_resources.bufferManager->CreateBuffer({
+            list.vertices.size() * sizeof(OverlayVertex), list.vertices.data()
+        };
+        const BufferInfo indexBufferInfo {
             "Overlay Index Buffer", BufferType::IndexBuffer,
             indices.size() * sizeof(uint32_t), indices.data()
-        });
+        };
+        const auto vertexBuffer = m_resources.bufferManager->CreateBuffer(vertexBufferInfo);
+        const auto indexBuffer = m_resources.bufferManager->CreateBuffer(indexBufferInfo);
         auto* vertexBufferImpl = m_resources.bufferManager->GetBufferImpl(vertexBuffer);
         auto* indexBufferImpl = m_resources.bufferManager->GetBufferImpl(indexBuffer);
         if (!vertexBufferImpl || !indexBufferImpl) {
@@ -387,11 +345,8 @@ void OverlayRenderPass::ReleaseViewportSurfaces()
 
 void OverlayRenderPass::Execute(RenderFrameContext& context)
 {
-    if (!context.uiFrame)
-        return;
-
     OverlayFrameRenderer renderer(context, m_pOverlayPSO, m_viewportSurfaces);
-    context.uiFrame->releasedViewportCount += renderer.Render(*context.uiFrame, context.fallbackTexture);
+    context.overlay.releasedSurfaceCount += renderer.Render(context.overlay);
 }
 
 } // namespace elm::render
