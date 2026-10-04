@@ -13,7 +13,7 @@
 namespace elm {
 
 EngineApp::EngineApp()
-    : m_renderSystem(MakeUnique<RenderSystem>())
+    : m_renderSystem(MakeUnique<render::RenderSystem>())
     , m_imguiSystem(MakeUnique<ImGuiSystem>())
     , m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
@@ -255,7 +255,8 @@ auto EngineApp::Run() -> EngineResult<void>
             packet.stats = m_currentStats;
 
             // Camera snapshot
-            packet.frameData.camera = m_camera;
+            packet.frameData.camera.pos = m_camera.GetPosition();
+            packet.frameData.camera.viewporj = m_camera.GetViewProjectionMatrix();
 
             // Visible object list snapshot
             packet.frameData.objects.clear();

@@ -37,9 +37,9 @@ namespace elm {
 		ImGuiSystem(const ImGuiSystem&) = delete;
 		ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
-		[[nodiscard]] auto Init(RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
+		[[nodiscard]] auto Init(render::RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame
-		void BuildFrame(RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
+		void BuildFrame(render::RenderSystem& renderSystem, Scene& scene, Camera& camera, const render::FrameStats& stats,
 			render::ViewPort& viewPort, render::OverlayFrame& frame);
 		// Render thread: reports viewport surfaces released by the render graph
 		void NotifyViewportSurfacesReleased(uint64_t count);

@@ -44,7 +44,7 @@ namespace elm {
 		void RenderThreadFunc();
 
 	private:
-		UniquePtr<RenderSystem> m_renderSystem;
+		UniquePtr<render::RenderSystem> m_renderSystem;
 		UniquePtr<ImGuiSystem> m_imguiSystem;
 		UniquePtr<PhysicsSystem> m_physicsSystem;
 		UniquePtr<InputSystem> m_inputSystem;
@@ -61,7 +61,7 @@ namespace elm {
 		// FPS counter statistics
 		float m_frameCounterTime{ 0.0f };
 		uint32_t m_frameCount{ 0 };
-		FrameStats m_currentStats;
+		render::FrameStats m_currentStats;
 
 		OcclusionCullingSystem m_cullingSystem;
 

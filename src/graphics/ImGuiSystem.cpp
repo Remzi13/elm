@@ -73,7 +73,7 @@ namespace elm {
 		return reinterpret_cast<ImTextureID>( value );
 	}
 
-	auto ImGuiSystem::Init( RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
+	auto ImGuiSystem::Init( render::RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
 		m_window = renderSystem.GetWindowHandle();
 		m_title = title;
 
@@ -232,7 +232,7 @@ namespace elm {
 		m_pendingPlatformWindows.erase( m_pendingPlatformWindows.begin(), m_pendingPlatformWindows.begin() + count );
 	}
 
-	void ImGuiSystem::BuildFrame( RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
+	void ImGuiSystem::BuildFrame( render::RenderSystem& renderSystem, Scene& scene, Camera& camera, const render::FrameStats& stats,
 		render::ViewPort& viewPort, render::OverlayFrame& frame ) {
 		frame.Clear();
 		if ( !m_initialized ) {

@@ -10,10 +10,9 @@ struct IDeviceContext;
 }
 
 namespace elm {
+namespace render {
 
 struct FrameData;
-
-namespace render {
 
 class BufferManager;
 class DynamicLinearAllocator;

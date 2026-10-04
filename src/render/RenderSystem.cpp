@@ -1,22 +1,15 @@
 #include "render/RenderSystem.hpp"
+
+#include "core/Log.hpp"
+#include "core/Profiling.hpp"
+
 #include "render/OverlayRenderPass.hpp"
 #include "render/RenderResourceProvider.hpp"
 #include "render/SceneRenderPass.hpp"
-#include "render/TextureManager.hpp"
 #include "render/BufferManager.hpp"
-
-#include "core/Log.hpp"
-
-#include "core/Profiling.hpp"
 
 // Diligent Engine Includes
 #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
-#include "Graphics/GraphicsEngine/interface/Buffer.h"
-#include "Graphics/GraphicsEngine/interface/PipelineResourceSignature.h"
-#include "Graphics/GraphicsEngine/interface/PipelineState.h"
-#include "Graphics/GraphicsEngine/interface/RenderDevice.h"
-#include "Graphics/GraphicsEngine/interface/ShaderResourceBinding.h"
-#include "Graphics/GraphicsEngine/interface/ShaderResourceVariable.h"
 #include "Graphics/GraphicsAccessories/interface/GraphicsAccessories.hpp"
 
 #if PLATFORM_WIN32
@@ -24,21 +17,11 @@
 #else
 #include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
 #endif
-#include "Graphics/GraphicsTools/interface/MapHelper.hpp"
-
 
 #include "graphics/MeshDataStorage.hpp"
 
 #include <algorithm>
-#include <cstring>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-#include <limits>
-#include <unordered_map>
 #include <utility>
-
-#include "render/backends/Utils.hpp"
 
 #if PLATFORM_WIN32
 #include <windows.h>
@@ -50,40 +33,39 @@
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
-namespace elm {
+namespace elm::render {
 
 namespace {
 
-    std::unordered_map<GLFWwindow*, RenderSystem*> g_renderSystemsByWindow;
+    UnorderedMap<GLFWwindow*, RenderSystem*> g_renderSystemsByWindow;
 
     class ResourceCommandExecutor {
     public:
-        ResourceCommandExecutor(render::RenderResourceProvider& resourceProvider,
-            render::MeshManager& meshManager, render::BufferManager& bufferManager)
+        ResourceCommandExecutor(RenderResourceProvider& resourceProvider,
+            MeshManager& meshManager, BufferManager& bufferManager)
             : m_resourceProvider(resourceProvider)
             , m_meshManager(meshManager)
             , m_bufferManager(bufferManager)
         {
         }
 
-        void Execute(render::command::resource::CreateTexture& command)
+        void Execute(command::resource::CreateTexture& command)
         {
             (void)m_resourceProvider.CreateTexture(command.handler, command.info);
         }
 
-        void Execute(render::command::resource::UploadTexture command)
+        void Execute(command::resource::UploadTexture command)
         {
             m_resourceProvider.UpdateTexture(command.handler, command.data);
         }
 
-        void Execute(render::command::resource::DestroyTexture& command)
+        void Execute(command::resource::DestroyTexture& command)
         {
             m_resourceProvider.ReleaseTexture(command.handler);
         }
 
-        void Execute(render::command::resource::CreateMesh& command)
-        {
-            using namespace render;
+        void Execute(command::resource::CreateMesh& command)
+        {            
             Mesh mesh = m_meshManager.GetMeshByData(command.meshData);
             if (!mesh.ib.IsValid() || !mesh.vb.IsValid()) {
                 const auto& meshData = getMeshData(command.meshData);
@@ -96,9 +78,9 @@ namespace {
             m_meshManager.PushMesh(command.handler, command.meshData, mesh);
         }
 
-        void Execute(render::command::resource::DestroyMesh& command)
+        void Execute(command::resource::DestroyMesh& command)
         {
-            render::Mesh mesh;
+            Mesh mesh;
             m_meshManager.PopMesh(command.handler, mesh);
             if (mesh.ib.IsValid() && mesh.vb.IsValid()) {
                 m_bufferManager.DestroyBuffer(mesh.ib);
@@ -107,9 +89,9 @@ namespace {
         }
 
     private:
-        render::RenderResourceProvider& m_resourceProvider;
-        render::BufferManager& m_bufferManager;
-        render::MeshManager& m_meshManager;
+        RenderResourceProvider& m_resourceProvider;
+        BufferManager& m_bufferManager;
+        MeshManager& m_meshManager;
     };
 
     class DilligentAllocator : public Diligent::IMemoryAllocator {
@@ -177,7 +159,7 @@ public:
 
     using ResourceCommandExecutor::Execute;
 
-    void Execute(render::command::resource::ResizeMainSwapChain& command)
+    void Execute(command::resource::ResizeMainSwapChain& command)
     {
         if (command.width > 0 && command.height > 0)
             m_renderSystem.ApplyMainSwapChainResize(command.width, command.height);
@@ -186,37 +168,6 @@ public:
 private:
     RenderSystem& m_renderSystem;
 };
-
-// Shaders are loaded from shaders/ at runtime. This keeps shader editing independent
-// from the executable and also allows the same source to be replaced without a rebuild.
-static String LoadShaderSource(const char* fileName)
-{
-    const std::filesystem::path sourceRoot = std::filesystem::path { __FILE__ }.parent_path().parent_path().parent_path();
-    const std::filesystem::path paths[] = {
-        std::filesystem::current_path() / "shaders" / fileName,
-        std::filesystem::current_path() / "assets/shaders" / fileName,
-        sourceRoot / "shaders" / fileName,
-        sourceRoot / "assets/shaders" / fileName
-    };
-    for (const auto& path : paths) {
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-        if (!file)
-            continue;
-
-        const auto size = file.tellg();
-        if (size <= 0 || !file.seekg(0))
-            continue;
-
-        String source(static_cast<size_t>(size), '\0');
-        if (file.read(source.data(), size)) {
-            LOG_MESSAGE(log::Category::Render, "Shaders", "Loaded shader: %s", path.string().c_str());            
-            return source;
-        }
-    }
-
-    ERORR_MESSAGE(log::Category::Render, "Shaders", "Cannot load shader from the working directory or project root : %s", fileName);
-    return { };
-}
 
 RenderSystem::RenderSystem() = default;
 
@@ -302,7 +253,7 @@ auto RenderSystem::Init(Size size, StringView title) -> EngineResult<void>
     }
 #endif
 
-    m_resourceProvider = MakeUnique<render::RenderResourceProvider>(m_renderDevice, m_deviceContext, m_textureStore);
+    m_resourceProvider = MakeUnique<RenderResourceProvider>(m_renderDevice, m_deviceContext, m_textureStore);
     m_swapChain = CreateSwapChain(m_size.width, m_size.height, nativeHandle, nativeDisplay);
     if (!m_swapChain || !m_swapChain.GetCurrentBackBufferRTV() || !m_swapChain.GetDepthBufferDSV()) {
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed,
@@ -316,8 +267,8 @@ auto RenderSystem::Init(Size size, StringView title) -> EngineResult<void>
     if (!m_meshManager.Init(&m_deferredCommandQueue))
         return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Mesh Manager "));
 
-    m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", render::BufferType::VertexBuffer, 16 * 1024 * 1024);
-    m_dynamicUniformBuffer.Init(m_renderDevice, "Dynamic Uniform Linear Allocator", render::BufferType::UniformBuffer, 2 * 1024 * 1024);
+    m_dynamicInstanceBuffer.Init(m_renderDevice, "Dynamic Instance Linear Allocator", BufferType::VertexBuffer, 16 * 1024 * 1024);
+    m_dynamicUniformBuffer.Init(m_renderDevice, "Dynamic Uniform Linear Allocator", BufferType::UniformBuffer, 2 * 1024 * 1024);
 
     // Initialize 3D Rendering Pipeline
     InitPipeline();
@@ -330,14 +281,14 @@ auto RenderSystem::Init(Size size, StringView title) -> EngineResult<void>
 
 void RenderSystem::InitPipeline()
 {
-    auto scenePass = MakeUnique<render::SceneRenderPass>();
+    auto scenePass = MakeUnique<SceneRenderPass>();
     scenePass->Initialize(m_renderDevice,
         m_dynamicUniformBuffer.GetBuffer(),
         m_swapChain.GetDesc().ColorBufferFormat,
         m_swapChain.GetDesc().DepthBufferFormat);
     m_renderGraph.push_back(std::move(scenePass));
 
-    auto overlayPass = MakeUnique<render::OverlayRenderPass>();
+    auto overlayPass = MakeUnique<OverlayRenderPass>();
     overlayPass->Initialize(m_renderDevice, m_swapChain.GetDesc().ColorBufferFormat);
     m_renderGraph.push_back(std::move(overlayPass));
 }
@@ -355,7 +306,7 @@ void RenderSystem::OnFramebufferSizeChanged(GLFWwindow* window, int width, int h
     system->m_size.width = static_cast<uint32_t>((std::max)(windowWidth, 0));
     system->m_size.height = static_cast<uint32_t>((std::max)(windowHeight, 0));
     if (width > 0 && height > 0)
-        system->m_deferredCommandQueue.Push(render::command::resource::ResizeMainSwapChain {
+        system->m_deferredCommandQueue.Push(command::resource::ResizeMainSwapChain {
             static_cast<uint32_t>(width), static_cast<uint32_t>(height)
         });
 }
@@ -373,15 +324,15 @@ bool RenderSystem::ShouldClose() const
     return m_window ? glfwWindowShouldClose(m_window) : true;
 }
 
-render::SwapChain RenderSystem::CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
+SwapChain RenderSystem::CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
     void* nativeDisplay, bool withDepthBuffer)
 {
     return m_resourceProvider
         ? m_resourceProvider->CreateSwapChain(width, height, nativeHandle, nativeDisplay, withDepthBuffer)
-        : render::SwapChain{};
+        : SwapChain{};
 }
 
-render::RenderPassContext RenderSystem::CreatePassContext()
+RenderPassContext RenderSystem::CreatePassContext()
 {
     return {
         m_deviceContext,
@@ -399,10 +350,10 @@ void RenderSystem::CommitCommands()
     m_deferredCommandQueue.CommitFrame();
 }
 
-void RenderSystem::ExecuteRenderGraph(FrameData& frameData, render::OverlayFrame& overlay)
+void RenderSystem::ExecuteRenderGraph(FrameData& frameData, OverlayFrame& overlay)
 {
     auto passContext = CreatePassContext();
-    render::RenderFrameContext frameContext {
+    RenderFrameContext frameContext {
         passContext, frameData, overlay.viewPort, overlay
     };
     for (const auto& pass : m_renderGraph)
@@ -438,7 +389,7 @@ void RenderSystem::BeginFrame()
     m_deviceContext->ClearDepthStencil(pDSV, Diligent::CLEAR_DEPTH_FLAG, 1.0f, 0, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 }
 
-uint64_t RenderSystem::RenderFrame(FrameData& frameData, render::OverlayFrame& overlay)
+uint64_t RenderSystem::RenderFrame(FrameData& frameData, OverlayFrame& overlay)
 {
     ExecuteRenderGraph(frameData, overlay);
     return ++m_renderedFrameNumber;

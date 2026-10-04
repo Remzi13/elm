@@ -244,8 +244,8 @@ void SceneRenderPass::Execute(RenderFrameContext& frameContext)
         };
         auto cameraAlloc = ctx.dynamicUniformBuffer->Allocate(ctx.deviceContext, sizeof(CameraCBData), 256);
         CameraCBData cbData;
-        cbData.ViewProj = frameData.camera.GetViewProjectionMatrix();
-        cbData.CameraPos = Vector4 { frameData.camera.GetPosition(), 1.0f };
+        cbData.ViewProj = frameData.camera.viewporj;
+        cbData.CameraPos = Vector4 { frameData.camera.pos, 1.0f };
         std::memcpy(cameraAlloc.pCPUAddress, &cbData, sizeof(CameraCBData));
 
         if (m_pSRB) {
