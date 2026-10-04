@@ -3,8 +3,9 @@
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 
+#include "render/TextureManager.hpp"
+
 #include "graphics/MeshDataStorage.hpp"
-#include "graphics/render/TextureManager.hpp"
 
 namespace elm {
 

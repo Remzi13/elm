@@ -3,12 +3,15 @@
 #include "core/Error.hpp"
 #include "core/MessageBus.hpp"
 
-#include "graphics/RenderSystem.hpp"
-#include "graphics/render/OverlayFrame.hpp"
+#include "render/RenderSystem.hpp"
+#include "render/OverlayFrame.hpp"
+
+
+#include "graphics/ui/ImGuiRenderer.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
 #include "graphics/Settings.hpp"
-#include "graphics/render/ImGuiRenderer.hpp"
+
 
 #include "imgui.h"
 

@@ -1,7 +1,9 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 
+#include "render/MeshManager.h"
+
 #include "graphics/MeshDataStorage.hpp"
-#include "graphics/render/MeshManager.h"
+
 #include "imgui.h"
 #include "math/Primitivs.hpp"
 

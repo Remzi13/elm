@@ -2,12 +2,13 @@
 
 #include "core/Error.hpp"
 
-#include "graphics/RenderSystem.hpp"
+#include "render/RenderSystem.hpp"
+#include "render/FramePacket.hpp"
+
 #include "graphics/ImGuiSystem.hpp"
 #include "graphics/CameraController.hpp"
 #include "graphics/Settings.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
-#include "graphics/render/FramePacket.hpp"
 
 #include "physics/PhysicsSystem.hpp"
 

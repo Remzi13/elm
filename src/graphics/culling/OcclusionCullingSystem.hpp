@@ -2,9 +2,11 @@
 
 #include "core/Std.hpp"
 
+#include "render/Texture.hpp"
+
 #include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
-#include "graphics/render/Texture.hpp"
+
 
 #include "Scene/TestScenes.hpp"
 

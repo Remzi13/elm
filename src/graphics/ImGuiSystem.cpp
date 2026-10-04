@@ -1,5 +1,5 @@
 #include "graphics/ImGuiSystem.hpp"
-#include "graphics/render/ImGuiRenderer.hpp"
+
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ui/LogWindow.hpp"

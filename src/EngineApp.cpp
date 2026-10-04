@@ -1,10 +1,12 @@
 #include "EngineApp.hpp"
-#include "graphics/ui/DepthPreviewWindow.hpp"
-#include "graphics/render/TextureManager.hpp"
 
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 #include "core/Log.hpp"
+
+#include "render/TextureManager.hpp"
+
+#include "graphics/ui/DepthPreviewWindow.hpp"
 
 #include <iostream>
 

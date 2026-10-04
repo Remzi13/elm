@@ -1,5 +1,5 @@
 #include "graphics/ui/ProfilerWindow.hpp"
-#include "graphics/RenderSystem.hpp"
+#include "render/RenderSystem.hpp"
 
 #include "imgui.h"
 

@@ -1,8 +1,10 @@
 #include "graphics/ui/DepthPreviewWindow.hpp"
+
+#include "render/Texture.hpp"
+#include "render/RenderSystem.hpp"
+
 #include "graphics/ImGuiSystem.hpp"
-#include "graphics/RenderSystem.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
-#include "graphics/render/Texture.hpp"
 
 #include "imgui.h"
 

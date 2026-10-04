@@ -1,7 +1,8 @@
 #include "Scene/TestScenes.hpp"
 
+#include "render/MeshManager.h"
+
 #include "graphics/MeshDataStorage.hpp"
-#include "graphics/render/MeshManager.h"
 
 #include <cmath>
 

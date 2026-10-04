@@ -1,0 +1,37 @@
+#include "render/Texture.hpp"
+#include "render/TextureManager.hpp"
+
+namespace elm::render {
+
+	Texture::Texture(const TextureInfo& info, core::Handler handler)
+		: m_handler(handler)
+		, m_info(info) {
+	}
+
+	Texture::~Texture() {
+		if (m_handler.IsValid()) {
+			TextureManager::Get().DestroyTexture(m_handler);
+		}
+	}
+
+	Texture::Texture(Texture&& other) noexcept
+		: m_handler(std::exchange(other.m_handler, {})), m_info(std::move(other.m_info)) {
+	}
+
+	Texture& Texture::operator=(Texture&& other) noexcept {
+		if (this != &other) {
+			if (m_handler.IsValid()) {
+				TextureManager::Get().DestroyTexture(m_handler);
+			}
+			m_handler = std::exchange(other.m_handler, {});
+			m_info = std::move(other.m_info);
+		}
+		return *this;
+	}
+
+
+	void Texture::Update(const TextureData& textureData) {
+		TextureManager::Get().UpdateTexture(m_handler, textureData);
+	}
+
+} // namespace elm::render
