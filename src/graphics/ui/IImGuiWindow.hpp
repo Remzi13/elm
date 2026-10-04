@@ -14,13 +14,22 @@ namespace elm {
 
 	class RenderSystem;
 	struct FrameStats;
+	namespace render { class ViewPort; }
+
+	struct ImGuiWindowContext {
+		RenderSystem& renderSystem;
+		Scene& scene;
+		Camera& camera;
+		const FrameStats& stats;
+		render::ViewPort& viewPort;
+	};
 
 	class IImGuiWindow {
 	public:
 		IImGuiWindow(Settings& settings) : m_settings(settings) {}
 		virtual ~IImGuiWindow() = default;
 
-		virtual void Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats) = 0;
+		virtual void Render(ImGuiWindowContext& context) = 0;
 		[[nodiscard]] virtual StringView GetName() const = 0;
 
 		[[nodiscard]] bool IsVisible() const noexcept { return m_visible; }

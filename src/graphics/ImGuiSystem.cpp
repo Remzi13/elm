@@ -58,6 +58,9 @@ namespace elm {
 		}
 		viewports.clear();
 		viewportEvents.clear();
+		viewPort = {};
+		fallbackTexture = {};
+		releasedViewportCount = 0;
 	}
 
 	ImGuiSystem::ImGuiSystem() = default;
@@ -82,7 +85,6 @@ namespace elm {
 
 	auto ImGuiSystem::Init( RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
 		m_window = renderSystem.GetWindowHandle();
-		m_renderSystem = &renderSystem;
 		m_title = title;
 
 		if ( !ImGui::GetCurrentContext() ) {
@@ -240,10 +242,17 @@ namespace elm {
 		m_pendingPlatformWindows.erase( m_pendingPlatformWindows.begin(), m_pendingPlatformWindows.begin() + count );
 	}
 
-	void ImGuiSystem::BuildFrame( RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats, ImGuiFrame& frame ) {
+	void ImGuiSystem::BuildFrame( RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
+		render::ViewPort& viewPort, ImGuiFrame& frame ) {
 		// The frame slot was rendered already: its events are applied and draw lists are no longer used
 		frame.Clear();
-		if ( !m_initialized ) return;
+		if ( !m_initialized ) {
+			frame.viewPort = viewPort.GetSnapshot();
+			return;
+		}
+		if ( m_renderer ) {
+			frame.fallbackTexture = m_renderer->GetFallbackTexture();
+		}
 
 		DestroyReleasedPlatformWindows( false );
 
@@ -253,9 +262,11 @@ namespace elm {
 		m_dockSpace.Render( m_windows );
 		for ( const auto& window : m_windows ) {
 			if ( window && window->IsVisible() ) {
-				window->Render( renderSystem, scene, camera, stats );
+				ImGuiWindowContext context { renderSystem, scene, camera, stats, viewPort };
+				window->Render( context );
 			}
 		}
+		frame.viewPort = viewPort.GetSnapshot();
 
 		ImGui::Render();
 		// Creates/destroys platform windows, renderer callbacks record viewport events
@@ -318,20 +329,17 @@ namespace elm {
 
 	// --- Render thread ---
 
-	void ImGuiSystem::RenderFrame( RenderSystem& renderSystem, ImGuiFrame& frame ) {
+	void ImGuiSystem::NotifyViewportSurfacesReleased( uint64_t count ) {
 		if ( !m_initialized ) return;
-		if ( !m_renderer ) return;
-		const uint64_t releasedViewportCount = m_renderer->RenderFrame(renderSystem, frame);
+		const uint64_t releasedViewportCount = count;
 		m_releasedViewportCount.fetch_add( releasedViewportCount, std::memory_order_release );
 	}
 
 	// --- Main thread, render thread must be stopped ---
 
 	void ImGuiSystem::Shutdown() {
-		if ( !m_rendererInitialized && !m_glfwInitialized && !m_initialized && !m_renderSystem ) return;
-		if ( m_rendererInitialized && m_renderer && m_renderSystem ) {
-			m_renderer->ReleaseViewportSurfaces(*m_renderSystem);
-		}
+		if ( !m_rendererInitialized && !m_glfwInitialized && !m_initialized &&
+			!m_imguiContextCreated && !m_renderer && m_windows.empty() ) return;
 		m_destroyPlatformWindowsImmediately = true;
 		if ( m_platformDestroyWindow ) {
 			DestroyReleasedPlatformWindows( true );
@@ -364,7 +372,6 @@ namespace elm {
 		m_platformDestroyWindow = nullptr;
 		m_windows.clear();
 		m_socLabWindow = nullptr;
-		m_renderSystem = nullptr;
 		m_initialized = false;
 	}
 

@@ -23,8 +23,9 @@ void SceneHierarchyWindow::OnAttach()
     }));
 }
 
-void SceneHierarchyWindow::Render(RenderSystem&, Scene& scene, const Camera&, const FrameStats&)
+void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
 {
+    auto& scene = context.scene;
     if (!m_visible)
         return;
 

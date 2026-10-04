@@ -33,7 +33,9 @@ namespace elm {
 		m_frameTimeAvg = ftSum / static_cast<float>(kHistorySize);
 	}
 
-	void ProfilerWindow::Render(RenderSystem& renderSystem, Scene&, const Camera&, const FrameStats& stats) {
+	void ProfilerWindow::Render(ImGuiWindowContext& context) {
+		auto& renderSystem = context.renderSystem;
+		const auto& stats = context.stats;
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 580.0f), ImGuiCond_FirstUseEver);

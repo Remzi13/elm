@@ -52,6 +52,7 @@ namespace elm {
 		CameraController m_cameraController;
 		Scene m_scene;
 		Settings m_settings;
+		render::ViewPort m_engineViewPort;
 
 		bool m_isRunning{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step

@@ -10,7 +10,7 @@ public:
     using IImGuiWindow::IImGuiWindow;
 
     [[nodiscard]] StringView GetName() const override { return "Engine Viewport"; }
-    void Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats) override;
+    void Render(ImGuiWindowContext& context) override;
 };
 
 } // namespace Engine

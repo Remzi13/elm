@@ -16,7 +16,7 @@ namespace elm {
 		void SetCullingSystem(const OcclusionCullingSystem* cullingSystem) noexcept { m_cullingSystem = cullingSystem; }
 
 		[[nodiscard]] StringView GetName() const override { return "Software Depth Buffer Viewport"; }
-		void Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats) override;
+		void Render(ImGuiWindowContext& context) override;
 
 	private:
 		const OcclusionCullingSystem* m_cullingSystem{ nullptr };

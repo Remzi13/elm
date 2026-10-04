@@ -101,7 +101,7 @@ namespace elm {
 
     } // namespace
 
-    void LogWindow::Render(RenderSystem&, Scene&, const Camera&, const FrameStats&)
+    void LogWindow::Render(ImGuiWindowContext&)
     {
         if (!m_visible)
             return;

@@ -40,7 +40,7 @@ namespace render {
             std::lock_guard<std::mutex> lock(m_textureInfosMutex);
             m_textureInfos.emplace(handler, info);
         }
-        m_commandQueue->Push(command::CreateTexture({ .handler = handler, .info = info }));
+        m_commandQueue->Push(command::resource::CreateTexture({ .handler = handler, .info = info }));
         return Texture(info, handler);
     }
 
@@ -50,7 +50,7 @@ namespace render {
             return;
 
         // Texture existence is checked by the executor on the render thread
-        m_commandQueue->Push(command::UploadTexture({
+        m_commandQueue->Push(command::resource::UploadTexture({
             .handler = handler,
             .data = textureData,
         }));
@@ -82,7 +82,7 @@ namespace render {
             return;
 
         // The render thread may still draw with this texture, so it is released there
-        m_commandQueue->Push(command::DestroyTexture { handler });
+        m_commandQueue->Push(command::resource::DestroyTexture { handler });
     }
 
 } // namespace elm::render

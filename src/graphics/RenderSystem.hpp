@@ -17,6 +17,8 @@
 #include "graphics/render/CommandQueue.hpp"
 #include "graphics/render/ResourceView.hpp"
 
+#include "graphics/render/IRenderPass.hpp"
+
 #include <atomic>
 #include <unordered_map>
 
@@ -32,6 +34,8 @@ struct ITextureView;
 }
 
 namespace elm {
+
+struct ImGuiFrame;
 
 namespace render {
 class RenderResourceProvider;
@@ -67,51 +71,42 @@ public:
 
     [[nodiscard]] auto Init(Size size, StringView title) -> EngineResult<void>;
     [[nodiscard]] bool ShouldClose() const;
-    [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_commandQueue; }
-    void ExecuteCommands(render::CommandList& commands);
-    void InitializeEngineViewportTexture(const render::TextureInfo& colorTextureInfo, const render::TextureInfo& depthTextureInfo, uint32_t width, uint32_t height);
-    void QueueEngineViewportResize(uint32_t width, uint32_t height);
-    // --- Main thread ---
+    /// Cross-thread mailbox for deferred backend operations (resource creation,
+    /// destruction, and resizing). It does not contain the per-frame pass schedule.
+    /// The producer must call CommitCommands() after recording a frame's operations.
+    [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_deferredCommandQueue; }
+    // --- Update/producer thread ---
     void CommitCommands();
     // Executes queued work on the calling thread. Only when the render thread is stopped
     void FlushCommands();
 
     // --- Render thread ---
+    // BeginFrame consumes deferred cross-thread work; RenderFrame executes the render graph
+    // and returns its 1-based frame number; EndFrame presents after all graph passes complete.
     void BeginFrame();
-    void Draw(FrameData& frameData);
+    [[nodiscard]] uint64_t RenderFrame(FrameData& frameData, ImGuiFrame& uiFrame);
     void EndFrame();
 
     void Shutdown();
 
-    // --- Main thread, except atomic engine-viewport dimensions ---
+    // --- Main thread ---
     [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
-    [[nodiscard]] core::Handler GetEngineViewportTexture() const { return m_engineViewportTexture.GetHandler(); }
-    [[nodiscard]] Size GetEngineViewportSize() const { return m_engineViewportSize.load(std::memory_order_acquire); }
-    [[nodiscard]] float GetEngineViewportAspectRatio() const {
-        const auto size = m_engineViewportSize.load(std::memory_order_acquire);
-        return size.height > 0 ? static_cast<float>(size.width) / static_cast<float>(size.height) : 1.0f;
-    }
-
     [[nodiscard]] Size GetSize() const { return m_size; }    
     [[nodiscard]] size_t GetMemAllocated() const;
 
 private:
-    class Executor;
+    class RenderCommandExecutor;
 
     void InitPipeline();
     [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
         void* nativeDisplay, bool withDepthBuffer = true);
-    void CreateEngineViewport(uint32_t width, uint32_t height);
     void ApplyMainSwapChainResize(uint32_t width, uint32_t height);
     static void OnFramebufferSizeChanged(GLFWwindow* window, int width, int height);
 
-    void Draw(const UnorderedMap<core::Handler, Vector<RenderObject>>& objects);
-    void CreateRenderSurface(const render::command::CreateRenderSurface& command);
-    void ResizeRenderSurface(const render::command::ResizeRenderSurface& command);
-    void DestroyRenderSurface(const render::command::DestroyRenderSurface& command);
-    void BeginRenderPass(const render::command::BeginRenderPass& command);
-    void DrawIndexed(const render::command::DrawIndexed& command);
-    void EndRenderPass(const render::command::EndRenderPass& command);
+    void ExecuteRenderGraph(FrameData& frameData, ImGuiFrame& uiFrame);
+
+    /// Builds the shared resource view passed to render passes.
+    [[nodiscard]] render::RenderPassContext CreatePassContext();
 
 private:
     GLFWwindow* m_window { nullptr };
@@ -121,22 +116,8 @@ private:
     Diligent::IDeviceContext* m_deviceContext { nullptr };
     render::SwapChain m_swapChain;
 
-    // Shaders & Pipelines
-    Diligent::IPipelineState* m_pPSO { nullptr };
-    Diligent::IPipelineState* m_pHighlightPSO { nullptr };
-    Diligent::IPipelineState* m_pOverlayPSO { nullptr };
-    Diligent::IShaderResourceBinding* m_pSRB { nullptr };
-        
     // Dynamic Instance Buffer
     static constexpr size_t MaxInstances = 30000;
-
-    // Offscreen render target displayed inside the dockspace.
-    render::Texture m_engineViewportTexture;
-    render::Texture m_engineViewportDepthTexture;
-    render::ResourceView m_engineViewportRenderTarget;
-    render::ResourceView m_engineViewportDepthStencil;
-    std::atomic<Size> m_engineViewportSize { Size{} };
-    bool m_engineViewportIsShaderResource { false };
 
     render::BufferManager m_bufferManager;    
     render::TextureStore m_textureStore;
@@ -146,13 +127,13 @@ private:
 
     Size m_size { 1280, 720 };    
     bool m_initialized { false };
+    uint64_t m_renderedFrameNumber { 0 };
 
-    render::CommandQueue m_commandQueue;
+    render::CommandQueue m_deferredCommandQueue;
     UniquePtr<render::RenderResourceProvider> m_resourceProvider;
-    std::unordered_map<render::RenderSurfaceId, render::SwapChain> m_renderSurfaces;
-    render::RenderSurfaceId m_activeRenderSurface{ 0 };
-    Size m_activeRenderSurfaceSize;
 
+    // Render graph owns pass lifetimes and defines execution order.
+    Vector<UniquePtr<render::IRenderPass>> m_renderGraph;
 };
 
 } // namespace Engine

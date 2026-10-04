@@ -1,6 +1,5 @@
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ImGuiSystem.hpp"
-#include "graphics/RenderSystem.hpp"
 #include "graphics/ui/WindowMessages.hpp"
 
 #include "ImGuizmo.h"
@@ -34,7 +33,10 @@ namespace elm {
 
 	}
 
-	void EngineViewportWindow::Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats&) {
+	void EngineViewportWindow::Render(ImGuiWindowContext& context) {
+		auto& scene = context.scene;
+		auto& camera = context.camera;
+		auto& viewPort = context.viewPort;
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -48,15 +50,17 @@ namespace elm {
 		const auto gizmoSettings = Request<GizmoSettings>();
 		const bool hasSelection = selectedInstance && selectedInstance->index < scene.instances.size();
 
-		if (auto texture = ImGuiSystem::ToTextureId(renderSystem.GetEngineViewportTexture())) {
+		if (auto texture = ImGuiSystem::ToTextureId(viewPort.GetColorTexture().GetHandler())) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
 			const auto* viewport = ImGui::GetWindowViewport();
 			const float dpiScale = viewport ? viewport->DpiScale : 1.0f;
 			if (available.x > 0.0f && available.y > 0.0f) {
 				const ImVec2 imagePosition = ImGui::GetCursorScreenPos();
-				renderSystem.QueueEngineViewportResize(
+				viewPort.SetSize({
 					static_cast<uint32_t>(available.x * dpiScale),
-					static_cast<uint32_t>(available.y * dpiScale));
+					static_cast<uint32_t>(available.y * dpiScale)
+				});
+				camera.SetAspect(available.x / available.y);
 				ImGui::Image(texture, available);
 
 				if (hasSelection && gizmoSettings && scene.instances[selectedInstance->index].visible) {

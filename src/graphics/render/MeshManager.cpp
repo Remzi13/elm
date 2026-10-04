@@ -23,7 +23,7 @@ namespace render {
     {
         const auto& meshData = storeMeshData(data);
         auto handler = core::Handler(m_index++, core::Handler::Type::Render);
-        m_commandQueue->Push(command::CreateMesh { handler, meshData });
+        m_commandQueue->Push(command::resource::CreateMesh { handler, meshData });
         return handler;
     }
 
@@ -31,7 +31,7 @@ namespace render {
     {
         ELM_ASSERT(handler.GetType() == core::Handler::Type::Render);
 
-        m_commandQueue->Push(command::DestroyMesh { handler });
+        m_commandQueue->Push(command::resource::DestroyMesh { handler });
     }
 
     void MeshManager::PushMesh(core::Handler handler, const core::Handler& meshData, const Mesh& mesh)

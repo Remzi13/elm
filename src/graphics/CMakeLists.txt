@@ -25,6 +25,12 @@ engine_add_library(graphics
     ui/SocLabWindow.hpp
     ui/SocLabWindow.cpp
     
+    render/IRenderPass.hpp
+    render/ViewPort.hpp
+    render/OverlayRenderPass.hpp
+    render/OverlayRenderPass.cpp
+    render/SceneRenderPass.hpp
+    render/SceneRenderPass.cpp
     render/Render.hpp
     render/Command.hpp
     render/CommandList.hpp

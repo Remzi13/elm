@@ -16,7 +16,7 @@ namespace elm {
 		SocLabWindow(Settings& settings) : IImGuiWindow(settings) {}
 
 		[[nodiscard]] StringView GetName() const override { return "Software Occlusion Culling Lab"; }
-		void Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats) override;
+		void Render(ImGuiWindowContext& context) override;
 
 		[[nodiscard]] int GetResolutionIndex() const noexcept { return m_currentResolution; }
 		void SetResolutionIndex(int index) noexcept;

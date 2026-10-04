@@ -14,7 +14,7 @@ namespace elm {
 		ProfilerWindow(Settings& settings) : IImGuiWindow(settings) {}
 
 		[[nodiscard]] StringView GetName() const override { return "Profiler"; }
-		void Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats) override;
+		void Render(ImGuiWindowContext& context) override;
 
 	private:
 		static constexpr size_t kHistorySize = 256;

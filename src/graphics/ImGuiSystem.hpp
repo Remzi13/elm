@@ -61,11 +61,14 @@ namespace elm {
 
 		Vector<ImGuiViewportEvent> viewportEvents; // applied before drawing, in order
 		Vector<ImGuiViewportSnapshot> viewports;   // [0] - main viewport
+		render::ViewPort::Snapshot viewPort;
+		core::Handler fallbackTexture;
+		uint64_t releasedViewportCount{ 0 };
 	};
 
 	// Threading:
 	//  - main thread: Init, BuildFrame, Shutdown (render thread must be stopped), all ImGui/GLFW calls
-	//  - render thread: RenderFrame submits generic graphics commands for secondary viewports
+	//  - render thread: RenderSystem executes the render graph using captured frame data
 	// Platform (GLFW) windows are destroyed on the main thread only after the render thread released their swap chains.
 	class ImGuiSystem {
 	public:
@@ -77,9 +80,10 @@ namespace elm {
 
 		[[nodiscard]] auto Init(RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame
-		void BuildFrame(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats, ImGuiFrame& frame);
-		// Render thread: applies viewport events, draws and presents secondary viewports
-		void RenderFrame(RenderSystem& renderSystem, ImGuiFrame& frame);
+		void BuildFrame(RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
+			render::ViewPort& viewPort, ImGuiFrame& frame);
+		// Render thread: reports viewport surfaces released by the render graph
+		void NotifyViewportSurfacesReleased(uint64_t count);
 		void Shutdown();
 
 		// Texture reference usable in ImGui::Image; resolved to a GPU view on the render thread
@@ -140,7 +144,6 @@ namespace elm {
 		};
 
 		GLFWwindow* m_window{ nullptr };
-		RenderSystem* m_renderSystem{ nullptr };
 		UniquePtr<render::ImGuiRenderer> m_renderer;
 		bool m_rendererInitialized{ false };
 		bool m_imguiContextCreated{ false };

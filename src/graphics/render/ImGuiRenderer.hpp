@@ -1,12 +1,12 @@
 #pragma once
 
+#include "core/Handler.hpp"
+
 #include <cstdint>
 #include <memory>
-#include <unordered_set>
 
 namespace elm {
 class RenderSystem;
-struct ImGuiFrame;
 
 namespace render {
 class Texture;
@@ -20,8 +20,7 @@ public:
     ImGuiRenderer& operator=(const ImGuiRenderer&) = delete;
 
     [[nodiscard]] bool IsInitialized() const noexcept;
-    [[nodiscard]] uint64_t RenderFrame(RenderSystem& renderSystem, ImGuiFrame& frame);
-    void ReleaseViewportSurfaces(RenderSystem& renderSystem);
+    [[nodiscard]] core::Handler GetFallbackTexture() const noexcept;
     void Shutdown();
 
 private:
@@ -29,7 +28,6 @@ private:
 
     std::unique_ptr<Texture> m_fontTexture;
     std::unique_ptr<Texture> m_whiteTexture;
-    std::unordered_set<uint32_t> m_viewportSurfaceIds;
 };
 
 } // namespace render

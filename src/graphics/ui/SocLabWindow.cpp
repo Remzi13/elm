@@ -1,5 +1,4 @@
 #include "graphics/ui/SocLabWindow.hpp"
-#include "graphics/RenderSystem.hpp"
 
 #include "imgui.h"
 
@@ -23,7 +22,9 @@ namespace elm {
 		m_settings.Set(Settings::Category::Render, CULLING_RESOLUTION_HEIGHT, height);
 	}
 
-	void SocLabWindow::Render(RenderSystem& renderSystem, Scene& scene, const Camera&, const FrameStats& stats) {
+	void SocLabWindow::Render(ImGuiWindowContext& context) {
+		auto& scene = context.scene;
+		const auto& stats = context.stats;
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);

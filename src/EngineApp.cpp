@@ -30,7 +30,6 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     LOG_MESSAGE( log::Category::Core, "EngineApp", "Initializing 3D Engine Core (C++23)..." );    
 
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
-
     // Initialize the render backend and its command queue first.
     auto renderInit = m_renderSystem->Init(Size(width, height), title);
     if (!renderInit) {
@@ -55,12 +54,23 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     viewportDepthInfo.height = height;
     viewportDepthInfo.format = render::TextureFormat::D32_FLOAT;
     viewportDepthInfo.bindFlags = render::TextureBindFlags::BindDepthStencil;
-    m_renderSystem->InitializeEngineViewportTexture(viewportTextureInfo, viewportDepthInfo, width, height);
+    m_engineViewPort = render::ViewPort(
+        textureManager.CreateTexture(viewportTextureInfo),
+        textureManager.CreateTexture(viewportDepthInfo),
+        Size(width, height));
+    if (!m_engineViewPort.IsValid()) {
+        m_engineViewPort = {};
+        m_renderSystem->Shutdown();
+        textureManager.Shutdown();
+        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed,
+            "Failed to create engine viewport textures"));
+    }
     m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
     m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
     auto imguiInit = m_imguiSystem->Init(*m_renderSystem, m_settings, "Engine Debug UI");
     if (!imguiInit) {
+        m_engineViewPort = {};
         m_renderSystem->Shutdown();
         textureManager.Shutdown();
         return std::unexpected(imguiInit.error());
@@ -90,6 +100,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     auto physicsInit = m_physicsSystem->Init();
     if (!physicsInit) {
         m_imguiSystem->Shutdown();
+        m_engineViewPort = {};
         m_renderSystem->Shutdown();
         textureManager.Shutdown();
         return std::unexpected(physicsInit.error());
@@ -139,14 +150,10 @@ void EngineApp::RenderThreadFunc()
                 m_renderSystem->BeginFrame();
 
                 {
-                    ELM_PROFILE_SCOPE_N("Draw Scene Objects");
-                    m_renderSystem->Draw(packet.frameData);
-                }
-
-                {
-                    // Only draws the UI captured on the main thread: ImGui/GLFW logic must not run here
-                    ELM_PROFILE_SCOPE_N("Render ImGui UI");
-                    m_imguiSystem->RenderFrame(*m_renderSystem, packet.ui);
+                    // ImGui/GLFW was captured on the main thread; the render graph draws scene then overlay.
+                    ELM_PROFILE_SCOPE_N("Render Graph");
+                    [[maybe_unused]] const auto renderedFrameNumber = m_renderSystem->RenderFrame(packet.frameData, packet.ui);
+                    m_imguiSystem->NotifyViewportSurfacesReleased(packet.ui.releasedViewportCount);
                 }
 
                 m_renderSystem->EndFrame();
@@ -222,7 +229,9 @@ auto EngineApp::Run() -> EngineResult<void>
         // The write slot is not read by the render thread: it renders the other one.
         {
             ELM_PROFILE_SCOPE_N("Build ImGui Frame");
-            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_camera, m_currentStats, m_framePackets[m_packetWriteIndex].ui);
+            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_camera, m_currentStats,
+                m_engineViewPort,
+                m_framePackets[m_packetWriteIndex].ui);
         }
 
         m_settings.Flash();
@@ -244,7 +253,6 @@ auto EngineApp::Run() -> EngineResult<void>
             packet.stats = m_currentStats;
 
             // Camera snapshot
-            m_camera.SetAspect(m_renderSystem->GetEngineViewportAspectRatio());
             packet.frameData.camera = m_camera;
 
             // Visible object list snapshot
@@ -349,6 +357,7 @@ void EngineApp::Shutdown()
     if (m_imguiSystem) {
         m_imguiSystem->Shutdown();
     }
+    m_engineViewPort = {};
     if (m_renderSystem) {
         m_renderSystem->Shutdown();
     }

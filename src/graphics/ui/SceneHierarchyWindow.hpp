@@ -13,7 +13,7 @@ public:
     using IImGuiWindow::IImGuiWindow;
 
     [[nodiscard]] StringView GetName() const override { return "Scene Hierarchy"; }
-    void Render(RenderSystem& renderSystem, Scene& scene, const Camera& camera, const FrameStats& stats) override;
+    void Render(ImGuiWindowContext& context) override;
 
 protected:
     void OnAttach() override;
