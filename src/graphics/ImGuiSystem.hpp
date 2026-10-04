@@ -111,8 +111,7 @@ namespace elm {
 
 		DockSpaceView m_dockSpace;
 		MessageBus m_windowMessageBus;
-		Vector<UniquePtr<IImGuiWindow>> m_windows;
-		SocLabWindow* m_socLabWindow{ nullptr };
+		Vector<UniquePtr<IImGuiWindow>> m_windows;		
 
 		// --- Main thread ---
 		Vector<render::OverlaySurfaceEvent> m_pendingViewportEvents;

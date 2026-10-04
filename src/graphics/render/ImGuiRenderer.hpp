@@ -1,8 +1,9 @@
 #pragma once
 
+#include "core/Std.hpp"
+
 #include "core/Handler.hpp"
 
-#include <cstdint>
 #include <memory>
 
 namespace elm {
@@ -26,8 +27,8 @@ public:
 private:
     [[nodiscard]] bool InitializeTextures();
 
-    std::unique_ptr<Texture> m_fontTexture;
-    std::unique_ptr<Texture> m_whiteTexture;
+    UniquePtr<Texture> m_fontTexture;
+    UniquePtr<Texture> m_whiteTexture;
 };
 
 } // namespace render

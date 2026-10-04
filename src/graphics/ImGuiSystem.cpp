@@ -18,11 +18,8 @@
 #include <GLFW/glfw3native.h>
 #endif
 
-
-
 #include <algorithm>
 #include <filesystem>
-
 
 #if PLATFORM_WIN32
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -87,7 +84,7 @@ namespace elm {
 		}
 
 		// Register standard engine editor windows
-		m_socLabWindow = &EmplaceWindow<SocLabWindow>( settings );
+		EmplaceWindow<SocLabWindow>( settings );
 		EmplaceWindow<SceneHierarchyWindow>( settings );
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<DepthPreviewWindow>( settings );
@@ -401,8 +398,7 @@ namespace elm {
 		m_rendererInitialized = false;
 		m_pendingViewportEvents.clear();
 		m_platformDestroyWindow = nullptr;
-		m_windows.clear();
-		m_socLabWindow = nullptr;
+		m_windows.clear();		
 		m_initialized = false;
 	}
 

@@ -35,7 +35,7 @@ bool ImGuiRenderer::InitializeTextures()
     fontInfo.height = static_cast<uint32_t>(height);
     fontInfo.format = TextureFormat::RGBA8_UNORM;
     fontInfo.bindFlags = TextureBindFlags::BindShaderResource;
-    m_fontTexture = std::make_unique<Texture>(textureManager.CreateTexture(fontInfo));
+    m_fontTexture = MakeUnique<Texture>(textureManager.CreateTexture(fontInfo));
     if (!m_fontTexture->IsValid())
         return false;
 
@@ -51,7 +51,7 @@ bool ImGuiRenderer::InitializeTextures()
     whiteInfo.height = 1;
     whiteInfo.format = TextureFormat::RGBA8_UNORM;
     whiteInfo.bindFlags = TextureBindFlags::BindShaderResource;
-    m_whiteTexture = std::make_unique<Texture>(textureManager.CreateTexture(whiteInfo));
+    m_whiteTexture = MakeUnique<Texture>(textureManager.CreateTexture(whiteInfo));
     if (!m_whiteTexture->IsValid())
         return false;
 
