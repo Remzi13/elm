@@ -12,17 +12,18 @@
 
 namespace elm {
 
+	struct FrameStats;
+
 	namespace render {
 		class RenderSystem;
 		class ViewPort;
-		struct FrameStats;
 	}
 
 	struct ImGuiWindowContext {
 		render::RenderSystem& renderSystem;
 		Scene& scene;
 		Camera& camera;
-		const render::FrameStats& stats;
+		const FrameStats& stats;
 		render::ViewPort& viewPort;
 	};
 

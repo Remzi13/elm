@@ -8,6 +8,7 @@
 #include <memory>
 #include <utility>
 #include <functional>
+#include <deque>
 
 namespace elm {
     
@@ -19,6 +20,10 @@ namespace elm {
 
     template<typename K, typename V>
     using UnorderedMap = std::unordered_map<K, V, std::hash<K>, std::equal_to<K>, memory::Allocator<std::pair<const K, V>>>;
+
+    template<typename T>
+    using Deque = std::deque<T, memory::Allocator<T>>;
+    
 
     template<typename T>
     using SharedPtr = std::shared_ptr<T>;

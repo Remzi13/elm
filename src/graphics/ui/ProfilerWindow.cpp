@@ -1,5 +1,6 @@
 #include "graphics/ui/ProfilerWindow.hpp"
 #include "render/RenderSystem.hpp"
+#include "graphics/FrameStats.hpp"
 
 #include "imgui.h"
 
@@ -66,6 +67,12 @@ namespace elm {
 		}
 
 		ImGui::TextColored(fpsColor, "Avg: %.1f  Min: %.1f  Max: %.1f", m_fpsAvg, m_fpsMin, m_fpsMax);
+
+		const auto renderStats = renderSystem.GetRenderStats();
+		ImGui::Text("Render graph: %u passes (%u culled), %u levels, %u draws",
+			renderStats.passCount, renderStats.culledPassCount, renderStats.levelCount, renderStats.drawCalls);
+		ImGui::Text("Command lists: %u (%u on %u workers), render lag %u frame(s)",
+			renderStats.commandListCount, renderStats.workerListCount, renderStats.workerThreads, renderStats.queuedFrames);
 
 		// FPS graph
 		{

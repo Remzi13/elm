@@ -49,6 +49,7 @@ add_subdirectory(src/render)
 add_subdirectory(src/graphics)
 add_subdirectory(src/physics)
 add_subdirectory(src/Scene)
+add_subdirectory(src/platform)
 
 # ------------------------------------------------------------------------------
 # Application target

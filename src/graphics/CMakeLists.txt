@@ -32,4 +32,5 @@ engine_add_library(graphics
 )
 
 target_link_libraries(graphics PUBLIC imgui_glfw imguizmo)
-target_link_libraries(graphics PRIVATE core render)
+target_link_libraries(graphics PUBLIC core render platform)
+target_link_libraries(graphics PRIVATE glfw)

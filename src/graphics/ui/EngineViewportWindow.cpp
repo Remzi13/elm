@@ -1,6 +1,7 @@
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ImGuiSystem.hpp"
 #include "graphics/ui/WindowMessages.hpp"
+#include "render/ViewPort.hpp"
 
 #include "ImGuizmo.h"
 #include "imgui.h"
@@ -50,7 +51,7 @@ namespace elm {
 		const auto gizmoSettings = Request<GizmoSettings>();
 		const bool hasSelection = selectedInstance && selectedInstance->index < scene.instances.size();
 
-		if (auto texture = ImGuiSystem::ToTextureId(viewPort.GetColorTexture().GetHandler())) {
+		if (auto texture = ImGuiSystem::ToTextureId(viewPort.GetColorTexture())) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
 			const auto* viewport = ImGui::GetWindowViewport();
 			const float dpiScale = viewport ? viewport->DpiScale : 1.0f;

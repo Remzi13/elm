@@ -4,6 +4,4 @@ engine_add_library(Scene
     Transform.hpp
 )
 
-target_include_directories(core PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/..
-)
+target_link_libraries(Scene PUBLIC core math render)

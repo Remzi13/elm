@@ -2,9 +2,12 @@
 
 #include "core/Error.hpp"
 
-#include "render/RenderSystem.hpp"
-#include "render/FramePacket.hpp"
+#include "platform/Window.hpp"
 
+#include "render/RenderSystem.hpp"
+#include "render/ViewPort.hpp"
+
+#include "graphics/FrameStats.hpp"
 #include "graphics/ImGuiSystem.hpp"
 #include "graphics/CameraController.hpp"
 #include "graphics/Settings.hpp"
@@ -15,9 +18,6 @@
 #include "input/Input.hpp"
 
 #include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <atomic>
 
 namespace elm {
 
@@ -36,14 +36,18 @@ namespace elm {
 		[[nodiscard]] auto Run() -> EngineResult<void>;
 		void Shutdown();
 
+		void LoadTestScene(ScenePreset preset, uint32_t instanceCount = 1500);
+
 	private:
 		void FixedUpdate(float fixedDeltaTime);
 		void Update(float deltaTime);
+		void SubmitFrame(render::FrameWriter& frame);
 
-		/// Render thread entry point — runs BeginFrame/RenderFrame/EndFrame.
+		/// Render thread entry point: draws submitted frames until rendering is stopped.
 		void RenderThreadFunc();
 
 	private:
+		platform::Window m_window;
 		UniquePtr<render::RenderSystem> m_renderSystem;
 		UniquePtr<ImGuiSystem> m_imguiSystem;
 		UniquePtr<PhysicsSystem> m_physicsSystem;
@@ -61,34 +65,13 @@ namespace elm {
 		// FPS counter statistics
 		float m_frameCounterTime{ 0.0f };
 		uint32_t m_frameCount{ 0 };
-		render::FrameStats m_currentStats;
+		FrameStats m_currentStats;
 
 		OcclusionCullingSystem m_cullingSystem;
 
-		// ── Pipelined rendering synchronization ──────────────────────────
-		//
-		// Double-buffered FramePacket: the update thread writes into one
-		// slot while the render thread reads from the other.
-		//
-		// Protocol:
-		//   1. Update thread fills m_framePackets[m_packetWriteIndex],
-		//      then flips m_packetWriteIndex, sets m_frameReady=true, notifies.
-		//   2. Render thread waits on m_frameReady, picks up the packet at
-		//      the *previous* write index, renders it, sets m_renderDone=true.
-		//   3. Update thread waits on m_renderDone before overwriting the
-		//      same buffer again (back-pressure so we don't get >1 frame ahead).
-
-		static constexpr size_t kPacketCount = 2;
-		FramePacket  m_framePackets[kPacketCount];
-		size_t       m_packetWriteIndex { 0 };   // toggled by update thread
-
-		std::mutex              m_frameMutex;
-		std::condition_variable m_frameCv;
-		bool                    m_frameReady { false };
-		bool                    m_renderDone { true };
-		std::atomic<bool>       m_shouldExit { false };
-
-		std::thread             m_renderThread;
+		// Update and render run in parallel: the update thread builds frame N+1 while the render
+		// thread draws frame N; RenderSystem's frame ring hands snapshots over (see render/frame/FrameRing.hpp).
+		std::thread m_renderThread;
 	};
 
 } // namespace Engine

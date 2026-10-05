@@ -1,9 +1,8 @@
 #pragma once
 
-#include "core/Handler.hpp"
 #include "core/Std.hpp"
 
-#include "render/ViewPort.hpp"
+#include "render/api/Handles.hpp"
 
 namespace elm::render {
 
@@ -33,7 +32,7 @@ struct OverlayDrawCommand {
     uint32_t indexOffset { 0 };
     uint32_t vertexOffset { 0 };
     uint32_t elementCount { 0 };
-    core::Handler texture;
+    TextureHandle texture;
     bool hasUserCallback { false };
 };
 
@@ -55,17 +54,13 @@ struct OverlayViewport {
 struct OverlayFrame {
     Vector<OverlaySurfaceEvent> surfaceEvents;
     Vector<OverlayViewport> viewports;
-    ViewPort::Snapshot viewPort;
-    core::Handler fallbackTexture;
-    uint64_t releasedSurfaceCount { 0 };
+    TextureHandle fallbackTexture;
 
     void Clear()
     {
         surfaceEvents.clear();
         viewports.clear();
-        viewPort = {};
         fallbackTexture = {};
-        releasedSurfaceCount = 0;
     }
 };
 

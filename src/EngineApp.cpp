@@ -4,7 +4,8 @@
 #include "core/Profiling.hpp"
 #include "core/Log.hpp"
 
-#include "render/TextureManager.hpp"
+#include "core/JobSystem.hpp"
+#include "core/Threading.hpp"
 
 #include "graphics/ui/DepthPreviewWindow.hpp"
 
@@ -33,48 +34,25 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
     // Initialize the render backend and its command queue first.
-    auto renderInit = m_renderSystem->Init(Size(width, height), title);
+    core::registerThread(core::ThreadRole::Update);
+    core::JobSystem::Get().Init();
+    if (auto windowInit = m_window.Create(Size(width, height), title); !windowInit) {
+        return std::unexpected(windowInit.error());
+    }
+    auto renderInit = m_renderSystem->Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize());
     if (!renderInit) {
+        m_window.Destroy();
         return std::unexpected(renderInit.error());
     }
 
-    auto& textureManager = render::TextureManager::Get();
-    if (!textureManager.Init(&m_renderSystem->GetCommandQueue())) {
-        m_renderSystem->Shutdown();
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to initialize Texture Manager"));
-    }
-
-    render::TextureInfo viewportTextureInfo;
-    viewportTextureInfo.name = "Engine Viewport Color";
-    viewportTextureInfo.width = width;
-    viewportTextureInfo.height = height;
-    viewportTextureInfo.format = render::TextureFormat::RGBA8_UNORM_SRGB;
-    viewportTextureInfo.bindFlags = render::TextureBindFlags::BindRenderTarget | render::TextureBindFlags::BindShaderResource;
-    render::TextureInfo viewportDepthInfo;
-    viewportDepthInfo.name = "Engine Viewport Depth";
-    viewportDepthInfo.width = width;
-    viewportDepthInfo.height = height;
-    viewportDepthInfo.format = render::TextureFormat::D32_FLOAT;
-    viewportDepthInfo.bindFlags = render::TextureBindFlags::BindDepthStencil;
-    m_engineViewPort = render::ViewPort(
-        textureManager.CreateTexture(viewportTextureInfo),
-        textureManager.CreateTexture(viewportDepthInfo),
-        Size(width, height));
-    if (!m_engineViewPort.IsValid()) {
-        m_engineViewPort = {};
-        m_renderSystem->Shutdown();
-        textureManager.Shutdown();
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed,
-            "Failed to create engine viewport textures"));
-    }
-    m_inputSystem->AttachWindow(m_renderSystem->GetWindowHandle());
+    m_engineViewPort = render::ViewPort(m_renderSystem->Resources(), Size(width, height));
+    m_inputSystem->AttachWindow(m_window.GetHandle());
     m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
-    auto imguiInit = m_imguiSystem->Init(*m_renderSystem, m_settings, "Engine Debug UI");
+    auto imguiInit = m_imguiSystem->Init(m_window, *m_renderSystem, m_settings, "Engine Debug UI");
     if (!imguiInit) {
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
-        textureManager.Shutdown();
         return std::unexpected(imguiInit.error());
     }
 
@@ -104,11 +82,10 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         m_imguiSystem->Shutdown();
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
-        textureManager.Shutdown();
         return std::unexpected(physicsInit.error());
     }
 
-    m_cullingSystem.Init();
+    m_cullingSystem.Init(m_renderSystem->Resources());
     if (auto* depthWindow = m_imguiSystem->GetWindow<DepthPreviewWindow>()) {
         depthWindow->SetCullingSystem(&m_cullingSystem);
     }
@@ -122,53 +99,19 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Render thread — runs on a dedicated std::thread.
-// Consumes FramePackets produced by the update (main) thread.
+// Render thread — draws the frame snapshots submitted by the update (main) thread.
 // ─────────────────────────────────────────────────────────────────────────────
 void EngineApp::RenderThreadFunc()
 {
     ELM_PROFILE_THREAD("Render Thread");
+    core::registerThread(core::ThreadRole::Render);
 
-    while (true) {
-        size_t readIndex;
-        {
-            ELM_PROFILE_SCOPE_N("Wait For Frame Packet");
-            std::unique_lock lock(m_frameMutex);
-            m_frameCv.wait(lock, [this] { return m_frameReady || m_shouldExit.load(std::memory_order_relaxed); });
-
-            if (m_shouldExit.load(std::memory_order_relaxed) && !m_frameReady)
-                break;
-
-            readIndex = (m_packetWriteIndex + kPacketCount - 1) % kPacketCount;
-            m_frameReady = false;
-        }
-
-        // ── Render the frame ──────────────────────────────────────────
-        {
-            ELM_PROFILE_SCOPE_N("Render Thread Execute Frame");
-            FramePacket& packet = m_framePackets[readIndex];
-
-            if (m_renderSystem) {
-                m_renderSystem->BeginFrame();
-
-                {
-                    // UI data was captured on the main thread; the render graph consumes engine-owned structures.
-                    ELM_PROFILE_SCOPE_N("Render Graph");
-                    [[maybe_unused]] const auto renderedFrameNumber = m_renderSystem->RenderFrame(packet.frameData, packet.overlay);
-                    m_imguiSystem->NotifyViewportSurfacesReleased(packet.overlay.releasedSurfaceCount);
-                }
-
-                m_renderSystem->EndFrame();
-            }
-        }
-
-        // ── Signal the update thread that rendering is done ──────────
-        {
-            std::lock_guard lock(m_frameMutex);
-            m_renderDone = true;
-        }
-        m_frameCv.notify_one();
+    render::RenderedFrameInfo info;
+    while (m_renderSystem->RenderNextFrame(info)) {
+        m_imguiSystem->NotifyViewportSurfacesReleased(info.releasedSurfaceCount);
     }
+
+    core::unregisterThread(core::ThreadRole::Render);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -190,7 +133,7 @@ auto EngineApp::Run() -> EngineResult<void>
     auto lastTime = core::getTimeStamp();
     float accumulator = 0.0f;
 
-    while (m_isRunning && !m_renderSystem->ShouldClose()) {
+    while (m_isRunning && !m_window.ShouldClose()) {
         ELM_PROFILE_FRAME();
         ELM_PROFILE_SCOPE_N("Main Thread Loop");
 
@@ -227,71 +170,55 @@ auto EngineApp::Run() -> EngineResult<void>
             m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
         }
 
-        // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread.
-        // The write slot is not read by the render thread: it renders the other one.
+        // ── 4. Build and submit the frame snapshot ────────────────────
+        // Blocks only when the render thread is two frames behind
+        auto frame = m_renderSystem->BeginFrame();
+        if (!frame)
+            break;
+
+        // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
         {
             ELM_PROFILE_SCOPE_N("Build ImGui Frame");
             m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_camera, m_currentStats,
-                m_engineViewPort,
-                m_framePackets[m_packetWriteIndex].overlay);
+                m_engineViewPort, frame.Overlay());
         }
 
         m_settings.Flash();
 
-        // ── 4. Wait for the render thread to finish the previous frame ─
-        {
-            ELM_PROFILE_SCOPE_N("Wait For Render Thread (Backpressure)");
-            std::unique_lock lock(m_frameMutex);
-            m_frameCv.wait(lock, [this] { return m_renderDone; });
-            m_renderDone = false;
-        }
-
-        // ── 5. Build the FramePacket for this frame ───────────────────
-        {
-            ELM_PROFILE_SCOPE_N("Build FramePacket Snapshot");
-            FramePacket& packet = m_framePackets[m_packetWriteIndex];
-
-            packet.deltaTime = deltaTime;
-            packet.stats = m_currentStats;
-
-            // Camera snapshot
-            packet.frameData.camera.pos = m_camera.GetPosition();
-            packet.frameData.camera.viewporj = m_camera.GetViewProjectionMatrix();
-
-            // Visible object list snapshot
-            packet.frameData.objects.clear();
-            for (const auto& inst : m_scene.instances) {
-                if (inst.visible) {
-                    packet.frameData.objects[inst.renderMesh].push_back({ inst.worldTransform, inst.color });
-                }
-            }
-
-            // Flip the write index for next frame
-            m_packetWriteIndex = (m_packetWriteIndex + 1) % kPacketCount;
-        }
-
-        // Commit queued render commands atomically to lock-free queue
-        if (m_renderSystem) {
-            m_renderSystem->CommitCommands();
-        }
-
-        // ── 6. Signal the render thread that a new frame is ready ─────
-        {
-            std::lock_guard lock(m_frameMutex);
-            m_frameReady = true;
-        }
-        m_frameCv.notify_one();
+        SubmitFrame(frame);
     }
 
     // ── Signal render thread to exit ──────────────────────────────────────
-    m_shouldExit.store(true, std::memory_order_release);
-    m_frameCv.notify_one();
+    m_renderSystem->StopRendering();
     if (m_renderThread.joinable()) {
         m_renderThread.join();
     }
 
     std::cout << "[EngineApp] Main loop exited." << std::endl;
     return { };
+}
+
+void EngineApp::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
+{
+    TestScenes::BuildScene(preset, instanceCount, m_scene, m_renderSystem->Resources());
+}
+
+void EngineApp::SubmitFrame(render::FrameWriter& frame)
+{
+    ELM_PROFILE_SCOPE_N("Build Frame Snapshot");
+
+    frame.SetBackbufferSize(m_window.GetFramebufferSize());
+
+    const render::CameraData camera { m_camera.GetViewProjectionMatrix(), m_camera.GetPosition() };
+    frame.SetSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
+
+    frame.ReserveDraws(m_scene.instances.size());
+    for (const auto& inst : m_scene.instances) {
+        if (inst.visible)
+            frame.Draw(inst.renderMesh, inst.worldTransform, inst.color);
+    }
+
+    m_renderSystem->SubmitFrame(frame);
 }
 
 void EngineApp::FixedUpdate(float fixedDeltaTime)
@@ -342,8 +269,7 @@ void EngineApp::Shutdown()
     std::cout << "[EngineApp] Shutting down systems..." << std::endl;
 
     // Ensure the render thread is stopped before destroying resources
-    m_shouldExit.store(true, std::memory_order_release);
-    m_frameCv.notify_one();
+    m_renderSystem->StopRendering();
     if (m_renderThread.joinable()) {
         m_renderThread.join();
     }
@@ -352,18 +278,17 @@ void EngineApp::Shutdown()
         m_physicsSystem->Shutdown();
     }
 
-    for (auto& packet : m_framePackets) {
-        packet.overlay.Clear();
-    }
-
     if (m_imguiSystem) {
         m_imguiSystem->Shutdown();
     }
+    m_scene.Clear();
+    m_cullingSystem.Shutdown();
     m_engineViewPort = {};
     if (m_renderSystem) {
         m_renderSystem->Shutdown();
     }
-    render::TextureManager::Get().Shutdown();
+    m_window.Destroy();
+    core::JobSystem::Get().Shutdown();
 
     m_isRunning = false;
     std::cout << "[EngineApp] Engine shutdown finished." << std::endl;

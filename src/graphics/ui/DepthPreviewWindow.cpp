@@ -1,6 +1,5 @@
 #include "graphics/ui/DepthPreviewWindow.hpp"
 
-#include "render/Texture.hpp"
 #include "render/RenderSystem.hpp"
 
 #include "graphics/ImGuiSystem.hpp"
@@ -36,7 +35,7 @@ namespace elm {
 			m_settings.Set(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR, falseColor);
 		}
 		
-		const ImTextureID texture = ImGuiSystem::ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandler());
+		const ImTextureID texture = ImGuiSystem::ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandle());
 		
 		if (texture) {
 			const float aspect = static_cast<float>(depthWidth) / static_cast<float>(depthHeight);

@@ -7,3 +7,5 @@ third_party/*-build/
 third_party/*-subbuild/
 /.idea
 /src/.idea
+docs/.obsidian/
+docs/.trash/

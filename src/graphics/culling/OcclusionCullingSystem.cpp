@@ -3,9 +3,6 @@
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 
-#include "render/TextureManager.hpp"
-
-#include "graphics/MeshDataStorage.hpp"
 
 namespace elm {
 
@@ -14,9 +11,16 @@ OcclusionCullingSystem::OcclusionCullingSystem(uint32_t width, uint32_t height)
 {
 }
 
-void OcclusionCullingSystem::Init()
+void OcclusionCullingSystem::Init(render::RenderResources& resources)
 {
+    m_resources = &resources;
     CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
+}
+
+void OcclusionCullingSystem::Shutdown()
+{
+    m_depthPreviewTexture.Reset();
+    m_resources = nullptr;
 }
 
 void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height)
@@ -30,16 +34,19 @@ void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t 
     Vector<uint8_t> depthPreviewPixels;
     depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(uint32_t), 0);
 
-    render::TextureInfo texInfo;
+    if (!m_resources)
+        return;
+
+    render::TextureDesc texInfo;
     texInfo.name = "Software Depth Buffer Preview Texture";
     texInfo.width = width;
     texInfo.height = height;
     texInfo.format = render::TextureFormat::RGBA8_UNORM;
-    texInfo.usage = render::TextureUsage::Default;
-    texInfo.bindFlags = render::TextureBindFlags::BindShaderResource;
+    texInfo.usage = render::ResourceUsage::Default;
+    texInfo.bindFlags = render::TextureBind::ShaderResource;
 
-    m_depthPreviewTexture = render::TextureManager::Get().CreateTexture(texInfo);
-    m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, width * sizeof(uint32_t)));
+    m_depthPreviewTexture = render::Texture(*m_resources, texInfo);
+    m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), width * sizeof(uint32_t)));
 }
 
 void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor)
@@ -48,7 +55,7 @@ void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor)
         return;
     Vector<uint8_t> depthPreviewPixels;
     m_depthBuffer.GenerateVisualTexture(depthPreviewPixels, falseColor);
-    m_depthPreviewTexture.Update(render::TextureData(depthPreviewPixels, m_depthBuffer.GetWidth() * sizeof(uint32_t)));
+    m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), m_depthBuffer.GetWidth() * sizeof(uint32_t)));
 }
 
 void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees)
@@ -68,7 +75,9 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& culli
         for (const auto& inst : scene.instances) {
             const Matrix4x4 wvp = cullingViewProj * inst.worldTransform;
 
-            const auto& meshData = getMeshData(inst.meshData);
+            if (!inst.meshData)
+                continue;
+            const auto& meshData = *inst.meshData;
             Vector<Vector3> positions;
             positions.reserve(meshData.vertices.size());
             for (const auto& v : meshData.vertices) {

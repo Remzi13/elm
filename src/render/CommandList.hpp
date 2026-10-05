@@ -49,6 +49,19 @@ namespace render {
             m_commands.clear();
         }
 
+        /// Moves all commands of other to the end of this list, preserving their order.
+        void Append(BasicCommandList& other)
+        {
+            if (m_commands.empty()) {
+                m_commands.swap(other.m_commands);
+            } else {
+                m_commands.reserve(m_commands.size() + other.m_commands.size());
+                for (auto& command : other.m_commands)
+                    m_commands.push_back(std::move(command));
+            }
+            other.m_commands.clear();
+        }
+
         template <class Executor>
         void Execute(Executor& executor)
         {

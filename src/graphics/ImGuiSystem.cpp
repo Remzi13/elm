@@ -8,23 +8,9 @@
 #include "graphics/ui/ProfilerWindow.hpp"
 
 #include <GLFW/glfw3.h>
-// Include Wayland and X11 system headers first to ensure types like wl_display or Window are defined
-#if defined(__linux__)
-    #include <wayland-client.h>
-    #include <X11/Xlib.h>
-// Expose native platform functions
-#define GLFW_EXPOSE_NATIVE_WAYLAND
-#define GLFW_EXPOSE_NATIVE_X11
-#include <GLFW/glfw3native.h>
-#endif
 
 #include <algorithm>
 #include <filesystem>
-
-#if PLATFORM_WIN32
-#define GLFW_EXPOSE_NATIVE_WIN32
-#include <GLFW/glfw3native.h>
-#endif
 
 #include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
@@ -45,10 +31,10 @@ namespace elm {
 			height = static_cast<uint32_t>( (std::max)( framebufferHeight, 1 ) );
 		}
 
-		core::Handler getTextureHandler( ImTextureID textureId, core::Handler fallback ) {
+		render::TextureHandle getTextureHandle( ImTextureID textureId, render::TextureHandle fallback ) {
 			const auto value = reinterpret_cast<uintptr_t>( textureId );
 			if ( ( value & 1 ) == 0 ) return fallback;
-			return core::Handler( static_cast<core::Handler::ValueType>( value >> 1 ), core::Handler::Render );
+			return render::TextureHandle::FromRaw( static_cast<uint32_t>( value >> 1 ) );
 		}
 
 	} // namespace
@@ -66,15 +52,15 @@ namespace elm {
 		}
 	}
 
-	ImTextureID ImGuiSystem::ToTextureId( core::Handler texture ) {
+	ImTextureID ImGuiSystem::ToTextureId( render::TextureHandle texture ) {
 		if ( !texture.IsValid() ) return nullptr;
-		// Real texture views (e.g. the font atlas) are aligned pointers, so the lowest bit marks a handler
-		const auto value = ( static_cast<uintptr_t>( texture.GetValue() ) << 1 ) | 1;
+		// Real texture views are aligned pointers, so the lowest bit marks an engine handle
+		const auto value = ( static_cast<uintptr_t>( texture.Raw() ) << 1 ) | 1;
 		return reinterpret_cast<ImTextureID>( value );
 	}
 
-	auto ImGuiSystem::Init( render::RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
-		m_window = renderSystem.GetWindowHandle();
+	auto ImGuiSystem::Init( platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
+		m_window = window.GetHandle();
 		m_title = title;
 
 		if ( !ImGui::GetCurrentContext() ) {
@@ -91,7 +77,7 @@ namespace elm {
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 
-		m_renderer = MakeUnique<render::ImGuiRenderer>();
+		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem.Resources() );
 		if ( !m_renderer->IsInitialized() ) {
 			m_renderer.reset();
 			Shutdown();
@@ -150,18 +136,9 @@ namespace elm {
 		event.type = render::OverlaySurfaceEvent::Type::Create;
 		event.id = viewport->ID;
 		getFramebufferSize( window, event.width, event.height );
-#if PLATFORM_WIN32
-		event.nativeHandle = glfwGetWin32Window( window );
-#else
-		if ( glfwGetPlatform() == GLFW_PLATFORM_WAYLAND ) {
-			event.nativeDisplay = glfwGetWaylandDisplay();
-			event.nativeHandle = glfwGetWaylandWindow( window );
-		}
-		else {
-			event.nativeDisplay = glfwGetX11Display();
-			event.nativeHandle = reinterpret_cast<void*>( static_cast<uintptr_t>( glfwGetX11Window( window ) ) );
-		}
-#endif
+		const auto native = platform::Window::GetNativeWindow( window );
+		event.nativeHandle = native.handle;
+		event.nativeDisplay = native.display;
 		system->m_pendingViewportEvents.push_back( event );
 	}
 
@@ -232,13 +209,10 @@ namespace elm {
 		m_pendingPlatformWindows.erase( m_pendingPlatformWindows.begin(), m_pendingPlatformWindows.begin() + count );
 	}
 
-	void ImGuiSystem::BuildFrame( render::RenderSystem& renderSystem, Scene& scene, Camera& camera, const render::FrameStats& stats,
+	void ImGuiSystem::BuildFrame( render::RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
 		render::ViewPort& viewPort, render::OverlayFrame& frame ) {
 		frame.Clear();
-		if ( !m_initialized ) {
-			frame.viewPort = viewPort.GetSnapshot();
-			return;
-		}
+		if ( !m_initialized ) return;
 		if ( m_renderer ) {
 			frame.fallbackTexture = m_renderer->GetFallbackTexture();
 		}
@@ -255,8 +229,6 @@ namespace elm {
 				window->Render( context );
 			}
 		}
-		frame.viewPort = viewPort.GetSnapshot();
-
 		ImGui::Render();
 		// Creates/destroys platform windows, renderer callbacks record viewport events
 		ImGui::UpdatePlatformWindows();
@@ -347,7 +319,7 @@ namespace elm {
 						static_cast<uint32_t>( sourceCommand.IdxOffset ),
 						static_cast<uint32_t>( sourceCommand.VtxOffset ),
 						static_cast<uint32_t>( sourceCommand.ElemCount ),
-						getTextureHandler( sourceCommand.TextureId, frame.fallbackTexture ),
+						getTextureHandle( sourceCommand.TextureId, frame.fallbackTexture ),
 						sourceCommand.UserCallback != nullptr
 					} );
 				}

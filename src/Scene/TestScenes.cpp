@@ -1,85 +1,98 @@
 #include "Scene/TestScenes.hpp"
 
-#include "render/MeshManager.h"
-
-#include "graphics/MeshDataStorage.hpp"
-
 #include <cmath>
 
 namespace elm {
 
 namespace {
 
-    Scene::Instance MakeWall(float width, float height, float thickness, const Vector3& position)
+    Scene::Instance MakeWall(const render::Mesh& wallMesh, const Scene& scene, float width, float height, float thickness, const Vector3& position)
     {
-        Scene::Instance wall;
-        auto data = GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f);
-        wall.meshData = storeMeshData(data);
-        wall.renderMesh = render::createMesh(data);
+        Scene::Instance wall = scene.MakeInstance(wallMesh);
         wall.worldTransform = Matrix4x4::Scaling(Vector3 { width, height, thickness }) * Matrix4x4::Translation(position);
         return wall;
     }
 
+    const render::Mesh& AddMesh(Scene& scene, render::RenderResources& resources, const MeshData& data)
+    {
+        return scene.meshes.emplace_back(resources, MakeShared<const MeshData>(data));
+    }
+
 } // namespace
 
-void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene)
+Scene::Instance Scene::MakeInstance(render::RenderResources& resources, const MeshData& data)
 {
-    for (const auto& isnt : scene.instances)
-    {
-        render::destroyMesh(isnt.renderMesh);
-    }
-    scene.instances.clear();
+    return MakeInstance(meshes.emplace_back(resources, MakeShared<const MeshData>(data)));
+}
+
+Scene::Instance Scene::MakeInstance(const render::Mesh& mesh) const
+{
+    Instance instance;
+    instance.meshData = mesh.GetData();
+    instance.renderMesh = mesh.GetHandle();
+    instance.localBounds = mesh.GetData()->localBounds;
+    return instance;
+}
+
+void Scene::Clear()
+{
+    instances.clear();
+    meshes.clear();
+}
+
+void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene, render::RenderResources& resources)
+{
+    scene.Clear();
+    // Builders keep references to the meshes they add
+    scene.meshes.reserve(4);
 
     switch (preset) {
     case ScenePreset::Box:
-        BuildBox(targetInstanceCount, scene);
+        BuildBox(targetInstanceCount, scene, resources);
         break;
     case ScenePreset::WallAndGrid:
-        BuildWallAndGrid(targetInstanceCount, scene);
+        BuildWallAndGrid(targetInstanceCount, scene, resources);
         break;
     case ScenePreset::RoomsAndCorridors:
-        BuildRooms(targetInstanceCount, scene);
+        BuildRooms(targetInstanceCount, scene, resources);
         break;
     case ScenePreset::PhysicsSandbox:
-        BuildPhysicsSandbox(targetInstanceCount, scene);
+        BuildPhysicsSandbox(targetInstanceCount, scene, resources);
         break;
     }
     scene.preset = preset;
 }
 
-void TestScenes::BuildBox(uint32_t count, Scene& scene)
+void TestScenes::BuildBox([[maybe_unused]] uint32_t count, Scene& scene, render::RenderResources& resources)
 {
     // Create a single cube in the center of the scene
-    Scene::Instance cube;
-    const auto& meshData = GeometryPrimitives::CreateCube(1.0f);
-    cube.meshData = storeMeshData(meshData);
-    cube.renderMesh = render::createMesh(meshData);
-    cube.localBounds = meshData.localBounds;
+    Scene::Instance cube = scene.MakeInstance(resources, GeometryPrimitives::CreateCube(1.0f));
     cube.worldTransform = Matrix4x4::Translation(Vector3 { 0.0f, 0.5f, 0.0f });
     cube.color = Vector4 { 0.8f, 0.2f, 0.2f, 1.0f };
 
     scene.instances.push_back(cube);
 }
 
-void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene)
+void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, render::RenderResources& resources)
 {
+    const auto& wallMesh = AddMesh(scene, resources, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f));
     // 1. Occluders: Two massive walls at Z = 0 with a doorway in the center
     // Left Wall: width 18, height 9, thickness 1.5, center at (-10.5, 4.5, 0)
 
     {
-        scene.instances.push_back(MakeWall(18.0f, 9.0f, 1.5f, Vector3 { -10.5f, 4.5f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, 18.0f, 9.0f, 1.5f, Vector3 { -10.5f, 4.5f, 0.0f }));
     }
     // Right Wall: width 18, height 9, thickness 1.5, center at (+10.5, 4.5, 0)
     {
-        scene.instances.push_back(MakeWall(18.0f, 9.0f, 1.5f, Vector3 { 10.5f, 4.5f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, 18.0f, 9.0f, 1.5f, Vector3 { 10.5f, 4.5f, 0.0f }));
     }
     // Middle Lintle (above doorway): width 3, height 3, center at (0, 7.5, 0)
     {
-        scene.instances.push_back(MakeWall(3.0f, 3.0f, 1.5f, Vector3 { 0.0f, 7.5f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, 3.0f, 3.0f, 1.5f, Vector3 { 0.0f, 7.5f, 0.0f }));
     }
     // Second layer occluder wall further back: center at (0, 4.0, 18.0)
     {
-        scene.instances.push_back(MakeWall(12.0f, 8.0f, 1.0f, Vector3 { 0.0f, 4.0f, 18.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, 12.0f, 8.0f, 1.0f, Vector3 { 0.0f, 4.0f, 18.0f }));
     }
 
     // 2. Occludees: Distributed in rows/columns behind the walls (Z from 3 to 45)
@@ -91,7 +104,7 @@ void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene)
     const float startZ = 4.0f;
     const float stepZ = 40.0f / static_cast<float>(rows > 1 ? rows - 1 : 1);
 
-    const MeshData cubeMesh = GeometryPrimitives::CreateCube(0.8f);
+    const auto& cubeMesh = AddMesh(scene, resources, GeometryPrimitives::CreateCube(0.8f));
 
     uint32_t id = 0;
     for (uint32_t r = 0; r < rows && id < count; ++r) {
@@ -100,10 +113,7 @@ void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene)
             const float z = startZ + static_cast<float>(r) * stepZ;
             const float y = 0.5f + static_cast<float>((id % 4)) * 0.9f;
 
-            Scene::Instance inst;
-            inst.meshData = storeMeshData(cubeMesh);
-            inst.renderMesh = render::createMesh(cubeMesh);
-            inst.localBounds = cubeMesh.localBounds;
+            Scene::Instance inst = scene.MakeInstance(cubeMesh);
             inst.worldTransform = Matrix4x4::Translation(Vector3 { x, y, z });
 
             // Color gradient across grid
@@ -116,8 +126,9 @@ void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene)
     }
 }
 
-void TestScenes::BuildRooms(uint32_t count, Scene& scene)
+void TestScenes::BuildRooms(uint32_t count, Scene& scene, render::RenderResources& resources)
 {
+    const auto& wallMesh = AddMesh(scene, resources, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f));
     // 4 room layout with dividing walls
     const float roomSize = 16.0f;
     const float wallH = 6.0f;
@@ -125,26 +136,26 @@ void TestScenes::BuildRooms(uint32_t count, Scene& scene)
 
     // Center dividing wall along X (Z=0), with doorway at X=0
     {
-        scene.instances.push_back(MakeWall(14.0f, wallH, wallT, Vector3 { -8.5f, wallH * 0.5f, 0.0f }));
-        scene.instances.push_back(MakeWall(14.0f, wallH, wallT, Vector3 { 8.5f, wallH * 0.5f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, 14.0f, wallH, wallT, Vector3 { -8.5f, wallH * 0.5f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, 14.0f, wallH, wallT, Vector3 { 8.5f, wallH * 0.5f, 0.0f }));
     }
 
     // Center dividing wall along Z (X=0), with doorway at Z=0
     {
-        scene.instances.push_back(MakeWall(wallT, wallH, 14.0f, Vector3 { 0.0f, wallH * 0.5f, -8.5f }));
-        scene.instances.push_back(MakeWall(wallT, wallH, 14.0f, Vector3 { 0.0f, wallH * 0.5f, 8.5f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, wallT, wallH, 14.0f, Vector3 { 0.0f, wallH * 0.5f, -8.5f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, wallT, wallH, 14.0f, Vector3 { 0.0f, wallH * 0.5f, 8.5f }));
     }
 
     // Outer boundary walls
     {
-        scene.instances.push_back(MakeWall(roomSize * 2.0f, wallH, wallT, Vector3 { 0.0f, wallH * 0.5f, roomSize }));
-        scene.instances.push_back(MakeWall(roomSize * 2.0f, wallH, wallT, Vector3 { 0.0f, wallH * 0.5f, -roomSize }));
-        scene.instances.push_back(MakeWall(wallT, wallH, roomSize * 2.0f, Vector3 { roomSize, wallH * 0.5f, 0.0f }));
-        scene.instances.push_back(MakeWall(wallT, wallH, roomSize * 2.0f, Vector3 { -roomSize, wallH * 0.5f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, roomSize * 2.0f, wallH, wallT, Vector3 { 0.0f, wallH * 0.5f, roomSize }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, roomSize * 2.0f, wallH, wallT, Vector3 { 0.0f, wallH * 0.5f, -roomSize }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, wallT, wallH, roomSize * 2.0f, Vector3 { roomSize, wallH * 0.5f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, wallT, wallH, roomSize * 2.0f, Vector3 { -roomSize, wallH * 0.5f, 0.0f }));
     }
 
     // Scatter objects across 4 rooms
-    const MeshData cubeMesh = GeometryPrimitives::CreateCube(0.7f);
+    const auto& cubeMesh = AddMesh(scene, resources, GeometryPrimitives::CreateCube(0.7f));
     scene.instances.reserve(count);
 
     for (uint32_t i = 0; i < count; ++i) {
@@ -158,10 +169,7 @@ void TestScenes::BuildRooms(uint32_t count, Scene& scene)
         const float z = rz + std::sin(angle) * radius;
         const float y = 0.5f + static_cast<float>(i % 3) * 0.8f;
 
-        Scene::Instance inst;
-        inst.meshData = storeMeshData(cubeMesh);
-        inst.renderMesh = render::createMesh(cubeMesh);
-        inst.localBounds = cubeMesh.localBounds;
+        Scene::Instance inst = scene.MakeInstance(cubeMesh);
         inst.worldTransform = Matrix4x4::Translation(Vector3 { x, y, z });
 
         if (roomIdx == 0)
@@ -177,14 +185,15 @@ void TestScenes::BuildRooms(uint32_t count, Scene& scene)
     }
 }
 
-void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene)
+void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene, render::RenderResources& resources)
 {
+    const auto& wallMesh = AddMesh(scene, resources, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f));
     // A center barrier wall
     {
-        scene.instances.push_back(MakeWall(16.0f, 6.0f, 1.5f, Vector3 { 0.0f, 3.0f, 0.0f }));
+        scene.instances.push_back(MakeWall(wallMesh, scene, 16.0f, 6.0f, 1.5f, Vector3 { 0.0f, 3.0f, 0.0f }));
     }
 
-    const MeshData cubeMesh = GeometryPrimitives::CreateCube(0.9f);
+    const auto& cubeMesh = AddMesh(scene, resources, GeometryPrimitives::CreateCube(0.9f));
     scene.instances.reserve(count);
 
     // Stacks of boxes behind the barrier, and visible boxes in front
@@ -194,10 +203,7 @@ void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene)
         const float x = -6.0f + static_cast<float>(i % 12) * 1.0f;
         const float y = 0.5f + static_cast<float>(i / 12) * 1.0f;
 
-        Scene::Instance inst;
-        inst.meshData = storeMeshData(cubeMesh);
-        inst.renderMesh = render::createMesh(cubeMesh);
-        inst.localBounds = cubeMesh.localBounds;
+        Scene::Instance inst = scene.MakeInstance(cubeMesh);
         inst.worldTransform = Matrix4x4::Translation(Vector3 { x, y, z });
         inst.color = behindWall ? Vector4 { 0.2f, 0.7f, 0.9f, 1.0f } : Vector4 { 0.9f, 0.6f, 0.2f, 1.0f };
 

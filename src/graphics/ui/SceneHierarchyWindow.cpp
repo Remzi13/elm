@@ -1,8 +1,6 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 
-#include "render/MeshManager.h"
-
-#include "graphics/MeshDataStorage.hpp"
+#include "render/RenderSystem.hpp"
 
 #include "imgui.h"
 #include "math/Primitivs.hpp"
@@ -41,7 +39,8 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
         const char* presets[] = { "Box", "The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox" };
         int preset = static_cast<int>(scene.preset);
         if (ImGui::Combo("Preset", &preset, presets, IM_ARRAYSIZE(presets))) {
-            TestScenes::BuildScene(static_cast<ScenePreset>(preset), static_cast<uint32_t>(1500), scene);
+            TestScenes::BuildScene(static_cast<ScenePreset>(preset), static_cast<uint32_t>(1500), scene,
+                context.renderSystem.Resources());
             m_selectedInstance = 0;
         }
     }
@@ -56,14 +55,11 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     if (ImGui::Button("Add Object")) {
         Scene::Instance instance;
         if (!scene.instances.empty()) {
+            // Copies share the source mesh and are drawn in the same instanced batch
             instance = scene.instances[m_selectedInstance];
-            instance.renderMesh = render::createMesh(getMeshData(instance.meshData));
             instance.worldTransform(0, 3) += 1.0f;
         } else {
-            const auto meshData = GeometryPrimitives::CreateCube(1.0f);
-            instance.meshData = storeMeshData(meshData);
-            instance.renderMesh = render::createMesh(meshData);
-            instance.localBounds = meshData.localBounds;
+            instance = scene.MakeInstance(context.renderSystem.Resources(), GeometryPrimitives::CreateCube(1.0f));
             instance.worldTransform = Matrix4x4::Translation(Vector3 { 0.0f, 0.5f, 0.0f });
         }
         instance.visible = true;
@@ -72,7 +68,7 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     }
     ImGui::SameLine();
     if (!scene.instances.empty() && ImGui::Button("Remove Selected")) {
-        render::destroyMesh(scene.instances[m_selectedInstance].renderMesh);
+        // The mesh stays owned by the scene, other instances may use it
         scene.instances.erase(scene.instances.begin() + m_selectedInstance);
         if (scene.instances.empty()) {
             m_selectedInstance = 0;

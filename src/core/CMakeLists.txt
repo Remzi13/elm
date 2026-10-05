@@ -12,6 +12,8 @@ engine_add_library(core
     Timer.cpp
     Threading.hpp
     Threading.cpp
+    JobSystem.hpp
+    JobSystem.cpp
     Handler.hpp
     Handler.cpp
     Profiling.hpp

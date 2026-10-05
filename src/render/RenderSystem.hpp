@@ -1,50 +1,51 @@
 #pragma once
 
 #include "core/Error.hpp"
+#include "core/Std.hpp"
 
-#include "Scene/Transform.hpp"
+#include "math/Primitivs.hpp"
 
-#include "render/BufferManager.hpp"
-#include "render/DynamicLinearAllocator.hpp"
-#include "render/MeshManager.h"
-#include "render/SwapChain.hpp"
-#include "render/TextureStore.hpp"
-#include "render/CommandQueue.hpp"
-#include "render/IRenderPass.hpp"
+#include "render/RenderPipeline.hpp"
+#include "render/api/FrameWriter.hpp"
+#include "render/api/NativeWindow.hpp"
+#include "render/api/RenderResources.hpp"
+#include "render/frame/FrameRing.hpp"
 
+#include <atomic>
+#include <mutex>
 
-struct GLFWwindow;
+namespace elm::render {
 
-namespace Diligent {
-struct IRenderDevice;
-struct IDeviceContext;
-}
+    namespace rhi {
+        class IRenderBackend;
+    }
 
-namespace elm {
-namespace render {
-    class RenderResourceProvider;
-
-    struct FrameStats {
-        float fps { 0.0f };
-        float deltaTimeMs { 0.0f };
-        uint32_t physicsBodyCount { 0 };
-        Transform boxTransform;
-        Transform groundTransform;
+    /// Result of one rendered frame, reported back to the update side.
+    struct RenderedFrameInfo {
+        uint64_t frameIndex { 0 };
+        /// Secondary UI surfaces destroyed while executing this frame.
+        uint64_t releasedSurfaceCount { 0 };
     };
 
-    struct RenderObject {
-        Matrix4x4 transform;
-        Vector4 color;
+    /// Render thread statistics of the last drawn frame, readable from any thread.
+    struct RenderStats {
+        uint64_t frameIndex { 0 };
+        uint32_t passCount { 0 };
+        uint32_t culledPassCount { 0 };
+        uint32_t levelCount { 0 };
+        uint32_t commandListCount { 0 };
+        uint32_t workerListCount { 0 };
+        uint32_t drawCalls { 0 };
+        uint32_t workerThreads { 0 };
+        uint32_t queuedFrames { 0 };
     };
 
-    struct FrameData {
-        struct Camera {
-            Matrix4x4 viewporj;
-            Vector3 pos;
-        } camera;
-        UnorderedMap<core::Handler, Vector<RenderObject>> objects;
-    };
-
+    /// Facade of the render subsystem.
+    ///
+    /// Threading contract:
+    ///  - Update thread: Init, BeginFrame/SubmitFrame, StopRendering, Shutdown, GetSize.
+    ///  - Render thread: RenderNextFrame only.
+    ///  - Any thread: Resources() and everything on RenderResources.
     class RenderSystem {
     public:
         RenderSystem();
@@ -55,72 +56,46 @@ namespace render {
         RenderSystem(RenderSystem&&) noexcept = delete;
         RenderSystem& operator=(RenderSystem&&) noexcept = delete;
 
-        [[nodiscard]] auto Init(Size size, StringView title) -> EngineResult<void>;
-        [[nodiscard]] bool ShouldClose() const;
-        /// Cross-thread mailbox for deferred backend operations (resource creation,
-        /// destruction, and resizing). It does not contain the per-frame pass schedule.
-        /// The producer must call CommitCommands() after recording a frame's operations.
-        [[nodiscard]] render::CommandQueue& GetCommandQueue() noexcept { return m_deferredCommandQueue; }
-        // --- Update/producer thread ---
-        void CommitCommands();
-        // Executes queued work on the calling thread. Only when the render thread is stopped
-        void FlushCommands();
-
-        // --- Render thread ---
-        // BeginFrame consumes deferred cross-thread work; RenderFrame executes the render graph
-        // and returns its 1-based frame number; EndFrame presents after all graph passes complete.
-        void BeginFrame();
-        [[nodiscard]] uint64_t RenderFrame(FrameData& frameData, render::OverlayFrame& overlay);
-        void EndFrame();
-
+        /// The window stays owned by the caller and must outlive the render system.
+        [[nodiscard]] auto Init(const NativeWindow& window, Size surfaceSize) -> EngineResult<void>;
         void Shutdown();
 
-        // --- Main thread ---
-        [[nodiscard]] GLFWwindow* GetWindowHandle() const { return m_window; }
-        [[nodiscard]] Size GetSize() const { return m_size; }
+        // --- Any thread ---
+        [[nodiscard]] RenderResources& Resources() noexcept { return m_resources; }
+
+        // --- Update thread ---
+        /// Blocks while the render thread is two frames behind. Returns an invalid writer after StopRendering().
+        [[nodiscard]] FrameWriter BeginFrame();
+        /// Publishes the frame together with every resource command recorded so far.
+        void SubmitFrame(FrameWriter& frame);
+        /// Wakes the render thread so RenderNextFrame returns false; the caller then joins it.
+        void StopRendering();
+
+        /// Size of the main surface (backbuffer pixels) of the last submitted frame.
+        [[nodiscard]] Size GetSize() const { return m_surfaceSize; }
         [[nodiscard]] size_t GetMemAllocated() const;
+        [[nodiscard]] RenderStats GetRenderStats() const;
+
+        // --- Render thread ---
+        /// Waits for the next submitted frame and draws it. Returns false once rendering is stopped.
+        [[nodiscard]] bool RenderNextFrame(RenderedFrameInfo& info);
 
     private:
-        class RenderCommandExecutor;
+        void ExecuteFrame(FrameSnapshot& frame, RenderedFrameInfo& info);
+        [[nodiscard]] uint64_t ApplySurfaceEvents(const OverlayFrame& overlay);
 
-        void InitPipeline();
-        [[nodiscard]] render::SwapChain CreateSwapChain(uint32_t width, uint32_t height, void* nativeHandle,
-            void* nativeDisplay, bool withDepthBuffer = true);
-        void ApplyMainSwapChainResize(uint32_t width, uint32_t height);
-        static void OnFramebufferSizeChanged(GLFWwindow* window, int width, int height);
-
-        void ExecuteRenderGraph(FrameData& frameData, render::OverlayFrame& overlay);
-
-        /// Builds the shared resource view passed to render passes.
-        [[nodiscard]] render::RenderPassContext CreatePassContext();
-
-    private:
-        GLFWwindow* m_window { nullptr };
-
-        // Diligent Engine components
-        Diligent::IRenderDevice* m_renderDevice { nullptr };
-        Diligent::IDeviceContext* m_deviceContext { nullptr };
-        render::SwapChain m_swapChain;
-
-        // Dynamic Instance Buffer
-        static constexpr size_t MaxInstances = 30000;
-
-        render::BufferManager m_bufferManager;
-        render::TextureStore m_textureStore;
-        render::MeshManager m_meshManager;
-        render::DynamicLinearAllocator m_dynamicInstanceBuffer;
-        render::DynamicLinearAllocator m_dynamicUniformBuffer;
-
-        Size m_size { 1280, 720 };
+        Size m_surfaceSize { 1280, 720 };
         bool m_initialized { false };
-        uint64_t m_renderedFrameNumber { 0 };
 
-        render::CommandQueue m_deferredCommandQueue;
-        UniquePtr<render::RenderResourceProvider> m_resourceProvider;
+        RenderResources m_resources;
+        FrameRing m_frames;
+        std::atomic<uint64_t> m_submittedFrames { 0 };
 
-        // Render graph owns pass lifetimes and defines execution order.
-        Vector<UniquePtr<render::IRenderPass>> m_renderGraph;
+        UniquePtr<rhi::IRenderBackend> m_backend;
+        RenderPipeline m_pipeline;
+
+        mutable std::mutex m_statsMutex;
+        RenderStats m_stats;
     };
 
-} // namespace Engine
-}
+} // namespace elm::render

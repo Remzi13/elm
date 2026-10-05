@@ -2,7 +2,7 @@
 
 #include "core/Std.hpp"
 
-#include "render/Texture.hpp"
+#include "render/api/RenderResources.hpp"
 
 #include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
@@ -43,7 +43,8 @@ public:
     OcclusionCullingSystem(uint32_t width = 256, uint32_t height = 144);
     ~OcclusionCullingSystem() = default;
 
-    void Init();
+    void Init(render::RenderResources& resources);
+    void Shutdown();
     void SetResolution(uint32_t width, uint32_t height);
     void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
     void UpdateDepthPreviewTexture(bool falseColor = true);
@@ -66,6 +67,7 @@ private:
 
     SoftwareDepthBuffer m_depthBuffer;
     CullingStats m_stats;
+    render::RenderResources* m_resources { nullptr };
     render::Texture m_depthPreviewTexture;
 };
 

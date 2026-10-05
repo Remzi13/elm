@@ -1,58 +1,71 @@
 engine_add_library(render
-    Render.hpp
     RenderSystem.hpp
     RenderSystem.cpp
-    
-    IRenderPass.hpp
+    RenderPipeline.hpp
+    RenderPipeline.cpp
     ViewPort.hpp
     OverlayFrame.hpp
-    OverlayRenderPass.hpp
-    OverlayRenderPass.cpp
-    SceneRenderPass.hpp
-    SceneRenderPass.cpp
-    Render.hpp
-    Command.hpp
+    ShaderSource.hpp
+    ShaderSource.cpp
     CommandList.hpp
-    CommandQueue.hpp
-    CommandQueue.cpp
-    SwapChain.hpp
-    SwapChain.cpp
-    RenderResourceProvider.hpp
-    RenderResourceProvider.cpp    
-    BufferManager.hpp
-    BufferManager.cpp
-    Texture.hpp
-    Texture.cpp
-    TextureManager.hpp
-    TextureManager.cpp
-    TextureStore.hpp
-    TextureStore.cpp
-    ResourceView.hpp
-    ResourceView.cpp
-    MeshManager.h
-    MeshManager.cpp
-    DynamicLinearAllocator.hpp
-    DynamicLinearAllocator.cpp
-    backends/Utils.hpp
-    backends/Utils.cpp    
+
+    api/Handles.hpp
+    api/HandleAllocator.hpp
+    api/ResourceDesc.hpp
+    api/ResourceCommands.hpp
+    api/RenderResources.hpp
+    api/RenderResources.cpp
+    api/FrameWriter.hpp
+    api/NativeWindow.hpp
+    api/PipelineDesc.hpp
+
+    frame/FrameSnapshot.hpp
+    frame/FrameRing.hpp
+    frame/FrameRing.cpp
+
+    rhi/CommandList.hpp
+    rhi/UploadAllocator.hpp
+    rhi/UploadAllocator.cpp
+    rhi/IRenderBackend.hpp
+
+    graph/RenderGraph.hpp
+    graph/RenderGraph.cpp
+
+    passes/IRenderFeature.hpp
+    passes/ScenePass.hpp
+    passes/ScenePass.cpp
+    passes/OverlayPass.hpp
+    passes/OverlayPass.cpp
 )
 
-target_link_libraries(render PUBLIC glfw)
+target_link_libraries(render PUBLIC core math)
+target_include_directories(render PUBLIC ${ENGINE_INCLUDE_DIRS})
 
-target_link_libraries(render PRIVATE core)
-
-if(WIN32)
-    target_link_libraries(render PUBLIC Diligent-GraphicsEngineD3D12-static)
-else()
-    target_link_libraries(render PUBLIC Diligent-GraphicsEngineVk-static)
-endif()
-
-target_include_directories(render PUBLIC
-    ${ENGINE_INCLUDE_DIRS}
-    ${glfw_SOURCE_DIR}/include
-)
-
-target_include_directories(render SYSTEM PUBLIC
-    ${diligentengine_SOURCE_DIR}/DiligentCore
-    ${diligentengine_SOURCE_DIR}/DiligentTools
-)
+# ------------------------------------------------------------------------------
+# Backend: only the selected backend is compiled, its API stays private to render
+# ------------------------------------------------------------------------------
+#if(ELM_RENDER_BACKEND STREQUAL "Diligent")
+    target_sources(render PRIVATE
+        backend/diligent/DiligentBackend.hpp
+        backend/diligent/DiligentBackend.cpp
+        backend/diligent/SwapChain.hpp
+        backend/diligent/SwapChain.cpp
+        backend/diligent/Utils.hpp
+        backend/diligent/Utils.cpp
+    )
+    if(WIN32)
+        target_link_libraries(render PRIVATE Diligent-GraphicsEngineD3D12-static)
+    else()
+        target_link_libraries(render PRIVATE Diligent-GraphicsEngineVk-static)
+    endif()
+    target_include_directories(render SYSTEM PRIVATE
+        ${diligentengine_SOURCE_DIR}/DiligentCore
+    )
+#elseif(ELM_RENDER_BACKEND STREQUAL "Null")
+#    target_sources(render PRIVATE
+#        backend/null/NullBackend.hpp
+#        backend/null/NullBackend.cpp
+#    )
+#else()
+#    message(FATAL_ERROR "Unknown ELM_RENDER_BACKEND '${ELM_RENDER_BACKEND}' (expected Diligent or Null)")
+#endif()

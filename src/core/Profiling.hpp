@@ -10,6 +10,7 @@
     #define ELM_PROFILE_SCOPE_C(color)   ZoneScopedC(color)
     #define ELM_PROFILE_SCOPE_NC(name, color) ZoneScopedNC(name, color)
     #define ELM_PROFILE_THREAD(name)     tracy::SetThreadName(name)
+    #define ELM_PROFILE_TEXT(text, size) ZoneText(text, size)
 #else
     #define ELM_PROFILE_FRAME()
     #define ELM_PROFILE_FRAME_N(name)
@@ -18,4 +19,5 @@
     #define ELM_PROFILE_SCOPE_C(color)
     #define ELM_PROFILE_SCOPE_NC(name, color)
     #define ELM_PROFILE_THREAD(name)
+    #define ELM_PROFILE_TEXT(text, size)
 #endif

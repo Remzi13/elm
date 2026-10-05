@@ -1,30 +1,18 @@
 #pragma once
 
-#include "render/Texture.hpp"
-#include "math/Primitivs.hpp"
+#include "render/api/RenderResources.hpp"
 
-#include <utility>
+#include "math/Primitivs.hpp"
 
 namespace elm::render {
 
-/// Owns the engine viewport render targets and their current dimensions.
+/// Update side: the offscreen color target the scene is rendered into and the UI displays.
+/// Resizing goes through the resource command queue, the render thread never recreates it on its own.
 class ViewPort {
 public:
-    struct Snapshot {
-        core::Handler colorTexture;
-        core::Handler depthTexture;
-        Size size;
-
-        [[nodiscard]] bool IsValid() const noexcept
-        {
-            return colorTexture.IsValid() && depthTexture.IsValid() && !size.IsEmpty();
-        }
-    };
-
     ViewPort() = default;
-    ViewPort(Texture colorTexture, Texture depthTexture, Size size) noexcept
-        : m_colorTexture(std::move(colorTexture))
-        , m_depthTexture(std::move(depthTexture))
+    ViewPort(RenderResources& resources, Size size)
+        : m_colorTexture(resources, MakeColorDesc(size))
         , m_size(size)
     {
     }
@@ -34,25 +22,32 @@ public:
     ViewPort(ViewPort&&) noexcept = default;
     ViewPort& operator=(ViewPort&&) noexcept = default;
 
-    [[nodiscard]] const Texture& GetColorTexture() const noexcept { return m_colorTexture; }
-    [[nodiscard]] const Texture& GetDepthTexture() const noexcept { return m_depthTexture; }
+    [[nodiscard]] TextureHandle GetColorTexture() const noexcept { return m_colorTexture.GetHandle(); }
     [[nodiscard]] Size GetSize() const noexcept { return m_size; }
 
-    void SetSize(Size size) noexcept { m_size = size; }
-
-    [[nodiscard]] bool IsValid() const noexcept
+    void SetSize(Size size)
     {
-        return m_colorTexture.IsValid() && m_depthTexture.IsValid() && !m_size.IsEmpty();
+        if (size.IsEmpty() || (size.width == m_size.width && size.height == m_size.height))
+            return;
+        m_size = size;
+        m_colorTexture.Resize(size.width, size.height);
     }
 
-    [[nodiscard]] Snapshot GetSnapshot() const noexcept
-    {
-        return { m_colorTexture.GetHandler(), m_depthTexture.GetHandler(), m_size };
-    }
+    [[nodiscard]] bool IsValid() const noexcept { return m_colorTexture.IsValid() && !m_size.IsEmpty(); }
 
 private:
+    [[nodiscard]] static TextureDesc MakeColorDesc(Size size)
+    {
+        TextureDesc desc;
+        desc.name = "Engine Viewport Color";
+        desc.width = size.width;
+        desc.height = size.height;
+        desc.format = TextureFormat::RGBA8_UNORM_SRGB;
+        desc.bindFlags = TextureBind::RenderTarget | TextureBind::ShaderResource;
+        return desc;
+    }
+
     Texture m_colorTexture;
-    Texture m_depthTexture;
     Size m_size;
 };
 

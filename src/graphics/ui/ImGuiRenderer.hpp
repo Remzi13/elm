@@ -2,34 +2,28 @@
 
 #include "core/Std.hpp"
 
-#include "core/Handler.hpp"
+#include "render/api/RenderResources.hpp"
 
-#include <memory>
+namespace elm::render {
 
-namespace elm {
-class RenderSystem;
-
-namespace render {
-class Texture;
-
+/// Owns the GPU textures the UI needs (font atlas, white fallback).
 class ImGuiRenderer {
 public:
-    ImGuiRenderer();
+    explicit ImGuiRenderer(RenderResources& resources);
     ~ImGuiRenderer();
 
     ImGuiRenderer(const ImGuiRenderer&) = delete;
     ImGuiRenderer& operator=(const ImGuiRenderer&) = delete;
 
     [[nodiscard]] bool IsInitialized() const noexcept;
-    [[nodiscard]] core::Handler GetFallbackTexture() const noexcept;
+    [[nodiscard]] TextureHandle GetFallbackTexture() const noexcept;
     void Shutdown();
 
 private:
-    [[nodiscard]] bool InitializeTextures();
+    bool InitializeTextures(RenderResources& resources);
 
-    UniquePtr<Texture> m_fontTexture;
-    UniquePtr<Texture> m_whiteTexture;
+    Texture m_fontTexture;
+    Texture m_whiteTexture;
 };
 
-} // namespace render
-} // namespace elm
+} // namespace elm::render
