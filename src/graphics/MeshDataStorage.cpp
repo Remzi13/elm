@@ -1,39 +1,45 @@
 #include "graphics/MeshDataStorage.hpp"
 
 namespace elm {
-
+    
 namespace {
 
     class MeshDataStorage {
 
     public:
-        core::Handler Put(const MeshData& data)
+        MeshDataHandle Put(const MeshData& data)
         {
-            for (const auto& m : m_data) {
-                if (m.second == data)
-                    return m.first;
+            for ([[maybe_unused]] const auto& [handle, existingData] : m_data) {
+                if (existingData == data) {
+                    return handle;
+                }
             }
-            core::Handler handler(m_index++, core::Handler::Resource);
-            m_data.emplace(handler, data);
-            return handler;
+
+            auto handle = MeshDataHandle::FromRaw(m_nextHandleIndex++);            
+            m_data.emplace(handle, data);
+            return handle;
         }
-        const MeshData& Get(const core::Handler& handler) const
+        const MeshData& Get(const MeshDataHandle& handle) const
         {
-            return m_data.at(handler);
+            if (auto it = m_data.find(handle); it != m_data.end()) {
+                return it->second;
+            }
+            return m_void;
         }
 
-    private:
-        core::Handler::ValueType m_index { 0 };
-        UnorderedMap<core::Handler, MeshData> m_data;
+    private:        
+        MeshData m_void;
+        uint32_t m_nextHandleIndex { 1 };
+        UnorderedMap<MeshDataHandle, MeshData> m_data;
     } g_meshData;
 }
 
-core::Handler storeMeshData(const MeshData& data)
+MeshDataHandle storeMeshData(const MeshData& data)
 {
     return g_meshData.Put(data);
 }
 
-const MeshData& getMeshData(const core::Handler& handler)
+const MeshData& getMeshData(const MeshDataHandle& handler)
 {
     return g_meshData.Get(handler);
 }

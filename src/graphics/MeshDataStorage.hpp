@@ -6,8 +6,9 @@
 #include "math/Primitivs.hpp"
 
 namespace elm {
+	struct MeshDataTag;
+    using MeshDataHandle = core::Handle<MeshDataTag>;
 
-core::Handler storeMeshData(const MeshData& data);
-const MeshData& getMeshData(const core::Handler& handler);
-
+	MeshDataHandle storeMeshData(const MeshData& data);
+    const MeshData& getMeshData(const MeshDataHandle& handler);
 }

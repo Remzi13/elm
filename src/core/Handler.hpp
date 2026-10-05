@@ -2,52 +2,51 @@
 
 #include "core/Std.hpp"
 
-namespace elm {
-namespace core {
+namespace elm::core {
 
-    class Handler final {
+    /// Typed resource handle: 24-bit slot index + 8-bit generation. Zero is the invalid handle.
+    /// Handles are allocated on the update side (RenderResources) and stay valid for the
+    /// render thread until the destroy command reaches it; a stale handle fails the generation check.
+    template <typename Tag>
+    class Handle {
     public:
-        enum Type {
-            Core,
-            Resource,
-            Render,
-            None
-        };
-
-        using ValueType = int;
-
-    public:
-        Handler() = default;
-
-        Handler(int value, Type type)
-            : m_type(type)
-            , m_value(value)
+        static constexpr uint32_t IndexBits = 24;
+        static constexpr uint32_t IndexMask = (1u << IndexBits) - 1;
+        static constexpr uint32_t MaxIndex = IndexMask;
+    
+        constexpr Handle() noexcept = default;
+        constexpr Handle(uint32_t index, uint8_t generation) noexcept
+            : m_value((static_cast<uint32_t>(generation) << IndexBits) | (index & IndexMask))
         {
         }
-
-        [[nodiscard]] constexpr bool IsValid() const noexcept { return m_value >= 0; }
-
-        constexpr bool operator==(const Handler&) const noexcept = default;
-        constexpr auto operator<=>(const Handler&) const noexcept = default;
-        
-        Type GetType() const { return m_type; }
-
-        ValueType GetValue() const { return m_value; }
-
-    public:
-        Type m_type { Type::None };
-        ValueType m_value { -1 };
+    
+        [[nodiscard]] static constexpr Handle FromRaw(uint32_t value) noexcept
+        {
+            Handle handle;
+            handle.m_value = value;
+            return handle;
+        }
+    
+        [[nodiscard]] constexpr bool IsValid() const noexcept { return m_value != 0; }
+        constexpr explicit operator bool() const noexcept { return IsValid(); }
+    
+        [[nodiscard]] constexpr uint32_t Index() const noexcept { return m_value & IndexMask; }
+        [[nodiscard]] constexpr uint8_t Generation() const noexcept { return static_cast<uint8_t>(m_value >> IndexBits); }
+        [[nodiscard]] constexpr uint32_t Raw() const noexcept { return m_value; }
+    
+        constexpr bool operator==(const Handle&) const noexcept = default;
+        constexpr auto operator<=>(const Handle&) const noexcept = default;
+    
+    private:
+        uint32_t m_value { 0 };
     };
-}
+
 }
 
-template <>
-struct std::hash<elm::core::Handler> {
-    [[nodiscard]] std::size_t operator()(elm::core::Handler handler) const noexcept
+template <typename Tag>
+struct std::hash<elm::core::Handle<Tag>> {
+    [[nodiscard]] std::size_t operator()(elm::core::Handle<Tag> handle) const noexcept
     {
-        const auto index = static_cast<std::size_t>(handler.GetValue());
-        const auto type = static_cast<std::size_t>(handler.GetType());
-
-        return index ^ (type + 0x9e3779b9u + (index << 6u) + (index >> 2u));
+        return std::hash<uint32_t> { }(handle.Raw());
     }
 };
