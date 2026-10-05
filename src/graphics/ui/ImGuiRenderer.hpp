@@ -1,7 +1,5 @@
 #pragma once
 
-#include "core/Std.hpp"
-
 #include "render/api/RenderResources.hpp"
 
 namespace elm::render {

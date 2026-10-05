@@ -2,12 +2,22 @@
 
 #include "render/RenderSystem.hpp"
 
-#include "graphics/ImGuiSystem.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 
 #include "imgui.h"
 
 namespace elm {
+
+	namespace {
+		ImTextureID ToTextureId(render::TextureHandle texture)
+		{
+		    if (!texture.IsValid())
+		        return nullptr;
+		    // Real texture views are aligned pointers, so the lowest bit marks an engine handle
+		    const auto value = (static_cast<uintptr_t>(texture.Raw()) << 1) | 1;
+		    return reinterpret_cast<ImTextureID>(value);
+		}
+	}
 
 	void DepthPreviewWindow::Render(ImGuiWindowContext& context) {
 		auto& renderSystem = context.renderSystem;
@@ -35,7 +45,7 @@ namespace elm {
 			m_settings.Set(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR, falseColor);
 		}
 		
-		const ImTextureID texture = ImGuiSystem::ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandle());
+		const ImTextureID texture = ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandle());
 		
 		if (texture) {
 			const float aspect = static_cast<float>(depthWidth) / static_cast<float>(depthHeight);

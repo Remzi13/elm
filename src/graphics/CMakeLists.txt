@@ -1,6 +1,7 @@
 engine_add_library(graphics
-    ImGuiSystem.cpp
+    Camera.hpp    
     Camera.cpp
+    CameraController.hpp
     CameraController.cpp
     Settings.hpp
     Settings.cpp
@@ -22,7 +23,8 @@ engine_add_library(graphics
     ui/SocLabWindow.cpp
     ui/ImGuiRenderer.hpp
     ui/ImGuiRenderer.cpp
-
+    ui/ImGuiSystem.hpp
+    ui/ImGuiSystem.cpp
     ui/DepthPreviewWindow.hpp
     ui/DepthPreviewWindow.cpp
     ui/ProfilerWindow.hpp

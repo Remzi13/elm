@@ -8,20 +8,18 @@
 
 #include "platform/Window.hpp"
 
-
 #include "graphics/ui/ImGuiRenderer.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
 #include "graphics/Settings.hpp"
-
-
-#include "imgui.h"
 
 #include <atomic>
 #include <memory>
 #include <span>
 #include <type_traits>
 #include <utility>
+
+struct ImGuiViewport;
 
 namespace elm {
 
@@ -46,9 +44,7 @@ namespace elm {
 		// Render thread: reports viewport surfaces released by the render graph
 		void NotifyViewportSurfacesReleased(uint64_t count);
 		void Shutdown();
-
-		// Texture reference usable in ImGui::Image; resolved to a GPU view on the render thread
-		[[nodiscard]] static ImTextureID ToTextureId(render::TextureHandle texture);
+		
 
 		// Window management
 		void AddWindow(UniquePtr<IImGuiWindow> window);

@@ -8,7 +8,7 @@
 #include "render/ViewPort.hpp"
 
 #include "graphics/FrameStats.hpp"
-#include "graphics/ImGuiSystem.hpp"
+#include "graphics/ui/ImGuiSystem.hpp"
 #include "graphics/CameraController.hpp"
 #include "graphics/Settings.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"

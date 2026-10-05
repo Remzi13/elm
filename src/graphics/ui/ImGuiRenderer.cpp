@@ -1,10 +1,19 @@
 #include "graphics/ui/ImGuiRenderer.hpp"
 
-#include "graphics/ImGuiSystem.hpp"
-
 #include "imgui.h"
 
 namespace elm::render {
+
+    namespace {
+        ImTextureID ToTextureId(render::TextureHandle texture)
+        {
+            if (!texture.IsValid())
+                return nullptr;
+            // Real texture views are aligned pointers, so the lowest bit marks an engine handle
+            const auto value = (static_cast<uintptr_t>(texture.Raw()) << 1) | 1;
+            return reinterpret_cast<ImTextureID>(value);
+        }
+    }
 
 ImGuiRenderer::ImGuiRenderer(RenderResources& resources)
 {
@@ -38,7 +47,7 @@ bool ImGuiRenderer::InitializeTextures(RenderResources& resources)
     fontData.stride = static_cast<size_t>(width) * 4;
     fontData.data.assign(pixels, pixels + fontData.stride * static_cast<size_t>(height));
     m_fontTexture.Update(std::move(fontData));
-    io.Fonts->SetTexID(ImGuiSystem::ToTextureId(m_fontTexture.GetHandle()));
+    io.Fonts->SetTexID(ToTextureId(m_fontTexture.GetHandle()));
 
     TextureDesc whiteInfo;
     whiteInfo.name = "ImGui White Texture";

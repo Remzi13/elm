@@ -1,16 +1,25 @@
 #include "graphics/ui/EngineViewportWindow.hpp"
-#include "graphics/ImGuiSystem.hpp"
+
 #include "graphics/ui/WindowMessages.hpp"
 #include "render/ViewPort.hpp"
 
-#include "ImGuizmo.h"
 #include "imgui.h"
+#include "ImGuizmo.h"
 
 #include <array>
 
 namespace elm {
 
 	namespace {
+
+		ImTextureID ToTextureId(render::TextureHandle texture)
+        {
+			if (!texture.IsValid())
+				return nullptr;
+			// Real texture views are aligned pointers, so the lowest bit marks an engine handle
+            const auto value = (static_cast<uintptr_t>(texture.Raw()) << 1) | 1;
+            return reinterpret_cast<ImTextureID>(value);
+		}
 
 		std::array<float, 16> ToGizmoMatrix(const Matrix4x4& matrix) {
 			std::array<float, 16> result{};
@@ -51,7 +60,7 @@ namespace elm {
 		const auto gizmoSettings = Request<GizmoSettings>();
 		const bool hasSelection = selectedInstance && selectedInstance->index < scene.instances.size();
 
-		if (auto texture = ImGuiSystem::ToTextureId(viewPort.GetColorTexture())) {
+		if (auto texture = ToTextureId(viewPort.GetColorTexture())) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
 			const auto* viewport = ImGui::GetWindowViewport();
 			const float dpiScale = viewport ? viewport->DpiScale : 1.0f;

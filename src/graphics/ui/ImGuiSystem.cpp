@@ -1,4 +1,4 @@
-#include "graphics/ImGuiSystem.hpp"
+#include "graphics/ui/ImGuiSystem.hpp"
 
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
@@ -52,12 +52,12 @@ namespace elm {
 		}
 	}
 
-	ImTextureID ImGuiSystem::ToTextureId( render::TextureHandle texture ) {
-		if ( !texture.IsValid() ) return nullptr;
-		// Real texture views are aligned pointers, so the lowest bit marks an engine handle
-		const auto value = ( static_cast<uintptr_t>( texture.Raw() ) << 1 ) | 1;
-		return reinterpret_cast<ImTextureID>( value );
-	}
+	//ImTextureID ImGuiSystem::ToTextureId( render::TextureHandle texture ) {
+	//	if ( !texture.IsValid() ) return nullptr;
+	//	// Real texture views are aligned pointers, so the lowest bit marks an engine handle
+	//	const auto value = ( static_cast<uintptr_t>( texture.Raw() ) << 1 ) | 1;
+	//	return reinterpret_cast<ImTextureID>( value );
+	//}
 
 	auto ImGuiSystem::Init( platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
 		m_window = window.GetHandle();
