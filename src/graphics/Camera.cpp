@@ -35,7 +35,7 @@ namespace elm {
 	}
 
 	Matrix4x4 Camera::GetProjectionMatrix() const noexcept {
-		return Matrix4x4::PerspectiveVk(fovRadians, m_aspect, zNear, zFar);
+		return Matrix4x4::Perspective(fovRadians, m_aspect, zNear, zFar);
 	}
 
 	Matrix4x4 Camera::GetViewProjectionMatrix() const noexcept {

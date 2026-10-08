@@ -88,7 +88,8 @@ uint64_t RenderSystem::ApplySurfaceEvents(const OverlayFrame& overlay)
     for (const auto& event : overlay.surfaceEvents) {
         switch (event.type) {
         case OverlaySurfaceEvent::Type::Create:
-            m_backend->CreateSurface(event.id, { event.nativeHandle, event.nativeDisplay }, event.width, event.height);
+            m_backend->CreateSurface(event.id, { event.nativeHandle, event.nativeDisplay, event.nativePlatform },
+                event.width, event.height);
             break;
         case OverlaySurfaceEvent::Type::Destroy:
             m_backend->DestroySurface(event.id);

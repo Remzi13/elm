@@ -31,6 +31,6 @@ engine_add_library(graphics
     ui/ProfilerWindow.cpp
 )
 
-target_link_libraries(graphics PUBLIC imgui_glfw imguizmo)
+target_link_libraries(graphics PUBLIC imgui imgui_glfw imguizmo)
 target_link_libraries(graphics PUBLIC core render platform)
 target_link_libraries(graphics PRIVATE glfw)

@@ -139,6 +139,7 @@ namespace elm {
 		const auto native = platform::Window::GetNativeWindow( window );
 		event.nativeHandle = native.handle;
 		event.nativeDisplay = native.display;
+		event.nativePlatform = native.platform;
 		system->m_pendingViewportEvents.push_back( event );
 	}
 

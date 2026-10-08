@@ -72,13 +72,16 @@ render::NativeWindow Window::GetNativeWindow(GLFWwindow* window)
         return native;
 #if PLATFORM_WIN32
     native.handle = glfwGetWin32Window(window);
+    native.platform = render::NativeWindow::Platform::Win32;
 #else
     if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
         native.display = glfwGetWaylandDisplay();
         native.handle = glfwGetWaylandWindow(window);
+        native.platform = render::NativeWindow::Platform::Wayland;
     } else {
         native.display = glfwGetX11Display();
         native.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(glfwGetX11Window(window)));
+        native.platform = render::NativeWindow::Platform::X11;
     }
 #endif
     return native;

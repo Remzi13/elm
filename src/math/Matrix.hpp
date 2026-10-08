@@ -108,8 +108,8 @@ namespace math {
 			return res;
 		}
 
-		// Perspective projection for Vulkan: Z in [0, 1]
-		static Matrix4x4 PerspectiveVk( float fovRadians, float aspect, float zNear, float zFar ) noexcept {
+		// Perspective projection with a [0, 1] depth range.
+		static Matrix4x4 Perspective( float fovRadians, float aspect, float zNear, float zFar ) noexcept {
 			const float tanHalfFov = std::tan( fovRadians * 0.5f );
 			Matrix4x4 res{};
 			res( 0, 0 ) = 1.0f / ( aspect * tanHalfFov );

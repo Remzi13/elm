@@ -13,7 +13,7 @@ int main(int argc, char** argv) {
     elm::EngineApp app;
 
     // Initialize application using C++23 std::expected error checking
-    const auto initResult = app.Init(1280, 720, "C++23 3D Engine - Diligent Engine & Jolt Physics");
+    const auto initResult = app.Init(1280, 720, "C++23 3D Engine - Vulkan & Jolt Physics");
     if (!initResult) {
         std::cerr << "[Fatal Error] Failed to initialize engine: " << initResult.error().message << std::endl;
         return static_cast<int>(initResult.error().code);

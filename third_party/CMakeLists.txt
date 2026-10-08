@@ -31,25 +31,27 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glfw)
 
 # ------------------------------------------------------------------------------
-# Diligent Engine
+# Dear ImGui (docking branch)
 # ------------------------------------------------------------------------------
-set(DILIGENT_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
-set(DILIGENT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(DILIGENT_NO_FORMAT_VALIDATION ON CACHE BOOL "" FORCE)
-set(DILIGENT_NO_RENDER_STATE_PACKAGER ON CACHE BOOL "" FORCE)
-
 FetchContent_Declare(
-    DiligentEngine
-    GIT_REPOSITORY https://github.com/DiligentGraphics/DiligentEngine.git
-    GIT_TAG        v2.5.6
-    PATCH_COMMAND  git -C <SOURCE_DIR>/DiligentTools/ThirdParty/imgui fetch --depth 1 origin refs/tags/v1.89.7-docking
-                   COMMAND git -C <SOURCE_DIR>/DiligentTools/ThirdParty/imgui checkout --detach FETCH_HEAD
-                   COMMAND ${CMAKE_COMMAND}
-                       -DDILIGENT_TOOLS_CMAKE=<SOURCE_DIR>/DiligentTools/CMakeLists.txt
-                       -P ${CMAKE_SOURCE_DIR}/cmake/DisableDiligentRenderStateNotation.cmake
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.89.7-docking
+    GIT_SHALLOW    TRUE
 )
-FetchContent_MakeAvailable(DiligentEngine)
-set_property(TARGET Diligent-Imgui PROPERTY FOLDER "third party")
+FetchContent_MakeAvailable(imgui)
+
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+)
+target_include_directories(imgui PUBLIC
+    ${imgui_SOURCE_DIR}
+)
+set_property(TARGET imgui PROPERTY FOLDER "third party")
 
 # ImGuizmo
 FetchContent_Declare(
@@ -66,26 +68,23 @@ add_library(imguizmo STATIC
 )
 target_include_directories(imguizmo SYSTEM PUBLIC
     ${imguizmo_SOURCE_DIR}
-    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui
+    ${imgui_SOURCE_DIR}
 )
 target_compile_definitions(imguizmo PRIVATE IMGUI_DEFINE_MATH_OPERATORS)
-target_link_libraries(imguizmo PUBLIC Diligent-Imgui)
+target_link_libraries(imguizmo PUBLIC imgui)
 set_property(TARGET imguizmo PROPERTY FOLDER "third party")
 
 # ImGui GLFW backend
 add_library(imgui_glfw STATIC
-    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
 )
 
-target_include_directories(imgui_glfw PRIVATE
-    ${glfw_SOURCE_DIR}/include
-    ${diligentengine_SOURCE_DIR}/DiligentCore
-    ${diligentengine_SOURCE_DIR}/DiligentTools
-    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui
-    ${diligentengine_SOURCE_DIR}/DiligentTools/Imgui/interface
+target_include_directories(imgui_glfw PUBLIC
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
 )
 
-target_link_libraries(imgui_glfw PRIVATE glfw Diligent-Imgui)
+target_link_libraries(imgui_glfw PUBLIC glfw imgui)
 set_property(TARGET imgui_glfw PROPERTY FOLDER "third party")
 
 # ------------------------------------------------------------------------------
@@ -147,11 +146,10 @@ endif()
 
 
 set_dependency_folder("${glfw_SOURCE_DIR}")
-set_dependency_folder("${diligentengine_SOURCE_DIR}")
 set_dependency_folder("${JoltPhysics_SOURCE_DIR}")
 
 # Expose dependency source directories to the engine modules.
 set(glfw_SOURCE_DIR "${glfw_SOURCE_DIR}" PARENT_SCOPE)
-set(diligentengine_SOURCE_DIR "${diligentengine_SOURCE_DIR}" PARENT_SCOPE)
+set(imgui_SOURCE_DIR "${imgui_SOURCE_DIR}" PARENT_SCOPE)
 set(JoltPhysics_SOURCE_DIR "${JoltPhysics_SOURCE_DIR}" PARENT_SCOPE)
 set(tracy_SOURCE_DIR "${tracy_SOURCE_DIR}" PARENT_SCOPE)
