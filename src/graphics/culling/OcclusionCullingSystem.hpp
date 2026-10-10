@@ -1,13 +1,11 @@
 #pragma once
 
 #include "core/Std.hpp"
+#include "core/Settings.hpp"
 
 #include "render/api/RenderResources.hpp"
 
-#include "graphics/culling/MathTypes.hpp"
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
-#include "graphics/Settings.hpp"
-
 
 #include "Scene/TestScenes.hpp"
 

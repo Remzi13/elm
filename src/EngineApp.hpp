@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Error.hpp"
+#include "core/Settings.hpp"
 
 #include "platform/Window.hpp"
 
@@ -10,7 +11,6 @@
 #include "graphics/FrameStats.hpp"
 #include "graphics/ui/ImGuiSystem.hpp"
 #include "graphics/CameraController.hpp"
-#include "graphics/Settings.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 
 #include "physics/PhysicsSystem.hpp"

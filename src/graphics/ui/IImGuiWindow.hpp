@@ -2,10 +2,10 @@
 
 #include "core/Std.hpp"
 #include "core/MessageBus.hpp"
+#include "core/Settings.hpp"
 
 #include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
-#include "graphics/Settings.hpp"
 
 #include <optional>
 #include <utility>

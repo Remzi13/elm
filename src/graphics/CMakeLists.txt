@@ -3,9 +3,7 @@ engine_add_library(graphics
     Camera.cpp
     CameraController.hpp
     CameraController.cpp
-    Settings.hpp
-    Settings.cpp
-
+    
     culling/SoftwareDepthBuffer.hpp
     culling/SoftwareDepthBuffer.cpp
     culling/OcclusionCullingSystem.hpp

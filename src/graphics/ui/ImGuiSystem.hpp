@@ -2,6 +2,7 @@
 
 #include "core/Error.hpp"
 #include "core/MessageBus.hpp"
+#include "core/Settings.hpp"
 
 #include "render/RenderSystem.hpp"
 #include "render/OverlayFrame.hpp"
@@ -11,7 +12,7 @@
 #include "graphics/ui/ImGuiRenderer.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
-#include "graphics/Settings.hpp"
+
 
 #include <atomic>
 #include <memory>
