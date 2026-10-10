@@ -5,6 +5,8 @@ engine_add_library(resmgr
     SerializationError.hpp
     Serializer.hpp
     Serializer.cpp
+    GltfExporter.hpp
+    GltfExporter.cpp
 )
 
 target_include_directories(resmgr PUBLIC

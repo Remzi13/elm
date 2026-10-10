@@ -15,6 +15,8 @@ engine_add_library(graphics
     ui/EngineViewportWindow.hpp
     ui/EngineViewportWindow.cpp
     ui/WindowMessages.hpp
+    ui/FileDialog.hpp
+    ui/FileDialog.cpp
     ui/LogWindow.hpp
     ui/LogWindow.cpp
     ui/SceneHierarchyWindow.hpp

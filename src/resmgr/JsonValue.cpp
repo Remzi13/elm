@@ -138,6 +138,25 @@ namespace elm::resmgr {
         return String(formattedJson.begin(), formattedJson.end());
     }
 
+    auto JsonValue::Find(StringView key) const -> std::optional<JsonValue>
+    {
+        auto node = Resolve(false);
+        if (!node)
+            return std::nullopt;
+
+        const auto* object = static_cast<const glz::json_t*>(*node)->get_if<glz::json_t::object_t>();
+        if (!object)
+            return std::nullopt;
+
+        auto field = object->find(key);
+        if (field == object->end())
+            return std::nullopt;
+
+        auto path = m_path;
+        path.emplace_back(String(key));
+        return JsonValue(m_storage, std::move(path));
+    }
+
     auto JsonValue::operator[](StringView key) const -> JsonValue
     {
         auto path = m_path;

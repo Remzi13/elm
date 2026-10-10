@@ -26,6 +26,7 @@ struct Scene {
         Matrix4x4 worldTransform;
         Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
         bool visible { true };
+        String name;
     };
 
     /// Creates the GPU mesh once; instances refer to it by handle, so equal geometry is drawn instanced.

@@ -9,3 +9,5 @@ third_party/*-subbuild/
 /src/.idea
 docs/.obsidian/
 docs/.trash/
+*.model
+

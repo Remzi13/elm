@@ -1,6 +1,7 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 
 #include "render/RenderSystem.hpp"
+#include "resmgr/GltfExporter.hpp"
 #include "resmgr/Serializer.hpp"
 
 #include "imgui.h"
@@ -10,6 +11,20 @@
 #include <cstdio>
 
 namespace elm {
+namespace {
+
+int ResizeInputBuffer(ImGuiInputTextCallbackData* data)
+{
+    if (data->EventFlag != ImGuiInputTextFlags_CallbackResize)
+        return 0;
+
+    auto& buffer = *static_cast<Vector<char>*>(data->UserData);
+    buffer.resize(static_cast<size_t>(data->BufTextLen) + 1);
+    data->Buf = buffer.data();
+    return 0;
+}
+
+} // namespace
 
 void SceneHierarchyWindow::OnAttach()
 {
@@ -68,6 +83,66 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     if (!m_sceneFileStatus.empty()) {
         ImGui::TextWrapped("%s", m_sceneFileStatus.c_str());
     }
+    if (ImGui::CollapsingHeader("glTF", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::Button("Load glTF Model")) {
+            m_gltfDialogAction = GltfDialogAction::LoadModel;
+            m_gltfFileDialog.Open("Select glTF Model", ".gltf");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Load glTF Scene")) {
+            m_gltfDialogAction = GltfDialogAction::LoadScene;
+            m_gltfFileDialog.Open("Select glTF Scene", ".gltf");
+        }
+        if (ImGui::Button("Export Scene to glTF")) {
+            m_gltfDialogAction = GltfDialogAction::ExportScene;
+            m_gltfFileDialog.SaveAs("Export glTF Scene", ".gltf", "scene.gltf");
+        }
+        if (!scene.instances.empty()) {
+            ImGui::SameLine();
+            if (ImGui::Button("Export Selected Model")) {
+                m_gltfDialogAction = GltfDialogAction::ExportModel;
+                m_gltfFileDialog.SaveAs("Export glTF Model", ".gltf", "model.gltf");
+            }
+        }
+    }
+    if (const auto selectedPath = m_gltfFileDialog.Draw()) {
+        if (m_gltfDialogAction == GltfDialogAction::ExportScene) {
+            auto result = resmgr::GltfExporter::Export(*selectedPath, scene);
+            m_sceneFileStatus = result ? "Scene exported to glTF." : result.error().message;
+        } else if (m_gltfDialogAction == GltfDialogAction::LoadScene) {
+            auto result = resmgr::GltfExporter::LoadScene(scene, context.renderSystem.Resources(), *selectedPath);
+            if (!result) {
+                m_sceneFileStatus = result.error().message;
+            } else {
+                m_selectedInstance = 0;
+                m_sceneFileStatus = "glTF scene loaded.";
+            }
+        } else if (m_gltfDialogAction == GltfDialogAction::LoadModel) {
+            auto model = resmgr::GltfExporter::LoadModel(*selectedPath);
+            if (!model) {
+                m_sceneFileStatus = model.error().message;
+            } else {
+                auto instance = scene.MakeInstance(context.renderSystem.Resources(), model->meshData);
+                instance.color = model->color;
+                instance.name = model->name;
+                scene.instances.push_back(std::move(instance));
+                m_selectedInstance = scene.instances.size() - 1;
+                m_sceneFileStatus = "glTF model loaded.";
+            }
+        } else if (!scene.instances.empty()) {
+            const auto selectedIndex = (std::min)(m_selectedInstance, scene.instances.size() - 1);
+            const auto& instance = scene.instances[selectedIndex];
+            if (!instance.meshData) {
+                m_sceneFileStatus = "Selected instance has no mesh data.";
+            } else {
+                resmgr::Model model{ *instance.meshData, instance.color, instance.name };
+                model.color = instance.color;
+                model.name = instance.name;
+                auto result = resmgr::GltfExporter::ExportModel(model, *selectedPath);
+                m_sceneFileStatus = result ? "Model exported to glTF." : result.error().message;
+            }
+        }
+    }
     ImGui::Separator();
 
     if (scene.instances.empty()) {
@@ -106,9 +181,14 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     const float listWidth = (std::min)(220.0f, availableWidth * 0.4f);
     ImGui::BeginChild("SceneObjects", ImVec2(listWidth, 0.0f), true);
     for (size_t index = 0; index < scene.instances.size(); ++index) {
-        char label[48];
-        std::snprintf(label, sizeof(label), "Instance %zu", index);
-        if (ImGui::Selectable(label, m_selectedInstance == index)) {
+        String label = scene.instances[index].name;
+        if (label.empty()) {
+            label = "Instance ";
+            label += std::to_string(index);
+        }
+        label += "##";
+        label += std::to_string(index);
+        if (ImGui::Selectable(label.c_str(), m_selectedInstance == index)) {
             m_selectedInstance = index;
         }
     }
@@ -144,6 +224,12 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
         auto& instance = scene.instances[m_selectedInstance];
         ImGui::Text("Instance %zu", m_selectedInstance);
         ImGui::Separator();
+        Vector<char> nameBuffer(instance.name.begin(), instance.name.end());
+        nameBuffer.push_back('\0');
+        if (ImGui::InputText("Name", nameBuffer.data(), nameBuffer.size(),
+                ImGuiInputTextFlags_CallbackResize, ResizeInputBuffer, &nameBuffer)) {
+            instance.name.assign(nameBuffer.data(), std::char_traits<char>::length(nameBuffer.data()));
+        }
         ImGui::Checkbox("Visible", &instance.visible);
         float color[4] = { instance.color.x, instance.color.y, instance.color.z, instance.color.w };
         if (ImGui::ColorEdit4("Color", color)) {

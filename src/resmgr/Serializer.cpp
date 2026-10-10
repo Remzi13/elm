@@ -5,6 +5,7 @@
 #include "resmgr/JsonValue.hpp"
 #include "resmgr/SerializationError.hpp"
 
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <iterator>
@@ -59,6 +60,39 @@ namespace elm::resmgr {
             return MakeArray(std::array{ vector.x, vector.y, vector.z });
         }
 
+        auto MakeModelFileStem(StringView name, size_t fallbackIndex) -> String
+        {
+            String stem;
+            stem.reserve(name.size());
+            for (const unsigned char character : name) {
+                const bool invalid = character < 0x20 || character == 0x7f ||
+                    character == '/' || character == '\\' || character == ':' || character == '*' ||
+                    character == '?' || character == '"' || character == '<' || character == '>' || character == '|';
+                stem.push_back(invalid ? '_' : static_cast<char>(character));
+            }
+
+            while (!stem.empty() && (stem.front() == '.' || stem.front() == ' '))
+                stem.erase(stem.begin());
+            while (!stem.empty() && (stem.back() == '.' || stem.back() == ' '))
+                stem.pop_back();
+            if (stem.empty())
+                stem = "model_" + std::to_string(fallbackIndex);
+
+            String reservedCheck = stem;
+            if (const auto extension = reservedCheck.find('.'); extension != String::npos)
+                reservedCheck.resize(extension);
+            for (char& character : reservedCheck)
+                character = static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
+            const bool numberedDevice = reservedCheck.size() == 4 &&
+                (reservedCheck.compare(0, 3, "COM") == 0 || reservedCheck.compare(0, 3, "LPT") == 0) &&
+                reservedCheck[3] >= '1' && reservedCheck[3] <= '9';
+            if (reservedCheck == "CON" || reservedCheck == "PRN" || reservedCheck == "AUX" ||
+                reservedCheck == "NUL" || numberedDevice)
+                stem.insert(stem.begin(), '_');
+
+            return stem;
+        }
+
         auto GetField(const JsonValue& object, StringView key) -> EngineResult<JsonValue>
         {
             auto field = object[key];
@@ -81,7 +115,7 @@ namespace elm::resmgr {
         {
             auto number = value.AsNumber();
             if (!number || !std::isfinite(*number))
-                return UnexpectedSerializationError("Invalid numeric scene field: " + std::string(description), "Serializer");
+                return UnexpectedSerializationError("Invalid numeric scene field: " + String(description), "Serializer");
 
             return *number;
         }
@@ -94,7 +128,7 @@ namespace elm::resmgr {
                 return UnexpectedSerializationError(number.error());
 
             if (*number < 0.0 || *number > static_cast<double>(std::numeric_limits<T>::max()) || std::floor(*number) != *number)
-                return UnexpectedSerializationError("Invalid integer scene field: " + std::string(description), "Serializer");
+                return UnexpectedSerializationError("Invalid integer scene field: " + String(description), "Serializer");
 
             return static_cast<T>(*number);
         }
@@ -103,11 +137,11 @@ namespace elm::resmgr {
         auto ReadFloatArray(const JsonValue& value, StringView description) -> EngineResult<std::array<float, N>>
         {
             if (!value.IsArray())
-                return UnexpectedSerializationError("Invalid array scene field: " + std::string(description), "Serializer");
+                return UnexpectedSerializationError("Invalid array scene field: " + String(description), "Serializer");
 
             auto size = value.Size();
             if (!size || *size != N)
-                return UnexpectedSerializationError("Invalid array scene field: " + std::string(description), "Serializer");
+                return UnexpectedSerializationError("Invalid array scene field: " + String(description), "Serializer");
 
             std::array<float, N> result{};
             for (size_t index = 0; index < N; ++index) {
@@ -118,7 +152,7 @@ namespace elm::resmgr {
                 if (!number)
                     return UnexpectedSerializationError(number.error());
                 if (*number < -std::numeric_limits<float>::max() || *number > std::numeric_limits<float>::max())
-                    return UnexpectedSerializationError("Scene number is outside the float range: " + std::string(description), "Serializer");
+                    return UnexpectedSerializationError("Scene number is outside the float range: " + String(description), "Serializer");
 
                 result[index] = static_cast<float>(*number);
             }
@@ -129,7 +163,7 @@ namespace elm::resmgr {
         auto ReadMatrix(const JsonValue& value, StringView description) -> EngineResult<std::array<float, 16>>
         {
             if (!value.IsArray())
-                return UnexpectedSerializationError("Invalid array scene field: " + std::string(description), "Serializer");
+                return UnexpectedSerializationError("Invalid array scene field: " + String(description), "Serializer");
 
             auto size = value.Size();
             if (!size)
@@ -139,7 +173,7 @@ namespace elm::resmgr {
                 return ReadFloatArray<16>(value, description);
 
             if (*size != 4)
-                return UnexpectedSerializationError("Invalid matrix scene field: " + std::string(description), "Serializer");
+                return UnexpectedSerializationError("Invalid matrix scene field: " + String(description), "Serializer");
 
             std::array<float, 16> matrix{};
             for (size_t row = 0; row < 4; ++row) {
@@ -171,7 +205,7 @@ namespace elm::resmgr {
             if (!value)
                 return UnexpectedSerializationError(value.error());
             if (!value->IsArray())
-                return UnexpectedSerializationError("Scene field is not an array: " + std::string(key), "Serializer");
+                return UnexpectedSerializationError("Scene field is not an array: " + String(key), "Serializer");
 
             return std::move(*value);
         }
@@ -192,7 +226,7 @@ namespace elm::resmgr {
 
             auto result = value->AsBoolean();
             if (!result)
-                return UnexpectedSerializationError("Invalid boolean scene field: " + std::string(key), "Serializer");
+                return UnexpectedSerializationError("Invalid boolean scene field: " + String(key), "Serializer");
             return *result;
         }
 
@@ -257,6 +291,9 @@ namespace elm::resmgr {
             if (!result)
                 return UnexpectedSerializationError(result.error());
             result = SetField(document, "color", std::move(*color));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            result = SetField(document, "name", JsonValue(model.name.c_str()));
             if (!result)
                 return UnexpectedSerializationError(result.error());
             return document;
@@ -353,6 +390,12 @@ namespace elm::resmgr {
                     return UnexpectedSerializationError(color.error());
                 model.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
             }
+            if (const auto nameValue = document.Find("name")) {
+                auto name = nameValue->AsString();
+                if (!name)
+                    return UnexpectedSerializationError(name.error());
+                model.name = std::move(*name);
+            }
             return model;
         }
 
@@ -382,6 +425,7 @@ namespace elm::resmgr {
 
         JsonValue serializedModels{ JsonValue::Type::Array };
         UnorderedMap<const MeshData*, size_t> meshIndices;
+        Set<String> modelFileNames;
         const auto sceneDirectory = path.parent_path().empty() ? std::filesystem::path(".") : path.parent_path();
         for (const auto& mesh : scene.meshes) {
             const auto& meshData = mesh.GetData();
@@ -390,14 +434,22 @@ namespace elm::resmgr {
             if (meshIndices.find(meshData.get()) != meshIndices.end())
                 continue;
 
-            const auto modelPath = sceneDirectory /
-                (path.stem().string() + "_model_" + std::to_string(meshIndices.size()) + ".model");
-            Model model{ *meshData };
+            Model model{ *meshData, {}, {} };
             const auto instance = std::find_if(scene.instances.begin(), scene.instances.end(), [&](const Scene::Instance& candidate) {
                 return candidate.meshData.get() == meshData.get();
             });
-            if (instance != scene.instances.end())
+            if (instance != scene.instances.end()) {
                 model.color = instance->color;
+                model.name = instance->name;
+            }
+
+            const auto baseStem = MakeModelFileStem(
+                StringView(model.name.data(), model.name.size()), meshIndices.size());
+            String fileStem = baseStem;
+            size_t suffix = 1;
+            while (!modelFileNames.insert(fileStem).second)
+                fileStem = baseStem + "_" + std::to_string(suffix++).c_str();
+            const auto modelPath = sceneDirectory / (fileStem + ".model");
 
             auto writeModel = SaveModel(model, modelPath);
             if (!writeModel)
@@ -444,6 +496,9 @@ namespace elm::resmgr {
             if (!result)
                 return UnexpectedSerializationError(result.error());
             result = SetField(serializedInstance, "visible", JsonValue(instance.visible));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            result = SetField(serializedInstance, "name", JsonValue(instance.name.c_str()));
             if (!result)
                 return UnexpectedSerializationError(result.error());
             result = AddToArray(serializedInstances, std::move(serializedInstance));
@@ -601,6 +656,12 @@ namespace elm::resmgr {
                 instance.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
             }
             instance.visible = *visible;
+            if (const auto nameField = serializedInstance->Find("name")) {
+                auto name = nameField->AsString();
+                if (!name)
+                    return UnexpectedSerializationError(name.error());
+                instance.name = std::move(*name);
+            }
             loadedScene.instances.push_back(std::move(instance));
         }
 

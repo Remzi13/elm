@@ -9,6 +9,7 @@
 #include <utility>
 #include <functional>
 #include <deque>
+#include <unordered_set>
 
 namespace elm {
     
@@ -20,6 +21,10 @@ namespace elm {
 
     template<typename K, typename V>
     using UnorderedMap = std::unordered_map<K, V, std::hash<K>, std::equal_to<K>, memory::Allocator<std::pair<const K, V>>>;
+
+    template<typename T>
+    using Set = std::unordered_set<T, std::hash<T>, std::equal_to<T>, memory::Allocator<T>>;
+    
 
     template<typename T>
     using Deque = std::deque<T, memory::Allocator<T>>;

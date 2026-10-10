@@ -2,6 +2,7 @@
 #include "core/Std.hpp"
 #include "core/Error.hpp"
 
+#include <optional>
 #include <variant>
 
 namespace elm::resmgr {
@@ -38,6 +39,7 @@ namespace elm::resmgr {
         [[nodiscard]] auto SetArray() -> EngineResult<void>;
 
         [[nodiscard]] auto ToString() const -> EngineResult<String>;
+        [[nodiscard]] auto Find(StringView key) const -> std::optional<JsonValue>;
         [[nodiscard]] auto operator[](StringView key) const -> JsonValue;
         [[nodiscard]] auto operator[](size_t index) const -> JsonValue;
         [[nodiscard]] auto At(size_t index) const -> JsonValue;
