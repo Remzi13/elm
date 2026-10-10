@@ -3,6 +3,7 @@
 #include "core/Debug.hpp"
 #include "core/Log.hpp"
 #include "core/Memory.hpp"
+#include "core/Unexpected.hpp"
 
 #include "render/ShaderSource.hpp"
 #include "render/backend/diligent/Utils.hpp"
@@ -501,7 +502,8 @@ auto DiligentBackend::Init(const NativeWindow& window, Size size) -> EngineResul
 #if PLATFORM_WIN32
     auto* pFactory = Diligent::GetEngineFactoryD3D12();
     if (!pFactory) {
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryD3D12"));
+        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryD3D12",
+            log::Category::Render, "DiligentBackend");
     }
 
     Diligent::EngineD3D12CreateInfo engineCreateInfo;
@@ -512,7 +514,8 @@ auto DiligentBackend::Init(const NativeWindow& window, Size size) -> EngineResul
 #else
     auto* pFactory = Diligent::GetEngineFactoryVk();
     if (!pFactory) {
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryVk"));
+        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to load Diligent EngineFactoryVk",
+            log::Category::Render, "DiligentBackend");
     }
 
     Diligent::EngineVkCreateInfo engineCreateInfo;
@@ -524,13 +527,15 @@ auto DiligentBackend::Init(const NativeWindow& window, Size size) -> EngineResul
 #endif
 
     if (!m_device || !m_context) {
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts"));
+        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create Diligent Render Device & Contexts",
+            log::Category::Render, "DiligentBackend");
     }
 
     m_mainSurface = CreateSwapChain(window, size.width, size.height, true);
     if (!m_mainSurface || !m_mainSurface.GetCurrentBackBufferRTV() || !m_mainSurface.GetDepthBufferDSV()) {
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed,
-            "Failed to create Diligent SwapChain with required color and depth-stencil views"));
+        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed,
+            "Failed to create Diligent SwapChain with required color and depth-stencil views",
+            log::Category::Render, "DiligentBackend");
     }
 
     // The upload arenas are copied with UpdateBuffer, which only transfers the used bytes
@@ -539,7 +544,8 @@ auto DiligentBackend::Init(const NativeWindow& window, Size size) -> EngineResul
     m_uploadBuffers[1] = createBuffer(m_device, m_context, "Upload Index Stream", BufferType::Index,
         ResourceUsage::Default, rhi::UploadAllocator::GetDefaultCapacity(rhi::UploadArena::Index), nullptr, 0);
     if (!m_uploadBuffers[0] || !m_uploadBuffers[1]) {
-        return std::unexpected(EngineError(ErrorCode::RenderEngineInitializationFailed, "Failed to create upload buffers"));
+        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create upload buffers",
+            log::Category::Render, "DiligentBackend");
     }
     return {};
 }

@@ -3,6 +3,18 @@
 set(FETCHCONTENT_BASE_DIR "${CMAKE_SOURCE_DIR}/../elm_deps" CACHE PATH "FetchContent dependency directory" FORCE)
 set(CMAKE_FOLDER "third party")
 
+# ------------------------------------------------------------------------------
+# Glaze
+# ------------------------------------------------------------------------------
+FetchContent_Declare(
+    glaze
+    GIT_REPOSITORY https://github.com/stephenberry/glaze.git
+    GIT_TAG        v4.4.1
+    GIT_SHALLOW    TRUE
+)
+FetchContent_MakeAvailable(glaze)
+set_property(TARGET glaze_glaze PROPERTY FOLDER "third party")
+
 function(set_dependency_folder directory)
     get_property(targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
     foreach(target IN LISTS targets)

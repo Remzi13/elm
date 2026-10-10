@@ -1,6 +1,7 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 
 #include "render/RenderSystem.hpp"
+#include "resmgr/Serializer.hpp"
 
 #include "imgui.h"
 #include "math/Primitivs.hpp"
@@ -43,6 +44,29 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
                 context.renderSystem.Resources());
             m_selectedInstance = 0;
         }
+    }
+    ImGui::InputText("Scene file", m_sceneFilePath, sizeof(m_sceneFilePath));
+    ImGui::SameLine();
+    if (ImGui::Button("Save Scene")) {
+        auto result = resmgr::Serializer::SaveScene(scene, m_sceneFilePath);
+        if (result) {
+            m_sceneFileStatus = "Scene saved.";
+        } else {
+            m_sceneFileStatus = result.error().message;
+        }
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Load Scene")) {
+        auto result = resmgr::Serializer::LoadScene(scene, context.renderSystem.Resources(), m_sceneFilePath);
+        if (result) {
+            m_selectedInstance = 0;
+            m_sceneFileStatus = "Scene loaded.";
+        } else {
+            m_sceneFileStatus = result.error().message;
+        }
+    }
+    if (!m_sceneFileStatus.empty()) {
+        ImGui::TextWrapped("%s", m_sceneFileStatus.c_str());
     }
     ImGui::Separator();
 

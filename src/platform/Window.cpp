@@ -1,4 +1,5 @@
 #include "platform/Window.hpp"
+#include "core/Unexpected.hpp"
 
 #if PLATFORM_WIN32
 #include <windows.h>
@@ -28,7 +29,8 @@ auto Window::Create(Size size, StringView title) -> EngineResult<void>
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 #endif
     if (!glfwInit())
-        return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW"));
+        return MakeUnexpected(ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW",
+            log::Category::Core, "Window");
     m_glfwInitialized = true;
 
     // The renderer owns the graphics API, GLFW only provides the window
@@ -38,7 +40,8 @@ auto Window::Create(Size size, StringView title) -> EngineResult<void>
     m_window = glfwCreateWindow(static_cast<int>(size.width), static_cast<int>(size.height), String(title).c_str(), nullptr, nullptr);
     if (!m_window) {
         Destroy();
-        return std::unexpected(EngineError(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window"));
+        return MakeUnexpected(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window",
+            log::Category::Core, "Window");
     }
     return {};
 }

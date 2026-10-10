@@ -12,6 +12,7 @@ enum class ErrorCode {
     RenderEngineInitializationFailed,
     PhysicsInitializationFailed,
     ResourceCreationFailed,
+    SerializationFailed,
     UnknownError
 };
 

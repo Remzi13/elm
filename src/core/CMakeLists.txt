@@ -8,6 +8,7 @@ engine_add_library(core
     Log.cpp
     Error.cpp
     Error.hpp
+    Unexpected.hpp
     Timer.hpp
     Timer.cpp
     Threading.hpp

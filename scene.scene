@@ -1,0 +1,47 @@
+{
+   "formatVersion": 2,
+   "instances": [
+      {
+         "color": [
+            0.800000011920929,
+            0.800000011920929,
+            0.800000011920929,
+            1
+         ],
+         "meshIndex": 0,
+         "visible": true,
+         "worldTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0.5
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ]
+      }
+   ],
+   "models": [
+      {
+         "path": "scene_model_0.model"
+      }
+   ],
+   "preset": 0
+}

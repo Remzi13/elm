@@ -22,6 +22,8 @@ private:
     size_t m_selectedInstance { 0 };
     GizmoOperation m_gizmoOperation { GizmoOperation::Translate };
     bool m_useLocalSpace { false };
+    char m_sceneFilePath[260] { "scene.scene" };
+    String m_sceneFileStatus;
     Vector<MessageBus::Subscription> m_querySubscriptions;
 };
 

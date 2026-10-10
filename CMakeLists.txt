@@ -46,9 +46,10 @@ add_subdirectory(src/core)
 add_subdirectory(src/math)
 add_subdirectory(src/input)
 add_subdirectory(src/render)
+add_subdirectory(src/Scene)
+add_subdirectory(src/resmgr)
 add_subdirectory(src/graphics)
 add_subdirectory(src/physics)
-add_subdirectory(src/Scene)
 add_subdirectory(src/platform)
 
 # ------------------------------------------------------------------------------
@@ -67,7 +68,7 @@ else()
     target_compile_definitions(Engine PUBLIC PLATFORM_LINUX=1)
 endif()
 target_set_warnings(Engine)
-target_link_libraries(Engine PRIVATE core math input graphics physics Scene)
+target_link_libraries(Engine PRIVATE core math input graphics physics resmgr Scene)
 
 set_target_properties(Engine PROPERTIES
     CXX_STANDARD 23

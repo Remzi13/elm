@@ -3,6 +3,7 @@
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 #include "core/Log.hpp"
+#include "core/Unexpected.hpp"
 
 #include "core/JobSystem.hpp"
 #include "core/Threading.hpp"
@@ -37,12 +38,12 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     core::registerThread(core::ThreadRole::Update);
     core::JobSystem::Get().Init();
     if (auto windowInit = m_window.Create(Size(width, height), title); !windowInit) {
-        return std::unexpected(windowInit.error());
+        return MakeUnexpected(windowInit.error());
     }
     auto renderInit = m_renderSystem->Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize());
     if (!renderInit) {
         m_window.Destroy();
-        return std::unexpected(renderInit.error());
+        return MakeUnexpected(renderInit.error());
     }
 
     m_engineViewPort = render::ViewPort(m_renderSystem->Resources(), Size(width, height));
@@ -53,7 +54,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     if (!imguiInit) {
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
-        return std::unexpected(imguiInit.error());
+        return MakeUnexpected(imguiInit.error());
     }
 
     // Register UI input consumer for keyboard focus (e.g. typing in text fields)
@@ -82,7 +83,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         m_imguiSystem->Shutdown();
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
-        return std::unexpected(physicsInit.error());
+        return MakeUnexpected(physicsInit.error());
     }
 
     m_cullingSystem.Init(m_renderSystem->Resources());
@@ -120,7 +121,8 @@ void EngineApp::RenderThreadFunc()
 auto EngineApp::Run() -> EngineResult<void>
 {
     if (!m_isRunning) {
-        return std::unexpected(EngineError(ErrorCode::UnknownError, "EngineApp::Run called without prior successful initialization"));
+        return MakeUnexpected(ErrorCode::UnknownError,
+            "EngineApp::Run called without prior successful initialization", log::Category::Core, "EngineApp");
     }
 
     LOG_MESSAGE( log::Category::Core, "EngineApp", "Entering main loop with pipelined Update/Render." );

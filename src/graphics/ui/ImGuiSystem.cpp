@@ -1,4 +1,5 @@
 #include "graphics/ui/ImGuiSystem.hpp"
+#include "core/Unexpected.hpp"
 
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
@@ -81,7 +82,8 @@ namespace elm {
 		if ( !m_renderer->IsInitialized() ) {
 			m_renderer.reset();
 			Shutdown();
-			return std::unexpected( elm::EngineError( elm::ErrorCode::UnknownError, "Failed to initialize ImGui renderer" ) );
+			return MakeUnexpected(ErrorCode::UnknownError, "Failed to initialize ImGui renderer",
+				log::Category::Core, "ImGuiSystem");
 		}
 		m_rendererInitialized = true;
 		auto& io = ImGui::GetIO();
@@ -107,7 +109,8 @@ namespace elm {
 		m_glfwInitialized = ImGui_ImplGlfw_InitForOther( m_window, true );
 		if ( !m_glfwInitialized ) {
 			Shutdown();
-			return std::unexpected( elm::EngineError( elm::ErrorCode::UnknownError, "Failed to initialize ImGui GLFW backend" ) );
+			return MakeUnexpected(ErrorCode::UnknownError, "Failed to initialize ImGui GLFW backend",
+				log::Category::Core, "ImGuiSystem");
 		}
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
