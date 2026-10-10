@@ -22,7 +22,7 @@ struct Size
 
     [[nodiscard]] constexpr bool IsEmpty() const noexcept
     {
-        return width <= 0.0f || height <= 0.0f;
+        return width <= 0 || height <= 0;
     }
 };
 

@@ -12,7 +12,6 @@
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
-#include <filesystem>
 
 #include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
@@ -94,9 +93,9 @@ namespace elm {
 		io.ConfigViewportsNoAutoMerge = false;
 		io.UserData = this;
 
-		const std::filesystem::path sourceRoot =
-			std::filesystem::path{ __FILE__ }.parent_path().parent_path().parent_path();
-		if ( std::filesystem::exists( sourceRoot / "CMakeLists.txt" ) ) {
+		const Path sourceRoot =
+			Path{ __FILE__ }.Parent().Parent().Parent();
+		if ( FileSystem::Exists( sourceRoot / "CMakeLists.txt" ) ) {
 			m_iniFilePath = ( sourceRoot / "imgui.ini" ).string();
 		}
 		else {

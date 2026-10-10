@@ -6,28 +6,11 @@
 #include <cstdio>
 #include <system_error>
 
-#if defined(ELM_PLATFORM_WINDOWS)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
 namespace elm::ui {
 
-auto FileDialog::PathToString(const std::filesystem::path& path) -> String
+auto FileDialog::PathToString(const Path& path) -> String
 {
-#if defined(ELM_PLATFORM_WINDOWS)
-    if (path.empty())
-        return { };
-    const std::wstring wstr = path.native();
-    if (wstr.empty())
-        return { };
-
-    int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), nullptr, 0, nullptr, nullptr);
-    String result(sizeNeeded, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), result.data(), sizeNeeded, nullptr, nullptr);
-    return result;
-#else
-    return String(path.string());
-#endif
+    return String(path.string().c_str());
 }
 
 void FileDialog::Open(StringView title, StringView extension)
@@ -36,9 +19,9 @@ void FileDialog::Open(StringView title, StringView extension)
     m_extension = String(extension);
     m_saveMode = false;
     m_saveFileName.fill('\0');
-    m_selectedPath.clear();
+    m_selectedPath.Clear();
     std::error_code error;
-    m_directory = std::filesystem::current_path(error);
+    m_directory = FileSystem::CurrentPath(error);
     m_error = error ? String(error.message().c_str()) : String { };
     if (!error)
         RefreshEntries();
@@ -50,11 +33,11 @@ void FileDialog::SaveAs(StringView title, StringView extension, StringView defau
     m_title = String(title);
     m_extension = String(extension);
     m_saveMode = true;
-    m_selectedPath.clear();
+    m_selectedPath.Clear();
     std::snprintf(m_saveFileName.data(), m_saveFileName.size(), "%.*s",
         static_cast<int>(defaultFileName.size()), defaultFileName.data());
     std::error_code error;
-    m_directory = std::filesystem::current_path(error);
+    m_directory = FileSystem::CurrentPath(error);
     m_error = error ? String(error.message().c_str()) : String { };
     if (!error)
         RefreshEntries();
@@ -67,8 +50,8 @@ void FileDialog::RefreshEntries()
     m_error.clear();
 
     std::error_code error;
-    std::filesystem::directory_iterator entry(m_directory, error);
-    const std::filesystem::directory_iterator end;
+    Directory dir(m_directory);
+    auto entry = dir.Begin(error);
     if (error) {
         m_error = String(error.message().c_str());
         return;
@@ -76,27 +59,27 @@ void FileDialog::RefreshEntries()
 
     Vector<Entry> directories;
     Vector<Entry> files;
-    while (entry != end) {
+    while (!entry.IsEnd()) {
         std::error_code typeError;
-        const bool isDirectory = entry->is_directory(typeError);
+        const bool isDirectory = entry.IsDirectory(typeError);
         if (typeError) {
             m_error = String(typeError.message().c_str());
             return;
         }
 
         if (isDirectory) {
-            directories.push_back({ entry->path(), true });
+            directories.push_back({ entry.CurrentPath(), true });
         } else {
-            const bool isRegularFile = entry->is_regular_file(typeError);
+            const bool isRegularFile = entry.IsRegularFile(typeError);
             if (typeError) {
                 m_error = String(typeError.message().c_str());
                 return;
             }
-            if (isRegularFile && entry->path().extension() == m_extension)
-                files.push_back({ entry->path(), false });
+            if (isRegularFile && entry.Extension() == m_extension)
+                files.push_back({ entry.CurrentPath(), false });
         }
 
-        entry.increment(error);
+        entry.Next(error);
         if (error) {
             m_error = String(error.message().c_str());
             return;
@@ -104,7 +87,7 @@ void FileDialog::RefreshEntries()
     }
 
     const auto sortByName = [](const Entry& left, const Entry& right) {
-        return PathToString(left.path.filename()) < PathToString(right.path.filename());
+        return PathToString(left.path.Filename()) < PathToString(right.path.Filename());
     };
     std::sort(files.begin(), files.end(), sortByName);
     m_entries.reserve(directories.size() + files.size());
@@ -112,16 +95,16 @@ void FileDialog::RefreshEntries()
     m_entries.insert(m_entries.end(), files.begin(), files.end());
 }
 
-auto FileDialog::Draw() -> std::optional<std::filesystem::path>
+auto FileDialog::Draw() -> std::optional<Path>
 {
     if (!ImGui::BeginPopupModal(m_title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         return std::nullopt;
 
     ImGui::TextWrapped("%s", PathToString(m_directory).c_str());
-    const auto parent = m_directory.parent_path();
+    const auto parent = m_directory.Parent();
     if (parent != m_directory && ImGui::Button("..")) {
         m_directory = parent;
-        m_selectedPath.clear();
+        m_selectedPath.Clear();
         RefreshEntries();
     }
 
@@ -129,12 +112,12 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
         ImGui::TextWrapped("Error: %s", m_error.c_str());
     } else {
         ImGui::BeginChild("FileDialogEntries", ImVec2(480.0f, 280.0f), true);
-        std::optional<std::filesystem::path> selectedEntry;
+        std::optional<Path> selectedEntry;
         for (const auto& entry : m_entries) {
             String label;
             if (entry.isDirectory)
                 label = "[Folder] ";
-            label += PathToString(entry.path.filename());
+            label += PathToString(entry.path.Filename());
             const bool selected = !m_saveMode && !entry.isDirectory && entry.path == m_selectedPath;
             if (ImGui::Selectable(label.c_str(), selected)) {
                 if (entry.isDirectory) {
@@ -142,7 +125,7 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
                 } else if (!m_saveMode) {
                     m_selectedPath = entry.path;
                 } else {
-                    String filenameStr = PathToString(entry.path.filename());
+                    String filenameStr = PathToString(entry.path.Filename());
                     std::snprintf(m_saveFileName.data(), m_saveFileName.size(), "%s",
                         filenameStr.c_str());
                 }
@@ -151,7 +134,7 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
         ImGui::EndChild();
         if (selectedEntry) {
             m_directory = std::move(*selectedEntry);
-            m_selectedPath.clear();
+            m_selectedPath.Clear();
             RefreshEntries();
         }
     }
@@ -159,26 +142,17 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
     if (m_saveMode)
         ImGui::InputText("File name", m_saveFileName.data(), m_saveFileName.size());
 
-    std::optional<std::filesystem::path> selectedPath;
-    const bool canConfirm = m_saveMode ? m_saveFileName[0] != '\0' : !m_selectedPath.empty();
+    std::optional<Path> selectedPath;
+    const bool canConfirm = m_saveMode ? m_saveFileName[0] != '\0' : !m_selectedPath.Empty();
     if (!canConfirm)
         ImGui::BeginDisabled();
     if (ImGui::Button(m_saveMode ? "Save" : "Open")) {
         if (m_saveMode) {
-            // Создаем путь из UTF-8 буфера ввода
-#if defined(ELM_PLATFORM_WINDOWS)
-            // Конвертируем UTF-8 в wchar_t для корректного создания path на Windows
-            int wcharsNum = MultiByteToWideChar(CP_UTF8, 0, m_saveFileName.data(), -1, nullptr, 0);
-            Vector<wchar_t> wstr(wcharsNum);
-            MultiByteToWideChar(CP_UTF8, 0, m_saveFileName.data(), -1, wstr.data(), wcharsNum);
-            std::filesystem::path filename(wstr.data());
-#else
-            std::filesystem::path filename(m_saveFileName.data());
-#endif
-            if (filename.has_parent_path() || filename.is_absolute()) {
+            Path filename(m_saveFileName.data());
+            if (filename.HsaParentPath() || filename.IsAbsolute()) {
                 m_error = "Enter a file name, not a path.";
             } else {
-                if (filename.extension() != m_extension)
+                if (filename.Extension() != m_extension)
                     filename += m_extension;
                 selectedPath = m_directory / filename;
             }

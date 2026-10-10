@@ -401,7 +401,7 @@ namespace elm::resmgr {
 
     }
 
-    auto Serializer::SaveModel(const Model& model, const std::filesystem::path& path) -> EngineResult<void>
+    auto Serializer::SaveModel(const Model& model, const Path& path) -> EngineResult<void>
     {
         auto serializedModel = SerializeModel(model);
         if (!serializedModel)
@@ -413,7 +413,7 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::SaveScene(const Scene& scene, const std::filesystem::path& path) -> EngineResult<void>
+    auto Serializer::SaveScene(const Scene& scene, const Path& path) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
         auto result = SetField(document, "formatVersion", JsonValue(2.0));
@@ -426,7 +426,7 @@ namespace elm::resmgr {
         JsonValue serializedModels{ JsonValue::Type::Array };
         UnorderedMap<const MeshData*, size_t> meshIndices;
         Set<String> modelFileNames;
-        const auto sceneDirectory = path.parent_path().empty() ? std::filesystem::path(".") : path.parent_path();
+        const auto sceneDirectory = path.Parent().Empty() ? Path(".") : path.Parent();
         for (const auto& mesh : scene.meshes) {
             const auto& meshData = mesh.GetData();
             if (!meshData)
@@ -449,13 +449,13 @@ namespace elm::resmgr {
             size_t suffix = 1;
             while (!modelFileNames.insert(fileStem).second)
                 fileStem = baseStem + "_" + std::to_string(suffix++).c_str();
-            const auto modelPath = sceneDirectory / (fileStem + ".model");
+            const auto modelPath = sceneDirectory / StringView(fileStem + ".model");
 
             auto writeModel = SaveModel(model, modelPath);
             if (!writeModel)
                 return UnexpectedSerializationError(writeModel.error());
 
-            const auto relativeModelPath = modelPath.lexically_relative(sceneDirectory).generic_string();
+            const auto relativeModelPath = modelPath.LexicallyRelative(sceneDirectory).generic_string();
             JsonValue modelReference{ JsonValue::Type::Object };
             result = SetField(modelReference, "path", JsonValue(relativeModelPath));
             if (!result)
@@ -517,7 +517,7 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::LoadScene(Scene& scene, render::RenderResources& resources, const std::filesystem::path& path) -> EngineResult<void>
+    auto Serializer::LoadScene(Scene& scene, render::RenderResources& resources, const Path& path) -> EngineResult<void>
     {
         auto json = ReadFile(path);
         if (!json)
@@ -583,11 +583,11 @@ namespace elm::resmgr {
                 if (!modelPathText)
                     return UnexpectedSerializationError(modelPathText.error());
 
-                const std::filesystem::path relativeModelPath(*modelPathText);
-                if (relativeModelPath.empty() || relativeModelPath.is_absolute())
+                const Path relativeModelPath(*modelPathText);
+                if (relativeModelPath.Empty() || relativeModelPath.IsAbsolute())
                     return UnexpectedSerializationError("Scene model path must be a non-empty relative path", "Serializer");
 
-                auto modelJson = ReadFile(path.parent_path() / relativeModelPath);
+                auto modelJson = ReadFile(path.Parent() / relativeModelPath);
                 if (!modelJson)
                     return UnexpectedSerializationError(modelJson.error());
                 auto parseModelResult = modelDocument.Parse(*modelJson);
@@ -669,9 +669,9 @@ namespace elm::resmgr {
         return {};
     }
 
-    auto Serializer::WriteFile(const std::filesystem::path& path, StringView contents) -> EngineResult<void>
+    auto Serializer::WriteFile(const Path& path, StringView contents) -> EngineResult<void>
     {
-        std::ofstream file(path, std::ios::binary | std::ios::trunc);
+        auto file = FileSystem::OpenForWriting(path, std::ios::binary | std::ios::trunc);
         if (!file)
             return UnexpectedSerializationError("Failed to open file for writing: " + path.string(), "Serializer");
 
@@ -683,9 +683,9 @@ namespace elm::resmgr {
         return {};
     }
 
-    auto Serializer::ReadFile(const std::filesystem::path& path) -> EngineResult<String>
+    auto Serializer::ReadFile(const Path& path) -> EngineResult<String>
     {
-        std::ifstream file(path, std::ios::binary);
+        auto file = FileSystem::OpenForReading(path, std::ios::binary);
         if (!file)
             return UnexpectedSerializationError("Failed to open file for reading: " + path.string(), "Serializer");
 

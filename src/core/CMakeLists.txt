@@ -21,6 +21,8 @@ engine_add_library(core
     MessageBus.hpp
     Settings.hpp
     Settings.cpp
+    FileSystem.hpp
+    FileSystem.cpp
 )
 
 target_include_directories(core PUBLIC

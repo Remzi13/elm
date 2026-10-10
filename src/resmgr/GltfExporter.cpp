@@ -12,7 +12,6 @@
 #include <limits>
 #include <optional>
 #include <span>
-#include <string>
 #include <tuple>
 
 namespace elm::resmgr {
@@ -120,9 +119,9 @@ namespace elm::resmgr {
             return encoded;
         }
 
-        auto WriteBytes(const std::filesystem::path& path, const Vector<uint8_t>& bytes) -> EngineResult<void>
+        auto WriteBytes(const Path& path, const Vector<uint8_t>& bytes) -> EngineResult<void>
         {
-            std::ofstream file(path, std::ios::binary);
+            auto file = FileSystem::OpenForWriting(path, std::ios::binary);
             if (!file)
                 return Failure("Unable to open glTF output file: " + path.string());
             if (!bytes.empty())
@@ -133,11 +132,11 @@ namespace elm::resmgr {
         }
 
         auto ExportModels(
-            const std::filesystem::path& path,
+            const Path& path,
             const Vector<Model>& models,
             std::span<const Matrix4x4> transforms) -> EngineResult<void>
         {
-            if (path.empty())
+            if (path.Empty())
                 return Failure("glTF output path is empty");
             if (!transforms.empty() && transforms.size() != models.size())
                 return Failure("glTF model and transform counts do not match");
@@ -373,9 +372,9 @@ namespace elm::resmgr {
                 if (!result) return UnexpectedSerializationError(result.error());
             }
 
-            const auto binaryPath = path.parent_path() / (path.stem().string() + ".bin");
+            const auto binaryPath = path.Parent() / (path.Stem().string() + ".bin");
             JsonValue buffer{ JsonValue::Type::Object };
-            result = SetField(buffer, "uri", JsonValue(EncodeUri(binaryPath.filename().generic_string())));
+            result = SetField(buffer, "uri", JsonValue(EncodeUri(binaryPath.Filename().generic_string())));
             if (!result) return UnexpectedSerializationError(result.error());
             result = AddNumberField(buffer, "byteLength", binary.size());
             if (!result) return UnexpectedSerializationError(result.error());
@@ -411,7 +410,7 @@ namespace elm::resmgr {
             auto writeBinary = WriteBytes(binaryPath, binary);
             if (!writeBinary)
                 return UnexpectedSerializationError(writeBinary.error());
-            std::ofstream jsonFile(path, std::ios::binary);
+            auto jsonFile = FileSystem::OpenForWriting(path, std::ios::binary);
             if (!jsonFile)
                 return Failure("Unable to open glTF output file: " + path.string());
             jsonFile.write(json->data(), static_cast<std::streamsize>(json->size()));
@@ -479,9 +478,9 @@ namespace elm::resmgr {
             return result;
         }
 
-        auto ReadFile(const std::filesystem::path& path) -> EngineResult<Vector<uint8_t>>
+        auto ReadFile(const Path& path) -> EngineResult<Vector<uint8_t>>
         {
-            std::ifstream file(path, std::ios::binary);
+            auto file = FileSystem::OpenForReading(path, std::ios::binary);
             if (!file)
                 return Failure("Unable to open glTF resource: " + path.string());
 
@@ -569,7 +568,7 @@ namespace elm::resmgr {
             return decoded;
         }
 
-        auto LoadBufferUri(const std::filesystem::path& gltfPath, StringView uri) -> EngineResult<Vector<uint8_t>>
+        auto LoadBufferUri(const Path& gltfPath, StringView uri) -> EngineResult<Vector<uint8_t>>
         {
             constexpr StringView dataPrefix = "data:";
             if (uri.starts_with(dataPrefix)) {
@@ -585,15 +584,11 @@ namespace elm::resmgr {
             auto decodedUri = DecodeUri(uri);
             if (!decodedUri)
                 return UnexpectedSerializationError(decodedUri.error());
-            std::u8string utf8Uri;
-            utf8Uri.reserve(decodedUri->size());
-            for (const unsigned char character : *decodedUri)
-                utf8Uri.push_back(static_cast<char8_t>(character));
-            const std::filesystem::path bufferPath = gltfPath.parent_path() / std::filesystem::path(std::move(utf8Uri));
+            const Path bufferPath = gltfPath.Parent() / Path(*decodedUri);
             return ReadFile(bufferPath);
         }
 
-        auto LoadDocument(const std::filesystem::path& path) -> EngineResult<GltfDocument>
+        auto LoadDocument(const Path& path) -> EngineResult<GltfDocument>
         {
             auto jsonBytes = ReadFile(path);
             if (!jsonBytes)
@@ -1150,12 +1145,12 @@ namespace elm::resmgr {
         }
     }
 
-    auto GltfExporter::ExportModel(const Model& model, const std::filesystem::path& path) -> EngineResult<void>
+    auto GltfExporter::ExportModel(const Model& model, const Path& path) -> EngineResult<void>
     {
         return ExportModels(path, Vector<Model>{ model }, {});
     }
 
-    auto GltfExporter::Export(const std::filesystem::path& path, const Scene& scene) -> EngineResult<void>
+    auto GltfExporter::Export(const Path& path, const Scene& scene) -> EngineResult<void>
     {
         Vector<Model> models;
         Vector<Matrix4x4> transforms;
@@ -1173,7 +1168,7 @@ namespace elm::resmgr {
         return ExportModels(path, models, transforms);
     }
 
-    auto GltfExporter::LoadModel(const std::filesystem::path& path, size_t meshIndex, size_t primitiveIndex) -> EngineResult<Model>
+    auto GltfExporter::LoadModel(const Path& path, size_t meshIndex, size_t primitiveIndex) -> EngineResult<Model>
     {
         auto document = LoadDocument(path);
         if (!document)
@@ -1192,7 +1187,7 @@ namespace elm::resmgr {
         return std::move((*models)[primitiveIndex]);
     }
 
-    auto GltfExporter::LoadScene(Scene& scene, render::RenderResources& resources, const std::filesystem::path& path)
+    auto GltfExporter::LoadScene(Scene& scene, render::RenderResources& resources, const Path& path)
         -> EngineResult<void>
     {
         auto document = LoadDocument(path);

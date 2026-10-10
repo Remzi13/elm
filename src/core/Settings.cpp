@@ -30,28 +30,28 @@ namespace elm {
 		return entries;
 	}
 
-	auto Settings::DefaultFilePath() -> std::filesystem::path
+	auto Settings::DefaultFilePath() -> Path
 	{
-		const std::filesystem::path sourceRoot =
-			std::filesystem::path{ __FILE__ }.parent_path().parent_path().parent_path();
+		const Path sourceRoot =
+			Path{ __FILE__ }.Parent().Parent().Parent();
 		std::error_code error;
-		if (std::filesystem::exists(sourceRoot / "CMakeLists.txt", error) && !error)
+		if (FileSystem::Exists(sourceRoot / "CMakeLists.txt", error) && !error)
 			return sourceRoot / ".settings";
 
-		return std::filesystem::path{ ".settings" };
+		return Path{ ".settings" };
 	}
 
-	auto Settings::Load(const std::filesystem::path& path) -> EngineResult<void>
+	auto Settings::Load(const Path& path) -> EngineResult<void>
 	{
 		std::error_code fileError;
-		const bool fileExists = std::filesystem::exists(path, fileError);
+		const bool fileExists = FileSystem::Exists(path, fileError);
 		if (fileError)
 			return resmgr::UnexpectedSerializationError(
 				String("Failed to inspect settings file: ") + fileError.message().c_str(), "Settings");
 		if (!fileExists)
 			return {};
 
-		std::ifstream file(path, std::ios::binary);
+		auto file = FileSystem::OpenForReading(path, std::ios::binary);
 		if (!file)
 			return resmgr::UnexpectedSerializationError("Failed to open settings file for reading", "Settings");
 
@@ -121,7 +121,7 @@ namespace elm {
 		return {};
 	}
 
-	auto Settings::Save(const std::filesystem::path& path) const -> EngineResult<void>
+	auto Settings::Save(const Path& path) const -> EngineResult<void>
 	{
 		UnorderedMap<String, Entry> settings;
 		{
@@ -155,7 +155,7 @@ namespace elm {
 		if (!json)
 			return resmgr::UnexpectedSerializationError(json.error());
 
-		std::ofstream file(path, std::ios::binary | std::ios::trunc);
+		auto file = FileSystem::OpenForWriting(path, std::ios::binary | std::ios::trunc);
 		if (!file)
 			return resmgr::UnexpectedSerializationError("Failed to open settings file for writing", "Settings");
 		file.write(json->data(), static_cast<std::streamsize>(json->size()));

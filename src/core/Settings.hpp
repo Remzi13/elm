@@ -1,11 +1,11 @@
 #pragma once
 
-#include <filesystem>
-#include <mutex>
-#include <variant>
-
 #include "core/Std.hpp"
 #include "core/Error.hpp"
+#include "core/FileSystem.hpp"
+
+#include <mutex>
+#include <variant>
 
 namespace elm
 {
@@ -89,9 +89,9 @@ namespace elm
 		}
 
 		[[nodiscard]] auto GetEntries() const -> Vector<Entry>;
-		[[nodiscard]] static auto DefaultFilePath() -> std::filesystem::path;
-		[[nodiscard]] auto Load(const std::filesystem::path& path) -> EngineResult<void>;
-		[[nodiscard]] auto Save(const std::filesystem::path& path) const -> EngineResult<void>;
+		[[nodiscard]] static auto DefaultFilePath() -> Path;
+		[[nodiscard]] auto Load(const Path& path) -> EngineResult<void>;
+		[[nodiscard]] auto Save(const Path& path) const -> EngineResult<void>;
 
 	private:
 		static String MakeKey(Category category, StringView path);

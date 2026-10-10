@@ -1,22 +1,24 @@
 #include "render/ShaderSource.hpp"
 
-#include <filesystem>
+#include "core/Std.hpp"
+#include "core/FileSystem.hpp"
+
 #include <fstream>
 
 namespace elm::render {
 
 String loadShaderSource(StringView fileName)
 {
-    const std::filesystem::path sourceRoot = std::filesystem::path { __FILE__ }.parent_path().parent_path().parent_path();
-    const std::filesystem::path name { fileName };
-    const std::filesystem::path paths[] = {
-        std::filesystem::current_path() / "shaders" / name,
-        std::filesystem::current_path() / "assets/shaders" / name,
+    const Path sourceRoot = Path{ __FILE__ }.Parent().Parent().Parent();
+    const Path name { fileName };
+    const Path paths[] = {
+        FileSystem::CurrentPath() / "shaders" / name,
+        FileSystem::CurrentPath() / "assets/shaders" / name,
         sourceRoot / "shaders" / name,
         sourceRoot / "assets/shaders" / name
     };
     for (const auto& path : paths) {
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        auto file = FileSystem::OpenForReading(path, std::ios::binary | std::ios::ate);
         if (!file)
             continue;
         const auto size = file.tellg();
