@@ -12,25 +12,21 @@
 #endif
 namespace elm::ui {
 
-// Вспомогательный метод для получения UTF-8 строки из std::filesystem::path
 auto FileDialog::PathToString(const std::filesystem::path& path) -> String
 {
-#if defined(_WIN32)
-    // На Windows пути хранятся в wchar_t (UTF-16). Конвертируем в UTF-8 строку (std::string).
+#if defined(ELM_PLATFORM_WINDOWS)
     if (path.empty())
         return { };
     const std::wstring wstr = path.native();
     if (wstr.empty())
         return { };
 
-    // Определяем необходимый размер буфера для UTF-8
     int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), nullptr, 0, nullptr, nullptr);
     String result(sizeNeeded, '\0');
     WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), result.data(), sizeNeeded, nullptr, nullptr);
     return result;
 #else
-    // На Linux/macOS пути уже по умолчанию в UTF-8
-    return path.string();
+    return String(path.string());
 #endif
 }
 
