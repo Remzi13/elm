@@ -7,6 +7,7 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 #include "graphics/ui/SocLabWindow.hpp"
 #include "graphics/ui/ProfilerWindow.hpp"
+#include "graphics/ui/SettingsWindow.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -77,6 +78,7 @@ namespace elm {
 		EmplaceWindow<DepthPreviewWindow>( settings );
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
+		EmplaceWindow<SettingsWindow>( settings );
 
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem.Resources() );
 		if ( !m_renderer->IsInitialized() ) {

@@ -1,5 +1,7 @@
 #include "graphics/ui/SocLabWindow.hpp"
 
+#include "graphics/culling/OcclusionCullingSystem.hpp"
+
 #include "imgui.h"
 
 #include <algorithm>
@@ -18,8 +20,8 @@ namespace elm {
 	void SocLabWindow::ApplyResolution() {
 		const uint32_t width = ResolutionWidths[m_currentResolution];
 		const uint32_t height = ResolutionHeights[m_currentResolution];
-		m_settings.Set(Settings::Category::Render, CULLING_RESOLUTION_WIDTH, width);
-		m_settings.Set(Settings::Category::Render, CULLING_RESOLUTION_HEIGHT, height);
+		m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::ResolutionWidthSetting, width);
+		m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::ResolutionHeightSetting, height);
 	}
 
 	void SocLabWindow::Render(ImGuiWindowContext& context) {
@@ -39,17 +41,31 @@ namespace elm {
 
 		if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
 
-			auto enableFrustumCulling = m_settings.Get<bool>(Settings::Category::Render, CULLING_ENABLE_FRUSTUM_CULLING);
+			auto enableFrustumCulling = m_settings.Get<bool>(Settings::Category::Render,
+				OcclusionCullingSystem::EnableFrustumCullingSetting);
 			if (ImGui::Checkbox("Enable Frustum Culling", &enableFrustumCulling)) {
-				m_settings.Set(Settings::Category::Render, CULLING_ENABLE_FRUSTUM_CULLING, enableFrustumCulling);
+				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::EnableFrustumCullingSetting,
+					enableFrustumCulling);
 			}
-			auto enableOcclusionCulling = m_settings.Get<bool>(Settings::Category::Render, CULLING_ENABLE_OCCLUSION_CULLING);
+			auto enableOcclusionCulling = m_settings.Get<bool>(Settings::Category::Render,
+				OcclusionCullingSystem::EnableOcclusionCullingSetting);
 			if (ImGui::Checkbox("Enable Software Occlusion Culling", &enableOcclusionCulling)) {
-				m_settings.Set(Settings::Category::Render, CULLING_ENABLE_OCCLUSION_CULLING, enableOcclusionCulling);
+				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::EnableOcclusionCullingSetting,
+					enableOcclusionCulling);
 			}
-			auto depthBias = m_settings.Get<float>(Settings::Category::Render, CULLING_DEPTH_BIAS);
+			auto depthBias = m_settings.Get<float>(Settings::Category::Render, OcclusionCullingSystem::DepthBiasSetting);
 			if (ImGui::SliderFloat("Depth Bias", &depthBias, 0.0f, 0.01f, "%.4f")) {
-				m_settings.Set(Settings::Category::Render, CULLING_DEPTH_BIAS, depthBias);
+				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::DepthBiasSetting, depthBias);
+			}
+			const uint32_t currentWidth =
+				m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCullingSystem::ResolutionWidthSetting);
+			const uint32_t currentHeight =
+				m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCullingSystem::ResolutionHeightSetting);
+			for (size_t index = 0; index < ResolutionWidths.size(); ++index) {
+				if (ResolutionWidths[index] == currentWidth && ResolutionHeights[index] == currentHeight) {
+					m_currentResolution = static_cast<int>(index);
+					break;
+				}
 			}
 			const char* resolutions[] = { "64x36", "128x72", "256x144 (Recommended)", "320x180", "512x288" };
 			if (ImGui::Combo("SOC Buffer Res", &m_currentResolution, resolutions, IM_ARRAYSIZE(resolutions))) {
@@ -58,13 +74,15 @@ namespace elm {
 		}
 
 		if (ImGui::CollapsingHeader("Visualization Modes", ImGuiTreeNodeFlags_DefaultOpen)) {
-			int mode = m_settings.Get<uint32_t>(Settings::Category::Render, CULLING_VISUAL_MODE);
+			int mode = static_cast<int>(m_settings.Get<uint32_t>(Settings::Category::Render,
+				OcclusionCullingSystem::VisualModeSetting));
 			bool modeChanged = false;
 			if (ImGui::RadioButton("Hide Culled (Draw Visible Only)", &mode, 0)) modeChanged = true;
 			if (ImGui::RadioButton("Highlight Culled (Red Ghost)", &mode, 1)) modeChanged = true;
 			if (ImGui::RadioButton("Occluders Only", &mode, 2)) modeChanged = true;
 			if (modeChanged) {
-				m_settings.Set(Settings::Category::Render, CULLING_VISUAL_MODE, static_cast<uint32_t>(mode));
+				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::VisualModeSetting,
+					static_cast<uint32_t>(mode));
 			}
 		}
 

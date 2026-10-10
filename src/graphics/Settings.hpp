@@ -1,21 +1,14 @@
 #pragma once
 
-#include <array>
-#include <variant>
+#include <filesystem>
 #include <mutex>
+#include <variant>
 
 #include "core/Std.hpp"
+#include "core/Error.hpp"
 
 namespace elm
 {
-	constexpr const char* CULLING_RESOLUTION_WIDTH = "culling/Resolution/Width";
-	constexpr const char* CULLING_RESOLUTION_HEIGHT = "culling/Resolution/Height";
-	constexpr const char* CULLING_ENABLE_FRUSTUM_CULLING = "culling/EnableFrustumCulling";
-	constexpr const char* CULLING_ENABLE_OCCLUSION_CULLING = "culling/EnableOcclusionCulling";
-	constexpr const char* CULLING_DEPTH_BIAS = "culling/DepthBias";
-	constexpr const char* CULLING_VISUAL_MODE = "culling/VisualMode";
-	constexpr const char* CULLING_DEPTH_FALSE_COLOR = "culling/DepthFalseColor";
-
 	class Settings
 	{
 	public:
@@ -28,45 +21,83 @@ namespace elm
 
 		using Value = std::variant<uint32_t, float, String, bool >;
 
-	private:
-		using Storage = UnorderedMap<String, Value>;
+		struct Entry
+		{
+			Category category;
+			String path;
+			String label;
+			Value value;
+		};
 
 	public:
-		Settings() = default;
+		Settings();
+
+		template<typename T>
+		void Register(Category category, StringView path, StringView label, T defaultValue)
+		{
+			const String key = MakeKey(category, path);
+			std::lock_guard<std::mutex> lock(m_mutex);
+
+			const auto entry = m_entries.find(key);
+			if (entry == m_entries.end()) {
+				m_entries.emplace(key, Entry{
+					category,
+					String(path.begin(), path.end()),
+					String(label.begin(), label.end()),
+					Value(std::move(defaultValue))
+				});
+				return;
+			}
+
+			entry->second.category = category;
+			entry->second.path = String(path.begin(), path.end());
+			entry->second.label = String(label.begin(), label.end());
+		}
 
 		template<typename T>
 		void Set(Category category, StringView path, T&& value)
 		{
-			m_settings[1][MakeKey(category, path)] = Value(std::forward<T>(value));
+			std::lock_guard<std::mutex> lock(m_mutex);
+			const String key = MakeKey(category, path);
+			const auto entry = m_entries.find(key);
+			if (entry != m_entries.end()) {
+				entry->second.value = Value(std::forward<T>(value));
+				return;
+			}
+
+			m_entries.emplace(key, Entry{
+				category,
+				String(path.begin(), path.end()),
+				String(path.begin(), path.end()),
+				Value(std::forward<T>(value))
+			});
 		}
 
 		template<typename T>
 		T Get(Category category, StringView path, T defaultValue = T{}) const
 		{
-			const auto& settings = m_settings[0];
+			std::lock_guard<std::mutex> lock(m_mutex);
+			const auto it = m_entries.find(MakeKey(category, path));
 
-			auto it = settings.find(MakeKey(category, path));
-
-			if (it == settings.end())
+			if (it == m_entries.end())
 				return defaultValue;
 
-			if (const auto* value = std::get_if<T>(&it->second))
+			if (const auto* value = std::get_if<T>(&it->second.value))
 				return *value;
 
 			return defaultValue;
 		}
 
-		void Flash()
-		{
-			std::lock_guard<std::mutex> lock(m_mutex);
-			m_settings[0] = m_settings[1];
-		}
+		[[nodiscard]] auto GetEntries() const -> Vector<Entry>;
+		[[nodiscard]] static auto DefaultFilePath() -> std::filesystem::path;
+		[[nodiscard]] auto Load(const std::filesystem::path& path) -> EngineResult<void>;
+		[[nodiscard]] auto Save(const std::filesystem::path& path) const -> EngineResult<void>;
 
 	private:
 		static String MakeKey(Category category, StringView path);
 
 	private:
-		std::mutex m_mutex;
-		std::array<Storage, 2> m_settings;
+		mutable std::mutex m_mutex;
+		UnorderedMap<String, Entry> m_entries;
 	};
 }

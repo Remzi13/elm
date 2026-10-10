@@ -33,6 +33,10 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
  
     LOG_MESSAGE( log::Category::Core, "EngineApp", "Initializing 3D Engine Core (C++23)..." );    
 
+    m_cullingSystem.RegisterSettings(m_settings);
+    if (auto loadedSettings = m_settings.Load(Settings::DefaultFilePath()); !loadedSettings)
+        return MakeUnexpected(loadedSettings.error());
+
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
     // Initialize the render backend and its command queue first.
     core::registerThread(core::ThreadRole::Update);
@@ -86,7 +90,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         return MakeUnexpected(physicsInit.error());
     }
 
-    m_cullingSystem.Init(m_renderSystem->Resources());
+    m_cullingSystem.Init(m_renderSystem->Resources(), m_settings);
     if (auto* depthWindow = m_imguiSystem->GetWindow<DepthPreviewWindow>()) {
         depthWindow->SetCullingSystem(&m_cullingSystem);
     }
@@ -168,8 +172,7 @@ auto EngineApp::Run() -> EngineResult<void>
         // Update depth preview texture on the main thread
         {
             ELM_PROFILE_SCOPE_N("Update Depth Preview Texture");
-            const bool falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
-            m_cullingSystem.UpdateDepthPreviewTexture(falseColor);
+            m_cullingSystem.UpdateDepthPreviewTexture(m_settings);
         }
 
         // ── 4. Build and submit the frame snapshot ────────────────────
@@ -184,8 +187,6 @@ auto EngineApp::Run() -> EngineResult<void>
             m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_camera, m_currentStats,
                 m_engineViewPort, frame.Overlay());
         }
-
-        m_settings.Flash();
 
         SubmitFrame(frame);
     }
@@ -214,10 +215,14 @@ void EngineApp::SubmitFrame(render::FrameWriter& frame)
     const render::CameraData camera { m_camera.GetViewProjectionMatrix(), m_camera.GetPosition() };
     frame.SetSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
 
+    const auto& occludees = m_cullingSystem.GetOccludees();
     frame.ReserveDraws(m_scene.instances.size());
-    for (const auto& inst : m_scene.instances) {
-        if (inst.visible)
-            frame.Draw(inst.renderMesh, inst.worldTransform, inst.color);
+    for (size_t index = 0; index < m_scene.instances.size(); ++index) {
+        const auto& inst = m_scene.instances[index];
+        const bool visible = index < occludees.size() ? occludees[index].isVisible : inst.visible;
+        const Vector4& color = index < occludees.size() ? occludees[index].color : inst.color;
+        if (visible)
+            frame.Draw(inst.renderMesh, inst.worldTransform, color);
     }
 
     m_renderSystem->SubmitFrame(frame);
@@ -251,8 +256,7 @@ void EngineApp::Update(float deltaTime)
     m_cameraController.Update(deltaTime);
 
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
-    Vector<OccludeeInstance> occludees;
-    m_cullingSystem.ExecuteCulling(m_scene, cullingVP, occludees);
+    m_cullingSystem.ExecuteCulling(m_scene, cullingVP, m_settings);
 
     // Query synchronized physics transforms for display/rendering
     if (m_physicsSystem) {
@@ -262,13 +266,15 @@ void EngineApp::Update(float deltaTime)
     }
 }
 
-
 void EngineApp::Shutdown()
 {
     if (!m_isRunning)
         return;
 
     std::cout << "[EngineApp] Shutting down systems..." << std::endl;
+
+    if (auto savedSettings = m_settings.Save(Settings::DefaultFilePath()); !savedSettings)
+        ERROR_MESSAGE(log::Category::Core, "EngineApp", "%s", savedSettings.error().message.c_str());
 
     // Ensure the render thread is stopped before destroying resources
     m_renderSystem->StopRendering();

@@ -1,0 +1,12 @@
+{
+   "settings": {
+      "Render/culling/DepthBias": 0,
+      "Render/culling/DepthFalseColor": false,
+      "Render/culling/EnableFrustumCulling": false,
+      "Render/culling/EnableOcclusionCulling": true,
+      "Render/culling/Resolution/Height": 144,
+      "Render/culling/Resolution/Width": 256,
+      "Render/culling/VisualMode": 0
+   },
+   "version": 1
+}

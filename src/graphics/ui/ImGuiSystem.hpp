@@ -79,19 +79,6 @@ namespace elm {
 		void CaptureViewports(render::OverlayFrame& frame);
 		void DestroyReleasedPlatformWindows(bool all);
 
-		struct SavedLabSettings {
-			int preset{ 0 };
-			int instanceCount{ 1000 };
-			bool enableFrustum{ true };
-			bool enableOcclusion{ true };
-			float depthBias{ 0.0f };
-			int resolution{ 2 };
-			int visualMode{ 0 };
-			bool depthFalseColor{ true };
-			float moveSpeed{ 10.0f };
-			bool hasLoaded{ false };
-		};
-
 		// Platform window whose destruction waits until the render thread releases its swap chain
 		struct PendingPlatformWindow {
 			void* platformUserData{ nullptr };
@@ -108,7 +95,6 @@ namespace elm {
 		bool m_glfwInitialized{ false };
 		String m_title;
 		String m_iniFilePath;
-		SavedLabSettings m_savedSettings;
 
 		DockSpaceView m_dockSpace;
 		MessageBus m_windowMessageBus;

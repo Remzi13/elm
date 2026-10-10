@@ -40,9 +40,10 @@ namespace elm {
 		const uint32_t depthHeight = m_cullingSystem->GetHeight();
 		ImGui::Text("Resolution: %ux%u", depthWidth, depthHeight);
 		ImGui::SameLine();
-		auto falseColor = m_settings.Get<bool>(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR);
+		auto falseColor = m_settings.Get<bool>(Settings::Category::Render,
+			OcclusionCullingSystem::DepthFalseColorSetting);
 		if (ImGui::Checkbox("False Color (Heatmap)", &falseColor)) {
-			m_settings.Set(Settings::Category::Render, CULLING_DEPTH_FALSE_COLOR, falseColor);
+			m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::DepthFalseColorSetting, falseColor);
 		}
 		
 		const ImTextureID texture = ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandle());

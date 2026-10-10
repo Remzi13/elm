@@ -11,10 +11,23 @@ OcclusionCullingSystem::OcclusionCullingSystem(uint32_t width, uint32_t height)
 {
 }
 
-void OcclusionCullingSystem::Init(render::RenderResources& resources)
+void OcclusionCullingSystem::RegisterSettings(Settings& settings) const
+{
+    settings.Register(Settings::Category::Render, ResolutionWidthSetting, "Width", uint32_t{ 256 });
+    settings.Register(Settings::Category::Render, ResolutionHeightSetting, "Height", uint32_t{ 144 });
+    settings.Register(Settings::Category::Render, EnableFrustumCullingSetting, "Frustum Culling", true);
+    settings.Register(Settings::Category::Render, EnableOcclusionCullingSetting, "Occlusion Culling", true);
+    settings.Register(Settings::Category::Render, DepthBiasSetting, "Depth Bias", 0.0f);
+    settings.Register(Settings::Category::Render, VisualModeSetting, "Visualization Mode", uint32_t{ 0 });
+    settings.Register(Settings::Category::Render, DepthFalseColorSetting, "Depth False Color", true);
+}
+
+void OcclusionCullingSystem::Init(render::RenderResources& resources, const Settings& settings)
 {
     m_resources = &resources;
-    CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
+    ApplySettings(settings);
+    if (!m_depthPreviewTexture.IsValid())
+        CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
 }
 
 void OcclusionCullingSystem::Shutdown()
@@ -25,8 +38,27 @@ void OcclusionCullingSystem::Shutdown()
 
 void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height)
 {
+    if (m_depthBuffer.GetWidth() == width && m_depthBuffer.GetHeight() == height)
+        return;
+
     m_depthBuffer.Resize(width, height);
     CreateDepthPreviewTexture(width, height);
+}
+
+void OcclusionCullingSystem::ApplySettings(const Settings& settings)
+{
+    const uint32_t width = settings.Get<uint32_t>(Settings::Category::Render, ResolutionWidthSetting);
+    const uint32_t height = settings.Get<uint32_t>(Settings::Category::Render, ResolutionHeightSetting);
+    if (width > 0 && height > 0)
+        SetResolution(width, height);
+
+    enableFrustumCulling = settings.Get<bool>(Settings::Category::Render, EnableFrustumCullingSetting);
+    enableOcclusionCulling = settings.Get<bool>(Settings::Category::Render, EnableOcclusionCullingSetting);
+    depthBias = settings.Get<float>(Settings::Category::Render, DepthBiasSetting);
+    const auto visualModeValue = settings.Get<uint32_t>(Settings::Category::Render, VisualModeSetting);
+    visualMode = visualModeValue <= static_cast<uint32_t>(VisualMode::OccludersOnly)
+        ? static_cast<VisualMode>(visualModeValue)
+        : VisualMode::HideCulled;
 }
 
 void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height)
@@ -49,22 +81,24 @@ void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t 
     m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), width * sizeof(uint32_t)));
 }
 
-void OcclusionCullingSystem::UpdateDepthPreviewTexture(bool falseColor)
+void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Settings& settings)
 {
     if (!m_depthPreviewTexture.IsValid())
         return;
     Vector<uint8_t> depthPreviewPixels;
-    m_depthBuffer.GenerateVisualTexture(depthPreviewPixels, falseColor);
+    m_depthBuffer.GenerateVisualTexture(depthPreviewPixels,
+        settings.Get<bool>(Settings::Category::Render, DepthFalseColorSetting));
     m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), m_depthBuffer.GetWidth() * sizeof(uint32_t)));
 }
 
-void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, Vector<OccludeeInstance>& occludees)
+void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, const Settings& settings)
 {
     ELM_PROFILE_SCOPE_N("Execute Culling");
     const auto tStart = core::getTimeStamp();
 
+    ApplySettings(settings);
 
-    occludees.clear();
+    m_occludees.clear();
 
     // 1. Clear depth buffer
     m_depthBuffer.Clear(1.0f);
@@ -109,15 +143,25 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& culli
         occInst.color = inst.color;
 
         const AABB worldBounds = occInst.localBounds.Transformed(occInst.worldTransform);
+        auto finishCulling = [&](bool isCulled) {
+            if (visualMode == VisualMode::HighlightCulled && isCulled) {
+                occInst.isVisible = true;
+                occInst.color = Vector4{ 1.0f, 0.0f, 0.0f, 1.0f };
+            }
+            else if (visualMode == VisualMode::OccludersOnly) {
+                occInst.isVisible = enableOcclusionCulling;
+            }
+            inst.visible = occInst.isVisible;
+            m_occludees.emplace_back(occInst);
+        };
 
         // Frustum Culling
         if (enableFrustumCulling) {
             if (!frustum.IntersectsAABB(worldBounds)) {
                 occInst.isFrustumCulled = true;
                 occInst.isVisible = false;
-                inst.visible = false;
                 m_stats.frustumCulledCount++;
-                occludees.emplace_back(occInst);
+                finishCulling(true);
                 continue;
             }
         }
@@ -127,16 +171,14 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& culli
             if (m_depthBuffer.TestAABB(worldBounds, cullingViewProj, depthBias)) {
                 occInst.isOcclusionCulled = true;
                 occInst.isVisible = false;
-                inst.visible = false;
                 m_stats.occlusionCulledCount++;
-                occludees.emplace_back(occInst);
+                finishCulling(true);
                 continue;
             }
         }
 
         occInst.isVisible = true;
-        inst.visible = true;
-        occludees.emplace_back(occInst);
+        finishCulling(false);
         m_stats.visibleCount++;
     }
 
