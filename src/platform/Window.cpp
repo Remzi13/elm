@@ -1,7 +1,7 @@
 #include "platform/Window.hpp"
 #include "core/Unexpected.hpp"
 
-#if PLATFORM_WIN32
+#if defined(ELM_PLATFORM_WINDOWS)
 #include <windows.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #else
@@ -25,7 +25,7 @@ auto Window::Create(Size size, StringView title) -> EngineResult<void>
     if (m_window)
         return {};
 
-#if PLATFORM_WIN32
+#if defined(ELM_PLATFORM_WINDOWS)
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 #endif
     if (!glfwInit())
@@ -73,7 +73,7 @@ render::NativeWindow Window::GetNativeWindow(GLFWwindow* window)
     render::NativeWindow native;
     if (!window)
         return native;
-#if PLATFORM_WIN32
+#if defined(ELM_PLATFORM_WINDOWS)
     native.handle = glfwGetWin32Window(window);
 #else
     if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {

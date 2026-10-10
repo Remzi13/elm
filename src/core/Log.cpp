@@ -84,9 +84,9 @@ namespace elm::log {
         {
             auto const time = std::chrono::system_clock::to_time_t(entry.timestamp);
             std::tm localTime{};
-#if defined(_WIN32)
+#if defined(ELM_PLATFORM_WINDOWS)
             localtime_s(&localTime, &time);
-#else
+#elif defined(ELM_PLATFORM_LINUX)
             localtime_r(&time, &localTime);
 #endif
             auto const milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(

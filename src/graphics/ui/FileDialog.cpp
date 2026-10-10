@@ -6,7 +6,33 @@
 #include <cstdio>
 #include <system_error>
 
+#if defined(ELM_PLATFORM_WINDOWS)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 namespace elm::ui {
+
+// Вспомогательный метод для получения UTF-8 строки из std::filesystem::path
+auto FileDialog::PathToString(const std::filesystem::path& path) -> String
+{
+#if defined(_WIN32)
+    // На Windows пути хранятся в wchar_t (UTF-16). Конвертируем в UTF-8 строку (std::string).
+    if (path.empty())
+        return { };
+    const std::wstring wstr = path.native();
+    if (wstr.empty())
+        return { };
+
+    // Определяем необходимый размер буфера для UTF-8
+    int sizeNeeded = WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), nullptr, 0, nullptr, nullptr);
+    String result(sizeNeeded, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, wstr.data(), static_cast<int>(wstr.size()), result.data(), sizeNeeded, nullptr, nullptr);
+    return result;
+#else
+    // На Linux/macOS пути уже по умолчанию в UTF-8
+    return path.string();
+#endif
+}
 
 void FileDialog::Open(StringView title, StringView extension)
 {
@@ -17,7 +43,7 @@ void FileDialog::Open(StringView title, StringView extension)
     m_selectedPath.clear();
     std::error_code error;
     m_directory = std::filesystem::current_path(error);
-    m_error = error ? String(error.message().c_str()) : String{};
+    m_error = error ? String(error.message().c_str()) : String { };
     if (!error)
         RefreshEntries();
     ImGui::OpenPopup(m_title.c_str());
@@ -33,7 +59,7 @@ void FileDialog::SaveAs(StringView title, StringView extension, StringView defau
         static_cast<int>(defaultFileName.size()), defaultFileName.data());
     std::error_code error;
     m_directory = std::filesystem::current_path(error);
-    m_error = error ? String(error.message().c_str()) : String{};
+    m_error = error ? String(error.message().c_str()) : String { };
     if (!error)
         RefreshEntries();
     ImGui::OpenPopup(m_title.c_str());
@@ -82,9 +108,8 @@ void FileDialog::RefreshEntries()
     }
 
     const auto sortByName = [](const Entry& left, const Entry& right) {
-        return left.path.filename().string() < right.path.filename().string();
+        return PathToString(left.path.filename()) < PathToString(right.path.filename());
     };
-    std::sort(directories.begin(), directories.end(), sortByName);
     std::sort(files.begin(), files.end(), sortByName);
     m_entries.reserve(directories.size() + files.size());
     m_entries.insert(m_entries.end(), directories.begin(), directories.end());
@@ -96,7 +121,7 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
     if (!ImGui::BeginPopupModal(m_title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         return std::nullopt;
 
-    ImGui::TextWrapped("%s", m_directory.string().c_str());
+    ImGui::TextWrapped("%s", PathToString(m_directory).c_str());
     const auto parent = m_directory.parent_path();
     if (parent != m_directory && ImGui::Button("..")) {
         m_directory = parent;
@@ -113,7 +138,7 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
             String label;
             if (entry.isDirectory)
                 label = "[Folder] ";
-            label += entry.path.filename().string().c_str();
+            label += PathToString(entry.path.filename());
             const bool selected = !m_saveMode && !entry.isDirectory && entry.path == m_selectedPath;
             if (ImGui::Selectable(label.c_str(), selected)) {
                 if (entry.isDirectory) {
@@ -121,8 +146,9 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
                 } else if (!m_saveMode) {
                     m_selectedPath = entry.path;
                 } else {
+                    String filenameStr = PathToString(entry.path.filename());
                     std::snprintf(m_saveFileName.data(), m_saveFileName.size(), "%s",
-                        entry.path.filename().string().c_str());
+                        filenameStr.c_str());
                 }
             }
         }
@@ -143,7 +169,16 @@ auto FileDialog::Draw() -> std::optional<std::filesystem::path>
         ImGui::BeginDisabled();
     if (ImGui::Button(m_saveMode ? "Save" : "Open")) {
         if (m_saveMode) {
+            // Создаем путь из UTF-8 буфера ввода
+#if defined(ELM_PLATFORM_WINDOWS)
+            // Конвертируем UTF-8 в wchar_t для корректного создания path на Windows
+            int wcharsNum = MultiByteToWideChar(CP_UTF8, 0, m_saveFileName.data(), -1, nullptr, 0);
+            Vector<wchar_t> wstr(wcharsNum);
+            MultiByteToWideChar(CP_UTF8, 0, m_saveFileName.data(), -1, wstr.data(), wcharsNum);
+            std::filesystem::path filename(wstr.data());
+#else
             std::filesystem::path filename(m_saveFileName.data());
+#endif
             if (filename.has_parent_path() || filename.is_absolute()) {
                 m_error = "Enter a file name, not a path.";
             } else {

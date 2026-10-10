@@ -80,7 +80,7 @@ namespace elm {
                 timestamp.time_since_epoch()).count();
             auto const time = std::chrono::system_clock::to_time_t(timestamp);
             std::tm localTime{};
-#if defined(_WIN32)
+#if defined(ELM_PLATFORM_WINDOWS)
             localtime_s(&localTime, &time);
 #else
             localtime_r(&time, &localTime);

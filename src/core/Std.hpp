@@ -1,5 +1,5 @@
 #pragma once
-
+#include "config.hpp"
 #include "core/Memory.hpp"
 
 #include <string>

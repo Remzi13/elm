@@ -21,11 +21,12 @@ private:
     };
 
     void RefreshEntries();
+    [[nodiscard]] static auto PathToString(const std::filesystem::path& path) -> String;
 
     String m_title;
     String m_extension;
     String m_error;
-    std::array<char, 260> m_saveFileName{};
+    std::array<char, 260> m_saveFileName { };
     std::filesystem::path m_directory;
     std::filesystem::path m_selectedPath;
     Vector<Entry> m_entries;

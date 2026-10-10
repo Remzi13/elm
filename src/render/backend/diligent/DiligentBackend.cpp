@@ -10,7 +10,7 @@
 
 #include "Graphics/GraphicsEngine/interface/SwapChain.h"
 
-#if PLATFORM_WIN32
+#if defined(ELM_PLATFORM_WINDOWS)
 #include "Graphics/GraphicsEngineD3D12/interface/EngineFactoryD3D12.h"
 #else
 #include "Graphics/GraphicsEngineVulkan/interface/EngineFactoryVk.h"
@@ -823,7 +823,7 @@ SwapChain DiligentBackend::CreateSwapChain(const NativeWindow& window, uint32_t 
         description.DepthBufferFormat = Diligent::TEX_FORMAT_UNKNOWN;
 
     Diligent::ISwapChain* swapChain = nullptr;
-#if PLATFORM_WIN32
+#if defined(ELM_PLATFORM_WINDOWS)
     auto* factory = Diligent::GetEngineFactoryD3D12();
     Diligent::Win32NativeWindow nativeWindow { window.handle };
     factory->CreateSwapChainD3D12(m_device, m_context, description,
