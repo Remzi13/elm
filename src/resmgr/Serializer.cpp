@@ -466,8 +466,7 @@ namespace elm::resmgr {
         JsonValue document{ JsonValue::Type::Object };
         auto result = SetField(document, "formatVersion", JsonValue(4.0));
         if (!result)
-            return UnexpectedSerializationError(result.error());
-        result = SetField(document, "preset", JsonValue(static_cast<double>(scene.preset)));
+            return UnexpectedSerializationError(result.error());        
         if (!result)
             return UnexpectedSerializationError(result.error());
 
@@ -599,8 +598,7 @@ namespace elm::resmgr {
         if (*preset > static_cast<uint32_t>(ScenePreset::PhysicsSandbox))
             return UnexpectedSerializationError("Scene file contains an invalid preset", "Serializer");
 
-        Scene loadedScene;
-        loadedScene.preset = static_cast<ScenePreset>(*preset);
+        Scene loadedScene;        
         graphics::ModelManager loadedModels;
         auto commitLoadedScene = [&]() {
             models.Clear();

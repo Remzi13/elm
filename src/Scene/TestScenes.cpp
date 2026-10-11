@@ -152,7 +152,6 @@ void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Sc
         BuildPhysicsSandbox(targetInstanceCount, scene, models, resources);
         break;
     }
-    scene.preset = preset;
 }
 
 void TestScenes::BuildBox([[maybe_unused]] uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources)

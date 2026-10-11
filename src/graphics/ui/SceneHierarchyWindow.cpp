@@ -53,7 +53,7 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
 
     if (ImGui::CollapsingHeader("Scene Preset", ImGuiTreeNodeFlags_DefaultOpen)) {
         const char* presets[] = { "Box", "The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox" };
-        int preset = static_cast<int>(scene.preset);
+        static int preset = 0;
         if (ImGui::Combo("Preset", &preset, presets, IM_ARRAYSIZE(presets))) {
             TestScenes::BuildScene(static_cast<ScenePreset>(preset), 1500, scene, context.models,
                 context.renderSystem.Resources());

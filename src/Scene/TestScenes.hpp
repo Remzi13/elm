@@ -43,11 +43,7 @@ public:
     
     [[nodiscard]] size_t NodeCount() const noexcept { return nodes.size(); }
     [[nodiscard]] bool Empty() const noexcept { return nodes.empty(); }
-    [[nodiscard]] ScenePreset GetPreset() const noexcept { return preset; }
-    void SetPreset(ScenePreset value) noexcept { preset = value; }
-
-
-    ScenePreset preset { ScenePreset::Box };
+    
     Vector<Node> nodes;
 };
 
