@@ -230,7 +230,7 @@ namespace elm::resmgr {
             return *result;
         }
 
-        auto SerializeModel(const Model& model) -> EngineResult<JsonValue>
+        auto SerializeModel(const graphics::Model& model) -> EngineResult<JsonValue>
         {
             JsonValue document{ JsonValue::Type::Object };
             auto result = SetField(document, "formatVersion", JsonValue(2.0));
@@ -391,9 +391,9 @@ namespace elm::resmgr {
             return meshData;
         }
 
-        auto DeserializeModel(const JsonValue& document) -> EngineResult<Model>
+        auto DeserializeModel(const JsonValue& document) -> EngineResult<graphics::Model>
         {
-            Model model;
+            graphics::Model model;
             if (const auto nameValue = document.Find("name")) {
                 auto name = nameValue->AsString();
                 if (!name)
@@ -449,7 +449,7 @@ namespace elm::resmgr {
 
     }
 
-    auto Serializer::SaveModel(const Model& model, const Path& path) -> EngineResult<void>
+    auto Serializer::SaveModel(const graphics::Model& model, const Path& path) -> EngineResult<void>
     {
         auto serializedModel = SerializeModel(model);
         if (!serializedModel)
@@ -461,7 +461,7 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::SaveScene(const Scene& scene, const ModelManager& models, const Path& path) -> EngineResult<void>
+    auto Serializer::SaveScene(const Scene& scene, const graphics::ModelManager& models, const Path& path) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
         auto result = SetField(document, "formatVersion", JsonValue(4.0));
@@ -472,11 +472,11 @@ namespace elm::resmgr {
             return UnexpectedSerializationError(result.error());
 
         JsonValue serializedModels{ JsonValue::Type::Array };
-        UnorderedMap<ModelHandler, size_t> modelIndices;
+        UnorderedMap<graphics::ModelHandler, size_t> modelIndices;
         Set<String> modelFileNames;
         const auto sceneDirectory = path.Parent().Empty() ? Path(".") : path.Parent();
         EngineResult<void> modelSaveResult;
-        models.ForEach([&](ModelHandler handler, const Model& model) {
+        models.ForEach([&](graphics::ModelHandler handler, const graphics::Model& model) {
             if (!modelSaveResult)
                 return;
             const auto baseStem = MakeModelFileStem(
@@ -568,7 +568,7 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::LoadScene(Scene& scene, ModelManager& models,
+    auto Serializer::LoadScene(Scene& scene, graphics::ModelManager& models,
         render::RenderResources& resources, const Path& path) -> EngineResult<void>
     {
         auto json = ReadFile(path);
@@ -601,7 +601,7 @@ namespace elm::resmgr {
 
         Scene loadedScene;
         loadedScene.preset = static_cast<ScenePreset>(*preset);
-        ModelManager loadedModels;
+        graphics::ModelManager loadedModels;
         auto commitLoadedScene = [&]() {
             models.Clear();
             const auto remapping = loadedModels.MoveTo(models);
@@ -623,7 +623,7 @@ namespace elm::resmgr {
                 return UnexpectedSerializationError("Invalid models or nodes array", "Serializer");
 
             loadedScene.nodes.reserve(*nodeCount);
-            Vector<ModelHandler> modelHandlers;
+            Vector<graphics::ModelHandler> modelHandlers;
             modelHandlers.reserve(*modelCount);
             for (size_t modelIndex = 0; modelIndex < *modelCount; ++modelIndex) {
                 auto modelReference = GetElement(*serializedModels, modelIndex);
@@ -734,7 +734,7 @@ namespace elm::resmgr {
             return UnexpectedSerializationError(instanceCount.error());
 
         loadedScene.nodes.reserve(*instanceCount + (*formatVersion >= 3 ? *meshCount : 0));
-        Vector<ModelHandler> modelHandlers;
+        Vector<graphics::ModelHandler> modelHandlers;
         modelHandlers.reserve(*meshCount);
         Vector<Vector4> modelColors;
         modelColors.reserve(*meshCount);
@@ -834,7 +834,7 @@ namespace elm::resmgr {
                 auto meshData = DeserializeMeshData(modelDocument);
                 if (!meshData)
                     return UnexpectedSerializationError(meshData.error());
-                Model model;
+                graphics::Model model;
                 model.AddSubmesh(std::move(*meshData), Vector4 { 1.0f, 1.0f, 1.0f, 1.0f });
                 model.Upload(resources);
                 modelHandlers.push_back(loadedModels.Insert(std::move(model)));

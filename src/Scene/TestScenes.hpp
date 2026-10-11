@@ -3,12 +3,10 @@
 #include "core/Std.hpp"
 
 #include "math/Matrix.hpp"
-#include "math/Primitivs.hpp"
 
 #include "render/api/RenderResources.hpp"
-#include "resmgr/ModelManager.hpp"
 
-#include <span>
+#include "graphics/ModelManager.hpp"
 
 namespace elm {
 
@@ -30,12 +28,12 @@ public:
         Matrix4x4 localTransform;
         Matrix4x4 worldTransform;
         String name;
-        resmgr::ModelHandler model;
+        graphics::ModelHandler model;
         Vector4 color { 1.0f, 1.0f, 1.0f, 1.0f };
         bool visible { true };
     };
 
-    [[nodiscard]] Node& AddNode(resmgr::ModelHandler model, String name = {});
+    [[nodiscard]] Node& AddNode(graphics::ModelHandler model, String name = { });
     [[nodiscard]] Node& AppendNode(Node node);
     [[nodiscard]] bool SetWorldTransform(size_t nodeIndex, const Matrix4x4& transform);
     [[nodiscard]] bool RemoveNode(size_t nodeIndex);
@@ -56,13 +54,13 @@ public:
 class TestScenes {
 public:
     static void BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene,
-        resmgr::ModelManager& models, render::RenderResources& resources);
+        graphics::ModelManager& models, render::RenderResources& resources);
 
 private:
-    static void BuildWallAndGrid(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
-    static void BuildRooms(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
-    static void BuildPhysicsSandbox(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
-    static void BuildBox(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
+    static void BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
+    static void BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
+    static void BuildPhysicsSandbox(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
+    static void BuildBox(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
 };
 
 } // namespace Engine

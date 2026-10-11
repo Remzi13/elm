@@ -3,16 +3,16 @@
 #include "core/Error.hpp"
 #include "core/FileSystem.hpp"
 
-#include "resmgr/ModelManager.hpp"
+#include "graphics/ModelManager.hpp"
 
 #include "Scene/TestScenes.hpp"
 
 namespace elm::resmgr {
     class Serializer {
     public:
-        [[nodiscard]] static auto SaveModel(const Model& model, const Path& path) -> EngineResult<void>;
-        [[nodiscard]] static auto SaveScene(const Scene& scene, const ModelManager& models, const Path& path) -> EngineResult<void>;
-        [[nodiscard]] static auto LoadScene(Scene& scene, ModelManager& models,
+        [[nodiscard]] static auto SaveModel(const graphics::Model& model, const Path& path) -> EngineResult<void>;
+        [[nodiscard]] static auto SaveScene(const Scene& scene, const graphics::ModelManager& models, const Path& path) -> EngineResult<void>;
+        [[nodiscard]] static auto LoadScene(Scene& scene, graphics::ModelManager& models,
             render::RenderResources& resources, const Path& path) -> EngineResult<void>;
 
     private:

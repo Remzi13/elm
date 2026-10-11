@@ -117,7 +117,7 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
             }
         } else if (m_gltfDialogAction == GltfDialogAction::LoadModel) {
             Scene imported;
-            resmgr::ModelManager importedModels;
+            graphics::ModelManager importedModels;
             const size_t firstImportedNode = scene.nodes.size();
             auto result = resmgr::GltfExporter::LoadScene(imported, importedModels,
                 context.renderSystem.Resources(), *selectedPath);

@@ -213,7 +213,7 @@ namespace elm {
 		m_pendingPlatformWindows.erase( m_pendingPlatformWindows.begin(), m_pendingPlatformWindows.begin() + count );
 	}
 
-	void ImGuiSystem::BuildFrame( render::RenderSystem& renderSystem, Scene& scene, resmgr::ModelManager& models,
+	void ImGuiSystem::BuildFrame(render::RenderSystem& renderSystem, Scene& scene, graphics::ModelManager& models,
 		Camera& camera, const FrameStats& stats,
 		render::ViewPort& viewPort, render::OverlayFrame& frame ) {
 		frame.Clear();

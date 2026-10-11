@@ -12,9 +12,9 @@
 #include "graphics/ui/ImGuiSystem.hpp"
 #include "graphics/CameraController.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
+#include "graphics/ModelManager.hpp"
 
 #include "physics/PhysicsSystem.hpp"
-#include "resmgr/ModelManager.hpp"
 
 #include "input/Input.hpp"
 
@@ -57,7 +57,7 @@ namespace elm {
 		Camera m_camera;
 		CameraController m_cameraController;
 		Scene m_scene;
-		resmgr::ModelManager m_models;
+		graphics::ModelManager m_models;
 		Settings m_settings;
 		render::ViewPort m_engineViewPort;
 

@@ -5,7 +5,7 @@
 
 #include <algorithm>
 
-namespace elm::resmgr {
+namespace elm::graphics {
 
     struct ModelTag;
     using ModelHandler = core::Handle<ModelTag>;

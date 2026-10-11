@@ -1,11 +1,11 @@
 #pragma once
 
 #include "core/Debug.hpp"
-#include "resmgr/Model.hpp"
+#include "graphics/Model.hpp"
 
 #include <optional>
 
-namespace elm::resmgr {
+namespace elm::graphics {
 
     class ModelManager {
     public:

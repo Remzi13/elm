@@ -1,8 +1,6 @@
 engine_add_library(resmgr
     JsonValue.hpp
     JsonValue.cpp
-    Model.hpp
-    ModelManager.hpp
     SerializationError.hpp
     Serializer.hpp
     Serializer.cpp

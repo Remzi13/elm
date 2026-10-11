@@ -1104,7 +1104,7 @@ namespace elm::resmgr {
             const Matrix4x4& parentTransform,
             Vector<bool>& recursionStack,
             Vector<bool>& visitedNodes,
-            const Vector<ModelHandler>& meshModels,
+            const Vector<graphics::ModelHandler>& meshModels,
             size_t parentSceneNodeIndex,
             Scene& scene) -> EngineResult<void>
         {
@@ -1161,7 +1161,7 @@ namespace elm::resmgr {
         }
     }
 
-    auto GltfExporter::ExportModel(const Model& model, const Path& path) -> EngineResult<void>
+    auto GltfExporter::ExportModel(const graphics::Model& model, const Path& path) -> EngineResult<void>
     {
         Vector<DecodedSubmesh> submeshes;
         submeshes.reserve(model.submeshes.size());
@@ -1173,7 +1173,7 @@ namespace elm::resmgr {
         return ExportModels(path, submeshes, {});
     }
 
-    auto GltfExporter::Export(const Path& path, const Scene& scene, const ModelManager& models) -> EngineResult<void>
+    auto GltfExporter::Export(const Path& path, const Scene& scene, const graphics::ModelManager& models) -> EngineResult<void>
     {
         Vector<DecodedSubmesh> decodedSubmeshes;
         Vector<Matrix4x4> transforms;
@@ -1197,7 +1197,7 @@ namespace elm::resmgr {
         return ExportModels(path, decodedSubmeshes, transforms);
     }
 
-    auto GltfExporter::LoadModel(const Path& path, size_t meshIndex, size_t primitiveIndex) -> EngineResult<Model>
+    auto GltfExporter::LoadModel(const Path& path, size_t meshIndex, size_t primitiveIndex) -> EngineResult<graphics::Model>
     {
         auto document = LoadDocument(path);
         if (!document)
@@ -1211,7 +1211,7 @@ namespace elm::resmgr {
         auto models = ReadMeshPrimitives(*document, meshIndex);
         if (!models)
             return UnexpectedSerializationError(models.error());
-        Model model;
+        graphics::Model model;
         if (primitiveIndex != static_cast<size_t>(-1)) {
             if (primitiveIndex >= models->size())
                 return Failure("Requested glTF primitive index does not exist");
@@ -1227,7 +1227,7 @@ namespace elm::resmgr {
         return model;
     }
 
-    auto GltfExporter::LoadScene(Scene& scene, ModelManager& models,
+    auto GltfExporter::LoadScene(Scene& scene, graphics::ModelManager& models,
         render::RenderResources& resources, const Path& path)
         -> EngineResult<void>
     {
@@ -1246,8 +1246,8 @@ namespace elm::resmgr {
             return Failure("Invalid glTF nodes or meshes array");
 
         Scene imported;
-        ModelManager importedModels;
-        Vector<ModelHandler> meshModels;
+        graphics::ModelManager importedModels;
+        Vector<graphics::ModelHandler> meshModels;
         meshModels.reserve(*meshCount);
         for (size_t meshIndex = 0; meshIndex < *meshCount; ++meshIndex) {
             auto submeshes = ReadMeshPrimitives(*document, meshIndex);
