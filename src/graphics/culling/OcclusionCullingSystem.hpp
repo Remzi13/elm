@@ -57,7 +57,8 @@ public:
     void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
     void UpdateDepthPreviewTexture(const Settings& settings);
 
-    void ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, const Settings& settings);
+    void ExecuteCulling(Scene& scene, const resmgr::ModelManager& models,
+        const Matrix4x4& cullingViewProj, const Settings& settings);
 
     [[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }
     [[nodiscard]] const Vector<OccludeeInstance>& GetOccludees() const noexcept { return m_occludees; }

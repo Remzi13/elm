@@ -1,5 +1,6 @@
 #include "graphics/ui/EngineViewportWindow.hpp"
 
+#include "core/Log.hpp"
 #include "graphics/ui/WindowMessages.hpp"
 #include "render/ViewPort.hpp"
 
@@ -58,7 +59,7 @@ namespace elm {
 
 		const auto selectedInstance = Request<SelectedSceneInstance>();
 		const auto gizmoSettings = Request<GizmoSettings>();
-		const bool hasSelection = selectedInstance && selectedInstance->index < scene.instances.size();
+		const bool hasSelection = selectedInstance && selectedInstance->index < scene.nodes.size();
 
 		if (auto texture = ToTextureId(viewPort.GetColorTexture())) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
@@ -73,8 +74,8 @@ namespace elm {
 				camera.SetAspect(available.x / available.y);
 				ImGui::Image(texture, available);
 
-				if (hasSelection && gizmoSettings && scene.instances[selectedInstance->index].visible) {
-					auto& instance = scene.instances[selectedInstance->index];
+				if (hasSelection && gizmoSettings && scene.nodes[selectedInstance->index].visible) {
+					auto& instance = scene.nodes[selectedInstance->index];
 					ImGuizmo::BeginFrame();
 					ImGuizmo::SetDrawlist();
 					ImGuizmo::SetRect(imagePosition.x, imagePosition.y, available.x, available.y);
@@ -87,7 +88,10 @@ namespace elm {
 						: gizmoSettings->operation == GizmoOperation::Rotate ? ImGuizmo::ROTATE : ImGuizmo::SCALE;
 					const ImGuizmo::MODE mode = gizmoSettings->space == GizmoSpace::Local ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
 					if (ImGuizmo::Manipulate(view.data(), projection.data(), operation, mode, transform.data())) {
-						instance.worldTransform = FromGizmoMatrix(transform);
+						if (!scene.SetWorldTransform(selectedInstance->index, FromGizmoMatrix(transform))) {
+							ERROR_MESSAGE(log::Category::Core, "EngineViewportWindow",
+								"Unable to update the selected node transform because its parent transform is singular");
+						}
 					}
 				}
 			}

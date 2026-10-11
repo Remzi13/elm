@@ -22,6 +22,7 @@ namespace elm {
 	struct ImGuiWindowContext {
 		render::RenderSystem& renderSystem;
 		Scene& scene;
+		resmgr::ModelManager& models;
 		Camera& camera;
 		const FrameStats& stats;
 		render::ViewPort& viewPort;

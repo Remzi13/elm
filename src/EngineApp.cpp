@@ -184,7 +184,7 @@ auto EngineApp::Run() -> EngineResult<void>
         // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
         {
             ELM_PROFILE_SCOPE_N("Build ImGui Frame");
-            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_camera, m_currentStats,
+            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_models, m_camera, m_currentStats,
                 m_engineViewPort, frame.Overlay());
         }
 
@@ -203,7 +203,7 @@ auto EngineApp::Run() -> EngineResult<void>
 
 void EngineApp::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
 {
-    TestScenes::BuildScene(preset, instanceCount, m_scene, m_renderSystem->Resources());
+    TestScenes::BuildScene(preset, instanceCount, m_scene, m_models, m_renderSystem->Resources());
 }
 
 void EngineApp::SubmitFrame(render::FrameWriter& frame)
@@ -216,13 +216,28 @@ void EngineApp::SubmitFrame(render::FrameWriter& frame)
     frame.SetSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
 
     const auto& occludees = m_cullingSystem.GetOccludees();
-    frame.ReserveDraws(m_scene.instances.size());
-    for (size_t index = 0; index < m_scene.instances.size(); ++index) {
-        const auto& inst = m_scene.instances[index];
-        const bool visible = index < occludees.size() ? occludees[index].isVisible : inst.visible;
-        const Vector4& color = index < occludees.size() ? occludees[index].color : inst.color;
-        if (visible)
-            frame.Draw(inst.renderMesh, inst.worldTransform, color);
+    size_t drawCount = 0;
+    for (const auto& node : m_scene.nodes) {
+        if (const auto* model = m_models.Get(node.model))
+            drawCount += model->submeshes.size();
+    }
+    frame.ReserveDraws(drawCount);
+    for (size_t nodeIndex = 0; nodeIndex < m_scene.nodes.size(); ++nodeIndex) {
+        const auto& node = m_scene.nodes[nodeIndex];
+        const bool visible = nodeIndex < occludees.size() ? occludees[nodeIndex].isVisible : node.visible;
+        const Vector4& tint = nodeIndex < occludees.size() ? occludees[nodeIndex].color : node.color;
+        const auto* model = m_models.Get(node.model);
+        if (!visible || !model)
+            continue;
+        for (const auto& submesh : model->submeshes) {
+            const Vector4 color {
+                submesh.color.x * tint.x,
+                submesh.color.y * tint.y,
+                submesh.color.z * tint.z,
+                submesh.color.w * tint.w
+            };
+            frame.Draw(submesh.mesh.GetHandle(), node.worldTransform, color);
+        }
     }
 
     m_renderSystem->SubmitFrame(frame);
@@ -256,7 +271,7 @@ void EngineApp::Update(float deltaTime)
     m_cameraController.Update(deltaTime);
 
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
-    m_cullingSystem.ExecuteCulling(m_scene, cullingVP, m_settings);
+    m_cullingSystem.ExecuteCulling(m_scene, m_models, cullingVP, m_settings);
 
     // Query synchronized physics transforms for display/rendering
     if (m_physicsSystem) {
@@ -290,6 +305,7 @@ void EngineApp::Shutdown()
         m_imguiSystem->Shutdown();
     }
     m_scene.Clear();
+    m_models.Clear();
     m_cullingSystem.Shutdown();
     m_engineViewPort = {};
     if (m_renderSystem) {

@@ -3,6 +3,7 @@
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 
+#include <algorithm>
 
 namespace elm {
 
@@ -91,7 +92,8 @@ void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Settings& settings)
     m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), m_depthBuffer.GetWidth() * sizeof(uint32_t)));
 }
 
-void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& cullingViewProj, const Settings& settings)
+void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const resmgr::ModelManager& models,
+    const Matrix4x4& cullingViewProj, const Settings& settings)
 {
     ELM_PROFILE_SCOPE_N("Execute Culling");
     const auto tStart = core::getTimeStamp();
@@ -106,18 +108,22 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& culli
     // 2. Rasterize occluders to software depth buffer
     const auto tRasterStart = core::getTimeStamp();
     if (enableOcclusionCulling) {
-        for (const auto& inst : scene.instances) {
-            const Matrix4x4 wvp = cullingViewProj * inst.worldTransform;
-
-            if (!inst.meshData)
+        for (const auto& node : scene.nodes) {
+            const auto* model = models.Get(node.model);
+            if (!model)
                 continue;
-            const auto& meshData = *inst.meshData;
-            Vector<Vector3> positions;
-            positions.reserve(meshData.vertices.size());
-            for (const auto& v : meshData.vertices) {
-                positions.push_back(v.position);
+            const Matrix4x4 wvp = cullingViewProj * node.worldTransform;
+            for (const auto& submesh : model->submeshes) {
+                const auto& data = submesh.mesh.GetData();
+                if (!data)
+                    continue;
+                const auto& meshData = *data;
+                Vector<Vector3> positions;
+                positions.reserve(meshData.vertices.size());
+                for (const auto& vertex : meshData.vertices)
+                    positions.push_back(vertex.position);
+                m_depthBuffer.RasterizeMesh(positions, meshData.indices, wvp);
             }
-            m_depthBuffer.RasterizeMesh(positions, meshData.indices, wvp);
         }
     }
     const auto tRasterEnd = core::getTimeStamp();
@@ -127,20 +133,28 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& culli
 
     const Frustum frustum = Frustum::FromViewProj(cullingViewProj);
 
-    m_stats.totalObjects = static_cast<uint32_t>(scene.instances.size());
+    m_stats.totalObjects = static_cast<uint32_t>(std::count_if(scene.nodes.begin(), scene.nodes.end(),
+        [&](const Scene::Node& node) { return models.Get(node.model) != nullptr; }));
     m_stats.visibleCount = 0;
     m_stats.frustumCulledCount = 0;
     m_stats.occlusionCulledCount = 0;
 
-    for (auto& inst : scene.instances) {
+    for (auto& node : scene.nodes) {
 
         OccludeeInstance occInst;
         occInst.isFrustumCulled = false;
         occInst.isOcclusionCulled = false;
         occInst.isVisible = true;
-        occInst.worldTransform = inst.worldTransform;
-        occInst.localBounds = inst.localBounds;
-        occInst.color = inst.color;
+        occInst.worldTransform = node.worldTransform;
+        const auto* model = models.Get(node.model);
+        occInst.localBounds = model ? model->GetLocalBounds() : AABB{};
+        occInst.color = node.color;
+
+        if (!model) {
+            occInst.isVisible = node.visible;
+            m_occludees.emplace_back(occInst);
+            continue;
+        }
 
         const AABB worldBounds = occInst.localBounds.Transformed(occInst.worldTransform);
         auto finishCulling = [&](bool isCulled) {
@@ -151,7 +165,7 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const Matrix4x4& culli
             else if (visualMode == VisualMode::OccludersOnly) {
                 occInst.isVisible = enableOcclusionCulling;
             }
-            inst.visible = occInst.isVisible;
+            node.visible = occInst.isVisible;
             m_occludees.emplace_back(occInst);
         };
 

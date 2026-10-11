@@ -6,6 +6,9 @@
 #include "math/Primitivs.hpp"
 
 #include "render/api/RenderResources.hpp"
+#include "resmgr/ModelManager.hpp"
+
+#include <span>
 
 namespace elm {
 
@@ -18,37 +21,48 @@ enum class ScenePreset {
     PhysicsSandbox
 };
 
-struct Scene {
-    struct Instance {
-        render::MeshDataPtr meshData;
-        render::MeshHandle renderMesh;
-        AABB localBounds;
+class Scene {
+public:
+    static constexpr size_t NoNode = ~size_t{ 0 };
+
+    struct Node {
+        size_t parentIndex { NoNode };
+        Matrix4x4 localTransform;
         Matrix4x4 worldTransform;
-        Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
-        bool visible { true };
         String name;
+        resmgr::ModelHandler model;
+        Vector4 color { 1.0f, 1.0f, 1.0f, 1.0f };
+        bool visible { true };
     };
 
-    /// Creates the GPU mesh once; instances refer to it by handle, so equal geometry is drawn instanced.
-    [[nodiscard]] Instance MakeInstance(render::RenderResources& resources, const MeshData& data);
-    [[nodiscard]] Instance MakeInstance(const render::Mesh& mesh) const;
+    [[nodiscard]] Node& AddNode(resmgr::ModelHandler model, String name = {});
+    [[nodiscard]] Node& AppendNode(Node node);
+    [[nodiscard]] bool SetWorldTransform(size_t nodeIndex, const Matrix4x4& transform);
+    [[nodiscard]] bool RemoveNode(size_t nodeIndex);
+    void Append(Scene&& other);
     void Clear();
+    void ReserveNodes(size_t capacity);
+    
+    [[nodiscard]] size_t NodeCount() const noexcept { return nodes.size(); }
+    [[nodiscard]] bool Empty() const noexcept { return nodes.empty(); }
+    [[nodiscard]] ScenePreset GetPreset() const noexcept { return preset; }
+    void SetPreset(ScenePreset value) noexcept { preset = value; }
+
 
     ScenePreset preset { ScenePreset::Box };
-    Vector<Instance> instances;
-    /// Owns the GPU meshes the instances refer to
-    Vector<render::Mesh> meshes;
+    Vector<Node> nodes;
 };
 
 class TestScenes {
 public:
-    static void BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene, render::RenderResources& resources);
+    static void BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene,
+        resmgr::ModelManager& models, render::RenderResources& resources);
 
 private:
-    static void BuildWallAndGrid(uint32_t count, Scene& scene, render::RenderResources& resources);
-    static void BuildRooms(uint32_t count, Scene& scene, render::RenderResources& resources);
-    static void BuildPhysicsSandbox(uint32_t count, Scene& scene, render::RenderResources& resources);
-    static void BuildBox(uint32_t count, Scene& scene, render::RenderResources& resources);
+    static void BuildWallAndGrid(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
+    static void BuildRooms(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
+    static void BuildPhysicsSandbox(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
+    static void BuildBox(uint32_t count, Scene& scene, resmgr::ModelManager& models, render::RenderResources& resources);
 };
 
 } // namespace Engine

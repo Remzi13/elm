@@ -232,68 +232,84 @@ namespace elm::resmgr {
 
         auto SerializeModel(const Model& model) -> EngineResult<JsonValue>
         {
-            const auto& meshData = model.meshData;
             JsonValue document{ JsonValue::Type::Object };
-            auto result = SetField(document, "formatVersion", JsonValue(1.0));
+            auto result = SetField(document, "formatVersion", JsonValue(2.0));
             if (!result)
                 return UnexpectedSerializationError(result.error());
 
-            JsonValue serializedVertices{ JsonValue::Type::Array };
-            for (const auto& vertex : meshData.vertices) {
-                JsonValue serializedVertex{ JsonValue::Type::Object };
-                auto position = MakeVector(vertex.position);
-                if (!position)
-                    return UnexpectedSerializationError(position.error());
-                result = SetField(serializedVertex, "position", std::move(*position));
-                if (!result)
-                    return UnexpectedSerializationError(result.error());
+            result = SetField(document, "name", JsonValue(model.name.c_str()));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
 
-                auto normal = MakeVector(vertex.normal);
-                if (!normal)
-                    return UnexpectedSerializationError(normal.error());
-                result = SetField(serializedVertex, "normal", std::move(*normal));
+            JsonValue serializedSubmeshes{ JsonValue::Type::Array };
+            for (const auto& submesh : model.submeshes) {
+                if (!submesh.data)
+                    return UnexpectedSerializationError("Model contains a submesh without geometry", "Serializer");
+                const auto& meshData = *submesh.data;
+                JsonValue serializedSubmesh{ JsonValue::Type::Object };
+                JsonValue serializedVertices{ JsonValue::Type::Array };
+                for (const auto& vertex : meshData.vertices) {
+                    JsonValue serializedVertex{ JsonValue::Type::Object };
+                    auto position = MakeVector(vertex.position);
+                    if (!position)
+                        return UnexpectedSerializationError(position.error());
+                    result = SetField(serializedVertex, "position", std::move(*position));
+                    if (!result)
+                        return UnexpectedSerializationError(result.error());
+
+                    auto normal = MakeVector(vertex.normal);
+                    if (!normal)
+                        return UnexpectedSerializationError(normal.error());
+                    result = SetField(serializedVertex, "normal", std::move(*normal));
+                    if (!result)
+                        return UnexpectedSerializationError(result.error());
+                    result = SetField(serializedVertex, "u", JsonValue(vertex.u));
+                    if (!result)
+                        return UnexpectedSerializationError(result.error());
+                    result = SetField(serializedVertex, "v", JsonValue(vertex.v));
+                    if (!result)
+                        return UnexpectedSerializationError(result.error());
+                    result = AddToArray(serializedVertices, std::move(serializedVertex));
+                    if (!result)
+                        return UnexpectedSerializationError(result.error());
+                }
+
+                auto indices = MakeArray(meshData.indices);
+                if (!indices)
+                    return UnexpectedSerializationError(indices.error());
+                auto minBounds = MakeVector(meshData.localBounds.minBounds);
+                if (!minBounds)
+                    return UnexpectedSerializationError(minBounds.error());
+                auto maxBounds = MakeVector(meshData.localBounds.maxBounds);
+                if (!maxBounds)
+                    return UnexpectedSerializationError(maxBounds.error());
+                auto color = MakeArray(std::array{ submesh.color.x, submesh.color.y, submesh.color.z, submesh.color.w });
+                if (!color)
+                    return UnexpectedSerializationError(color.error());
+
+                result = SetField(serializedSubmesh, "vertices", std::move(serializedVertices));
                 if (!result)
                     return UnexpectedSerializationError(result.error());
-                result = SetField(serializedVertex, "u", JsonValue(vertex.u));
+                result = SetField(serializedSubmesh, "indices", std::move(*indices));
                 if (!result)
                     return UnexpectedSerializationError(result.error());
-                result = SetField(serializedVertex, "v", JsonValue(vertex.v));
+                result = SetField(serializedSubmesh, "minBounds", std::move(*minBounds));
                 if (!result)
                     return UnexpectedSerializationError(result.error());
-                result = AddToArray(serializedVertices, std::move(serializedVertex));
+                result = SetField(serializedSubmesh, "maxBounds", std::move(*maxBounds));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+                result = SetField(serializedSubmesh, "color", std::move(*color));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+                result = SetField(serializedSubmesh, "name", JsonValue(submesh.name.c_str()));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+                result = AddToArray(serializedSubmeshes, std::move(serializedSubmesh));
                 if (!result)
                     return UnexpectedSerializationError(result.error());
             }
-
-            auto indices = MakeArray(meshData.indices);
-            if (!indices)
-                return UnexpectedSerializationError(indices.error());
-            auto minBounds = MakeVector(meshData.localBounds.minBounds);
-            if (!minBounds)
-                return UnexpectedSerializationError(minBounds.error());
-            auto maxBounds = MakeVector(meshData.localBounds.maxBounds);
-            if (!maxBounds)
-                return UnexpectedSerializationError(maxBounds.error());
-            auto color = MakeArray(std::array{ model.color.x, model.color.y, model.color.z, model.color.w });
-            if (!color)
-                return UnexpectedSerializationError(color.error());
-
-            result = SetField(document, "vertices", std::move(serializedVertices));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = SetField(document, "indices", std::move(*indices));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = SetField(document, "minBounds", std::move(*minBounds));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = SetField(document, "maxBounds", std::move(*maxBounds));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = SetField(document, "color", std::move(*color));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = SetField(document, "name", JsonValue(model.name.c_str()));
+            result = SetField(document, "submeshes", std::move(serializedSubmeshes));
             if (!result)
                 return UnexpectedSerializationError(result.error());
             return document;
@@ -377,25 +393,57 @@ namespace elm::resmgr {
 
         auto DeserializeModel(const JsonValue& document) -> EngineResult<Model>
         {
-            auto meshData = DeserializeMeshData(document);
-            if (!meshData)
-                return UnexpectedSerializationError(meshData.error());
-
             Model model;
-            model.meshData = std::move(*meshData);
-            auto colorValue = document["color"];
-            if (colorValue.Exists()) {
-                auto color = ReadFloatArray<4>(colorValue, "model.color");
-                if (!color)
-                    return UnexpectedSerializationError(color.error());
-                model.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
-            }
             if (const auto nameValue = document.Find("name")) {
                 auto name = nameValue->AsString();
                 if (!name)
                     return UnexpectedSerializationError(name.error());
                 model.name = std::move(*name);
             }
+
+            if (const auto serializedSubmeshes = document.Find("submeshes")) {
+                if (!serializedSubmeshes->IsArray())
+                    return UnexpectedSerializationError("Model submeshes must be an array", "Serializer");
+                auto count = serializedSubmeshes->Size();
+                if (!count)
+                    return UnexpectedSerializationError(count.error());
+                for (size_t index = 0; index < *count; ++index) {
+                    auto serializedSubmesh = GetElement(*serializedSubmeshes, index);
+                    if (!serializedSubmesh)
+                        return UnexpectedSerializationError(serializedSubmesh.error());
+                    auto meshData = DeserializeMeshData(*serializedSubmesh);
+                    if (!meshData)
+                        return UnexpectedSerializationError(meshData.error());
+                    Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
+                    if (const auto colorValue = serializedSubmesh->Find("color")) {
+                        auto components = ReadFloatArray<4>(*colorValue, "submesh.color");
+                        if (!components)
+                            return UnexpectedSerializationError(components.error());
+                        color = Vector4{ (*components)[0], (*components)[1], (*components)[2], (*components)[3] };
+                    }
+                    String submeshName;
+                    if (const auto nameValue = serializedSubmesh->Find("name")) {
+                        auto name = nameValue->AsString();
+                        if (!name)
+                            return UnexpectedSerializationError(name.error());
+                        submeshName = std::move(*name);
+                    }
+                    model.AddSubmesh(std::move(*meshData), color, std::move(submeshName));
+                }
+                return model;
+            }
+
+            auto meshData = DeserializeMeshData(document);
+            if (!meshData)
+                return UnexpectedSerializationError(meshData.error());
+            Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
+            if (const auto colorValue = document.Find("color")) {
+                auto components = ReadFloatArray<4>(*colorValue, "model.color");
+                if (!components)
+                    return UnexpectedSerializationError(components.error());
+                color = Vector4{ (*components)[0], (*components)[1], (*components)[2], (*components)[3] };
+            }
+            model.AddSubmesh(std::move(*meshData), color);
             return model;
         }
 
@@ -413,10 +461,10 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::SaveScene(const Scene& scene, const Path& path) -> EngineResult<void>
+    auto Serializer::SaveScene(const Scene& scene, const ModelManager& models, const Path& path) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
-        auto result = SetField(document, "formatVersion", JsonValue(2.0));
+        auto result = SetField(document, "formatVersion", JsonValue(4.0));
         if (!result)
             return UnexpectedSerializationError(result.error());
         result = SetField(document, "preset", JsonValue(static_cast<double>(scene.preset)));
@@ -424,27 +472,15 @@ namespace elm::resmgr {
             return UnexpectedSerializationError(result.error());
 
         JsonValue serializedModels{ JsonValue::Type::Array };
-        UnorderedMap<const MeshData*, size_t> meshIndices;
+        UnorderedMap<ModelHandler, size_t> modelIndices;
         Set<String> modelFileNames;
         const auto sceneDirectory = path.Parent().Empty() ? Path(".") : path.Parent();
-        for (const auto& mesh : scene.meshes) {
-            const auto& meshData = mesh.GetData();
-            if (!meshData)
-                return UnexpectedSerializationError("Scene contains a mesh without geometry", "Serializer");
-            if (meshIndices.find(meshData.get()) != meshIndices.end())
-                continue;
-
-            Model model{ *meshData, {}, {} };
-            const auto instance = std::find_if(scene.instances.begin(), scene.instances.end(), [&](const Scene::Instance& candidate) {
-                return candidate.meshData.get() == meshData.get();
-            });
-            if (instance != scene.instances.end()) {
-                model.color = instance->color;
-                model.name = instance->name;
-            }
-
+        EngineResult<void> modelSaveResult;
+        models.ForEach([&](ModelHandler handler, const Model& model) {
+            if (!modelSaveResult)
+                return;
             const auto baseStem = MakeModelFileStem(
-                StringView(model.name.data(), model.name.size()), meshIndices.size());
+                StringView(model.name.data(), model.name.size()), modelIndices.size());
             String fileStem = baseStem;
             size_t suffix = 1;
             while (!modelFileNames.insert(fileStem).second)
@@ -452,61 +488,76 @@ namespace elm::resmgr {
             const auto modelPath = sceneDirectory / StringView(fileStem + ".model");
 
             auto writeModel = SaveModel(model, modelPath);
-            if (!writeModel)
-                return UnexpectedSerializationError(writeModel.error());
+            if (!writeModel) {
+                modelSaveResult = std::unexpected(writeModel.error());
+                return;
+            }
 
             const auto relativeModelPath = modelPath.LexicallyRelative(sceneDirectory).generic_string();
             JsonValue modelReference{ JsonValue::Type::Object };
             result = SetField(modelReference, "path", JsonValue(relativeModelPath));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
+            if (!result) {
+                modelSaveResult = std::unexpected(result.error());
+                return;
+            }
 
-            meshIndices.emplace(meshData.get(), meshIndices.size());
+            modelIndices.emplace(handler, modelIndices.size());
             result = AddToArray(serializedModels, std::move(modelReference));
             if (!result)
-                return UnexpectedSerializationError(result.error());
-        }
+                modelSaveResult = std::unexpected(result.error());
+        });
+        if (!modelSaveResult)
+            return UnexpectedSerializationError(modelSaveResult.error());
 
         result = SetField(document, "models", std::move(serializedModels));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
-        JsonValue serializedInstances{ JsonValue::Type::Array };
-        for (const auto& instance : scene.instances) {
-            const auto mesh = meshIndices.find(instance.meshData.get());
-            if (mesh == meshIndices.end())
-                return UnexpectedSerializationError("Scene instance refers to geometry not owned by the scene", "Serializer");
-
-            JsonValue serializedInstance{ JsonValue::Type::Object };
-            result = SetField(serializedInstance, "meshIndex", JsonValue(static_cast<double>(mesh->second)));
+        JsonValue serializedNodes{ JsonValue::Type::Array };
+        for (const auto& node : scene.nodes) {
+            JsonValue serializedNode{ JsonValue::Type::Object };
+            result = SetField(serializedNode, "name", JsonValue(node.name.c_str()));
             if (!result)
                 return UnexpectedSerializationError(result.error());
-
-            auto worldTransform = MakeMatrix(instance.worldTransform.m);
+            auto localTransform = MakeMatrix(node.localTransform.m);
+            if (!localTransform)
+                return UnexpectedSerializationError(localTransform.error());
+            result = SetField(serializedNode, "localTransform", std::move(*localTransform));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            auto worldTransform = MakeMatrix(node.worldTransform.m);
             if (!worldTransform)
                 return UnexpectedSerializationError(worldTransform.error());
-            auto color = MakeArray(std::array{ instance.color.x, instance.color.y, instance.color.z, instance.color.w });
+            result = SetField(serializedNode, "worldTransform", std::move(*worldTransform));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            if (node.parentIndex != Scene::NoNode) {
+                result = SetField(serializedNode, "parentIndex", JsonValue(static_cast<double>(node.parentIndex)));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            if (node.model) {
+                const auto model = modelIndices.find(node.model);
+                if (model == modelIndices.end())
+                    return UnexpectedSerializationError("Scene node refers to a model not owned by the model manager", "Serializer");
+                result = SetField(serializedNode, "modelIndex", JsonValue(static_cast<double>(model->second)));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            auto color = MakeArray(std::array{ node.color.x, node.color.y, node.color.z, node.color.w });
             if (!color)
                 return UnexpectedSerializationError(color.error());
-
-            result = SetField(serializedInstance, "worldTransform", std::move(*worldTransform));
+            result = SetField(serializedNode, "color", std::move(*color));
             if (!result)
                 return UnexpectedSerializationError(result.error());
-            result = SetField(serializedInstance, "color", std::move(*color));
+            result = SetField(serializedNode, "visible", JsonValue(node.visible));
             if (!result)
                 return UnexpectedSerializationError(result.error());
-            result = SetField(serializedInstance, "visible", JsonValue(instance.visible));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = SetField(serializedInstance, "name", JsonValue(instance.name.c_str()));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = AddToArray(serializedInstances, std::move(serializedInstance));
+            result = AddToArray(serializedNodes, std::move(serializedNode));
             if (!result)
                 return UnexpectedSerializationError(result.error());
         }
-
-        result = SetField(document, "instances", std::move(serializedInstances));
+        result = SetField(document, "nodes", std::move(serializedNodes));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
@@ -517,7 +568,8 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::LoadScene(Scene& scene, render::RenderResources& resources, const Path& path) -> EngineResult<void>
+    auto Serializer::LoadScene(Scene& scene, ModelManager& models,
+        render::RenderResources& resources, const Path& path) -> EngineResult<void>
     {
         auto json = ReadFile(path);
         if (!json)
@@ -535,7 +587,7 @@ namespace elm::resmgr {
         auto formatVersion = ReadUnsigned<uint32_t>(*versionField, "formatVersion");
         if (!formatVersion)
             return UnexpectedSerializationError(formatVersion.error());
-        if (*formatVersion != 1 && *formatVersion != 2)
+        if (*formatVersion != 1 && *formatVersion != 2 && *formatVersion != 3 && *formatVersion != 4)
             return UnexpectedSerializationError("Unsupported scene file version", "Serializer");
 
         auto presetField = GetField(document, "preset");
@@ -546,6 +598,127 @@ namespace elm::resmgr {
             return UnexpectedSerializationError(preset.error());
         if (*preset > static_cast<uint32_t>(ScenePreset::PhysicsSandbox))
             return UnexpectedSerializationError("Scene file contains an invalid preset", "Serializer");
+
+        Scene loadedScene;
+        loadedScene.preset = static_cast<ScenePreset>(*preset);
+        ModelManager loadedModels;
+        auto commitLoadedScene = [&]() {
+            models.Clear();
+            const auto remapping = loadedModels.MoveTo(models);
+            for (auto& node : loadedScene.nodes) {
+                if (const auto model = remapping.find(node.model); model != remapping.end())
+                    node.model = model->second;
+            }
+            scene = std::move(loadedScene);
+        };
+
+        if (*formatVersion == 4) {
+            auto serializedModels = ReadArrayField(document, "models");
+            auto serializedNodes = ReadArrayField(document, "nodes");
+            if (!serializedModels || !serializedNodes)
+                return UnexpectedSerializationError("Scene file is missing models or nodes", "Serializer");
+            auto modelCount = serializedModels->Size();
+            auto nodeCount = serializedNodes->Size();
+            if (!modelCount || !nodeCount)
+                return UnexpectedSerializationError("Invalid models or nodes array", "Serializer");
+
+            loadedScene.nodes.reserve(*nodeCount);
+            Vector<ModelHandler> modelHandlers;
+            modelHandlers.reserve(*modelCount);
+            for (size_t modelIndex = 0; modelIndex < *modelCount; ++modelIndex) {
+                auto modelReference = GetElement(*serializedModels, modelIndex);
+                if (!modelReference)
+                    return UnexpectedSerializationError(modelReference.error());
+                auto modelPathField = GetField(*modelReference, "path");
+                if (!modelPathField)
+                    return UnexpectedSerializationError(modelPathField.error());
+                auto modelPathText = modelPathField->AsString();
+                if (!modelPathText)
+                    return UnexpectedSerializationError(modelPathText.error());
+                const Path relativeModelPath(*modelPathText);
+                if (relativeModelPath.Empty() || relativeModelPath.IsAbsolute())
+                    return UnexpectedSerializationError("Scene model path must be a non-empty relative path", "Serializer");
+
+                auto modelJson = ReadFile(path.Parent() / relativeModelPath);
+                if (!modelJson)
+                    return UnexpectedSerializationError(modelJson.error());
+                JsonValue modelDocument;
+                auto parseModelResult = modelDocument.Parse(*modelJson);
+                if (!parseModelResult)
+                    return UnexpectedSerializationError(parseModelResult.error());
+                auto modelVersionField = GetField(modelDocument, "formatVersion");
+                if (!modelVersionField)
+                    return UnexpectedSerializationError(modelVersionField.error());
+                auto modelVersion = ReadUnsigned<uint32_t>(*modelVersionField, "model.formatVersion");
+                if (!modelVersion || (*modelVersion != 1 && *modelVersion != 2))
+                    return UnexpectedSerializationError("Unsupported model file version", "Serializer");
+                auto model = DeserializeModel(modelDocument);
+                if (!model)
+                    return UnexpectedSerializationError(model.error());
+                model->Upload(resources);
+                modelHandlers.push_back(loadedModels.Insert(std::move(*model)));
+            }
+
+            for (size_t nodeIndex = 0; nodeIndex < *nodeCount; ++nodeIndex) {
+                auto serializedNode = GetElement(*serializedNodes, nodeIndex);
+                if (!serializedNode)
+                    return UnexpectedSerializationError(serializedNode.error());
+                if (!serializedNode->IsObject())
+                    return UnexpectedSerializationError("Scene node must be an object", "Serializer");
+                auto localField = GetField(*serializedNode, "localTransform");
+                auto worldField = GetField(*serializedNode, "worldTransform");
+                auto visibleField = GetField(*serializedNode, "visible");
+                auto colorField = GetField(*serializedNode, "color");
+                if (!localField || !worldField || !visibleField || !colorField)
+                    return UnexpectedSerializationError("Scene node is missing required fields", "Serializer");
+                auto localTransform = ReadMatrix(*localField, "node.localTransform");
+                auto worldTransform = ReadMatrix(*worldField, "node.worldTransform");
+                auto visible = visibleField->AsBoolean();
+                auto color = ReadFloatArray<4>(*colorField, "node.color");
+                if (!localTransform || !worldTransform || !visible || !color)
+                    return UnexpectedSerializationError("Invalid scene node data", "Serializer");
+
+                Scene::Node node;
+                node.localTransform.m = *localTransform;
+                node.worldTransform.m = *worldTransform;
+                node.visible = *visible;
+                node.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
+                if (const auto parentField = serializedNode->Find("parentIndex")) {
+                    auto parentIndex = ReadUnsigned<size_t>(*parentField, "node.parentIndex");
+                    if (!parentIndex || *parentIndex >= *nodeCount || *parentIndex == nodeIndex)
+                        return UnexpectedSerializationError("Scene node has an invalid parent index", "Serializer");
+                    node.parentIndex = *parentIndex;
+                }
+                if (const auto modelField = serializedNode->Find("modelIndex")) {
+                    auto modelIndex = ReadUnsigned<size_t>(*modelField, "node.modelIndex");
+                    if (!modelIndex || *modelIndex >= *modelCount)
+                        return UnexpectedSerializationError("Scene node refers to a missing model", "Serializer");
+                    node.model = modelHandlers[*modelIndex];
+                }
+                if (const auto nameField = serializedNode->Find("name")) {
+                    auto name = nameField->AsString();
+                    if (!name)
+                        return UnexpectedSerializationError(name.error());
+                    node.name = std::move(*name);
+                }
+                loadedScene.nodes.push_back(std::move(node));
+            }
+
+            for (size_t nodeIndex = 0; nodeIndex < loadedScene.nodes.size(); ++nodeIndex) {
+                size_t current = nodeIndex;
+                for (size_t depth = 0; depth <= loadedScene.nodes.size(); ++depth) {
+                    const size_t parentIndex = loadedScene.nodes[current].parentIndex;
+                    if (parentIndex == Scene::NoNode)
+                        break;
+                    if (depth == loadedScene.nodes.size())
+                        return UnexpectedSerializationError("Scene node hierarchy contains a cycle", "Serializer");
+                    current = parentIndex;
+                }
+            }
+
+            commitLoadedScene();
+            return {};
+        }
 
         auto meshes = ReadArrayField(document, *formatVersion == 1 ? "meshes" : "models");
         if (!meshes)
@@ -560,12 +733,65 @@ namespace elm::resmgr {
         if (!instanceCount)
             return UnexpectedSerializationError(instanceCount.error());
 
-        Scene loadedScene;
-        loadedScene.preset = static_cast<ScenePreset>(*preset);
-        loadedScene.meshes.reserve(*meshCount);
-        loadedScene.instances.reserve(*instanceCount);
+        loadedScene.nodes.reserve(*instanceCount + (*formatVersion >= 3 ? *meshCount : 0));
+        Vector<ModelHandler> modelHandlers;
+        modelHandlers.reserve(*meshCount);
         Vector<Vector4> modelColors;
         modelColors.reserve(*meshCount);
+
+        if (*formatVersion >= 3) {
+            auto serializedNodes = ReadArrayField(document, "nodes");
+            if (!serializedNodes)
+                return UnexpectedSerializationError(serializedNodes.error());
+            auto nodeCount = serializedNodes->Size();
+            if (!nodeCount)
+                return UnexpectedSerializationError(nodeCount.error());
+            loadedScene.nodes.reserve(*nodeCount);
+            for (size_t nodeIndex = 0; nodeIndex < *nodeCount; ++nodeIndex) {
+                auto serializedNode = GetElement(*serializedNodes, nodeIndex);
+                if (!serializedNode)
+                    return UnexpectedSerializationError(serializedNode.error());
+                if (!serializedNode->IsObject())
+                    return UnexpectedSerializationError("Scene node must be an object", "Serializer");
+
+                auto transformField = GetField(*serializedNode, "localTransform");
+                if (!transformField)
+                    return UnexpectedSerializationError(transformField.error());
+                auto localTransform = ReadMatrix(*transformField, "node.localTransform");
+                if (!localTransform)
+                    return UnexpectedSerializationError(localTransform.error());
+
+                Scene::Node node;
+                node.localTransform.m = *localTransform;
+                if (const auto parentField = serializedNode->Find("parentIndex")) {
+                    auto parentIndex = ReadUnsigned<size_t>(*parentField, "node.parentIndex");
+                    if (!parentIndex)
+                        return UnexpectedSerializationError(parentIndex.error());
+                    if (*parentIndex >= *nodeCount || *parentIndex == nodeIndex)
+                        return UnexpectedSerializationError("Scene node has an invalid parent index", "Serializer");
+                    node.parentIndex = *parentIndex;
+                }
+                if (const auto nameField = serializedNode->Find("name")) {
+                    auto name = nameField->AsString();
+                    if (!name)
+                        return UnexpectedSerializationError(name.error());
+                    node.name = std::move(*name);
+                }
+                loadedScene.nodes.push_back(std::move(node));
+            }
+
+            for (size_t nodeIndex = 0; nodeIndex < loadedScene.nodes.size(); ++nodeIndex) {
+                size_t current = nodeIndex;
+                for (size_t depth = 0; depth <= loadedScene.nodes.size(); ++depth) {
+                    const size_t parentIndex = loadedScene.nodes[current].parentIndex;
+                    if (parentIndex == Scene::NoNode)
+                        break;
+                    if (depth == loadedScene.nodes.size())
+                        return UnexpectedSerializationError("Scene node hierarchy contains a cycle", "Serializer");
+                    current = parentIndex;
+                }
+            }
+        }
 
         for (size_t meshIndex = 0; meshIndex < *meshCount; ++meshIndex) {
             auto serializedModel = GetElement(*meshes, meshIndex);
@@ -608,14 +834,24 @@ namespace elm::resmgr {
                 auto meshData = DeserializeMeshData(modelDocument);
                 if (!meshData)
                     return UnexpectedSerializationError(meshData.error());
-                static_cast<void>(loadedScene.MakeInstance(resources, *meshData));
-                modelColors.push_back(Model{}.color);
+                Model model;
+                model.AddSubmesh(std::move(*meshData), Vector4 { 1.0f, 1.0f, 1.0f, 1.0f });
+                model.Upload(resources);
+                modelHandlers.push_back(loadedModels.Insert(std::move(model)));
+                modelColors.push_back(Vector4 { 0.8f, 0.8f, 0.8f, 1.0f });
             } else {
                 auto model = DeserializeModel(modelDocument);
                 if (!model)
                     return UnexpectedSerializationError(model.error());
-                static_cast<void>(loadedScene.MakeInstance(resources, model->meshData));
-                modelColors.push_back(model->color);
+                Vector4 modelColor { 0.8f, 0.8f, 0.8f, 1.0f };
+                if (!model->submeshes.empty()) {
+                    modelColor = model->submeshes.front().color;
+                    for (auto& submesh : model->submeshes)
+                        submesh.color = Vector4 { 1.0f, 1.0f, 1.0f, 1.0f };
+                }
+                model->Upload(resources);
+                modelColors.push_back(modelColor);
+                modelHandlers.push_back(loadedModels.Insert(std::move(*model)));
             }
         }
 
@@ -632,7 +868,7 @@ namespace elm::resmgr {
             auto meshIndex = ReadUnsigned<size_t>(*meshIndexField, "instance.meshIndex");
             if (!meshIndex)
                 return UnexpectedSerializationError(meshIndex.error());
-            if (*meshIndex >= loadedScene.meshes.size())
+            if (*meshIndex >= modelHandlers.size())
                 return UnexpectedSerializationError("Scene instance refers to a missing mesh", "Serializer");
 
             auto transformField = GetField(*serializedInstance, "worldTransform");
@@ -645,27 +881,39 @@ namespace elm::resmgr {
             if (!visible)
                 return UnexpectedSerializationError(visible.error());
 
-            auto instance = loadedScene.MakeInstance(loadedScene.meshes[*meshIndex]);
-            instance.worldTransform.m = *worldTransform;
-            instance.color = modelColors[*meshIndex];
+            Scene::Node node;
+            node.model = modelHandlers[*meshIndex];
+            node.worldTransform.m = *worldTransform;
+            node.localTransform.m = *worldTransform;
+            node.color = modelColors[*meshIndex];
             auto colorField = (*serializedInstance)["color"];
             if (colorField.Exists()) {
                 auto color = ReadFloatArray<4>(colorField, "instance.color");
                 if (!color)
                     return UnexpectedSerializationError(color.error());
-                instance.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
+                node.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
             }
-            instance.visible = *visible;
+            node.visible = *visible;
             if (const auto nameField = serializedInstance->Find("name")) {
                 auto name = nameField->AsString();
                 if (!name)
                     return UnexpectedSerializationError(name.error());
-                instance.name = std::move(*name);
+                node.name = std::move(*name);
             }
-            loadedScene.instances.push_back(std::move(instance));
+            if (*formatVersion >= 3) {
+                if (const auto nodeField = serializedInstance->Find("nodeIndex")) {
+                    auto nodeIndex = ReadUnsigned<size_t>(*nodeField, "instance.nodeIndex");
+                    if (!nodeIndex)
+                        return UnexpectedSerializationError(nodeIndex.error());
+                    if (*nodeIndex >= loadedScene.nodes.size())
+                        return UnexpectedSerializationError("Scene instance refers to a missing node", "Serializer");
+                    node.parentIndex = *nodeIndex;
+                }
+            }
+            loadedScene.nodes.push_back(std::move(node));
         }
 
-        scene = std::move(loadedScene);
+        commitLoadedScene();
         return {};
     }
 

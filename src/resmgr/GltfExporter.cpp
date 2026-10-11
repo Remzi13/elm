@@ -39,6 +39,12 @@ namespace elm::resmgr {
             Vector<Accessor> accessors;
         };
 
+        struct DecodedSubmesh {
+            MeshData meshData;
+            Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
+            String name;
+        };
+
         auto Failure(String message) -> std::unexpected<EngineError>
         {
             return UnexpectedSerializationError(std::move(message), "GltfExporter");
@@ -133,7 +139,7 @@ namespace elm::resmgr {
 
         auto ExportModels(
             const Path& path,
-            const Vector<Model>& models,
+            const Vector<DecodedSubmesh>& models,
             std::span<const Matrix4x4> transforms) -> EngineResult<void>
         {
             if (path.Empty())
@@ -857,7 +863,7 @@ namespace elm::resmgr {
             return Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
         }
 
-        auto DecodePrimitive(const GltfDocument& document, const JsonValue& primitive) -> EngineResult<Model>
+        auto DecodePrimitive(const GltfDocument& document, const JsonValue& primitive) -> EngineResult<DecodedSubmesh>
         {
             if (!primitive.IsObject())
                 return Failure("glTF primitive entry must be an object");
@@ -906,7 +912,7 @@ namespace elm::resmgr {
                 texcoords = std::move(*values);
             }
 
-            Model model;
+            DecodedSubmesh model;
             model.meshData.vertices.reserve(positions->size());
             model.meshData.localBounds = AABB{};
             for (size_t index = 0; index < positions->size(); ++index) {
@@ -1048,7 +1054,7 @@ namespace elm::resmgr {
             return children;
         }
 
-        auto ReadMeshPrimitives(const GltfDocument& document, size_t meshIndex) -> EngineResult<Vector<Model>>
+        auto ReadMeshPrimitives(const GltfDocument& document, size_t meshIndex) -> EngineResult<Vector<DecodedSubmesh>>
         {
             auto meshes = Required(document.root, "meshes");
             if (!meshes)
@@ -1075,7 +1081,7 @@ namespace elm::resmgr {
             if (!primitiveCount || *primitiveCount == 0)
                 return Failure("glTF mesh has no primitives");
 
-            Vector<Model> result;
+            Vector<DecodedSubmesh> result;
             result.reserve(*primitiveCount);
             for (size_t index = 0; index < *primitiveCount; ++index) {
                 auto model = DecodePrimitive(document, primitives->At(index));
@@ -1097,7 +1103,9 @@ namespace elm::resmgr {
             size_t nodeIndex,
             const Matrix4x4& parentTransform,
             Vector<bool>& recursionStack,
-            const Vector<Vector<Scene::Instance>>& meshInstances,
+            Vector<bool>& visitedNodes,
+            const Vector<ModelHandler>& meshModels,
+            size_t parentSceneNodeIndex,
             Scene& scene) -> EngineResult<void>
         {
             auto nodeCount = nodes.Size();
@@ -1105,7 +1113,10 @@ namespace elm::resmgr {
                 return Failure("glTF scene references an invalid node");
             if (recursionStack[nodeIndex])
                 return Failure("Cycle detected in glTF node hierarchy");
+            if (visitedNodes[nodeIndex])
+                return Failure("glTF node is referenced more than once in the selected scene");
             recursionStack[nodeIndex] = true;
+            visitedNodes[nodeIndex] = true;
 
             const auto node = nodes.At(nodeIndex);
             auto localTransform = ReadNodeTransform(node);
@@ -1113,30 +1124,35 @@ namespace elm::resmgr {
                 return UnexpectedSerializationError(localTransform.error());
             const Matrix4x4 worldTransform = parentTransform * *localTransform;
 
+            String nodeName;
+            if (const auto nameField = Optional(node, "name")) {
+                auto name = nameField->AsString();
+                if (!name)
+                    return Failure("Invalid glTF node name");
+                nodeName = std::move(*name);
+            }
+            const size_t sceneNodeIndex = scene.nodes.size();
+            scene.nodes.push_back(Scene::Node{});
+            auto& sceneNode = scene.nodes.back();
+            sceneNode.parentIndex = parentSceneNodeIndex;
+            sceneNode.localTransform = *localTransform;
+            sceneNode.worldTransform = worldTransform;
+            sceneNode.name = std::move(nodeName);
+
             if (const auto meshField = Optional(node, "mesh")) {
                 auto meshIndex = ReadUnsigned<size_t>(*meshField, "nodes.mesh");
-                if (!meshIndex || *meshIndex >= meshInstances.size())
+                if (!meshIndex || *meshIndex >= meshModels.size())
                     return Failure("glTF node references an invalid mesh");
-                String nodeName;
-                if (const auto nameField = Optional(node, "name")) {
-                    auto name = nameField->AsString();
-                    if (!name)
-                        return Failure("Invalid glTF node name");
-                    nodeName = std::move(*name);
-                }
-                for (auto instance : meshInstances[*meshIndex]) {
-                    instance.worldTransform = worldTransform;
-                    if (instance.name.empty())
-                        instance.name = nodeName;
-                    scene.instances.push_back(std::move(instance));
-                }
+                sceneNode.model = meshModels[*meshIndex];
             }
 
             auto children = ReadNodeChildIndices(node);
             if (!children)
                 return UnexpectedSerializationError(children.error());
             for (const auto childIndex : *children) {
-                auto result = AddNodeInstances(nodes, childIndex, worldTransform, recursionStack, meshInstances, scene);
+                auto result = AddNodeInstances(
+                    nodes, childIndex, worldTransform, recursionStack, visitedNodes,
+                    meshModels, sceneNodeIndex, scene);
                 if (!result)
                     return UnexpectedSerializationError(result.error());
             }
@@ -1147,25 +1163,38 @@ namespace elm::resmgr {
 
     auto GltfExporter::ExportModel(const Model& model, const Path& path) -> EngineResult<void>
     {
-        return ExportModels(path, Vector<Model>{ model }, {});
+        Vector<DecodedSubmesh> submeshes;
+        submeshes.reserve(model.submeshes.size());
+        for (const auto& submesh : model.submeshes) {
+            if (!submesh.data)
+                return Failure("Model contains a submesh without geometry");
+            submeshes.push_back({ *submesh.data, submesh.color, submesh.name });
+        }
+        return ExportModels(path, submeshes, {});
     }
 
-    auto GltfExporter::Export(const Path& path, const Scene& scene) -> EngineResult<void>
+    auto GltfExporter::Export(const Path& path, const Scene& scene, const ModelManager& models) -> EngineResult<void>
     {
-        Vector<Model> models;
+        Vector<DecodedSubmesh> decodedSubmeshes;
         Vector<Matrix4x4> transforms;
-        models.reserve(scene.instances.size());
-        transforms.reserve(scene.instances.size());
-        for (const auto& instance : scene.instances) {
-            if (!instance.meshData)
-                return Failure("Scene contains an instance without mesh data");
-            Model model{ *instance.meshData, instance.color, instance.name };
-            model.color = instance.color;
-            model.name = instance.name;
-            models.push_back(std::move(model));
-            transforms.push_back(instance.worldTransform);
+        for (const auto& node : scene.nodes) {
+            const auto* model = models.Get(node.model);
+            if (!model)
+                continue;
+            for (const auto& submesh : model->submeshes) {
+                if (!submesh.data)
+                    return Failure("Scene model contains a submesh without geometry");
+                const Vector4 color {
+                    submesh.color.x * node.color.x,
+                    submesh.color.y * node.color.y,
+                    submesh.color.z * node.color.z,
+                    submesh.color.w * node.color.w
+                };
+                decodedSubmeshes.push_back({ *submesh.data, color, node.name.empty() ? submesh.name : node.name });
+                transforms.push_back(node.worldTransform);
+            }
         }
-        return ExportModels(path, models, transforms);
+        return ExportModels(path, decodedSubmeshes, transforms);
     }
 
     auto GltfExporter::LoadModel(const Path& path, size_t meshIndex, size_t primitiveIndex) -> EngineResult<Model>
@@ -1182,12 +1211,24 @@ namespace elm::resmgr {
         auto models = ReadMeshPrimitives(*document, meshIndex);
         if (!models)
             return UnexpectedSerializationError(models.error());
-        if (primitiveIndex >= models->size())
-            return Failure("Requested glTF primitive index does not exist");
-        return std::move((*models)[primitiveIndex]);
+        Model model;
+        if (primitiveIndex != static_cast<size_t>(-1)) {
+            if (primitiveIndex >= models->size())
+                return Failure("Requested glTF primitive index does not exist");
+            model.name = (*models)[primitiveIndex].name;
+            model.AddSubmesh(std::move((*models)[primitiveIndex].meshData), (*models)[primitiveIndex].color);
+            return model;
+        }
+        for (auto& submesh : *models) {
+            if (model.name.empty())
+                model.name = submesh.name;
+            model.AddSubmesh(std::move(submesh.meshData), submesh.color, std::move(submesh.name));
+        }
+        return model;
     }
 
-    auto GltfExporter::LoadScene(Scene& scene, render::RenderResources& resources, const Path& path)
+    auto GltfExporter::LoadScene(Scene& scene, ModelManager& models,
+        render::RenderResources& resources, const Path& path)
         -> EngineResult<void>
     {
         auto document = LoadDocument(path);
@@ -1205,19 +1246,20 @@ namespace elm::resmgr {
             return Failure("Invalid glTF nodes or meshes array");
 
         Scene imported;
-        Vector<Vector<Scene::Instance>> meshInstances;
-        meshInstances.resize(*meshCount);
+        ModelManager importedModels;
+        Vector<ModelHandler> meshModels;
+        meshModels.reserve(*meshCount);
         for (size_t meshIndex = 0; meshIndex < *meshCount; ++meshIndex) {
-            auto models = ReadMeshPrimitives(*document, meshIndex);
-            if (!models)
-                return UnexpectedSerializationError(models.error());
-            meshInstances[meshIndex].reserve(models->size());
-            for (const auto& model : *models) {
-                auto instance = imported.MakeInstance(resources, model.meshData);
-                instance.color = model.color;
-                instance.name = model.name;
-                meshInstances[meshIndex].push_back(std::move(instance));
-            }
+            auto submeshes = ReadMeshPrimitives(*document, meshIndex);
+            if (!submeshes)
+                return UnexpectedSerializationError(submeshes.error());
+            String modelName = submeshes->empty() ? String{} : (*submeshes)[0].name;
+            const auto handler = importedModels.Create(std::move(modelName));
+            auto* model = importedModels.Get(handler);
+            for (auto& submesh : *submeshes)
+                model->AddSubmesh(std::move(submesh.meshData), submesh.color, std::move(submesh.name));
+            model->Upload(resources);
+            meshModels.push_back(handler);
         }
 
         Vector<bool> hasParent(*nodeCount, false);
@@ -1274,13 +1316,22 @@ namespace elm::resmgr {
         }
 
         Vector<bool> recursionStack(*nodeCount, false);
+        Vector<bool> visitedNodes(*nodeCount, false);
         const Matrix4x4 identity = Matrix4x4::Identity();
         for (const auto rootIndex : roots) {
-            auto result = AddNodeInstances(nodes, rootIndex, identity, recursionStack, meshInstances, imported);
+            auto result = AddNodeInstances(
+                nodes, rootIndex, identity, recursionStack, visitedNodes,
+                meshModels, Scene::NoNode, imported);
             if (!result)
                 return UnexpectedSerializationError(result.error());
         }
 
+        models.Clear();
+        const auto remapping = importedModels.MoveTo(models);
+        for (auto& node : imported.nodes) {
+            if (const auto model = remapping.find(node.model); model != remapping.end())
+                node.model = model->second;
+        }
         scene = std::move(imported);
         return {};
     }

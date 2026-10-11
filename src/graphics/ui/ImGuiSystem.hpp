@@ -40,7 +40,8 @@ namespace elm {
 
 		[[nodiscard]] auto Init(platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame
-		void BuildFrame(render::RenderSystem& renderSystem, Scene& scene, Camera& camera, const FrameStats& stats,
+		void BuildFrame(render::RenderSystem& renderSystem, Scene& scene, resmgr::ModelManager& models,
+			Camera& camera, const FrameStats& stats,
 			render::ViewPort& viewPort, render::OverlayFrame& frame);
 		// Render thread: reports viewport surfaces released by the render graph
 		void NotifyViewportSurfacesReleased(uint64_t count);
