@@ -160,12 +160,12 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
             node.localTransform(0, 3) += 1.0f;
             node.name += " Copy";
             scene.nodes.push_back(std::move(node));
-        } else {
-            const auto modelHandler = context.models.Create("Cube");
-            auto* model = context.models.Get(modelHandler);
-            model->AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
-            model->Upload(context.renderSystem.Resources());
-            auto& node = scene.AddNode(modelHandler, "Cube");
+        } else {            
+            graphics::Model model;
+            model.name = "Cube";            
+            model.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            model.Upload(context.renderSystem.Resources());
+            auto& node = scene.AddNode(context.models.Insert(std::move(model)), "Cube");
             node.localTransform = Matrix4x4::Translation(Vector3 { 0.0f, 0.5f, 0.0f });
             node.worldTransform = node.localTransform;
             node.color = Vector4 { 0.8f, 0.8f, 0.8f, 1.0f };

@@ -9,12 +9,13 @@ namespace {
 
     auto AddMesh(graphics::ModelManager& models, render::RenderResources& resources, const MeshData& data, String name = {})
         -> graphics::ModelHandler
-    {
-        const auto handler = models.Create(std::move(name));
-        auto* asset = models.Get(handler);
-        asset->AddSubmesh(data);
-        asset->Upload(resources);
-        return handler;
+    {     
+        graphics::Model asset;
+        asset.name = name;        
+        asset.AddSubmesh(data);
+        asset.Upload(resources);
+
+        return models.Insert(std::move(asset));
     }
 
     auto AddNode(Scene& scene, const graphics::ModelHandler& model, const Matrix4x4& transform,

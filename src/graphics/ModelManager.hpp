@@ -9,11 +9,7 @@ namespace elm::graphics {
 
     class ModelManager {
     public:
-        [[nodiscard]] ModelHandler Create(String name = {})
-        {
-            return Insert(Model(std::move(name)));
-        }
-
+        
         [[nodiscard]] ModelHandler Insert(Model model)
         {
             uint32_t index;

@@ -1252,14 +1252,13 @@ namespace elm::resmgr {
         for (size_t meshIndex = 0; meshIndex < *meshCount; ++meshIndex) {
             auto submeshes = ReadMeshPrimitives(*document, meshIndex);
             if (!submeshes)
-                return UnexpectedSerializationError(submeshes.error());
-            String modelName = submeshes->empty() ? String{} : (*submeshes)[0].name;
-            const auto handler = importedModels.Create(std::move(modelName));
-            auto* model = importedModels.Get(handler);
+                return UnexpectedSerializationError(submeshes.error());            
+            graphics::Model model;
+            model.name = submeshes->empty() ? String { } : (*submeshes)[0].name;
             for (auto& submesh : *submeshes)
-                model->AddSubmesh(std::move(submesh.meshData), submesh.color, std::move(submesh.name));
-            model->Upload(resources);
-            meshModels.push_back(handler);
+                model.AddSubmesh(std::move(submesh.meshData), submesh.color, std::move(submesh.name));
+            model.Upload(resources);
+            meshModels.push_back(importedModels.Insert(std::move(model)));
         }
 
         Vector<bool> hasParent(*nodeCount, false);
