@@ -4,8 +4,6 @@
 
 #include "math/Matrix.hpp"
 
-#include "render/api/RenderResources.hpp"
-
 #include "graphics/ModelManager.hpp"
 
 namespace elm {
@@ -18,6 +16,8 @@ enum class ScenePreset {
     RoomsAndCorridors,
     PhysicsSandbox
 };
+
+struct SceneAsset;
 
 class Scene {
 public:
@@ -37,7 +37,8 @@ public:
     [[nodiscard]] Node& AppendNode(Node node);
     [[nodiscard]] bool SetWorldTransform(size_t nodeIndex, const Matrix4x4& transform);
     [[nodiscard]] bool RemoveNode(size_t nodeIndex);
-    void Append(Scene&& other);
+    /// Uploads the asset models into models and appends its nodes. Returns the index of the first appended node.
+    size_t Append(SceneAsset&& asset, graphics::ModelManager& models);
     void Clear();
     void ReserveNodes(size_t capacity);
     
@@ -47,16 +48,27 @@ public:
     Vector<Node> nodes;
 };
 
+/// Scene as read from a file: models are CPU-side only and not owned by any ModelManager yet.
+struct SceneAsset {
+    static constexpr size_t NoModel = ~size_t{ 0 };
+
+    /// Node models are left empty, nodeModels tells which model each node uses.
+    Scene scene;
+    Vector<graphics::Model> models;
+    /// Per scene node: index into models or NoModel.
+    Vector<size_t> nodeModels;
+};
+
 class TestScenes {
 public:
     static void BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene,
-        graphics::ModelManager& models, render::RenderResources& resources);
+        graphics::ModelManager& models);
 
 private:
-    static void BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
-    static void BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
-    static void BuildPhysicsSandbox(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
-    static void BuildBox(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources);
+    static void BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelManager& models);
+    static void BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager& models);
+    static void BuildPhysicsSandbox(uint32_t count, Scene& scene, graphics::ModelManager& models);
+    static void BuildBox(uint32_t count, Scene& scene, graphics::ModelManager& models);
 };
 
 } // namespace Engine

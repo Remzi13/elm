@@ -7,13 +7,12 @@ namespace elm {
 
 namespace {
 
-    auto AddMesh(graphics::ModelManager& models, render::RenderResources& resources, const MeshData& data, String name = {})
+    auto AddMesh(graphics::ModelManager& models, const MeshData& data, String name = {})
         -> graphics::ModelHandler
     {     
         graphics::Model asset;
         asset.name = name;        
         asset.AddSubmesh(data);
-        asset.Upload(resources);
 
         return models.Insert(std::move(asset));
     }
@@ -116,15 +115,24 @@ bool Scene::SetWorldTransform(size_t nodeIndex, const Matrix4x4& transform)
     return true;
 }
 
-void Scene::Append(Scene&& other)
+size_t Scene::Append(SceneAsset&& asset, graphics::ModelManager& models)
 {
+    Vector<graphics::ModelHandler> handlers;
+    handlers.reserve(asset.models.size());
+    for (auto& model : asset.models)
+        handlers.push_back(models.Insert(std::move(model)));
+
     const size_t nodeOffset = nodes.size();
-    nodes.reserve(nodes.size() + other.nodes.size());
-    for (auto& node : other.nodes) {
+    nodes.reserve(nodes.size() + asset.scene.nodes.size());
+    for (size_t nodeIndex = 0; nodeIndex < asset.scene.nodes.size(); ++nodeIndex) {
+        auto& node = asset.scene.nodes[nodeIndex];
         if (node.parentIndex != NoNode)
             node.parentIndex += nodeOffset;
+        const size_t modelIndex = nodeIndex < asset.nodeModels.size() ? asset.nodeModels[nodeIndex] : SceneAsset::NoModel;
+        node.model = modelIndex < handlers.size() ? handlers[modelIndex] : graphics::ModelHandler {};
         nodes.push_back(std::move(node));
     }
+    return nodeOffset;
 }
 
 void Scene::Clear()
@@ -133,7 +141,7 @@ void Scene::Clear()
 }
 
 void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene,
-    graphics::ModelManager& models, render::RenderResources& resources)
+    graphics::ModelManager& models)
 {
     scene.Clear();
     models.Clear();
@@ -141,30 +149,30 @@ void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Sc
 
     switch (preset) {
     case ScenePreset::Box:
-        BuildBox(targetInstanceCount, scene, models, resources);
+        BuildBox(targetInstanceCount, scene, models);
         break;
     case ScenePreset::WallAndGrid:
-        BuildWallAndGrid(targetInstanceCount, scene, models, resources);
+        BuildWallAndGrid(targetInstanceCount, scene, models);
         break;
     case ScenePreset::RoomsAndCorridors:
-        BuildRooms(targetInstanceCount, scene, models, resources);
+        BuildRooms(targetInstanceCount, scene, models);
         break;
     case ScenePreset::PhysicsSandbox:
-        BuildPhysicsSandbox(targetInstanceCount, scene, models, resources);
+        BuildPhysicsSandbox(targetInstanceCount, scene, models);
         break;
     }
 }
 
-void TestScenes::BuildBox([[maybe_unused]] uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources)
+void TestScenes::BuildBox([[maybe_unused]] uint32_t count, Scene& scene, graphics::ModelManager& models)
 {
-    const auto cubeModel = AddMesh(models, resources, GeometryPrimitives::CreateCube(1.0f), "Cube");
+    const auto cubeModel = AddMesh(models, GeometryPrimitives::CreateCube(1.0f), "Cube");
     AddNode(scene, cubeModel, Matrix4x4::Translation(Vector3 { 0.0f, 0.5f, 0.0f }),
         Vector4 { 0.8f, 0.2f, 0.2f, 1.0f });
 }
 
-void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources)
+void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelManager& models)
 {
-    const auto wallModel = AddMesh(models, resources, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Wall");
+    const auto wallModel = AddMesh(models, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Wall");
     AddNode(scene, wallModel, MakeWallTransform(18.0f, 9.0f, 1.5f, Vector3 { -10.5f, 4.5f, 0.0f }));
     AddNode(scene, wallModel, MakeWallTransform(18.0f, 9.0f, 1.5f, Vector3 { 10.5f, 4.5f, 0.0f }));
     AddNode(scene, wallModel, MakeWallTransform(3.0f, 3.0f, 1.5f, Vector3 { 0.0f, 7.5f, 0.0f }));
@@ -174,7 +182,7 @@ void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelM
     const uint32_t rows = cols == 0 ? 0 : static_cast<uint32_t>(std::ceil(static_cast<float>(count) / static_cast<float>(cols)));
     const float stepX = 40.0f / static_cast<float>(cols > 1 ? cols - 1 : 1);
     const float stepZ = 40.0f / static_cast<float>(rows > 1 ? rows - 1 : 1);
-    const auto cubeModel = AddMesh(models, resources, GeometryPrimitives::CreateCube(0.8f), "Grid Cube");
+    const auto cubeModel = AddMesh(models, GeometryPrimitives::CreateCube(0.8f), "Grid Cube");
 
     uint32_t id = 0;
     for (uint32_t row = 0; row < rows && id < count; ++row) {
@@ -190,9 +198,9 @@ void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelM
     }
 }
 
-void TestScenes::BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources)
+void TestScenes::BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager& models)
 {
-    const auto wallModel = AddMesh(models, resources, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Wall");
+    const auto wallModel = AddMesh(models, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Wall");
     const float roomSize = 16.0f;
     const float wallH = 6.0f;
     const float wallT = 1.0f;
@@ -206,7 +214,7 @@ void TestScenes::BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager
     AddNode(scene, wallModel, MakeWallTransform(wallT, wallH, roomSize * 2.0f, Vector3 { roomSize, wallH * 0.5f, 0.0f }));
     AddNode(scene, wallModel, MakeWallTransform(wallT, wallH, roomSize * 2.0f, Vector3 { -roomSize, wallH * 0.5f, 0.0f }));
 
-    const auto cubeModel = AddMesh(models, resources, GeometryPrimitives::CreateCube(0.7f), "Cube");
+    const auto cubeModel = AddMesh(models, GeometryPrimitives::CreateCube(0.7f), "Cube");
     for (uint32_t index = 0; index < count; ++index) {
         const int room = static_cast<int>(index % 4);
         const float roomX = (room % 2 == 0 ? -1.0f : 1.0f) * 8.0f;
@@ -230,12 +238,12 @@ void TestScenes::BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager
     }
 }
 
-void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene, graphics::ModelManager& models, render::RenderResources& resources)
+void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene, graphics::ModelManager& models)
 {
-    const auto wallModel = AddMesh(models, resources, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Barrier");
+    const auto wallModel = AddMesh(models, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Barrier");
     AddNode(scene, wallModel, MakeWallTransform(16.0f, 6.0f, 1.5f, Vector3 { 0.0f, 3.0f, 0.0f }));
 
-    const auto cubeModel = AddMesh(models, resources, GeometryPrimitives::CreateCube(0.9f), "Cube");
+    const auto cubeModel = AddMesh(models, GeometryPrimitives::CreateCube(0.9f), "Cube");
     for (uint32_t index = 0; index < count; ++index) {
         const bool behindWall = (index % 3) != 0;
         const float z = behindWall

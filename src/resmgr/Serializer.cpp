@@ -461,12 +461,31 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::SaveScene(const Scene& scene, const graphics::ModelManager& models, const Path& path) -> EngineResult<void>
+    auto Serializer::LoadModel(const Path& path) -> EngineResult<graphics::Model>
+    {
+        auto json = ReadFile(path);
+        if (!json)
+            return UnexpectedSerializationError(json.error());
+        JsonValue document;
+        auto parseResult = document.Parse(*json);
+        if (!parseResult)
+            return UnexpectedSerializationError(parseResult.error());
+        if (!document.IsObject())
+            return UnexpectedSerializationError("Model document root must be an object", "Serializer");
+        auto versionField = GetField(document, "formatVersion");
+        if (!versionField)
+            return UnexpectedSerializationError(versionField.error());
+        auto version = ReadUnsigned<uint32_t>(*versionField, "model.formatVersion");
+        if (!version || (*version != 1 && *version != 2))
+            return UnexpectedSerializationError("Unsupported model file version", "Serializer");
+        return DeserializeModel(document);
+    }
+
+    auto Serializer::SaveScene(const Scene& scene, const graphics::ModelManager& models, const Path& path,
+        const Path& modelDirectory) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
         auto result = SetField(document, "formatVersion", JsonValue(4.0));
-        if (!result)
-            return UnexpectedSerializationError(result.error());        
         if (!result)
             return UnexpectedSerializationError(result.error());
 
@@ -474,39 +493,36 @@ namespace elm::resmgr {
         UnorderedMap<graphics::ModelHandler, size_t> modelIndices;
         Set<String> modelFileNames;
         const auto sceneDirectory = path.Parent().Empty() ? Path(".") : path.Parent();
-        EngineResult<void> modelSaveResult;
-        models.ForEach([&](graphics::ModelHandler handler, const graphics::Model& model) {
-            if (!modelSaveResult)
-                return;
+        for (const auto& node : scene.nodes) {
+            const auto* model = models.Get(node.model);
+            if (!model || modelIndices.contains(node.model))
+                continue;
             const auto baseStem = MakeModelFileStem(
-                StringView(model.name.data(), model.name.size()), modelIndices.size());
+                StringView(model->name.data(), model->name.size()), modelIndices.size());
             String fileStem = baseStem;
             size_t suffix = 1;
             while (!modelFileNames.insert(fileStem).second)
                 fileStem = baseStem + "_" + std::to_string(suffix++).c_str();
-            const auto modelPath = sceneDirectory / StringView(fileStem + ".model");
+            const auto modelPath = modelDirectory / StringView(fileStem + ".model");
 
-            auto writeModel = SaveModel(model, modelPath);
-            if (!writeModel) {
-                modelSaveResult = std::unexpected(writeModel.error());
-                return;
-            }
+            auto writeModel = SaveModel(*model, modelPath);
+            if (!writeModel)
+                return UnexpectedSerializationError(writeModel.error());
 
             const auto relativeModelPath = modelPath.LexicallyRelative(sceneDirectory).generic_string();
+            if (relativeModelPath.empty())
+                return UnexpectedSerializationError(
+                    "Model directory cannot be referenced relative to the scene: " + modelPath.string(), "Serializer");
             JsonValue modelReference{ JsonValue::Type::Object };
             result = SetField(modelReference, "path", JsonValue(relativeModelPath));
-            if (!result) {
-                modelSaveResult = std::unexpected(result.error());
-                return;
-            }
+            if (!result)
+                return UnexpectedSerializationError(result.error());
 
-            modelIndices.emplace(handler, modelIndices.size());
+            modelIndices.emplace(node.model, modelIndices.size());
             result = AddToArray(serializedModels, std::move(modelReference));
             if (!result)
-                modelSaveResult = std::unexpected(result.error());
-        });
-        if (!modelSaveResult)
-            return UnexpectedSerializationError(modelSaveResult.error());
+                return UnexpectedSerializationError(result.error());
+        }
 
         result = SetField(document, "models", std::move(serializedModels));
         if (!result)
@@ -535,10 +551,7 @@ namespace elm::resmgr {
                 if (!result)
                     return UnexpectedSerializationError(result.error());
             }
-            if (node.model) {
-                const auto model = modelIndices.find(node.model);
-                if (model == modelIndices.end())
-                    return UnexpectedSerializationError("Scene node refers to a model not owned by the model manager", "Serializer");
+            if (const auto model = modelIndices.find(node.model); model != modelIndices.end()) {
                 result = SetField(serializedNode, "modelIndex", JsonValue(static_cast<double>(model->second)));
                 if (!result)
                     return UnexpectedSerializationError(result.error());
@@ -567,8 +580,7 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::LoadScene(Scene& scene, graphics::ModelManager& models,
-        render::RenderResources& resources, const Path& path) -> EngineResult<void>
+    auto Serializer::LoadScene(const Path& path) -> EngineResult<SceneAsset>
     {
         auto json = ReadFile(path);
         if (!json)
@@ -589,26 +601,7 @@ namespace elm::resmgr {
         if (*formatVersion != 1 && *formatVersion != 2 && *formatVersion != 3 && *formatVersion != 4)
             return UnexpectedSerializationError("Unsupported scene file version", "Serializer");
 
-        auto presetField = GetField(document, "preset");
-        if (!presetField)
-            return UnexpectedSerializationError(presetField.error());
-        auto preset = ReadUnsigned<uint32_t>(*presetField, "preset");
-        if (!preset)
-            return UnexpectedSerializationError(preset.error());
-        if (*preset > static_cast<uint32_t>(ScenePreset::PhysicsSandbox))
-            return UnexpectedSerializationError("Scene file contains an invalid preset", "Serializer");
-
-        Scene loadedScene;        
-        graphics::ModelManager loadedModels;
-        auto commitLoadedScene = [&]() {
-            models.Clear();
-            const auto remapping = loadedModels.MoveTo(models);
-            for (auto& node : loadedScene.nodes) {
-                if (const auto model = remapping.find(node.model); model != remapping.end())
-                    node.model = model->second;
-            }
-            scene = std::move(loadedScene);
-        };
+        SceneAsset loaded;
 
         if (*formatVersion == 4) {
             auto serializedModels = ReadArrayField(document, "models");
@@ -620,9 +613,8 @@ namespace elm::resmgr {
             if (!modelCount || !nodeCount)
                 return UnexpectedSerializationError("Invalid models or nodes array", "Serializer");
 
-            loadedScene.nodes.reserve(*nodeCount);
-            Vector<graphics::ModelHandler> modelHandlers;
-            modelHandlers.reserve(*modelCount);
+            loaded.scene.nodes.reserve(*nodeCount);
+            loaded.models.reserve(*modelCount);
             for (size_t modelIndex = 0; modelIndex < *modelCount; ++modelIndex) {
                 auto modelReference = GetElement(*serializedModels, modelIndex);
                 if (!modelReference)
@@ -637,24 +629,10 @@ namespace elm::resmgr {
                 if (relativeModelPath.Empty() || relativeModelPath.IsAbsolute())
                     return UnexpectedSerializationError("Scene model path must be a non-empty relative path", "Serializer");
 
-                auto modelJson = ReadFile(path.Parent() / relativeModelPath);
-                if (!modelJson)
-                    return UnexpectedSerializationError(modelJson.error());
-                JsonValue modelDocument;
-                auto parseModelResult = modelDocument.Parse(*modelJson);
-                if (!parseModelResult)
-                    return UnexpectedSerializationError(parseModelResult.error());
-                auto modelVersionField = GetField(modelDocument, "formatVersion");
-                if (!modelVersionField)
-                    return UnexpectedSerializationError(modelVersionField.error());
-                auto modelVersion = ReadUnsigned<uint32_t>(*modelVersionField, "model.formatVersion");
-                if (!modelVersion || (*modelVersion != 1 && *modelVersion != 2))
-                    return UnexpectedSerializationError("Unsupported model file version", "Serializer");
-                auto model = DeserializeModel(modelDocument);
+                auto model = LoadModel(path.Parent() / relativeModelPath);
                 if (!model)
                     return UnexpectedSerializationError(model.error());
-                model->Upload(resources);
-                modelHandlers.push_back(loadedModels.Insert(std::move(*model)));
+                loaded.models.push_back(std::move(*model));
             }
 
             for (size_t nodeIndex = 0; nodeIndex < *nodeCount; ++nodeIndex) {
@@ -677,6 +655,7 @@ namespace elm::resmgr {
                     return UnexpectedSerializationError("Invalid scene node data", "Serializer");
 
                 Scene::Node node;
+                size_t nodeModel = SceneAsset::NoModel;
                 node.localTransform.m = *localTransform;
                 node.worldTransform.m = *worldTransform;
                 node.visible = *visible;
@@ -691,7 +670,7 @@ namespace elm::resmgr {
                     auto modelIndex = ReadUnsigned<size_t>(*modelField, "node.modelIndex");
                     if (!modelIndex || *modelIndex >= *modelCount)
                         return UnexpectedSerializationError("Scene node refers to a missing model", "Serializer");
-                    node.model = modelHandlers[*modelIndex];
+                    nodeModel = *modelIndex;
                 }
                 if (const auto nameField = serializedNode->Find("name")) {
                     auto name = nameField->AsString();
@@ -699,23 +678,23 @@ namespace elm::resmgr {
                         return UnexpectedSerializationError(name.error());
                     node.name = std::move(*name);
                 }
-                loadedScene.nodes.push_back(std::move(node));
+                loaded.scene.nodes.push_back(std::move(node));
+                loaded.nodeModels.push_back(nodeModel);
             }
 
-            for (size_t nodeIndex = 0; nodeIndex < loadedScene.nodes.size(); ++nodeIndex) {
+            for (size_t nodeIndex = 0; nodeIndex < loaded.scene.nodes.size(); ++nodeIndex) {
                 size_t current = nodeIndex;
-                for (size_t depth = 0; depth <= loadedScene.nodes.size(); ++depth) {
-                    const size_t parentIndex = loadedScene.nodes[current].parentIndex;
+                for (size_t depth = 0; depth <= loaded.scene.nodes.size(); ++depth) {
+                    const size_t parentIndex = loaded.scene.nodes[current].parentIndex;
                     if (parentIndex == Scene::NoNode)
                         break;
-                    if (depth == loadedScene.nodes.size())
+                    if (depth == loaded.scene.nodes.size())
                         return UnexpectedSerializationError("Scene node hierarchy contains a cycle", "Serializer");
                     current = parentIndex;
                 }
             }
 
-            commitLoadedScene();
-            return {};
+            return loaded;
         }
 
         auto meshes = ReadArrayField(document, *formatVersion == 1 ? "meshes" : "models");
@@ -731,9 +710,8 @@ namespace elm::resmgr {
         if (!instanceCount)
             return UnexpectedSerializationError(instanceCount.error());
 
-        loadedScene.nodes.reserve(*instanceCount + (*formatVersion >= 3 ? *meshCount : 0));
-        Vector<graphics::ModelHandler> modelHandlers;
-        modelHandlers.reserve(*meshCount);
+        loaded.scene.nodes.reserve(*instanceCount + (*formatVersion >= 3 ? *meshCount : 0));
+        loaded.models.reserve(*meshCount);
         Vector<Vector4> modelColors;
         modelColors.reserve(*meshCount);
 
@@ -744,7 +722,7 @@ namespace elm::resmgr {
             auto nodeCount = serializedNodes->Size();
             if (!nodeCount)
                 return UnexpectedSerializationError(nodeCount.error());
-            loadedScene.nodes.reserve(*nodeCount);
+            loaded.scene.nodes.reserve(*nodeCount);
             for (size_t nodeIndex = 0; nodeIndex < *nodeCount; ++nodeIndex) {
                 auto serializedNode = GetElement(*serializedNodes, nodeIndex);
                 if (!serializedNode)
@@ -775,16 +753,17 @@ namespace elm::resmgr {
                         return UnexpectedSerializationError(name.error());
                     node.name = std::move(*name);
                 }
-                loadedScene.nodes.push_back(std::move(node));
+                loaded.scene.nodes.push_back(std::move(node));
+                loaded.nodeModels.push_back(SceneAsset::NoModel);
             }
 
-            for (size_t nodeIndex = 0; nodeIndex < loadedScene.nodes.size(); ++nodeIndex) {
+            for (size_t nodeIndex = 0; nodeIndex < loaded.scene.nodes.size(); ++nodeIndex) {
                 size_t current = nodeIndex;
-                for (size_t depth = 0; depth <= loadedScene.nodes.size(); ++depth) {
-                    const size_t parentIndex = loadedScene.nodes[current].parentIndex;
+                for (size_t depth = 0; depth <= loaded.scene.nodes.size(); ++depth) {
+                    const size_t parentIndex = loaded.scene.nodes[current].parentIndex;
                     if (parentIndex == Scene::NoNode)
                         break;
-                    if (depth == loadedScene.nodes.size())
+                    if (depth == loaded.scene.nodes.size())
                         return UnexpectedSerializationError("Scene node hierarchy contains a cycle", "Serializer");
                     current = parentIndex;
                 }
@@ -834,8 +813,7 @@ namespace elm::resmgr {
                     return UnexpectedSerializationError(meshData.error());
                 graphics::Model model;
                 model.AddSubmesh(std::move(*meshData), Vector4 { 1.0f, 1.0f, 1.0f, 1.0f });
-                model.Upload(resources);
-                modelHandlers.push_back(loadedModels.Insert(std::move(model)));
+                loaded.models.push_back(std::move(model));
                 modelColors.push_back(Vector4 { 0.8f, 0.8f, 0.8f, 1.0f });
             } else {
                 auto model = DeserializeModel(modelDocument);
@@ -847,9 +825,8 @@ namespace elm::resmgr {
                     for (auto& submesh : model->submeshes)
                         submesh.color = Vector4 { 1.0f, 1.0f, 1.0f, 1.0f };
                 }
-                model->Upload(resources);
                 modelColors.push_back(modelColor);
-                modelHandlers.push_back(loadedModels.Insert(std::move(*model)));
+                loaded.models.push_back(std::move(*model));
             }
         }
 
@@ -866,7 +843,7 @@ namespace elm::resmgr {
             auto meshIndex = ReadUnsigned<size_t>(*meshIndexField, "instance.meshIndex");
             if (!meshIndex)
                 return UnexpectedSerializationError(meshIndex.error());
-            if (*meshIndex >= modelHandlers.size())
+            if (*meshIndex >= loaded.models.size())
                 return UnexpectedSerializationError("Scene instance refers to a missing mesh", "Serializer");
 
             auto transformField = GetField(*serializedInstance, "worldTransform");
@@ -880,7 +857,6 @@ namespace elm::resmgr {
                 return UnexpectedSerializationError(visible.error());
 
             Scene::Node node;
-            node.model = modelHandlers[*meshIndex];
             node.worldTransform.m = *worldTransform;
             node.localTransform.m = *worldTransform;
             node.color = modelColors[*meshIndex];
@@ -903,20 +879,27 @@ namespace elm::resmgr {
                     auto nodeIndex = ReadUnsigned<size_t>(*nodeField, "instance.nodeIndex");
                     if (!nodeIndex)
                         return UnexpectedSerializationError(nodeIndex.error());
-                    if (*nodeIndex >= loadedScene.nodes.size())
+                    if (*nodeIndex >= loaded.scene.nodes.size())
                         return UnexpectedSerializationError("Scene instance refers to a missing node", "Serializer");
                     node.parentIndex = *nodeIndex;
                 }
             }
-            loadedScene.nodes.push_back(std::move(node));
+            loaded.scene.nodes.push_back(std::move(node));
+            loaded.nodeModels.push_back(*meshIndex);
         }
 
-        commitLoadedScene();
-        return {};
+        return loaded;
     }
 
     auto Serializer::WriteFile(const Path& path, StringView contents) -> EngineResult<void>
     {
+        if (const auto directory = path.Parent(); !directory.Empty()) {
+            std::error_code error;
+            FileSystem::CreateDirectories(directory, error);
+            if (error)
+                return UnexpectedSerializationError("Failed to create directory: " + directory.string(), "Serializer");
+        }
+
         auto file = FileSystem::OpenForWriting(path, std::ios::binary | std::ios::trunc);
         if (!file)
             return UnexpectedSerializationError("Failed to open file for writing: " + path.string(), "Serializer");

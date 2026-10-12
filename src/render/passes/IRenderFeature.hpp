@@ -14,8 +14,8 @@ namespace elm::render {
 
     /// Graph resources features hand to each other within one frame.
     struct FrameBlackboard {
-        /// Rendered scene view, sampled by the UI.
-        RGTexture sceneColor;
+        /// Rendered scene views, sampled by the UI.
+        Vector<RGTexture> sceneColors;
     };
 
     /// A rendering feature: owns its pipelines and adds its passes to the frame graph.

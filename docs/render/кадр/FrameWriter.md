@@ -18,7 +18,7 @@ frame.SetBackbufferSize(window.GetFramebufferSize());
 
 // 2. 3D-вид: камера и целевая текстура, которую показывает UI
 const render::CameraData camera { camera.GetViewProjectionMatrix(), camera.GetPosition() };
-frame.SetSceneView(camera, viewPort.GetColorTexture(), viewPort.GetSize());
+frame.BeginSceneView(camera, viewPort.GetColorTexture(), viewPort.GetSize());
 
 // 3. Объекты
 frame.ReserveDraws(scene.instances.size());
@@ -37,7 +37,7 @@ renderSystem.SubmitFrame(frame);          // вместе с командами 
 | Метод | Куда пишет |
 |---|---|
 | `SetBackbufferSize(size)` | `FrameSnapshot::backbufferSize` |
-| `SetSceneView(camera, colorTarget, size)` | `FrameSnapshot::sceneView` |
+| `BeginSceneView(camera, colorTarget, size)` | новый элемент `FrameSnapshot::sceneViews`; следующие `Draw` идут в него |
 | `Draw(mesh, transform, color)` | `FrameSnapshot::drawItems` |
 | `ReserveDraws(n)` | резервирует место |
 | `Overlay()` | `FrameSnapshot::overlay` (геометрия ImGui) |

@@ -13,22 +13,18 @@ auto FileDialog::PathToString(const Path& path) -> String
     return String(path.string().c_str());
 }
 
-void FileDialog::Open(StringView title, StringView extension)
+void FileDialog::Open(StringView title, StringView extension, const Path& directory)
 {
     m_title = String(title);
     m_extension = String(extension);
     m_saveMode = false;
     m_saveFileName.fill('\0');
     m_selectedPath.Clear();
-    std::error_code error;
-    m_directory = FileSystem::CurrentPath(error);
-    m_error = error ? String(error.message().c_str()) : String { };
-    if (!error)
-        RefreshEntries();
+    SetStartDirectory(directory);
     ImGui::OpenPopup(m_title.c_str());
 }
 
-void FileDialog::SaveAs(StringView title, StringView extension, StringView defaultFileName)
+void FileDialog::SaveAs(StringView title, StringView extension, StringView defaultFileName, const Path& directory)
 {
     m_title = String(title);
     m_extension = String(extension);
@@ -36,12 +32,19 @@ void FileDialog::SaveAs(StringView title, StringView extension, StringView defau
     m_selectedPath.Clear();
     std::snprintf(m_saveFileName.data(), m_saveFileName.size(), "%.*s",
         static_cast<int>(defaultFileName.size()), defaultFileName.data());
+    SetStartDirectory(directory);
+    ImGui::OpenPopup(m_title.c_str());
+}
+
+void FileDialog::SetStartDirectory(const Path& directory)
+{
     std::error_code error;
-    m_directory = FileSystem::CurrentPath(error);
+    if (!directory.Empty())
+        FileSystem::CreateDirectories(directory, error);
+    m_directory = directory.Empty() || error ? FileSystem::CurrentPath(error) : directory;
     m_error = error ? String(error.message().c_str()) : String { };
     if (!error)
         RefreshEntries();
-    ImGui::OpenPopup(m_title.c_str());
 }
 
 void FileDialog::RefreshEntries()

@@ -1,67 +1,43 @@
 #pragma once
 
+#include "core/Std.hpp"
 #include "core/Handler.hpp"
-#include "render/api/RenderResources.hpp"
+
+#include "math/Primitivs.hpp"
 
 #include <algorithm>
+#include <cmath>
 
 namespace elm::graphics {
 
     struct ModelTag;
     using ModelHandler = core::Handle<ModelTag>;
 
+    /// Geometry is shared between models and the render thread, it must not change once created.
+    using MeshDataPtr = SharedPtr<const MeshData>;
+
+    /// CPU-side model description. GPU resources of a model are owned by ModelManager.
     class Model {
     public:
         struct Submesh {
-            render::MeshDataPtr data;
-            render::Mesh mesh;
+            MeshDataPtr data;
             Vector4 color { 1.0f, 1.0f, 1.0f, 1.0f };
             String name;
         };
 
-        explicit Model(String modelName = {})
-            : name(std::move(modelName))
-        {
-        }
+        explicit Model(String modelName = { });
 
-        Model(const Model&) = delete;
-        Model& operator=(const Model&) = delete;
-        Model(Model&&) noexcept = default;
-        Model& operator=(Model&&) noexcept = default;
-
-        void AddSubmesh(MeshData meshData,
-            Vector4 submeshColor = { 1.0f, 1.0f, 1.0f, 1.0f }, String submeshName = {})
-        {
-            auto data = MakeShared<const MeshData>(std::move(meshData));
-            submeshes.push_back({ std::move(data), {}, submeshColor, std::move(submeshName) });
-        }
-
-        void Upload(render::RenderResources& resources)
-        {
-            for (auto& submesh : submeshes) {
-                if (submesh.data && !submesh.mesh.IsValid())
-                    submesh.mesh = render::Mesh(resources, submesh.data);
-            }
-        }
-
-        [[nodiscard]] AABB GetLocalBounds() const noexcept
-        {
-            AABB bounds;
-            for (const auto& submesh : submeshes) {
-                if (const auto& data = submesh.data) {
-                    bounds.minBounds.x = std::min(bounds.minBounds.x, data->localBounds.minBounds.x);
-                    bounds.minBounds.y = std::min(bounds.minBounds.y, data->localBounds.minBounds.y);
-                    bounds.minBounds.z = std::min(bounds.minBounds.z, data->localBounds.minBounds.z);
-                    bounds.maxBounds.x = std::max(bounds.maxBounds.x, data->localBounds.maxBounds.x);
-                    bounds.maxBounds.y = std::max(bounds.maxBounds.y, data->localBounds.maxBounds.y);
-                    bounds.maxBounds.z = std::max(bounds.maxBounds.z, data->localBounds.maxBounds.z);
-                }
-            }
-            return bounds;
-        }
+        void AddSubmesh(MeshData meshData, Vector4 submeshColor = { 1.0f, 1.0f, 1.0f, 1.0f }, String submeshName = { });
+        void AddSubmesh(MeshDataPtr meshData, Vector4 submeshColor = { 1.0f, 1.0f, 1.0f, 1.0f }, String submeshName = { });
+        [[nodiscard]] AABB GetLocalBounds() const noexcept;
 
         String name;
         Vector<Submesh> submeshes;
     };
+    
+    [[nodiscard]] AABB ComputeBounds(const Vector<Vertex>& vertices) noexcept;
+    /// Bakes an affine transform into the geometry. Normals use the inverse transpose,
+    /// mirroring transforms flip the triangle winding so faces keep pointing outwards.
+    [[nodiscard]] MeshData TransformMeshData(const MeshData& source, const Matrix4x4& transform);
 
-} // namespace elm::resmgr
+} // namespace elm::graphics

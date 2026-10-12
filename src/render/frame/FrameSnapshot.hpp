@@ -33,6 +33,9 @@ namespace elm::render {
         CameraData camera;
         TextureHandle colorTarget;
         Size size;
+        /// Items of this view: FrameSnapshot::drawItems[firstDraw, firstDraw + drawCount).
+        size_t firstDraw { 0 };
+        size_t drawCount { 0 };
 
         [[nodiscard]] bool IsValid() const noexcept { return colorTarget.IsValid() && !size.IsEmpty(); }
     };
@@ -42,7 +45,7 @@ namespace elm::render {
     struct FrameSnapshot {
         uint64_t frameIndex { 0 };
         Size backbufferSize;
-        SceneView sceneView;
+        Vector<SceneView> sceneViews;
         Vector<DrawItem> drawItems;
         OverlayFrame overlay;
         /// Executed before anything of this frame is drawn.
@@ -53,7 +56,7 @@ namespace elm::render {
         {
             frameIndex = 0;
             backbufferSize = {};
-            sceneView = {};
+            sceneViews.clear();
             drawItems.clear();
             overlay.Clear();
             resourceCommands.Clear();

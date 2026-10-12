@@ -20,6 +20,7 @@ EngineApp::EngineApp()
     , m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
     , m_cameraController(m_camera)
+    , m_models(m_renderSystem->Resources())
 {
 }
 
@@ -33,9 +34,12 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
  
     LOG_MESSAGE( log::Category::Core, "EngineApp", "Initializing 3D Engine Core (C++23)..." );    
 
+    FileSystem::RegisterSettings(m_settings);
     m_cullingSystem.RegisterSettings(m_settings);
-    if (auto loadedSettings = m_settings.Load(Settings::DefaultFilePath()); !loadedSettings)
+    const Path settingsPath = Settings::DefaultFilePath();
+    if (auto loadedSettings = m_settings.Load(settingsPath); !loadedSettings)
         return MakeUnexpected(loadedSettings.error());
+    FileSystem::ApplySettings(m_settings, settingsPath.Parent());
 
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
     // Initialize the render backend and its command queue first.
@@ -185,7 +189,7 @@ auto EngineApp::Run() -> EngineResult<void>
         {
             ELM_PROFILE_SCOPE_N("Build ImGui Frame");
             m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_models, m_camera, m_currentStats,
-                m_engineViewPort, frame.Overlay());
+                m_engineViewPort, frame);
         }
 
         SubmitFrame(frame);
@@ -203,7 +207,7 @@ auto EngineApp::Run() -> EngineResult<void>
 
 void EngineApp::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
 {
-    TestScenes::BuildScene(preset, instanceCount, m_scene, m_models, m_renderSystem->Resources());
+    TestScenes::BuildScene(preset, instanceCount, m_scene, m_models);
 }
 
 void EngineApp::SubmitFrame(render::FrameWriter& frame)
@@ -213,31 +217,28 @@ void EngineApp::SubmitFrame(render::FrameWriter& frame)
     frame.SetBackbufferSize(m_window.GetFramebufferSize());
 
     const render::CameraData camera { m_camera.GetViewProjectionMatrix(), m_camera.GetPosition() };
-    frame.SetSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
+    frame.BeginSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
 
     const auto& occludees = m_cullingSystem.GetOccludees();
     size_t drawCount = 0;
-    for (const auto& node : m_scene.nodes) {
-        if (const auto* model = m_models.Get(node.model))
-            drawCount += model->submeshes.size();
-    }
+    for (const auto& node : m_scene.nodes)
+        drawCount += m_models.GetMeshes(node.model).size();
     frame.ReserveDraws(drawCount);
     for (size_t nodeIndex = 0; nodeIndex < m_scene.nodes.size(); ++nodeIndex) {
         const auto& node = m_scene.nodes[nodeIndex];
         const bool visible = nodeIndex < occludees.size() ? occludees[nodeIndex].isVisible : node.visible;
         const Vector4& tint = nodeIndex < occludees.size() ? occludees[nodeIndex].color : node.color;
-        const auto* model = m_models.Get(node.model);
-        if (!visible || !model)
+        if (!visible)
             continue;
-        for (const auto& submesh : model->submeshes) {
+        m_models.ForEachSubmesh(node.model, [&](const graphics::Model::Submesh& submesh, render::MeshHandle mesh) {
             const Vector4 color {
                 submesh.color.x * tint.x,
                 submesh.color.y * tint.y,
                 submesh.color.z * tint.z,
                 submesh.color.w * tint.w
             };
-            frame.Draw(submesh.mesh.GetHandle(), node.worldTransform, color);
-        }
+            frame.Draw(mesh, node.worldTransform, color);
+        });
     }
 
     m_renderSystem->SubmitFrame(frame);

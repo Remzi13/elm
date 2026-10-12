@@ -117,8 +117,11 @@ void RenderSystem::ExecuteFrame(FrameSnapshot& frame, RenderedFrameInfo& info)
     {
         // Equal meshes become neighbours, so passes can draw each run with one instanced call
         ELM_PROFILE_SCOPE_N("Sort Draw Items");
-        std::stable_sort(frame.drawItems.begin(), frame.drawItems.end(),
-            [](const DrawItem& a, const DrawItem& b) { return a.mesh < b.mesh; });
+        for (const auto& view : frame.sceneViews) {
+            const auto first = frame.drawItems.begin() + static_cast<ptrdiff_t>(view.firstDraw);
+            std::stable_sort(first, first + static_cast<ptrdiff_t>(view.drawCount),
+                [](const DrawItem& a, const DrawItem& b) { return a.mesh < b.mesh; });
+        }
     }
 
     m_pipeline.Render(*m_backend, frame);

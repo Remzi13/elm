@@ -15,7 +15,7 @@ viewPort.SetSize({ uint32_t(available.x * dpi), uint32_t(available.y * dpi) });
 ImGui::Image(ImGuiSystem::ToTextureId(viewPort.GetColorTexture()), available);
 
 // и передать в кадр
-frame.SetSceneView(camera, viewPort.GetColorTexture(), viewPort.GetSize());
+frame.BeginSceneView(camera, viewPort.GetColorTexture(), viewPort.GetSize());
 ```
 
 `SetSize` при изменении размера отправляет `ResizeTexture` через очередь команд

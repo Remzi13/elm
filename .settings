@@ -1,12 +1,13 @@
 {
    "settings": {
+      "Core/FileSystem/RootPath": ".",
       "Render/culling/DepthBias": 0,
       "Render/culling/DepthFalseColor": false,
       "Render/culling/EnableFrustumCulling": false,
       "Render/culling/EnableOcclusionCulling": false,
       "Render/culling/Resolution/Height": 144,
       "Render/culling/Resolution/Width": 256,
-      "Render/culling/VisualMode": 0
+      "Render/culling/VisualMode": 1
    },
    "version": 1
 }

@@ -33,14 +33,14 @@ namespace {
         size_t end { 0 };
     };
 
-    /// Draw items arrive sorted by mesh: every run of equal meshes becomes instanced draws.
-    Vector<DrawRange> buildDrawRanges(const Vector<DrawItem>& drawItems)
+    /// Draw items of a view arrive sorted by mesh: every run of equal meshes becomes instanced draws.
+    Vector<DrawRange> buildDrawRanges(const Vector<DrawItem>& drawItems, size_t first, size_t last)
     {
         Vector<DrawRange> ranges;
-        for (size_t begin = 0; begin < drawItems.size();) {
+        for (size_t begin = first; begin < last;) {
             const MeshHandle mesh = drawItems[begin].mesh;
             size_t end = begin + 1;
-            while (end < drawItems.size() && drawItems[end].mesh == mesh && end - begin < MaxInstancesPerDraw)
+            while (end < last && drawItems[end].mesh == mesh && end - begin < MaxInstancesPerDraw)
                 ++end;
             ranges.push_back({ mesh, begin, end });
             begin = end;
@@ -112,67 +112,75 @@ void ScenePass::Release(rhi::IRenderBackend& backend)
 void ScenePass::Setup(RenderGraph& graph, const FrameSnapshot& frame, const rhi::IRenderBackend& backend,
     FrameBlackboard& blackboard)
 {
-    if (!m_pipeline || !frame.sceneView.IsValid())
+    if (!m_pipeline)
         return;
 
-    // The update side resizes the target through the command queue: draw at the size it actually has
-    TextureDesc colorDesc;
-    if (!backend.GetTextureDesc(frame.sceneView.colorTarget, colorDesc) || colorDesc.format != SceneColorFormat)
-        return;
-    const auto sceneColor = graph.ImportTexture("SceneColor", frame.sceneView.colorTarget, colorDesc);
+    for (size_t viewIndex = 0; viewIndex < frame.sceneViews.size(); ++viewIndex) {
+        const auto& view = frame.sceneViews[viewIndex];
+        if (!view.IsValid())
+            continue;
 
-    TextureDesc depthDesc;
-    depthDesc.width = colorDesc.width;
-    depthDesc.height = colorDesc.height;
-    depthDesc.format = SceneDepthFormat;
-    depthDesc.bindFlags = TextureBind::DepthStencil;
+        // The update side resizes the target through the command queue: draw at the size it actually has
+        TextureDesc colorDesc;
+        if (!backend.GetTextureDesc(view.colorTarget, colorDesc) || colorDesc.format != SceneColorFormat)
+            continue;
+        const String suffix = viewIndex == 0 ? String() : " " + String(std::to_string(viewIndex));
+        const auto sceneColor = graph.ImportTexture("SceneColor" + suffix, view.colorTarget, colorDesc);
 
-    struct Data {
-        RGTexture color;
-        RGTexture depth;
-    };
-    graph.AddPass<Data>("Scene",
-        [&](PassBuilder& builder, Data& data) {
-            data.color = builder.WriteColor(sceneColor);
-            data.depth = builder.WriteDepth(builder.CreateTexture("SceneDepth", depthDesc));
-        },
-        [pipeline = m_pipeline](const Data& data, PassContext& context) {
-            constexpr float clearColor[4] = { 0.11f, 0.13f, 0.16f, 1.0f };
-            const auto& frame = context.Frame();
-            auto& commands = context.Commands();
-            auto& uploads = context.Uploads();
+        TextureDesc depthDesc;
+        depthDesc.width = colorDesc.width;
+        depthDesc.height = colorDesc.height;
+        depthDesc.format = SceneDepthFormat;
+        depthDesc.bindFlags = TextureBind::DepthStencil;
 
-            const auto color = context.ColorTarget(data.color, false, clearColor);
-            const auto depth = context.DepthTarget(data.depth, false);
-            const CameraConstants constants { frame.sceneView.camera.viewProjection, Vector4 { frame.sceneView.camera.position, 1.0f } };
-            const auto cameraConstants = uploads.Upload(rhi::UploadArena::Constants, &constants, 1);
-            const auto ranges = buildDrawRanges(frame.drawItems);
+        struct Data {
+            RGTexture color;
+            RGTexture depth;
+        };
+        graph.AddPass<Data>("Scene" + suffix,
+            [&](PassBuilder& builder, Data& data) {
+                data.color = builder.WriteColor(sceneColor);
+                data.depth = builder.WriteDepth(builder.CreateTexture("SceneDepth" + suffix, depthDesc));
+            },
+            [pipeline = m_pipeline, viewIndex](const Data& data, PassContext& context) {
+                constexpr float clearColor[4] = { 0.11f, 0.13f, 0.16f, 1.0f };
+                const auto& frame = context.Frame();
+                const auto& view = frame.sceneViews[viewIndex];
+                auto& commands = context.Commands();
+                auto& uploads = context.Uploads();
 
-            const auto beginScene = [&](rhi::CommandList& list) {
-                list.BeginRenderPass(color, depth);
-                list.SetPipeline(pipeline);
-                list.SetConstants(CameraConstantsSlot, cameraConstants);
-            };
+                const auto color = context.ColorTarget(data.color, false, clearColor);
+                const auto depth = context.DepthTarget(data.depth, false);
+                const CameraConstants constants { view.camera.viewProjection, Vector4 { view.camera.position, 1.0f } };
+                const auto cameraConstants = uploads.Upload(rhi::UploadArena::Constants, &constants, 1);
+                const auto ranges = buildDrawRanges(frame.drawItems, view.firstDraw, view.firstDraw + view.drawCount);
 
-            commands.BeginRenderPass(context.ColorTarget(data.color, true, clearColor), context.DepthTarget(data.depth, true));
-            if (frame.drawItems.size() < ParallelInstanceThreshold) {
-                commands.SetPipeline(pipeline);
-                commands.SetConstants(CameraConstantsSlot, cameraConstants);
-                recordDraws(frame.drawItems, ranges.data(), ranges.size(), commands, uploads);
+                const auto beginScene = [&](rhi::CommandList& list) {
+                    list.BeginRenderPass(color, depth);
+                    list.SetPipeline(pipeline);
+                    list.SetConstants(CameraConstantsSlot, cameraConstants);
+                };
+
+                commands.BeginRenderPass(context.ColorTarget(data.color, true, clearColor), context.DepthTarget(data.depth, true));
+                if (view.drawCount < ParallelInstanceThreshold) {
+                    commands.SetPipeline(pipeline);
+                    commands.SetConstants(CameraConstantsSlot, cameraConstants);
+                    recordDraws(frame.drawItems, ranges.data(), ranges.size(), commands, uploads);
+                    commands.EndRenderPass();
+                    return;
+                }
                 commands.EndRenderPass();
-                return;
-            }
-            commands.EndRenderPass();
 
-            // Large scenes: batches of draws recorded on the job system, submitted after the clear
-            context.RecordParallel(ranges.size(), DrawsPerBatch, [&](rhi::CommandList& list, size_t begin, size_t end) {
-                beginScene(list);
-                recordDraws(frame.drawItems, ranges.data() + begin, end - begin, list, uploads);
-                list.EndRenderPass();
+                // Large scenes: batches of draws recorded on the job system, submitted after the clear
+                context.RecordParallel(ranges.size(), DrawsPerBatch, [&](rhi::CommandList& list, size_t begin, size_t end) {
+                    beginScene(list);
+                    recordDraws(frame.drawItems, ranges.data() + begin, end - begin, list, uploads);
+                    list.EndRenderPass();
+                });
             });
-        });
 
-    blackboard.sceneColor = sceneColor;
+        blackboard.sceneColors.push_back(sceneColor);
+    }
 }
 
 } // namespace elm::render

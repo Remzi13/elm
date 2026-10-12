@@ -4,7 +4,7 @@
 
 namespace elm::render {
 
-    /// Draws the 3D scene (opaque meshes, one instanced draw per mesh) into the scene view target.
+    /// Draws the 3D scene views (opaque meshes, one instanced draw per mesh) into their targets.
     class ScenePass final : public IRenderFeature {
     public:
         [[nodiscard]] StringView GetName() const override { return "Scene"; }

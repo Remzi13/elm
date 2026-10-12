@@ -17,6 +17,7 @@ namespace elm {
 	namespace render {
 		class RenderSystem;
 		class ViewPort;
+		class FrameWriter;
 	}
 
 	struct ImGuiWindowContext {
@@ -26,6 +27,8 @@ namespace elm {
 		Camera& camera;
 		const FrameStats& stats;
 		render::ViewPort& viewPort;
+		/// Frame being built: windows may add their own scene views to it.
+		render::FrameWriter& frame;
 	};
 
 	class IImGuiWindow {

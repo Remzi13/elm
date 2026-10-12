@@ -9,13 +9,10 @@ namespace elm::render {
 
 String loadShaderSource(StringView fileName)
 {
-    const Path sourceRoot = Path{ __FILE__ }.Parent().Parent().Parent();
     const Path name { fileName };
     const Path paths[] = {
-        FileSystem::CurrentPath() / "shaders" / name,
-        FileSystem::CurrentPath() / "assets/shaders" / name,
-        sourceRoot / "shaders" / name,
-        sourceRoot / "assets/shaders" / name
+        FileSystem::Resolve("shaders") / name,
+        FileSystem::Resolve("assets/shaders") / name
     };
     for (const auto& path : paths) {
         auto file = FileSystem::OpenForReading(path, std::ios::binary | std::ios::ate);

@@ -2,80 +2,48 @@
 
 #include "core/Debug.hpp"
 #include "graphics/Model.hpp"
+#include "render/api/RenderResources.hpp"
 
 #include <optional>
+#include <span>
 
 namespace elm::graphics {
 
+    /// Owns the models of a scene together with their GPU meshes. Every mesh of a model is created
+    /// when the model is inserted and released when it is removed, replaced or the manager dies.
     class ModelManager {
     public:
+        explicit ModelManager(render::RenderResources& resources);
+
+        ModelManager(const ModelManager&) = delete;
+        ModelManager& operator=(const ModelManager&) = delete;
+        ModelManager(ModelManager&&) noexcept = default;
+        ModelManager& operator=(ModelManager&&) noexcept = default;
+
+        [[nodiscard]] ModelHandler Insert(Model model);
+
+        /// Replaces the model behind a live handle. Meshes whose geometry is shared with
+        /// the previous version are kept, the rest are created anew.
+        bool Replace(ModelHandler handler, Model model);
+        [[nodiscard]] const Model* Get(ModelHandler handler) const noexcept;
         
-        [[nodiscard]] ModelHandler Insert(Model model)
+        /// GPU meshes of a model, one per submesh in the same order.
+        [[nodiscard]] std::span<const render::Mesh> GetMeshes(ModelHandler handler) const noexcept;
+
+        bool Remove(ModelHandler handler);
+        void Clear();
+        [[nodiscard]] size_t Size() const noexcept;
+
+        /// Calls fn(const Model::Submesh&, render::MeshHandle) for every submesh of the model.
+        template <typename Fn>
+        void ForEachSubmesh(ModelHandler handler, Fn&& fn) const
         {
-            uint32_t index;
-            if (m_freeSlots.empty()) {
-                ELM_ASSERT(m_slots.size() < ModelHandler::MaxIndex);
-                index = static_cast<uint32_t>(m_slots.size());
-                m_slots.emplace_back();
-            } else {
-                index = m_freeSlots.back();
-                m_freeSlots.pop_back();
-            }
-
-            m_slots[index].model.emplace(std::move(model));
-            return ModelHandler(index + 1, m_slots[index].generation);
-        }
-
-        [[nodiscard]] Model* Get(ModelHandler handler) noexcept
-        {
-            if (!handler.IsValid() || handler.Index() == 0 || handler.Index() > m_slots.size())
-                return nullptr;
-            auto& slot = m_slots[handler.Index() - 1];
-            return slot.generation == handler.Generation() && slot.model ? &*slot.model : nullptr;
-        }
-
-        [[nodiscard]] const Model* Get(ModelHandler handler) const noexcept
-        {
-            return const_cast<ModelManager*>(this)->Get(handler);
-        }
-
-        bool Remove(ModelHandler handler)
-        {
-            Model* model = Get(handler);
-            if (!model)
-                return false;
-
-            auto& slot = m_slots[handler.Index() - 1];
-            slot.model.reset();
-            ++slot.generation;
-            m_freeSlots.push_back(handler.Index() - 1);
-            return true;
-        }
-
-        void Clear()
-        {
-            for (uint32_t index = 0; index < m_slots.size(); ++index) {
-                if (!m_slots[index].model)
-                    continue;
-                m_slots[index].model.reset();
-                ++m_slots[index].generation;
-                m_freeSlots.push_back(index);
-            }
-        }
-
-        [[nodiscard]] size_t Size() const noexcept
-        {
-            return m_slots.size() - m_freeSlots.size();
-        }
-
-        template<typename Fn>
-        void ForEach(Fn&& fn)
-        {
-            for (uint32_t index = 0; index < m_slots.size(); ++index) {
-                auto& slot = m_slots[index];
-                if (slot.model)
-                    fn(ModelHandler(index + 1, slot.generation), *slot.model);
-            }
+            const auto* slot = GetSlot(handler);
+            if (!slot)
+                return;
+            const auto& submeshes = slot->model->submeshes;
+            for (size_t index = 0; index < submeshes.size(); ++index)
+                fn(submeshes[index], slot->meshes[index].GetHandle());
         }
 
         template<typename Fn>
@@ -88,25 +56,20 @@ namespace elm::graphics {
             }
         }
 
-        [[nodiscard]] UnorderedMap<ModelHandler, ModelHandler> MoveTo(ModelManager& destination)
-        {
-            UnorderedMap<ModelHandler, ModelHandler> remapping;
-            remapping.reserve(Size());
-            ForEach([&](ModelHandler sourceHandler, Model& model) {
-                remapping.emplace(sourceHandler, destination.Insert(std::move(model)));
-            });
-            Clear();
-            return remapping;
-        }
-
     private:
         struct Slot {
             std::optional<Model> model;
+            Vector<render::Mesh> meshes;
             uint8_t generation { 0 };
         };
 
+        [[nodiscard]] Slot* GetSlot(ModelHandler handler) noexcept;
+        [[nodiscard]] const Slot* GetSlot(ModelHandler handler) const noexcept;
+        [[nodiscard]] Vector<render::Mesh> CreateMeshes(const Model& model, Vector<render::Mesh> previous);
+
+        render::RenderResources* m_resources;
         Vector<Slot> m_slots;
         Vector<uint32_t> m_freeSlots;
     };
 
-} // namespace elm::resmgr
+} // namespace elm::graphics

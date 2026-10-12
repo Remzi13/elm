@@ -11,8 +11,8 @@ namespace elm::ui {
 
 class FileDialog {
 public:
-    void Open(StringView title, StringView extension);
-    void SaveAs(StringView title, StringView extension, StringView defaultFileName);
+    void Open(StringView title, StringView extension, const Path& directory = { });
+    void SaveAs(StringView title, StringView extension, StringView defaultFileName, const Path& directory = { });
     [[nodiscard]] auto Draw() -> std::optional<Path>;
 
 private:
@@ -21,6 +21,7 @@ private:
         bool isDirectory { false };
     };
 
+    void SetStartDirectory(const Path& directory);
     void RefreshEntries();
     [[nodiscard]] static auto PathToString(const Path& path) -> String;
 

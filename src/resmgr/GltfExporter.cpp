@@ -137,42 +137,203 @@ namespace elm::resmgr {
             return {};
         }
 
-        auto ExportModels(
-            const Path& path,
-            const Vector<DecodedSubmesh>& models,
-            std::span<const Matrix4x4> transforms) -> EngineResult<void>
-        {
-            if (path.Empty())
-                return Failure("glTF output path is empty");
-            if (!transforms.empty() && transforms.size() != models.size())
-                return Failure("glTF model and transform counts do not match");
-            if (models.empty())
-                return Failure("Cannot export an empty glTF scene");
+        struct ExportPrimitive {
+            const MeshData* data { nullptr };
+            Vector4 color { 1.0f, 1.0f, 1.0f, 1.0f };
+        };
 
-            JsonValue root{ JsonValue::Type::Object };
-            JsonValue asset{ JsonValue::Type::Object };
-            auto result = SetField(asset, "version", JsonValue("2.0"));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(asset, "generator", JsonValue("elm"));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "asset", std::move(asset));
-            if (!result) return UnexpectedSerializationError(result.error());
+        struct ExportMesh {
+            String name;
+            Vector<ExportPrimitive> primitives;
+        };
 
-            JsonValue buffers{ JsonValue::Type::Array };
-            JsonValue bufferViews{ JsonValue::Type::Array };
-            JsonValue accessors{ JsonValue::Type::Array };
-            JsonValue materials{ JsonValue::Type::Array };
-            JsonValue meshes{ JsonValue::Type::Array };
-            JsonValue nodes{ JsonValue::Type::Array };
-            JsonValue sceneNodes{ JsonValue::Type::Array };
-            Vector<uint8_t> binary;
+        struct ExportNode {
+            static constexpr size_t NoMesh = ~size_t{ 0 };
 
-            for (size_t modelIndex = 0; modelIndex < models.size(); ++modelIndex) {
-                const auto& model = models[modelIndex];
-                const auto& mesh = model.meshData;
+            String name;
+            Matrix4x4 transform;
+            size_t mesh { NoMesh };
+            Vector<size_t> children;
+            /// Engine node state without a glTF equivalent, stored in "extras".
+            Vector4 tint { 1.0f, 1.0f, 1.0f, 1.0f };
+            bool visible { true };
+        };
+
+        /// Builds one glTF document with a single external buffer. Materials are shared by color.
+        class GltfWriter {
+        public:
+            auto AddMesh(const ExportMesh& mesh) -> EngineResult<void>
+            {
+                JsonValue primitives{ JsonValue::Type::Array };
+                for (const auto& primitive : mesh.primitives) {
+                    auto written = AddPrimitive(primitive);
+                    if (!written)
+                        return UnexpectedSerializationError(written.error());
+                    auto result = Push(primitives, std::move(*written));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                JsonValue meshObject{ JsonValue::Type::Object };
+                if (!mesh.name.empty()) {
+                    auto result = SetField(meshObject, "name", JsonValue(mesh.name.c_str()));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                auto result = SetField(meshObject, "primitives", std::move(primitives));
+                if (!result) return UnexpectedSerializationError(result.error());
+                return Push(m_meshes, std::move(meshObject));
+            }
+
+            auto AddNode(const ExportNode& node) -> EngineResult<void>
+            {
+                JsonValue object{ JsonValue::Type::Object };
+                EngineResult<void> result;
+                if (!node.name.empty()) {
+                    result = SetField(object, "name", JsonValue(node.name.c_str()));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                if (node.mesh != ExportNode::NoMesh) {
+                    result = AddNumberField(object, "mesh", node.mesh);
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                if (node.transform.m != Matrix4x4::Identity().m) {
+                    JsonValue matrix{ JsonValue::Type::Array };
+                    for (size_t column = 0; column < 4; ++column) {
+                        for (size_t row = 0; row < 4; ++row) {
+                            const float value = node.transform(row, column);
+                            if (!std::isfinite(value))
+                                return Failure("Cannot export non-finite node transform to glTF");
+                            result = Push(matrix, JsonValue(static_cast<double>(value)));
+                            if (!result) return UnexpectedSerializationError(result.error());
+                        }
+                    }
+                    result = SetField(object, "matrix", std::move(matrix));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                if (!node.children.empty()) {
+                    JsonValue children{ JsonValue::Type::Array };
+                    for (const size_t child : node.children) {
+                        result = Push(children, JsonValue(static_cast<double>(child)));
+                        if (!result) return UnexpectedSerializationError(result.error());
+                    }
+                    result = SetField(object, "children", std::move(children));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                const auto& tint = node.tint;
+                if (tint.x != 1.0f || tint.y != 1.0f || tint.z != 1.0f || tint.w != 1.0f || !node.visible) {
+                    JsonValue extras{ JsonValue::Type::Object };
+                    auto color = MakeArray(std::array { tint.x, tint.y, tint.z, tint.w });
+                    if (!color)
+                        return UnexpectedSerializationError(color.error());
+                    result = SetField(extras, "elmColor", std::move(*color));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                    result = SetField(extras, "elmVisible", JsonValue(node.visible));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                    result = SetField(object, "extras", std::move(extras));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                return Push(m_nodes, std::move(object));
+            }
+
+            auto AddRoot(size_t node) -> EngineResult<void>
+            {
+                return Push(m_sceneNodes, JsonValue(static_cast<double>(node)));
+            }
+
+            auto Write(const Path& path) -> EngineResult<void>
+            {
+                if (path.Empty())
+                    return Failure("glTF output path is empty");
+                if (!*m_meshes.Size())
+                    return Failure("Cannot export an empty glTF scene");
+
+                JsonValue root{ JsonValue::Type::Object };
+                JsonValue asset{ JsonValue::Type::Object };
+                auto result = SetField(asset, "version", JsonValue("2.0"));
+                if (!result) return UnexpectedSerializationError(result.error());
+                result = SetField(asset, "generator", JsonValue("elm"));
+                if (!result) return UnexpectedSerializationError(result.error());
+                result = SetField(root, "asset", std::move(asset));
+                if (!result) return UnexpectedSerializationError(result.error());
+
+                const auto binaryPath = path.Parent() / (path.Stem().string() + ".bin");
+                JsonValue buffer{ JsonValue::Type::Object };
+                result = SetField(buffer, "uri", JsonValue(EncodeUri(binaryPath.Filename().generic_string())));
+                if (!result) return UnexpectedSerializationError(result.error());
+                result = AddNumberField(buffer, "byteLength", m_binary.size());
+                if (!result) return UnexpectedSerializationError(result.error());
+                JsonValue buffers{ JsonValue::Type::Array };
+                result = Push(buffers, std::move(buffer));
+                if (!result) return UnexpectedSerializationError(result.error());
+
+                JsonValue scene{ JsonValue::Type::Object };
+                result = SetField(scene, "nodes", std::move(m_sceneNodes));
+                if (!result) return UnexpectedSerializationError(result.error());
+                JsonValue scenes{ JsonValue::Type::Array };
+                result = Push(scenes, std::move(scene));
+                if (!result) return UnexpectedSerializationError(result.error());
+
+                const std::array<std::pair<const char*, JsonValue*>, 7> sections { {
+                    { "buffers", &buffers }, { "bufferViews", &m_bufferViews }, { "accessors", &m_accessors },
+                    { "materials", &m_materials }, { "meshes", &m_meshes }, { "nodes", &m_nodes },
+                    { "scenes", &scenes } } };
+                for (const auto& [key, value] : sections) {
+                    result = SetField(root, key, std::move(*value));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                result = SetField(root, "scene", JsonValue(0));
+                if (!result) return UnexpectedSerializationError(result.error());
+
+                auto json = root.ToString();
+                if (!json)
+                    return UnexpectedSerializationError(json.error());
+                auto writeBinary = WriteBytes(binaryPath, m_binary);
+                if (!writeBinary)
+                    return UnexpectedSerializationError(writeBinary.error());
+                auto jsonFile = FileSystem::OpenForWriting(path, std::ios::binary);
+                if (!jsonFile)
+                    return Failure("Unable to open glTF output file: " + path.string());
+                jsonFile.write(json->data(), static_cast<std::streamsize>(json->size()));
+                if (!jsonFile)
+                    return Failure("Unable to write glTF output file: " + path.string());
+                return {};
+            }
+
+        private:
+            auto AddMaterial(const Vector4& color) -> EngineResult<size_t>
+            {
+                for (size_t index = 0; index < m_materialColors.size(); ++index) {
+                    const auto& existing = m_materialColors[index];
+                    if (existing.x == color.x && existing.y == color.y && existing.z == color.z && existing.w == color.w)
+                        return index;
+                }
+                JsonValue baseColor{ JsonValue::Type::Array };
+                for (const float component : { color.x, color.y, color.z, color.w }) {
+                    if (!std::isfinite(component))
+                        return Failure("Cannot export non-finite material color to glTF");
+                    auto result = Push(baseColor, JsonValue(static_cast<double>(component)));
+                    if (!result) return UnexpectedSerializationError(result.error());
+                }
+                JsonValue pbr{ JsonValue::Type::Object };
+                auto result = SetField(pbr, "baseColorFactor", std::move(baseColor));
+                if (!result) return UnexpectedSerializationError(result.error());
+                JsonValue material{ JsonValue::Type::Object };
+                result = SetField(material, "pbrMetallicRoughness", std::move(pbr));
+                if (!result) return UnexpectedSerializationError(result.error());
+                result = Push(m_materials, std::move(material));
+                if (!result) return UnexpectedSerializationError(result.error());
+                m_materialColors.push_back(color);
+                return m_materialColors.size() - 1;
+            }
+
+            auto AddPrimitive(const ExportPrimitive& source) -> EngineResult<JsonValue>
+            {
+                if (!source.data)
+                    return Failure("Cannot export a submesh without geometry");
+                const auto& mesh = *source.data;
                 if (mesh.vertices.empty())
                     return Failure("Cannot export a glTF model without vertices");
                 constexpr size_t maxBufferSize = std::numeric_limits<uint32_t>::max();
+                auto& binary = m_binary;
+                EngineResult<void> result;
 
                 Vector<uint32_t> indices = mesh.indices;
                 if (indices.empty()) {
@@ -235,11 +396,11 @@ namespace elm::resmgr {
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(vertexView, "byteStride", 32);
                 if (!result) return UnexpectedSerializationError(result.error());
-                const size_t vertexViewIndex = *bufferViews.Size();
-                result = Push(bufferViews, std::move(vertexView));
+                const size_t vertexViewIndex = *m_bufferViews.Size();
+                result = Push(m_bufferViews, std::move(vertexView));
                 if (!result) return UnexpectedSerializationError(result.error());
 
-                const size_t positionAccessorIndex = *accessors.Size();
+                const size_t positionAccessorIndex = *m_accessors.Size();
                 for (const auto& [offset, type, minimumValues, maximumValues] : {
                     std::tuple<size_t, const char*, std::array<float, 3>, std::array<float, 3>>{
                         0, "VEC3", { minimum.x, minimum.y, minimum.z }, { maximum.x, maximum.y, maximum.z } },
@@ -269,7 +430,7 @@ namespace elm::resmgr {
                         result = SetField(accessor, "max", std::move(*maxArray));
                         if (!result) return UnexpectedSerializationError(result.error());
                     }
-                    result = Push(accessors, std::move(accessor));
+                    result = Push(m_accessors, std::move(accessor));
                     if (!result) return UnexpectedSerializationError(result.error());
                 }
 
@@ -288,8 +449,8 @@ namespace elm::resmgr {
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(indexView, "byteLength", binary.size() - indexOffset);
                 if (!result) return UnexpectedSerializationError(result.error());
-                const size_t indexViewIndex = *bufferViews.Size();
-                result = Push(bufferViews, std::move(indexView));
+                const size_t indexViewIndex = *m_bufferViews.Size();
+                result = Push(m_bufferViews, std::move(indexView));
                 if (!result) return UnexpectedSerializationError(result.error());
 
                 JsonValue indexAccessor{ JsonValue::Type::Object };
@@ -301,8 +462,8 @@ namespace elm::resmgr {
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = SetField(indexAccessor, "type", JsonValue("SCALAR"));
                 if (!result) return UnexpectedSerializationError(result.error());
-                const size_t indexAccessorIndex = *accessors.Size();
-                result = Push(accessors, std::move(indexAccessor));
+                const size_t indexAccessorIndex = *m_accessors.Size();
+                result = Push(m_accessors, std::move(indexAccessor));
                 if (!result) return UnexpectedSerializationError(result.error());
 
                 JsonValue attributes{ JsonValue::Type::Object };
@@ -313,116 +474,42 @@ namespace elm::resmgr {
                 result = AddNumberField(attributes, "TEXCOORD_0", positionAccessorIndex + 2);
                 if (!result) return UnexpectedSerializationError(result.error());
 
+                auto material = AddMaterial(source.color);
+                if (!material)
+                    return UnexpectedSerializationError(material.error());
+
                 JsonValue primitive{ JsonValue::Type::Object };
                 result = SetField(primitive, "attributes", std::move(attributes));
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(primitive, "indices", indexAccessorIndex);
                 if (!result) return UnexpectedSerializationError(result.error());
-                result = AddNumberField(primitive, "material", modelIndex);
+                result = AddNumberField(primitive, "material", *material);
                 if (!result) return UnexpectedSerializationError(result.error());
-
-                JsonValue primitives{ JsonValue::Type::Array };
-                result = Push(primitives, std::move(primitive));
-                if (!result) return UnexpectedSerializationError(result.error());
-                JsonValue meshObject{ JsonValue::Type::Object };
-                if (!model.name.empty()) {
-                    result = SetField(meshObject, "name", JsonValue(model.name.c_str()));
-                    if (!result) return UnexpectedSerializationError(result.error());
-                }
-                result = SetField(meshObject, "primitives", std::move(primitives));
-                if (!result) return UnexpectedSerializationError(result.error());
-                result = Push(meshes, std::move(meshObject));
-                if (!result) return UnexpectedSerializationError(result.error());
-
-                JsonValue color{ JsonValue::Type::Array };
-                for (const float component : { model.color.x, model.color.y, model.color.z, model.color.w }) {
-                    if (!std::isfinite(component))
-                        return Failure("Cannot export non-finite material color to glTF");
-                    result = Push(color, JsonValue(static_cast<double>(component)));
-                    if (!result) return UnexpectedSerializationError(result.error());
-                }
-                JsonValue pbr{ JsonValue::Type::Object };
-                result = SetField(pbr, "baseColorFactor", std::move(color));
-                if (!result) return UnexpectedSerializationError(result.error());
-                JsonValue material{ JsonValue::Type::Object };
-                result = SetField(material, "pbrMetallicRoughness", std::move(pbr));
-                if (!result) return UnexpectedSerializationError(result.error());
-                result = Push(materials, std::move(material));
-                if (!result) return UnexpectedSerializationError(result.error());
-
-                JsonValue node{ JsonValue::Type::Object };
-                if (!model.name.empty()) {
-                    result = SetField(node, "name", JsonValue(model.name.c_str()));
-                    if (!result) return UnexpectedSerializationError(result.error());
-                }
-                result = AddNumberField(node, "mesh", modelIndex);
-                if (!result) return UnexpectedSerializationError(result.error());
-                if (!transforms.empty()) {
-                    JsonValue matrix{ JsonValue::Type::Array };
-                    const auto& transform = transforms[modelIndex];
-                    for (size_t column = 0; column < 4; ++column) {
-                        for (size_t row = 0; row < 4; ++row) {
-                            const float value = transform(row, column);
-                            if (!std::isfinite(value))
-                                return Failure("Cannot export non-finite node transform to glTF");
-                            result = Push(matrix, JsonValue(static_cast<double>(value)));
-                            if (!result) return UnexpectedSerializationError(result.error());
-                        }
-                    }
-                    result = SetField(node, "matrix", std::move(matrix));
-                    if (!result) return UnexpectedSerializationError(result.error());
-                }
-                result = Push(nodes, std::move(node));
-                if (!result) return UnexpectedSerializationError(result.error());
-                result = Push(sceneNodes, JsonValue(static_cast<double>(modelIndex)));
-                if (!result) return UnexpectedSerializationError(result.error());
+                return primitive;
             }
 
-            const auto binaryPath = path.Parent() / (path.Stem().string() + ".bin");
-            JsonValue buffer{ JsonValue::Type::Object };
-            result = SetField(buffer, "uri", JsonValue(EncodeUri(binaryPath.Filename().generic_string())));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = AddNumberField(buffer, "byteLength", binary.size());
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = Push(buffers, std::move(buffer));
-            if (!result) return UnexpectedSerializationError(result.error());
+            JsonValue m_bufferViews{ JsonValue::Type::Array };
+            JsonValue m_accessors{ JsonValue::Type::Array };
+            JsonValue m_materials{ JsonValue::Type::Array };
+            JsonValue m_meshes{ JsonValue::Type::Array };
+            JsonValue m_nodes{ JsonValue::Type::Array };
+            JsonValue m_sceneNodes{ JsonValue::Type::Array };
+            Vector<uint8_t> m_binary;
+            Vector<Vector4> m_materialColors;
+        };
 
-            result = SetField(root, "buffers", std::move(buffers));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "bufferViews", std::move(bufferViews));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "accessors", std::move(accessors));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "materials", std::move(materials));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "meshes", std::move(meshes));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "nodes", std::move(nodes));
-            if (!result) return UnexpectedSerializationError(result.error());
-            JsonValue scene{ JsonValue::Type::Object };
-            result = SetField(scene, "nodes", std::move(sceneNodes));
-            if (!result) return UnexpectedSerializationError(result.error());
-            JsonValue scenes{ JsonValue::Type::Array };
-            result = Push(scenes, std::move(scene));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "scenes", std::move(scenes));
-            if (!result) return UnexpectedSerializationError(result.error());
-            result = SetField(root, "scene", JsonValue(0));
-            if (!result) return UnexpectedSerializationError(result.error());
-
-            auto json = root.ToString();
-            if (!json)
-                return UnexpectedSerializationError(json.error());
-            auto writeBinary = WriteBytes(binaryPath, binary);
-            if (!writeBinary)
-                return UnexpectedSerializationError(writeBinary.error());
-            auto jsonFile = FileSystem::OpenForWriting(path, std::ios::binary);
-            if (!jsonFile)
-                return Failure("Unable to open glTF output file: " + path.string());
-            jsonFile.write(json->data(), static_cast<std::streamsize>(json->size()));
-            if (!jsonFile)
-                return Failure("Unable to write glTF output file: " + path.string());
-            return {};
+        [[nodiscard]] auto MakeExportMesh(const graphics::Model& model) -> EngineResult<ExportMesh>
+        {
+            ExportMesh mesh { model.name, {} };
+            mesh.primitives.reserve(model.submeshes.size());
+            for (const auto& submesh : model.submeshes) {
+                if (!submesh.data)
+                    return Failure("Model contains a submesh without geometry");
+                mesh.primitives.push_back({ submesh.data.get(), submesh.color });
+            }
+            if (mesh.primitives.empty())
+                return Failure("Cannot export a model without submeshes");
+            return mesh;
         }
 
         auto Required(const JsonValue& object, StringView key) -> EngineResult<JsonValue>
@@ -1104,9 +1191,9 @@ namespace elm::resmgr {
             const Matrix4x4& parentTransform,
             Vector<bool>& recursionStack,
             Vector<bool>& visitedNodes,
-            const Vector<graphics::ModelHandler>& meshModels,
+            size_t meshCount,
             size_t parentSceneNodeIndex,
-            Scene& scene) -> EngineResult<void>
+            SceneAsset& asset) -> EngineResult<void>
         {
             auto nodeCount = nodes.Size();
             if (!nodeCount || nodeIndex >= *nodeCount)
@@ -1131,19 +1218,30 @@ namespace elm::resmgr {
                     return Failure("Invalid glTF node name");
                 nodeName = std::move(*name);
             }
-            const size_t sceneNodeIndex = scene.nodes.size();
-            scene.nodes.push_back(Scene::Node{});
-            auto& sceneNode = scene.nodes.back();
+            const size_t sceneNodeIndex = asset.scene.nodes.size();
+            asset.scene.nodes.push_back(Scene::Node{});
+            asset.nodeModels.push_back(SceneAsset::NoModel);
+            auto& sceneNode = asset.scene.nodes.back();
             sceneNode.parentIndex = parentSceneNodeIndex;
             sceneNode.localTransform = *localTransform;
             sceneNode.worldTransform = worldTransform;
             sceneNode.name = std::move(nodeName);
+            if (const auto extras = Optional(node, "extras"); extras && extras->IsObject()) {
+                if (const auto color = Optional(*extras, "elmColor")) {
+                    if (auto values = ReadFloatArray<4>(*color, "nodes.extras.elmColor"))
+                        sceneNode.color = Vector4 { (*values)[0], (*values)[1], (*values)[2], (*values)[3] };
+                }
+                if (const auto visible = Optional(*extras, "elmVisible")) {
+                    if (auto value = visible->AsBoolean())
+                        sceneNode.visible = *value;
+                }
+            }
 
             if (const auto meshField = Optional(node, "mesh")) {
                 auto meshIndex = ReadUnsigned<size_t>(*meshField, "nodes.mesh");
-                if (!meshIndex || *meshIndex >= meshModels.size())
+                if (!meshIndex || *meshIndex >= meshCount)
                     return Failure("glTF node references an invalid mesh");
-                sceneNode.model = meshModels[*meshIndex];
+                asset.nodeModels[sceneNodeIndex] = *meshIndex;
             }
 
             auto children = ReadNodeChildIndices(node);
@@ -1152,7 +1250,7 @@ namespace elm::resmgr {
             for (const auto childIndex : *children) {
                 auto result = AddNodeInstances(
                     nodes, childIndex, worldTransform, recursionStack, visitedNodes,
-                    meshModels, sceneNodeIndex, scene);
+                    meshCount, sceneNodeIndex, asset);
                 if (!result)
                     return UnexpectedSerializationError(result.error());
             }
@@ -1163,73 +1261,96 @@ namespace elm::resmgr {
 
     auto GltfExporter::ExportModel(const graphics::Model& model, const Path& path) -> EngineResult<void>
     {
-        Vector<DecodedSubmesh> submeshes;
-        submeshes.reserve(model.submeshes.size());
-        for (const auto& submesh : model.submeshes) {
-            if (!submesh.data)
-                return Failure("Model contains a submesh without geometry");
-            submeshes.push_back({ *submesh.data, submesh.color, submesh.name });
+        auto mesh = MakeExportMesh(model);
+        if (!mesh)
+            return UnexpectedSerializationError(mesh.error());
+        GltfWriter writer;
+        ExportNode node;
+        node.name = model.name;
+        node.mesh = 0;
+        for (auto result : { writer.AddMesh(*mesh), writer.AddNode(node), writer.AddRoot(0) }) {
+            if (!result)
+                return UnexpectedSerializationError(result.error());
         }
-        return ExportModels(path, submeshes, {});
+        return writer.Write(path);
     }
 
     auto GltfExporter::Export(const Path& path, const Scene& scene, const graphics::ModelManager& models) -> EngineResult<void>
     {
-        Vector<DecodedSubmesh> decodedSubmeshes;
-        Vector<Matrix4x4> transforms;
-        for (const auto& node : scene.nodes) {
-            const auto* model = models.Get(node.model);
+        // One glTF mesh per engine model, shared by every node that uses it
+        GltfWriter writer;
+        UnorderedMap<graphics::ModelHandler, size_t> meshIndices;
+        Vector<ExportNode> nodes(scene.nodes.size());
+        for (size_t nodeIndex = 0; nodeIndex < scene.nodes.size(); ++nodeIndex) {
+            const auto& sceneNode = scene.nodes[nodeIndex];
+            auto& node = nodes[nodeIndex];
+            node.name = sceneNode.name;
+            node.transform = sceneNode.parentIndex < scene.nodes.size() ? sceneNode.localTransform : sceneNode.worldTransform;
+            node.tint = sceneNode.color;
+            node.visible = sceneNode.visible;
+            if (sceneNode.parentIndex < scene.nodes.size())
+                nodes[sceneNode.parentIndex].children.push_back(nodeIndex);
+
+            const auto* model = models.Get(sceneNode.model);
             if (!model)
                 continue;
-            for (const auto& submesh : model->submeshes) {
-                if (!submesh.data)
-                    return Failure("Scene model contains a submesh without geometry");
-                const Vector4 color {
-                    submesh.color.x * node.color.x,
-                    submesh.color.y * node.color.y,
-                    submesh.color.z * node.color.z,
-                    submesh.color.w * node.color.w
-                };
-                decodedSubmeshes.push_back({ *submesh.data, color, node.name.empty() ? submesh.name : node.name });
-                transforms.push_back(node.worldTransform);
+            auto mesh = meshIndices.find(sceneNode.model);
+            if (mesh == meshIndices.end()) {
+                auto exportMesh = MakeExportMesh(*model);
+                if (!exportMesh)
+                    return UnexpectedSerializationError(exportMesh.error());
+                auto result = writer.AddMesh(*exportMesh);
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+                mesh = meshIndices.emplace(sceneNode.model, meshIndices.size()).first;
+            }
+            node.mesh = mesh->second;
+        }
+
+        for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
+            auto result = writer.AddNode(nodes[nodeIndex]);
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            if (scene.nodes[nodeIndex].parentIndex >= scene.nodes.size()) {
+                result = writer.AddRoot(nodeIndex);
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
             }
         }
-        return ExportModels(path, decodedSubmeshes, transforms);
+        return writer.Write(path);
     }
 
-    auto GltfExporter::LoadModel(const Path& path, size_t meshIndex, size_t primitiveIndex) -> EngineResult<graphics::Model>
+    auto GltfExporter::LoadModel(const Path& path) -> EngineResult<graphics::Model>
     {
-        auto document = LoadDocument(path);
-        if (!document)
-            return UnexpectedSerializationError(document.error());
-        auto meshes = Required(document->root, "meshes");
-        if (!meshes)
-            return UnexpectedSerializationError(meshes.error());
-        auto count = meshes->Size();
-        if (!count || meshIndex >= *count)
-            return Failure("Requested glTF mesh index does not exist");
-        auto models = ReadMeshPrimitives(*document, meshIndex);
-        if (!models)
-            return UnexpectedSerializationError(models.error());
-        graphics::Model model;
-        if (primitiveIndex != static_cast<size_t>(-1)) {
-            if (primitiveIndex >= models->size())
-                return Failure("Requested glTF primitive index does not exist");
-            model.name = (*models)[primitiveIndex].name;
-            model.AddSubmesh(std::move((*models)[primitiveIndex].meshData), (*models)[primitiveIndex].color);
-            return model;
+        auto asset = LoadScene(path);
+        if (!asset)
+            return UnexpectedSerializationError(asset.error());
+
+        graphics::Model model(String(path.Stem().c_str()));
+        for (size_t nodeIndex = 0; nodeIndex < asset->scene.nodes.size(); ++nodeIndex) {
+            const size_t modelIndex = asset->nodeModels[nodeIndex];
+            if (modelIndex == SceneAsset::NoModel)
+                continue;
+            const auto& node = asset->scene.nodes[nodeIndex];
+            for (const auto& submesh : asset->models[modelIndex].submeshes) {
+                String name = node.name;
+                if (!submesh.name.empty() && submesh.name != node.name) {
+                    if (!name.empty())
+                        name += "/";
+                    name += submesh.name;
+                }
+                if (name.empty())
+                    name = "Submesh " + String(std::to_string(model.submeshes.size()));
+                model.AddSubmesh(graphics::TransformMeshData(*submesh.data, node.worldTransform),
+                    submesh.color, std::move(name));
+            }
         }
-        for (auto& submesh : *models) {
-            if (model.name.empty())
-                model.name = submesh.name;
-            model.AddSubmesh(std::move(submesh.meshData), submesh.color, std::move(submesh.name));
-        }
+        if (model.submeshes.empty())
+            return Failure("glTF scene contains no meshes");
         return model;
     }
 
-    auto GltfExporter::LoadScene(Scene& scene, graphics::ModelManager& models,
-        render::RenderResources& resources, const Path& path)
-        -> EngineResult<void>
+    auto GltfExporter::LoadScene(const Path& path) -> EngineResult<SceneAsset>
     {
         auto document = LoadDocument(path);
         if (!document)
@@ -1245,20 +1366,22 @@ namespace elm::resmgr {
         if (!nodes.IsArray() || !meshesResult->IsArray() || !nodeCount || !meshCount)
             return Failure("Invalid glTF nodes or meshes array");
 
-        Scene imported;
-        graphics::ModelManager importedModels;
-        Vector<graphics::ModelHandler> meshModels;
-        meshModels.reserve(*meshCount);
+        SceneAsset imported;
+        imported.models.reserve(*meshCount);
         for (size_t meshIndex = 0; meshIndex < *meshCount; ++meshIndex) {
             auto submeshes = ReadMeshPrimitives(*document, meshIndex);
             if (!submeshes)
                 return UnexpectedSerializationError(submeshes.error());            
             graphics::Model model;
-            model.name = submeshes->empty() ? String { } : (*submeshes)[0].name;
+            if (const auto nameField = Optional(meshesResult->At(meshIndex), "name")) {
+                auto name = nameField->AsString();
+                if (!name)
+                    return Failure("Invalid glTF mesh name");
+                model.name = std::move(*name);
+            }
             for (auto& submesh : *submeshes)
                 model.AddSubmesh(std::move(submesh.meshData), submesh.color, std::move(submesh.name));
-            model.Upload(resources);
-            meshModels.push_back(importedModels.Insert(std::move(model)));
+            imported.models.push_back(std::move(model));
         }
 
         Vector<bool> hasParent(*nodeCount, false);
@@ -1320,18 +1443,11 @@ namespace elm::resmgr {
         for (const auto rootIndex : roots) {
             auto result = AddNodeInstances(
                 nodes, rootIndex, identity, recursionStack, visitedNodes,
-                meshModels, Scene::NoNode, imported);
+                *meshCount, Scene::NoNode, imported);
             if (!result)
                 return UnexpectedSerializationError(result.error());
         }
 
-        models.Clear();
-        const auto remapping = importedModels.MoveTo(models);
-        for (auto& node : imported.nodes) {
-            if (const auto model = remapping.find(node.model); model != remapping.end())
-                node.model = model->second;
-        }
-        scene = std::move(imported);
-        return {};
+        return imported;
     }
 }

@@ -3,8 +3,12 @@ engine_add_library(graphics
     Camera.cpp
     CameraController.hpp
     CameraController.cpp
+    Model.cpp
     Model.hpp
+    ModelManager.cpp
     ModelManager.hpp
+    ModelImport.hpp
+    ModelImport.cpp
 
     culling/SoftwareDepthBuffer.hpp
     culling/SoftwareDepthBuffer.cpp
@@ -33,6 +37,8 @@ engine_add_library(graphics
     ui/ProfilerWindow.cpp
     ui/SettingsWindow.hpp
     ui/SettingsWindow.cpp
+    ui/ModelEditorWindow.hpp
+    ui/ModelEditorWindow.cpp
 )
 
 target_link_libraries(graphics PUBLIC imgui_glfw imguizmo)

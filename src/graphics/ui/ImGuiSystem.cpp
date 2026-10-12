@@ -4,6 +4,7 @@
 #include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ui/LogWindow.hpp"
+#include "graphics/ui/ModelEditorWindow.hpp"
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 #include "graphics/ui/SocLabWindow.hpp"
 #include "graphics/ui/ProfilerWindow.hpp"
@@ -78,6 +79,7 @@ namespace elm {
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 		EmplaceWindow<SettingsWindow>( settings );
+		EmplaceWindow<ModelEditorWindow>( settings );
 
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem.Resources() );
 		if ( !m_renderer->IsInitialized() ) {
@@ -93,14 +95,7 @@ namespace elm {
 		io.ConfigViewportsNoAutoMerge = false;
 		io.UserData = this;
 
-		const Path sourceRoot =
-			Path{ __FILE__ }.Parent().Parent().Parent();
-		if ( FileSystem::Exists( sourceRoot / "CMakeLists.txt" ) ) {
-			m_iniFilePath = ( sourceRoot / "imgui.ini" ).string();
-		}
-		else {
-			m_iniFilePath = "imgui.ini";
-		}
+		m_iniFilePath = FileSystem::Resolve( "imgui.ini" ).string();
 		io.IniFilename = m_iniFilePath.c_str();
 
 
@@ -215,7 +210,8 @@ namespace elm {
 
 	void ImGuiSystem::BuildFrame(render::RenderSystem& renderSystem, Scene& scene, graphics::ModelManager& models,
 		Camera& camera, const FrameStats& stats,
-		render::ViewPort& viewPort, render::OverlayFrame& frame ) {
+		render::ViewPort& viewPort, render::FrameWriter& frameWriter ) {
+		auto& frame = frameWriter.Overlay();
 		frame.Clear();
 		if ( !m_initialized ) return;
 		if ( m_renderer ) {
@@ -230,7 +226,7 @@ namespace elm {
 		m_dockSpace.Render( m_windows );
 		for ( const auto& window : m_windows ) {
 			if ( window && window->IsVisible() ) {
-				ImGuiWindowContext context { renderSystem, scene, models, camera, stats, viewPort };
+				ImGuiWindowContext context { renderSystem, scene, models, camera, stats, viewPort, frameWriter };
 				window->Render( context );
 			}
 		}

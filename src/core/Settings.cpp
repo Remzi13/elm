@@ -32,13 +32,14 @@ namespace elm {
 
 	auto Settings::DefaultFilePath() -> Path
 	{
-		const Path sourceRoot =
-			Path{ __FILE__ }.Parent().Parent().Parent();
+		const Path fileName{ ".settings" };
 		std::error_code error;
-		if (FileSystem::Exists(sourceRoot / "CMakeLists.txt", error) && !error)
-			return sourceRoot / ".settings";
+		const Path currentPath = FileSystem::CurrentPath(error);
+		if (error)
+			return fileName;
 
-		return Path{ ".settings" };
+		const Path directory = FileSystem::FindInParents(currentPath, fileName);
+		return (directory.Empty() ? currentPath : directory) / fileName;
 	}
 
 	auto Settings::Load(const Path& path) -> EngineResult<void>

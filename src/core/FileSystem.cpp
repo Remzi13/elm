@@ -1,6 +1,9 @@
 #include "core/FileSystem.hpp"
 
+#include "core/Settings.hpp"
+
 #include <filesystem>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -24,6 +27,9 @@ namespace elm {
             const auto text = path.u8string();
             return String(reinterpret_cast<const char*>(text.data()), text.size());
         }
+
+        std::mutex rootPathMutex;
+        Path rootPath;
 
         auto ToPath(const fs::path& path) -> Path
         {
@@ -254,6 +260,62 @@ namespace elm {
     auto FileSystem::CurrentPath() -> Path
     {
         return ToPath(fs::current_path());
+    }
+
+    void FileSystem::RegisterSettings(Settings& settings)
+    {
+        settings.Register(Settings::Category::Core, RootPathSetting, "Root Path", String{ "." });
+    }
+
+    void FileSystem::ApplySettings(const Settings& settings, const Path& settingsDirectory)
+    {
+        const Path root{ settings.Get<String>(Settings::Category::Core, RootPathSetting, String{ "." }) };
+        const fs::path resolved = ToFilesystemPath(root.IsAbsolute() ? root : settingsDirectory / root);
+
+        std::error_code error;
+        fs::path absolute = fs::absolute(resolved, error);
+        if (error)
+            absolute = resolved;
+
+        std::lock_guard<std::mutex> lock(rootPathMutex);
+        rootPath = ToPath(absolute.lexically_normal());
+    }
+
+    auto FileSystem::RootPath() -> Path
+    {
+        {
+            std::lock_guard<std::mutex> lock(rootPathMutex);
+            if (!rootPath.Empty())
+                return rootPath;
+        }
+        std::error_code error;
+        return CurrentPath(error);
+    }
+
+    auto FileSystem::Resolve(const Path& path) -> Path
+    {
+        if (path.IsAbsolute())
+            return path;
+        return RootPath() / path;
+    }
+
+    auto FileSystem::FindInParents(const Path& start, const Path& name) -> Path
+    {
+        std::error_code error;
+        fs::path directory = fs::absolute(ToFilesystemPath(start), error);
+        if (error)
+            return {};
+
+        while (!directory.empty()) {
+            if (fs::exists(directory / ToFilesystemPath(name), error) && !error)
+                return ToPath(directory);
+
+            fs::path parent = directory.parent_path();
+            if (parent == directory)
+                break;
+            directory = std::move(parent);
+        }
+        return {};
     }
 
     auto FileSystem::Exists(const Path& path, std::error_code& error) -> bool

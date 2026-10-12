@@ -1,8 +1,16 @@
 #pragma once
 
+#include "graphics/Model.hpp"
+
 #include <cstddef>
+#include <functional>
 
 namespace elm {
+
+	/// Provided by the model editor: opens a model of the scene ModelManager for editing.
+	struct OpenModelEditor {
+		std::function<void(graphics::ModelHandler)> open;
+	};
 
 	struct SelectedSceneInstance {
 		size_t index;

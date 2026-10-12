@@ -35,16 +35,20 @@ namespace elm::render {
                 m_frame->backbufferSize = size;
         }
 
-        void SetSceneView(const CameraData& camera, TextureHandle colorTarget, Size size)
+        /// Starts a new 3D view: the following Draw calls go into it. A frame may contain several views.
+        void BeginSceneView(const CameraData& camera, TextureHandle colorTarget, Size size)
         {
             if (m_frame)
-                m_frame->sceneView = { camera, colorTarget, size };
+                m_frame->sceneViews.push_back({ camera, colorTarget, size, m_frame->drawItems.size(), 0 });
         }
 
+        /// Adds an instance to the current scene view; ignored before the first BeginSceneView.
         void Draw(MeshHandle mesh, const Matrix4x4& transform, const Vector4& color)
         {
-            if (m_frame && mesh.IsValid())
-                m_frame->drawItems.push_back({ mesh, { transform, color } });
+            if (!m_frame || !mesh.IsValid() || m_frame->sceneViews.empty())
+                return;
+            m_frame->drawItems.push_back({ mesh, { transform, color } });
+            ++m_frame->sceneViews.back().drawCount;
         }
 
         void ReserveDraws(size_t count)

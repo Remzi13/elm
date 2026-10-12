@@ -1,5 +1,6 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 
+#include "core/AssetPaths.hpp"
 #include "render/RenderSystem.hpp"
 #include "resmgr/GltfExporter.hpp"
 #include "resmgr/Serializer.hpp"
@@ -55,98 +56,45 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
         const char* presets[] = { "Box", "The Great Wall & City Grid", "Rooms & Corridors", "Physics Barrier Sandbox" };
         static int preset = 0;
         if (ImGui::Combo("Preset", &preset, presets, IM_ARRAYSIZE(presets))) {
-            TestScenes::BuildScene(static_cast<ScenePreset>(preset), 1500, scene, context.models,
-                context.renderSystem.Resources());
+            TestScenes::BuildScene(static_cast<ScenePreset>(preset), 1500, scene, context.models);
             m_selectedInstance = 0;
         }
     }
     ImGui::InputText("Scene file", m_sceneFilePath, sizeof(m_sceneFilePath));
     ImGui::SameLine();
+    // A relative scene file name is taken from the scenes asset folder
+    const Path scenePath = Path(m_sceneFilePath).IsAbsolute() ? Path(m_sceneFilePath) : AssetPaths::Scenes() / m_sceneFilePath;
     if (ImGui::Button("Save Scene")) {
-        auto result = resmgr::Serializer::SaveScene(scene, context.models, m_sceneFilePath);
-        m_sceneFileStatus = result ? "Scene saved." : result.error().message;
+        auto result = resmgr::Serializer::SaveScene(scene, context.models, scenePath, AssetPaths::Models());
+        m_sceneFileStatus = result ? "Scene saved to " + String(scenePath.string().c_str()) + "." : result.error().message;
     }
     ImGui::SameLine();
     if (ImGui::Button("Load Scene")) {
-        auto result = resmgr::Serializer::LoadScene(scene, context.models,
-            context.renderSystem.Resources(), m_sceneFilePath);
+        auto result = resmgr::Serializer::LoadScene(scenePath);
         if (result) {
+            scene.Clear();
+            context.models.Clear();
+            scene.Append(std::move(*result), context.models);
             m_selectedInstance = 0;
             m_sceneFileStatus = "Scene loaded.";
         } else {
             m_sceneFileStatus = result.error().message;
         }
     }
+    ImGui::SameLine();
+    if (ImGui::Button("Export glTF..."))
+        m_gltfFileDialog.SaveAs("Export Scene to glTF", ".gltf", "scene.gltf", AssetPaths::Scenes());
+    if (const auto path = m_gltfFileDialog.Draw()) {
+        auto result = resmgr::GltfExporter::Export(*path, scene, context.models);
+        m_sceneFileStatus = result ? "Scene exported to " + String(path->string().c_str()) + "." : result.error().message;
+    }
     if (!m_sceneFileStatus.empty())
         ImGui::TextWrapped("%s", m_sceneFileStatus.c_str());
 
-    if (ImGui::CollapsingHeader("glTF", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::Button("Load glTF Model")) {
-            m_gltfDialogAction = GltfDialogAction::LoadModel;
-            m_gltfFileDialog.Open("Select glTF Model", ".gltf");
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Load glTF Scene")) {
-            m_gltfDialogAction = GltfDialogAction::LoadScene;
-            m_gltfFileDialog.Open("Select glTF Scene", ".gltf");
-        }
-        if (ImGui::Button("Export Scene to glTF")) {
-            m_gltfDialogAction = GltfDialogAction::ExportScene;
-            m_gltfFileDialog.SaveAs("Export glTF Scene", ".gltf", "scene.gltf");
-        }
-        if (!scene.nodes.empty()) {
-            ImGui::SameLine();
-            if (ImGui::Button("Export Selected Model")) {
-                m_gltfDialogAction = GltfDialogAction::ExportModel;
-                m_gltfFileDialog.SaveAs("Export glTF Model", ".gltf", "model.gltf");
-            }
-        }
+    if (ImGui::Button("Model Editor...")) {
+        if (const auto editor = Request<OpenModelEditor>())
+            editor->open({});
     }
-    if (const auto selectedPath = m_gltfFileDialog.Draw()) {
-        if (m_gltfDialogAction == GltfDialogAction::ExportScene) {
-            auto result = resmgr::GltfExporter::Export(*selectedPath, scene, context.models);
-            m_sceneFileStatus = result ? "Scene exported to glTF." : result.error().message;
-        } else if (m_gltfDialogAction == GltfDialogAction::LoadScene) {
-            auto result = resmgr::GltfExporter::LoadScene(scene, context.models,
-                context.renderSystem.Resources(), *selectedPath);
-            if (result) {
-                m_selectedInstance = 0;
-                m_sceneFileStatus = "glTF scene loaded.";
-            } else {
-                m_sceneFileStatus = result.error().message;
-            }
-        } else if (m_gltfDialogAction == GltfDialogAction::LoadModel) {
-            Scene imported;
-            graphics::ModelManager importedModels;
-            const size_t firstImportedNode = scene.nodes.size();
-            auto result = resmgr::GltfExporter::LoadScene(imported, importedModels,
-                context.renderSystem.Resources(), *selectedPath);
-            if (!result) {
-                m_sceneFileStatus = result.error().message;
-            } else {
-                const auto remapping = importedModels.MoveTo(context.models);
-                for (auto& node : imported.nodes) {
-                    if (const auto model = remapping.find(node.model); model != remapping.end())
-                        node.model = model->second;
-                }
-                scene.Append(std::move(imported));
-                if (scene.nodes.size() > firstImportedNode)
-                    m_selectedInstance = firstImportedNode;
-                m_sceneFileStatus = "glTF model loaded.";
-            }
-        } else if (m_selectedInstance < scene.nodes.size()) {
-            const auto& node = scene.nodes[m_selectedInstance];
-            const auto* model = context.models.Get(node.model);
-            if (!model) {
-                m_sceneFileStatus = "Selected node has no model.";
-            } else {
-                auto result = resmgr::GltfExporter::ExportModel(*model, *selectedPath);
-                m_sceneFileStatus = result ? "Model exported to glTF." : result.error().message;
-            }
-        }
-    }
-    ImGui::Separator();
-
     if (scene.nodes.empty()) {
         m_selectedInstance = 0;
     } else {
@@ -164,7 +112,6 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
             graphics::Model model;
             model.name = "Cube";            
             model.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
-            model.Upload(context.renderSystem.Resources());
             auto& node = scene.AddNode(context.models.Insert(std::move(model)), "Cube");
             node.localTransform = Matrix4x4::Translation(Vector3 { 0.0f, 0.5f, 0.0f });
             node.worldTransform = node.localTransform;
@@ -256,6 +203,18 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
         float color[4] = { node.color.x, node.color.y, node.color.z, node.color.w };
         if (ImGui::ColorEdit4("Color", color))
             node.color = Vector4 { color[0], color[1], color[2], color[3] };
+
+        if (const auto* model = context.models.Get(node.model)) {
+            ImGui::Text("Model: %s (%zu submeshes)", model->name.empty() ? "Unnamed" : model->name.c_str(),
+                model->submeshes.size());
+            ImGui::SameLine();
+            if (ImGui::Button("Edit Model")) {
+                if (const auto editor = Request<OpenModelEditor>())
+                    editor->open(node.model);
+            }
+        } else {
+            ImGui::TextDisabled("No model");
+        }
 
         float position[3] = {
             node.worldTransform(0, 3),

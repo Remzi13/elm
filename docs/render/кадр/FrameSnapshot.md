@@ -11,7 +11,7 @@ render-потоку, пока кадр не нарисован ([[FrameRing]]).
 |---|---|
 | `frameIndex` | номер кадра |
 | `backbufferSize` | размер основного окна |
-| `sceneView` | `CameraData` + текстура 3D-вида + размер ([[ViewPort]]) |
+| `sceneViews` | список 3D-видов: `CameraData` + текстура + размер ([[ViewPort]]) + диапазон своих `drawItems` |
 | `drawItems` | `DrawItem { MeshHandle mesh; InstanceData instance; }` |
 | `overlay` | `OverlayFrame`: геометрия ImGui по окнам и события окон |
 | `resourceCommands` | команды [[RenderResources]] для этого кадра |

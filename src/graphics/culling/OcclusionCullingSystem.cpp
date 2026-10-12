@@ -114,7 +114,7 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const graphics::ModelM
                 continue;
             const Matrix4x4 wvp = cullingViewProj * node.worldTransform;
             for (const auto& submesh : model->submeshes) {
-                const auto& data = submesh.mesh.GetData();
+                const auto& data = submesh.data;
                 if (!data)
                     continue;
                 const auto& meshData = *data;

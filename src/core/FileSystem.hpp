@@ -9,6 +9,8 @@
 
 namespace elm {
 
+class Settings;
+
 class Path {
 public:
     Path() = default;
@@ -74,6 +76,19 @@ private:
 class FileSystem {
 public:
     FileSystem() = delete;
+
+    /// Root that relative engine paths are resolved against; a relative value is taken from the settings file folder.
+    static constexpr StringView RootPathSetting = "FileSystem/RootPath";
+
+    static void RegisterSettings(Settings& settings);
+    static void ApplySettings(const Settings& settings, const Path& settingsDirectory);
+
+    /// Root for relative engine paths, the current directory until settings are applied.
+    [[nodiscard]] static Path RootPath();
+    /// Absolute paths are returned unchanged, relative ones are resolved against RootPath().
+    [[nodiscard]] static Path Resolve(const Path& path);
+    /// The first of `start` and its parents that contains `name`, otherwise an empty path.
+    [[nodiscard]] static Path FindInParents(const Path& start, const Path& name);
 
     [[nodiscard]] static Path CurrentPath(std::error_code& error);
     [[nodiscard]] static Path CurrentPath();
