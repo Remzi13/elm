@@ -45,6 +45,7 @@ namespace elm {
             case log::Category::Render: return ImVec4(0.35f, 0.75f, 1.0f, 1.0f);
             case log::Category::Physics: return ImVec4(0.35f, 0.88f, 0.55f, 1.0f);
             case log::Category::Core: return ImVec4(0.78f, 0.55f, 1.0f, 1.0f);
+            case log::Category::Script: return ImVec4(1.0f, 0.78f, 0.35f, 1.0f);
             case log::Category::Invalid: return ImVec4(0.68f, 0.68f, 0.68f, 1.0f);
             }
             return ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
@@ -57,6 +58,7 @@ namespace elm {
             case log::Category::Render: return "RENDER";
             case log::Category::Physics: return "PHYSICS";
             case log::Category::Core: return "CORE";
+            case log::Category::Script: return "SCRIPT";
             case log::Category::Invalid: return "INVALID";
             }
             return "UNKNOWN";
@@ -69,7 +71,8 @@ namespace elm {
             case log::Category::Render: return 0;
             case log::Category::Physics: return 1;
             case log::Category::Core: return 2;
-            case log::Category::Invalid: return 3;
+            case log::Category::Script: return 3;
+            case log::Category::Invalid: return 4;
             }
             return -1;
         }
@@ -142,7 +145,7 @@ namespace elm {
 
         ImGui::SameLine();
         ImGui::TextDisabled("  Category");
-        const char* categoryNames[] = { "Render", "Physics", "Core", "Invalid" };
+        const char* categoryNames[] = { "Render", "Physics", "Core", "Script", "Invalid" };
         for (std::size_t i = 0; i < m_categoryEnabled.size(); ++i)
         {
             if (i > 0)

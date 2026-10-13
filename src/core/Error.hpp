@@ -13,6 +13,7 @@ enum class ErrorCode {
     PhysicsInitializationFailed,
     ResourceCreationFailed,
     SerializationFailed,
+    ScriptError,
     UnknownError
 };
 

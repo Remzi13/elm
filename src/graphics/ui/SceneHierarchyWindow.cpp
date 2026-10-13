@@ -107,7 +107,7 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
             node.worldTransform(0, 3) += 1.0f;
             node.localTransform(0, 3) += 1.0f;
             node.name += " Copy";
-            scene.nodes.push_back(std::move(node));
+            scene.AppendNode(std::move(node));
         } else {            
             graphics::Model model;
             model.name = "Cube";            
@@ -122,14 +122,7 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     ImGui::SameLine();
     if (!scene.nodes.empty() && ImGui::Button("Remove Selected")) {
         const size_t removedIndex = m_selectedInstance;
-        const size_t parentIndex = scene.nodes[removedIndex].parentIndex;
-        for (auto& node : scene.nodes) {
-            if (node.parentIndex == removedIndex)
-                node.parentIndex = parentIndex;
-            else if (node.parentIndex != Scene::NoNode && node.parentIndex > removedIndex)
-                --node.parentIndex;
-        }
-        scene.nodes.erase(scene.nodes.begin() + removedIndex);
+        scene.RemoveNode(removedIndex);
         m_selectedInstance = scene.nodes.empty() ? 0 : (std::min)(removedIndex, scene.nodes.size() - 1);
     }
     ImGui::Separator();

@@ -43,10 +43,13 @@ namespace elm {
 	}
 
 	void Camera::Rotate(float yawDelta, float pitchDelta) noexcept {
-		m_yaw += yawDelta;
-		m_pitch += pitchDelta;
+		SetOrientation(m_yaw + yawDelta, m_pitch + pitchDelta);
+	}
+
+	void Camera::SetOrientation(float yaw, float pitch) noexcept {
 		constexpr float maxPitch = 1.55f;
-		m_pitch = std::clamp(m_pitch, -maxPitch, maxPitch);
+		m_yaw = yaw;
+		m_pitch = std::clamp(pitch, -maxPitch, maxPitch);
 	}
 
 	Vector3 Camera::GetForwardDirection() const noexcept {

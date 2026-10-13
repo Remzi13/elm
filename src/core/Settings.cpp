@@ -185,6 +185,10 @@ namespace elm {
 		case Category::Physics:
 			result = "Physics/";
 			break;
+
+		case Category::Script:
+			result = "Script/";
+			break;
 		}
 
 		result += path;

@@ -167,3 +167,24 @@ set(glfw_SOURCE_DIR "${glfw_SOURCE_DIR}" PARENT_SCOPE)
 set(diligentengine_SOURCE_DIR "${diligentengine_SOURCE_DIR}" PARENT_SCOPE)
 set(JoltPhysics_SOURCE_DIR "${JoltPhysics_SOURCE_DIR}" PARENT_SCOPE)
 set(tracy_SOURCE_DIR "${tracy_SOURCE_DIR}" PARENT_SCOPE)
+
+# ------------------------------------------------------------------------------
+# Lua 5.4 (the only scripting dependency, bindings are our own: src/script/lua)
+# ------------------------------------------------------------------------------
+FetchContent_Declare(
+    lua
+    URL      https://www.lua.org/ftp/lua-5.4.7.tar.gz
+    URL_HASH SHA256=9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+)
+FetchContent_MakeAvailable(lua)
+
+file(GLOB lua_sources CONFIGURE_DEPENDS ${lua_SOURCE_DIR}/src/*.c)
+list(REMOVE_ITEM lua_sources ${lua_SOURCE_DIR}/src/lua.c ${lua_SOURCE_DIR}/src/luac.c)
+
+add_library(lua STATIC ${lua_sources})
+# Built as C++: lua_error throws instead of longjmp, so it unwinds C++ frames of the bindings
+set_source_files_properties(${lua_sources} PROPERTIES LANGUAGE CXX)
+target_include_directories(lua SYSTEM PUBLIC ${lua_SOURCE_DIR}/src)
+target_compile_definitions(lua PUBLIC $<$<CONFIG:Debug>:LUA_USE_APICHECK>)
+set_property(TARGET lua PROPERTY FOLDER "third party")

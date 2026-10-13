@@ -24,6 +24,7 @@ namespace elm::log {
         Render,
         Physics,
         Core,
+        Script,
     };
 
     struct Entry

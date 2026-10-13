@@ -16,6 +16,10 @@ namespace elm {
 		void SetAspect(float aspect) noexcept { m_aspect = aspect; }
 
 		void Rotate(float yawDelta, float pitchDelta) noexcept;
+		/// Absolute orientation, pitch is clamped like in Rotate.
+		void SetOrientation(float yaw, float pitch) noexcept;
+		[[nodiscard]] float GetYaw() const noexcept { return m_yaw; }
+		[[nodiscard]] float GetPitch() const noexcept { return m_pitch; }
 		void Translate(const Vector3& offset) noexcept { m_position += offset; }
 		[[nodiscard]] Vector3 GetForwardDirection() const noexcept;
 		[[nodiscard]] Vector3 GetRightDirection() const noexcept;

@@ -7,7 +7,10 @@
       "Render/culling/EnableOcclusionCulling": false,
       "Render/culling/Resolution/Height": 144,
       "Render/culling/Resolution/Width": 256,
-      "Render/culling/VisualMode": 1
+      "Render/culling/VisualMode": 1,
+      "Script/Enabled": true,
+      "Script/HotReload": true,
+      "Script/MainModule": "main"
    },
    "version": 1
 }

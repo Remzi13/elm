@@ -1,5 +1,7 @@
 #include "Scene/TestScenes.hpp"
 
+#include "math/Rotation.hpp"
+
 #include <cmath>
 #include <limits>
 
@@ -32,55 +34,20 @@ namespace {
         return Matrix4x4::Scaling(Vector3 { width, height, thickness }) * Matrix4x4::Translation(position);
     }
 
-    auto TryInverse(const Matrix4x4& matrix, Matrix4x4& inverse) -> bool
-    {
-        float augmented[4][8] {};
-        for (size_t row = 0; row < 4; ++row) {
-            for (size_t column = 0; column < 4; ++column)
-                augmented[row][column] = matrix(row, column);
-            augmented[row][row + 4] = 1.0f;
-        }
-
-        for (size_t column = 0; column < 4; ++column) {
-            size_t pivot = column;
-            for (size_t row = column + 1; row < 4; ++row) {
-                if (std::abs(augmented[row][column]) > std::abs(augmented[pivot][column]))
-                    pivot = row;
-            }
-            if (std::abs(augmented[pivot][column]) <= std::numeric_limits<float>::epsilon())
-                return false;
-
-            if (pivot != column) {
-                for (size_t entry = 0; entry < 8; ++entry)
-                    std::swap(augmented[pivot][entry], augmented[column][entry]);
-            }
-            const float divisor = augmented[column][column];
-            for (float& entry : augmented[column])
-                entry /= divisor;
-
-            for (size_t row = 0; row < 4; ++row) {
-                if (row == column)
-                    continue;
-                const float factor = augmented[row][column];
-                for (size_t entry = 0; entry < 8; ++entry)
-                    augmented[row][entry] -= factor * augmented[column][entry];
-            }
-        }
-
-        for (size_t row = 0; row < 4; ++row) {
-            for (size_t column = 0; column < 4; ++column)
-                inverse(row, column) = augmented[row][column + 4];
-        }
-        return true;
-    }
-
 } // namespace
 
 Scene::Node& Scene::AddNode(graphics::ModelHandler model, String name)
 {
-    nodes.push_back(Node{});
-    nodes.back().model = std::move(model);
-    nodes.back().name = std::move(name);
+    Node node;
+    node.model = std::move(model);
+    node.name = std::move(name);
+    return AppendNode(std::move(node));
+}
+
+Scene::Node& Scene::AppendNode(Node node)
+{
+    node.id = AllocateId(nodes.size());
+    nodes.push_back(std::move(node));
     return nodes.back();
 }
 
@@ -95,23 +62,88 @@ bool Scene::SetWorldTransform(size_t nodeIndex, const Matrix4x4& transform)
     } else {
         if (node.parentIndex >= nodes.size())
             return false;
-        Matrix4x4 parentInverse;
-        if (!TryInverse(nodes[node.parentIndex].worldTransform, parentInverse))
+        const auto parentInverse = Inverse(nodes[node.parentIndex].worldTransform);
+        if (!parentInverse)
             return false;
-        node.localTransform = parentInverse * transform;
+        node.localTransform = *parentInverse * transform;
     }
     node.worldTransform = transform;
 
-    auto updateChildren = [&](auto&& self, size_t parentIndex) -> void {
-        for (size_t childIndex = 0; childIndex < nodes.size(); ++childIndex) {
-            auto& child = nodes[childIndex];
-            if (child.parentIndex != parentIndex)
-                continue;
-            child.worldTransform = nodes[parentIndex].worldTransform * child.localTransform;
-            self(self, childIndex);
+    // Children follow, together with the local changes made since the last update
+    m_transformsDirty = true;
+    UpdateWorldTransforms();
+    return true;
+}
+
+bool Scene::SetLocalTransform(size_t nodeIndex, const Matrix4x4& transform)
+{
+    if (nodeIndex >= nodes.size())
+        return false;
+    nodes[nodeIndex].localTransform = transform;
+    m_transformsDirty = true;
+    return true;
+}
+
+void Scene::UpdateWorldTransforms()
+{
+    if (!m_transformsDirty)
+        return;
+    m_transformsDirty = false;
+
+    enum : uint8_t { Unvisited, Visiting, Done };
+    Vector<uint8_t> state(nodes.size(), Unvisited);
+    Vector<size_t> chain;
+    for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
+        // Walk up to a computed ancestor or a root, then compute the chain top down.
+        // A parent cycle or an invalid parent index makes the node a root.
+        chain.clear();
+        for (size_t current = nodeIndex; current < nodes.size() && state[current] == Unvisited;
+             current = nodes[current].parentIndex) {
+            state[current] = Visiting;
+            chain.push_back(current);
         }
-    };
-    updateChildren(updateChildren, nodeIndex);
+        for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+            auto& node = nodes[*it];
+            const size_t parent = node.parentIndex;
+            node.worldTransform = parent < nodes.size() && state[parent] == Done
+                ? nodes[parent].worldTransform * node.localTransform
+                : node.localTransform;
+            state[*it] = Done;
+        }
+    }
+}
+
+bool Scene::RemoveNode(size_t nodeIndex)
+{
+    if (nodeIndex >= nodes.size())
+        return false;
+
+    const Node& removed = nodes[nodeIndex];
+    const Matrix4x4 removedLocal = removed.localTransform;
+    const size_t removedParent = removed.parentIndex;
+    const size_t newParent = removedParent != NoNode && removedParent > nodeIndex ? removedParent - 1 : removedParent;
+    // A copy pushed into nodes directly may share the id of another node, that one keeps it
+    if (IndexOf(removed.id) == nodeIndex)
+        FreeId(removed.id);
+    nodes.erase(nodes.begin() + static_cast<std::ptrdiff_t>(nodeIndex));
+
+    for (size_t index = 0; index < nodes.size(); ++index) {
+        auto& node = nodes[index];
+        if (node.parentIndex == nodeIndex) {
+            // world = parentWorld * removedLocal * childLocal stays the same under the new parent
+            node.parentIndex = newParent;
+            node.localTransform = removedLocal * node.localTransform;
+        } else if (node.parentIndex != NoNode && node.parentIndex > nodeIndex) {
+            --node.parentIndex;
+        }
+
+        if (index >= nodeIndex && node.id) {
+            const uint32_t slotIndex = node.id.Index() - 1;
+            if (slotIndex < m_idSlots.size() && m_idSlots[slotIndex].generation == node.id.Generation()
+                && m_idSlots[slotIndex].index == index + 1)
+                m_idSlots[slotIndex].index = index;
+        }
+    }
     return true;
 }
 
@@ -130,14 +162,96 @@ size_t Scene::Append(SceneAsset&& asset, graphics::ModelManager& models)
             node.parentIndex += nodeOffset;
         const size_t modelIndex = nodeIndex < asset.nodeModels.size() ? asset.nodeModels[nodeIndex] : SceneAsset::NoModel;
         node.model = modelIndex < handlers.size() ? handlers[modelIndex] : graphics::ModelHandler {};
-        nodes.push_back(std::move(node));
+        AppendNode(std::move(node));
     }
     return nodeOffset;
 }
 
 void Scene::Clear()
 {
+    for (const auto& node : nodes)
+        FreeId(node.id);
     nodes.clear();
+    m_transformsDirty = false;
+}
+
+void Scene::ReserveNodes(size_t capacity)
+{
+    nodes.reserve(capacity);
+}
+
+NodeId Scene::IdOf(size_t nodeIndex)
+{
+    if (nodeIndex >= nodes.size())
+        return { };
+    auto& node = nodes[nodeIndex];
+    if (!node.id || IndexOf(node.id) != nodeIndex)
+        node.id = AllocateId(nodeIndex);
+    return node.id;
+}
+
+size_t Scene::IndexOf(NodeId id) const
+{
+    if (!id)
+        return NoNode;
+    const uint32_t slotIndex = id.Index() - 1;
+    if (slotIndex >= m_idSlots.size())
+        return NoNode;
+    const auto& slot = m_idSlots[slotIndex];
+    if (slot.generation != id.Generation() || slot.index == NoNode)
+        return NoNode;
+    if (slot.index < nodes.size() && nodes[slot.index].id == id)
+        return slot.index;
+
+    // nodes was edited directly: find the node again and remember where it went
+    for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
+        if (nodes[nodeIndex].id == id) {
+            slot.index = nodeIndex;
+            return nodeIndex;
+        }
+    }
+    slot.index = NoNode;
+    return NoNode;
+}
+
+Scene::Node* Scene::Find(NodeId id)
+{
+    const size_t nodeIndex = IndexOf(id);
+    return nodeIndex == NoNode ? nullptr : &nodes[nodeIndex];
+}
+
+const Scene::Node* Scene::Find(NodeId id) const
+{
+    const size_t nodeIndex = IndexOf(id);
+    return nodeIndex == NoNode ? nullptr : &nodes[nodeIndex];
+}
+
+NodeId Scene::AllocateId(size_t nodeIndex)
+{
+    uint32_t slotIndex;
+    if (!m_freeIdSlots.empty()) {
+        slotIndex = m_freeIdSlots.back();
+        m_freeIdSlots.pop_back();
+    } else {
+        slotIndex = static_cast<uint32_t>(m_idSlots.size());
+        m_idSlots.emplace_back();
+    }
+    m_idSlots[slotIndex].index = nodeIndex;
+    return NodeId(slotIndex + 1, m_idSlots[slotIndex].generation);
+}
+
+void Scene::FreeId(NodeId id)
+{
+    if (!id)
+        return;
+    const uint32_t slotIndex = id.Index() - 1;
+    if (slotIndex >= m_idSlots.size() || m_idSlots[slotIndex].generation != id.Generation())
+        return;
+    auto& slot = m_idSlots[slotIndex];
+    slot.index = NoNode;
+    // A slot whose generation would wrap is retired, so an old id never resolves to a new node
+    if (++slot.generation != 0)
+        m_freeIdSlots.push_back(slotIndex);
 }
 
 void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene,

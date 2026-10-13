@@ -75,6 +75,7 @@ namespace elm::log {
             case Category::Render: return "RENDER";
             case Category::Physics: return "PHYSICS";
             case Category::Core: return "CORE";
+            case Category::Script: return "SCRIPT";
             case Category::Invalid: return "INVALID";
             }
             return "UNKNOWN";

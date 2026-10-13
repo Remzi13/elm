@@ -372,8 +372,7 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
     // One root for the whole import: the set moves as a whole, each model stays a node of its own
     const size_t root = scene.nodes.size();
     const auto rootName = String(session.path.Stem().c_str());
-    scene.nodes.push_back(Scene::Node {});
-    scene.nodes.back().name = rootName;
+    scene.AppendNode(Scene::Node {}).name = rootName;
 
     size_t created = 0;
     for (const auto handler : originModels) {
@@ -381,7 +380,7 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
         node.parentIndex = root;
         node.model = handler;
         node.name = context.models.Get(handler)->name;
-        scene.nodes.push_back(std::move(node));
+        scene.AppendNode(std::move(node));
         ++created;
     }
 
@@ -403,7 +402,7 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
         node.color = source.color;
         node.visible = source.visible;
         sceneIndices[nodeIndex] = scene.nodes.size();
-        scene.nodes.push_back(std::move(node));
+        scene.AppendNode(std::move(node));
         ++created;
     }
 

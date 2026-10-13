@@ -51,6 +51,7 @@ add_subdirectory(src/resmgr)
 add_subdirectory(src/graphics)
 add_subdirectory(src/physics)
 add_subdirectory(src/platform)
+add_subdirectory(src/script)
 
 # ------------------------------------------------------------------------------
 # Application target
@@ -68,7 +69,7 @@ else()
     target_compile_definitions(Engine PUBLIC PLATFORM_LINUX=1)
 endif()
 target_set_warnings(Engine)
-target_link_libraries(Engine PRIVATE core math input graphics physics resmgr Scene)
+target_link_libraries(Engine PRIVATE core math input graphics physics resmgr Scene script)
 
 set_target_properties(Engine PROPERTIES
     CXX_STANDARD 23

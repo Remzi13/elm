@@ -338,6 +338,12 @@ namespace elm {
         return fs::is_regular_file(ToFilesystemPath(path), error);
     }
 
+    auto FileSystem::LastWriteTime(const Path& path, std::error_code& error) -> int64_t
+    {
+        const auto time = fs::last_write_time(ToFilesystemPath(path), error);
+        return error ? 0 : static_cast<int64_t>(time.time_since_epoch().count());
+    }
+
     auto FileSystem::CreateDirectories(const Path& path, std::error_code& error) -> bool
     {
         return fs::create_directories(ToFilesystemPath(path), error);

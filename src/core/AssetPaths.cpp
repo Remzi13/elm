@@ -17,4 +17,9 @@ auto AssetPaths::Scenes() -> Path
     return Root() / "scenes";
 }
 
+auto AssetPaths::Scripts() -> Path
+{
+    return Root() / "scripts";
+}
+
 } // namespace elm

@@ -17,6 +17,7 @@ namespace elm
 			Core,
 			Render,
 			Physics,
+			Script,
 		};
 
 		using Value = std::variant<uint32_t, float, String, bool >;

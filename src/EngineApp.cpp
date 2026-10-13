@@ -10,6 +10,8 @@
 
 #include "graphics/ui/DepthPreviewWindow.hpp"
 
+#include "script/ui/ScriptWindow.hpp"
+
 #include <iostream>
 
 namespace elm {
@@ -19,6 +21,7 @@ EngineApp::EngineApp()
     , m_imguiSystem(MakeUnique<ImGuiSystem>())
     , m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
+    , m_scriptSystem(MakeUnique<script::ScriptSystem>())
     , m_cameraController(m_camera)
     , m_models(m_renderSystem->Resources())
 {
@@ -36,6 +39,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 
     FileSystem::RegisterSettings(m_settings);
     m_cullingSystem.RegisterSettings(m_settings);
+    script::ScriptSystem::RegisterSettings(m_settings);
     const Path settingsPath = Settings::DefaultFilePath();
     if (auto loadedSettings = m_settings.Load(settingsPath); !loadedSettings)
         return MakeUnexpected(loadedSettings.error());
@@ -94,10 +98,17 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         return MakeUnexpected(physicsInit.error());
     }
 
+    (void)m_imguiSystem->EmplaceWindow<script::ScriptWindow>(m_settings, *m_scriptSystem);
+
     m_cullingSystem.Init(m_renderSystem->Resources(), m_settings);
     if (auto* depthWindow = m_imguiSystem->GetWindow<DepthPreviewWindow>()) {
         depthWindow->SetCullingSystem(&m_cullingSystem);
     }
+
+    // The main module starts in Run, once the initial scene is loaded
+    m_scriptSystem->SetEngineContext({ &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings });
+    if (auto scriptInit = m_scriptSystem->Init(); !scriptInit)
+        ERROR_MESSAGE(log::Category::Script, "EngineApp", "%s", scriptInit.error().message.c_str());
 
     m_isRunning = true;
     
@@ -136,6 +147,10 @@ auto EngineApp::Run() -> EngineResult<void>
     LOG_MESSAGE( log::Category::Core, "EngineApp", "Entering main loop with pipelined Update/Render." );
     
     ELM_PROFILE_THREAD("Main Thread");
+
+    // A broken script is reported (Start logs its errors) but does not stop the engine
+    if (m_scriptSystem->IsInitialized())
+        (void)m_scriptSystem->Start(m_settings);
 
     // Start the render thread
     m_renderThread = std::thread(&EngineApp::RenderThreadFunc, this);
@@ -250,6 +265,7 @@ void EngineApp::FixedUpdate(float fixedDeltaTime)
     if (m_physicsSystem) {
         m_physicsSystem->Step(fixedDeltaTime);
     }
+    m_scriptSystem->FixedUpdate(fixedDeltaTime);
 }
 
 void EngineApp::Update(float deltaTime)
@@ -268,6 +284,10 @@ void EngineApp::Update(float deltaTime)
     }
 
     m_inputSystem->Update();
+
+    m_scriptSystem->Update(deltaTime);
+    // Scripts move nodes through local transforms
+    m_scene.UpdateWorldTransforms();
 
     m_cameraController.Update(deltaTime);
 
@@ -297,6 +317,9 @@ void EngineApp::Shutdown()
     if (m_renderThread.joinable()) {
         m_renderThread.join();
     }
+
+    // Scripts go first: they may still talk to the other systems in on_shutdown
+    m_scriptSystem->Shutdown();
 
     if (m_physicsSystem) {
         m_physicsSystem->Shutdown();

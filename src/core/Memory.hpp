@@ -9,6 +9,8 @@ namespace elm::memory {
 
 	void* allocate_impl(size_t size);
 	void deallocate_impl(void* ptr, size_t size);
+	/// Resizes a block from allocate_impl, returns nullptr (the block stays valid) when out of memory.
+	void* reallocate_impl(void* ptr, size_t oldSize, size_t newSize) noexcept;
 
 	struct Statistics
 	{

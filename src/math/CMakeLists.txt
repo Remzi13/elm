@@ -4,6 +4,8 @@ engine_add_library(math
     Matrix.hpp
     Matrix.cpp
     Primitivs.hpp
+    Rotation.hpp
+    Rotation.cpp
 )
 
 target_include_directories(math PUBLIC

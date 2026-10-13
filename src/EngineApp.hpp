@@ -18,6 +18,8 @@
 
 #include "input/Input.hpp"
 
+#include "script/ScriptSystem.hpp"
+
 #include <thread>
 
 namespace elm {
@@ -53,6 +55,7 @@ namespace elm {
 		UniquePtr<ImGuiSystem> m_imguiSystem;
 		UniquePtr<PhysicsSystem> m_physicsSystem;
 		UniquePtr<InputSystem> m_inputSystem;
+		UniquePtr<script::ScriptSystem> m_scriptSystem;
 
 		Camera m_camera;
 		CameraController m_cameraController;

@@ -13,6 +13,7 @@ public:
     [[nodiscard]] static auto Root() -> Path;
     [[nodiscard]] static auto Models() -> Path;
     [[nodiscard]] static auto Scenes() -> Path;
+    [[nodiscard]] static auto Scripts() -> Path;
 };
 
 } // namespace elm

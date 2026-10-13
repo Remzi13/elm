@@ -96,6 +96,8 @@ public:
     [[nodiscard]] static bool Exists(const Path& path);
     [[nodiscard]] static bool IsDirectory(const Path& path, std::error_code& error);
     [[nodiscard]] static bool IsRegularFile(const Path& path, std::error_code& error);
+    /// Modification time in file clock ticks: only for comparing two readings of the same file.
+    [[nodiscard]] static int64_t LastWriteTime(const Path& path, std::error_code& error);
     static bool CreateDirectories(const Path& path, std::error_code& error);
     [[nodiscard]] static std::ifstream OpenForReading(
         const Path& path, std::ios::openmode mode = std::ios::in);

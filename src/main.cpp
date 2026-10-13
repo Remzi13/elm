@@ -3,10 +3,67 @@
 #include <cstring>
 #include <iostream>
 
+#include "core/AssetPaths.hpp"
 #include "core/Log.hpp"
+#include "core/Settings.hpp"
+#include "core/Threading.hpp"
+
+#include "script/ScriptSystem.hpp"
+#include "script/SelfTest.hpp"
+
+namespace {
+
+    /// Resolves the asset root from the settings file without starting the engine.
+    void ApplyFileSystemSettings()
+    {
+        elm::Settings settings;
+        elm::FileSystem::RegisterSettings(settings);
+        const elm::Path settingsPath = elm::Settings::DefaultFilePath();
+        if (auto loaded = settings.Load(settingsPath); !loaded)
+            std::cerr << "[Warning] " << loaded.error().message << std::endl;
+        elm::FileSystem::ApplySettings(settings, settingsPath.Parent());
+    }
+
+    /// --dump-script-api <file>: writes the LuaLS definitions of the engine's Lua API.
+    int DumpScriptApi(const char* fileName)
+    {
+        using namespace elm;
+        script::ScriptSystem scripts;
+        if (auto init = scripts.Init(); !init) {
+            std::cerr << init.error().message << std::endl;
+            return 1;
+        }
+        const Path path = FileSystem::Resolve(fileName);
+        std::error_code error;
+        FileSystem::CreateDirectories(path.Parent(), error);
+        auto stream = FileSystem::OpenForWriting(path, std::ios::out | std::ios::binary);
+        const String meta = scripts.GetState().Api().GenerateLuaMeta();
+        stream.write(meta.data(), static_cast<std::streamsize>(meta.size()));
+        if (!stream) {
+            std::cerr << "Cannot write " << path.string() << std::endl;
+            return 1;
+        }
+        std::cout << "Script API written to " << path.string() << std::endl;
+        return 0;
+    }
+
+} // namespace
 
 int main(int argc, char** argv) {
     using namespace elm;
+
+    // Tool modes: run without a window and exit
+    for (int i = 1; i < argc; ++i) {
+        const bool selfTest = std::strcmp(argv[i], "--script-selftest") == 0;
+        const bool dumpApi = std::strcmp(argv[i], "--dump-script-api") == 0;
+        if (!selfTest && !dumpApi)
+            continue;
+        ApplyFileSystemSettings();
+        core::registerThread(core::ThreadRole::Update);
+        if (selfTest)
+            return script::RunSelfTests(AssetPaths::Scripts());
+        return DumpScriptApi(i + 1 < argc ? argv[i + 1] : "assets/scripts/.meta/elm.lua");
+    }
 
     LOG_MESSAGE( log::Category::Core, "Main", "Starting C++23 Cross-Platform 3D Engine Core..." );
     
