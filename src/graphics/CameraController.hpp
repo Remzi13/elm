@@ -14,6 +14,9 @@ namespace elm {
 		void Update(float deltaTime);
 		void Update(float deltaTime, const Vector<InputEvent>& events);
 
+		// Input is accepted only while the scene viewport is hovered (mouse) or focused (keyboard)
+		void SetViewportState(bool hovered, bool focused) noexcept;
+
 		// IInputSubscriber interface
 		bool OnKeyEvent(const KeyEvent& event) override;
 		bool OnMouseButtonEvent(const MouseButtonEvent& event) override;
@@ -23,6 +26,8 @@ namespace elm {
 		Camera& m_camera;
 		std::array<bool, 512> m_keys{};
 		bool m_rightMouseDown{ false };
+		bool m_viewportHovered{ false };
+		bool m_viewportFocused{ false };
 		bool m_hasMousePosition{ false };
 		double m_lastMouseX{ 0.0 };
 		double m_lastMouseY{ 0.0 };

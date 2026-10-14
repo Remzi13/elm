@@ -16,6 +16,8 @@ engine_add_library(graphics
     culling/OcclusionCullingSystem.cpp
     ui/DockSpaceView.hpp
     ui/DockSpaceView.cpp
+    ui/EditorStyle.hpp
+    ui/EditorStyle.cpp
     ui/EngineViewportWindow.hpp
     ui/EngineViewportWindow.cpp
     ui/WindowMessages.hpp

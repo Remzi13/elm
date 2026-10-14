@@ -1,6 +1,9 @@
 #include "script/bindings/Bindings.hpp"
+#include "script/bindings/Components.hpp"
 #include "script/bindings/Entity.hpp"
+#include "script/bindings/ScriptValues.hpp"
 
+#include "Scene/ScriptComponent.hpp"
 #include "core/AssetPaths.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/ModelManager.hpp"
@@ -8,7 +11,10 @@
 #include "resmgr/GltfExporter.hpp"
 #include "resmgr/Serializer.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <functional>
 
 namespace elm::script::bindings {
 
@@ -185,11 +191,24 @@ namespace elm::script::bindings {
                         grown = doomed[index] = true;
                 }
             }
-            // From the back: a removal shifts only the nodes after it
-            for (size_t index = scene.nodes.size(); index-- > 0;) {
+            Vector<NodeId> doomedIds;
+            for (size_t index = 0; index < scene.nodes.size(); ++index) {
                 if (doomed[index])
-                    scene.RemoveNode(index);
+                    doomedIds.push_back(scene.IdOf(index));
             }
+
+            // Scripts get on_destroy while their entities still exist. It may change the scene,
+            // so the nodes are found again by id afterwards.
+            ScriptSystem::From(L).DestroyEntityScripts(doomedIds);
+            Vector<size_t> indices;
+            for (const NodeId id : doomedIds) {
+                if (const size_t index = scene.IndexOf(id); index != Scene::NoNode)
+                    indices.push_back(index);
+            }
+            // From the back: a removal shifts only the nodes after it
+            std::sort(indices.begin(), indices.end(), std::greater<>());
+            for (const size_t index : indices)
+                scene.RemoveNode(index);
         }
 
         std::optional<ModelRef> GetModel(lua_State* L, const Entity& entity)
@@ -213,6 +232,118 @@ namespace elm::script::bindings {
             return "Entity(" + NodeOf(L, entity).name + ")";
         }
 
+        // ── Components ──────────────────────────────────────────────────────────
+        // entity:add/remove/has and elm.scene.with take the component type by name.
+
+        /// add("Script", init): init is a module name or { module = "npc.guard", props = { speed = 3 } }.
+        ScriptComponent ReadScriptInit(lua_State* L, const std::optional<lua::Ref>& init)
+        {
+            if (!init)
+                luaL_error(L, "add(\"Script\", init): init is a module name or { module = ..., props = ... }");
+            init->Push(L);
+            const int index = lua_gettop(L);
+            ScriptComponent component;
+            if (lua_type(L, index) == LUA_TSTRING) {
+                component.module = *lua::StackTraits<String>::Get(L, index);
+            } else if (lua_istable(L, index)) {
+                // An unknown field is a typo, not something to skip
+                lua_pushnil(L);
+                while (lua_next(L, index)) {
+                    const char* key = lua_type(L, -2) == LUA_TSTRING ? lua_tostring(L, -2) : nullptr;
+                    if (!key || (std::strcmp(key, "module") != 0 && std::strcmp(key, "props") != 0))
+                        luaL_error(L, "Script init has no field '%s' (module, props)", luaL_tolstring(L, -2, nullptr));
+                    lua_pop(L, 1);
+                }
+                if (lua_getfield(L, index, "module") != LUA_TSTRING)
+                    luaL_error(L, "Script init: module must be a string");
+                component.module = *lua::StackTraits<String>::Get(L, -1);
+                lua_pop(L, 1);
+                if (lua_getfield(L, index, "props") != LUA_TNIL)
+                    component.props = CheckScriptProps(L, -1);
+                lua_pop(L, 1);
+            } else {
+                luaL_error(L, "add(\"Script\", init): init is a module name or a table, got %s", luaL_typename(L, index));
+            }
+            lua_pop(L, 1);
+            if (component.module.empty())
+                luaL_error(L, "Script init: the module name is empty");
+            return component;
+        }
+
+        /// The Script's result: its instance table. The instance is made at once, so a broken module
+        /// fails here; on_start runs on the next update.
+        lua::Ref AddScript(lua_State* L, NodeId node, const std::optional<lua::Ref>& init)
+        {
+            ScriptComponent component = ReadScriptInit(L, init);
+            SceneOf(L).Components<ScriptComponent>().Emplace(node, std::move(component));
+            if (auto made = ScriptSystem::From(L).PushEntityScript(node, false); !made) {
+                SceneOf(L).Components<ScriptComponent>().Remove(node);
+                luaL_error(L, "%s", made.error().message.c_str());
+            }
+            lua::Ref instance(L, -1);
+            lua_pop(L, 1);
+            return instance;
+        }
+
+        void EndScript(lua_State* L, NodeId node) { ScriptSystem::From(L).DestroyEntityScripts({ &node, 1 }); }
+
+        constexpr ComponentKind ScriptKind { "Script", &FindStore<ScriptComponent>, &StoreOf<ScriptComponent>, &AddScript, &EndScript };
+
+        const ComponentKind& KindOf(lua_State* L, StringView type)
+        {
+            for (const ComponentKind* kind : { &ScriptKind, &RigidBodyKind(), &ColliderKind() }) {
+                if (type == kind->name)
+                    return *kind;
+            }
+            luaL_error(L, "unknown component type '%s' (known: Script, RigidBody, Collider)", String(type).c_str());
+            std::unreachable();
+        }
+
+        /// entity:add(type, init) -> for a Script its instance table, for RigidBody and Collider
+        /// their handle (entity.rigidbody, entity.collider).
+        lua::Ref AddComponent(lua_State* L, Entity& entity, StringView type, std::optional<lua::Ref> init)
+        {
+            const ComponentKind& kind = KindOf(L, type);
+            const NodeId id = entity.id;
+            IndexOf(L, entity);
+            if (const auto* store = kind.find(SceneOf(L)); store && store->Contains(id))
+                luaL_error(L, "%s already has a %s, remove it first", EntityToString(L, entity).c_str(), kind.name);
+            return kind.add(L, id, init);
+        }
+
+        /// entity:remove(type) -> whether there was one. A Script instance gets on_destroy first.
+        bool RemoveComponent(lua_State* L, Entity& entity, StringView type)
+        {
+            const ComponentKind& kind = KindOf(L, type);
+            const NodeId id = entity.id;
+            IndexOf(L, entity);
+            const auto* store = kind.find(SceneOf(L));
+            if (!store || !store->Contains(id))
+                return false;
+            if (kind.beforeRemove)
+                kind.beforeRemove(L, id);
+            return kind.store(SceneOf(L)).Remove(id);
+        }
+
+        bool HasComponent(lua_State* L, const Entity& entity, StringView type)
+        {
+            const ComponentKind& kind = KindOf(L, type);
+            IndexOf(L, entity);
+            const auto* store = kind.find(SceneOf(L));
+            return store && store->Contains(entity.id);
+        }
+
+        /// The instance table of the entity's script, nil without a Script.
+        lua::Ref GetScript(lua_State* L, const Entity& entity)
+        {
+            IndexOf(L, entity);
+            if (auto pushed = ScriptSystem::From(L).PushEntityScript(entity.id); !pushed)
+                luaL_error(L, "%s: %s", EntityToString(L, entity).c_str(), pushed.error().message.c_str());
+            lua::Ref instance(L, -1);
+            lua_pop(L, 1);
+            return instance;
+        }
+
         void RegisterEntity(lua::Module& module)
         {
             lua::Class<Entity>(module, "Entity")
@@ -229,9 +360,15 @@ namespace elm::script::bindings {
                 .Property<&GetWorldPosition>("world_position")
                 .Property<&GetParent, &SetParent>("parent")
                 .Property<&GetModel, &SetModel>("model")
+                .Property<&GetScript>("script")
+                .Property<&GetRigidBody>("rigidbody")
+                .Property<&GetCollider>("collider")
                 .Method<&Translate>("translate", { "offset" })
                 .Method<&Rotate>("rotate", { "axis", "radians" })
                 .Method<&Children>("children")
+                .Method<&AddComponent>("add", { "type", "init" })
+                .Method<&RemoveComponent>("remove", { "type" })
+                .Method<&HasComponent>("has", { "type" })
                 .Method<&Destroy>("destroy")
                 .Meta<&EntityToString>("__tostring");
         }
@@ -284,6 +421,26 @@ namespace elm::script::bindings {
         }
 
         size_t Count(lua_State* L) { return SceneOf(L).nodes.size(); }
+
+        /// Entities that have a component of the type, in scene order.
+        Vector<Entity> With(lua_State* L, StringView type)
+        {
+            const ComponentKind& kind = KindOf(L, type);
+            auto& scene = SceneOf(L);
+            Vector<size_t> indices;
+            if (const auto* store = kind.find(scene)) {
+                for (const NodeId id : store->Ids()) {
+                    if (const size_t index = scene.IndexOf(id); index != Scene::NoNode)
+                        indices.push_back(index);
+                }
+            }
+            std::sort(indices.begin(), indices.end());
+            Vector<Entity> found;
+            found.reserve(indices.size());
+            for (const size_t index : indices)
+                found.push_back(EntityAt(scene, index));
+            return found;
+        }
 
         // ── Model, elm.models ───────────────────────────────────────────────────
 
@@ -370,12 +527,15 @@ namespace elm::script::bindings {
         {
             if (preset > static_cast<uint32_t>(ScenePreset::PhysicsSandbox))
                 luaL_argerror(L, 1, "preset must be 0..3");
+            ScriptSystem::From(L).DestroyAllEntityScripts();
             TestScenes::BuildScene(static_cast<ScenePreset>(preset), instances.value_or(1500), SceneOf(L), ModelsOf(L));
         }
 
-        /// Removes every node and model.
+        /// Removes every node and model; entity scripts get on_destroy first.
         void ClearScene(lua_State* L)
         {
+            SceneOf(L);
+            ScriptSystem::From(L).DestroyAllEntityScripts();
             SceneOf(L).Clear();
             if (auto* models = Engine(L).models)
                 models->Clear();
@@ -401,11 +561,17 @@ namespace elm::script::bindings {
             auto loaded = resmgr::Serializer::LoadScene(ScenePath(file));
             if (!loaded)
                 return MakeUnexpected(loaded.error());
+            ScriptSystem::From(L).DestroyAllEntityScripts();
             scene.Clear();
             models.Clear();
             scene.Append(std::move(*loaded), models);
             return scene.nodes.size();
         }
+
+        // Play mode, applied at the start of the next update (ScriptSystem::Play)
+        void PlayScene(lua_State* L) { ScriptSystem::From(L).RequestPlay(); }
+        void StopScene(lua_State* L) { ScriptSystem::From(L).RequestStop(); }
+        bool IsPlaying(lua_State* L) { return ScriptSystem::From(L).IsPlaying(); }
 
         void RegisterEngine(lua::State& state)
         {
@@ -413,7 +579,10 @@ namespace elm::script::bindings {
                 .Function<&LoadTestScene>("load_test_scene", { "preset", "instances" })
                 .Function<&ClearScene>("clear_scene")
                 .Function<&SaveScene>("save_scene", { "file" })
-                .Function<&LoadScene>("load_scene", { "file" });
+                .Function<&LoadScene>("load_scene", { "file" })
+                .Function<&PlayScene>("play")
+                .Function<&StopScene>("stop")
+                .Function<&IsPlaying>("is_playing");
         }
 
         // ── elm.camera ──────────────────────────────────────────────────────────
@@ -456,7 +625,8 @@ namespace elm::script::bindings {
                 .Function<&Find>("find", { "name" })
                 .Function<&FindAll>("find_all", { "name" })
                 .Function<&All>("all")
-                .Function<&Count>("count");
+                .Function<&Count>("count")
+                .Function<&With>("with", { "type" });
             RegisterEntity(module);
         }
         RegisterModels(state);

@@ -40,6 +40,9 @@ elm.camera = {}
 ---@class elm.engine
 elm.engine = {}
 
+---@class elm.physics
+elm.physics = {}
+
 ---@param message string
 function elm.log.info(message) end
 
@@ -472,6 +475,10 @@ function elm.scene.all() end
 ---@return integer
 function elm.scene.count() end
 
+---@param type string
+---@return Entity[]
+function elm.scene.with(type) end
+
 ---@param size number?
 ---@return Model
 function elm.models.cube(size) end
@@ -543,6 +550,32 @@ function elm.engine.save_scene(file) end
 ---@param file string
 ---@return integer
 function elm.engine.load_scene(file) end
+
+function elm.engine.play() end
+
+function elm.engine.stop() end
+
+---@return boolean
+function elm.engine.is_playing() end
+
+---@param origin Vector3
+---@param direction Vector3
+---@param max_distance number?
+---@param ignore Entity?
+---@return Entity?
+---@return Vector3?
+---@return Vector3?
+---@return number?
+function elm.physics.raycast(origin, direction, max_distance, ignore) end
+
+---@return Vector3
+function elm.physics.gravity() end
+
+---@param gravity Vector3
+function elm.physics.set_gravity(gravity) end
+
+---@return integer
+function elm.physics.body_count() end
 
 ---@class Vector3
 ---@field x number
@@ -768,6 +801,9 @@ function Matrix4x4.perspective(fov, aspect, near, far) end
 ---@field world_position Vector3 (read only)
 ---@field parent Entity?
 ---@field model Model?
+---@field script any (read only)
+---@field rigidbody RigidBody? (read only)
+---@field collider Collider? (read only)
 local Entity = {}
 elm.scene.Entity = Entity
 
@@ -781,6 +817,19 @@ function Entity:rotate(axis, radians) end
 ---@return Entity[]
 function Entity:children() end
 
+---@param type string
+---@param init any?
+---@return any
+function Entity:add(type, init) end
+
+---@param type string
+---@return boolean
+function Entity:remove(type) end
+
+---@param type string
+---@return boolean
+function Entity:has(type) end
+
 function Entity:destroy() end
 
 ---@class Model
@@ -789,4 +838,37 @@ function Entity:destroy() end
 ---@field submesh_count integer (read only)
 local Model = {}
 elm.models.Model = Model
+
+---@class RigidBody
+---@field valid boolean (read only)
+---@field entity Entity (read only)
+---@field type string
+---@field mass number
+---@field friction number
+---@field restitution number
+---@field linear_damping number
+---@field angular_damping number
+---@field gravity_scale number
+---@field velocity Vector3
+---@field angular_velocity Vector3
+local RigidBody = {}
+elm.physics.RigidBody = RigidBody
+
+---@param force Vector3
+function RigidBody:add_force(force) end
+
+---@param impulse Vector3
+function RigidBody:add_impulse(impulse) end
+
+---@class Collider
+---@field valid boolean (read only)
+---@field entity Entity (read only)
+---@field shape string
+---@field half_extents Vector3
+---@field radius number
+---@field half_height number
+---@field offset Vector3
+---@field trigger boolean
+local Collider = {}
+elm.physics.Collider = Collider
 

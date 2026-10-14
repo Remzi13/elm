@@ -21,10 +21,14 @@
 #include <utility>
 
 struct ImGuiViewport;
+struct ImGuiContext;
+struct ImGuiSettingsHandler;
+struct ImGuiTextBuffer;
 
 namespace elm {
 
 	class SocLabWindow;
+	class OcclusionCullingSystem;
 
 	// Threading:
 	//  - main thread: Init, BuildFrame, Shutdown (render thread must be stopped), all ImGui/GLFW calls
@@ -38,7 +42,8 @@ namespace elm {
 		ImGuiSystem(const ImGuiSystem&) = delete;
 		ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
-		[[nodiscard]] auto Init(platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title) -> elm::EngineResult<void>;
+		[[nodiscard]] auto Init(platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title,
+			const OcclusionCullingSystem* cullingSystem = nullptr) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame.
 		// Windows may add their own scene views (previews) to the frame.
 		void BuildFrame(render::RenderSystem& renderSystem, Scene& scene, graphics::ModelManager& models,
@@ -47,7 +52,10 @@ namespace elm {
 		// Render thread: reports viewport surfaces released by the render graph
 		void NotifyViewportSurfacesReleased(uint64_t count);
 		void Shutdown();
-		
+
+		// Scene viewport state of the last built frame: camera input goes to the scene only while it is active
+		[[nodiscard]] bool IsSceneViewportHovered() const noexcept;
+		[[nodiscard]] bool IsSceneViewportFocused() const noexcept;
 
 		// Window management
 		void AddWindow(UniquePtr<IImGuiWindow> window);
@@ -78,9 +86,27 @@ namespace elm {
 		static void OnPlatformDestroyWindow(ImGuiViewport* viewport);
 		static float GetViewportDpiScale(ImGuiViewport* viewport);
 
+		// imgui.ini section [Elm][...]: window visibility and the main window placement
+		static void* OnSettingsReadOpen(ImGuiContext* context, ImGuiSettingsHandler* handler, const char* name);
+		static void OnSettingsReadLine(ImGuiContext* context, ImGuiSettingsHandler* handler, void* entry, const char* line);
+		static void OnSettingsApplyAll(ImGuiContext* context, ImGuiSettingsHandler* handler);
+		static void OnSettingsWriteAll(ImGuiContext* context, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buffer);
+
 		// Main thread
 		void CaptureViewports(render::OverlayFrame& frame);
 		void DestroyReleasedPlatformWindows(bool all);
+		void ApplySavedVisibility(IImGuiWindow& window) const;
+		void ApplyMainWindowPlacement();
+		void TrackMainWindowPlacement();
+
+		struct MainWindowPlacement {
+			int x{ 0 };
+			int y{ 0 };
+			int width{ 0 };
+			int height{ 0 };
+			bool maximized{ false };
+			bool valid{ false };
+		};
 
 		// Platform window whose destruction waits until the render thread releases its swap chain
 		struct PendingPlatformWindow {
@@ -101,7 +127,11 @@ namespace elm {
 
 		DockSpaceView m_dockSpace;
 		MessageBus m_windowMessageBus;
-		Vector<UniquePtr<IImGuiWindow>> m_windows;		
+		Vector<UniquePtr<IImGuiWindow>> m_windows;
+		// Visibility read from imgui.ini, also for windows added after the load
+		UnorderedMap<String, bool> m_savedVisibility;
+		// Last restored (not maximized, not minimized) placement of the main window
+		MainWindowPlacement m_mainWindowPlacement;
 
 		// --- Main thread ---
 		Vector<render::OverlaySurfaceEvent> m_pendingViewportEvents;

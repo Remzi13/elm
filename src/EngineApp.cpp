@@ -8,10 +8,6 @@
 #include "core/JobSystem.hpp"
 #include "core/Threading.hpp"
 
-#include "graphics/ui/DepthPreviewWindow.hpp"
-
-#include "script/ui/ScriptWindow.hpp"
-
 #include <iostream>
 
 namespace elm {
@@ -62,7 +58,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     m_inputSystem->AttachWindow(m_window.GetHandle());
     m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
-    auto imguiInit = m_imguiSystem->Init(m_window, *m_renderSystem, m_settings, "Engine Debug UI");
+    auto imguiInit = m_imguiSystem->Init(m_window, *m_renderSystem, m_settings, "Engine Debug UI", &m_cullingSystem);
     if (!imguiInit) {
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
@@ -98,15 +94,13 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         return MakeUnexpected(physicsInit.error());
     }
 
-    (void)m_imguiSystem->EmplaceWindow<script::ScriptWindow>(m_settings, *m_scriptSystem);
+    m_imguiSystem->AddWindow(m_scriptSystem->CreateEditorWindow(m_settings));
+    m_imguiSystem->AddWindow(m_scriptSystem->CreateInspectorWindow(m_settings));
 
     m_cullingSystem.Init(m_renderSystem->Resources(), m_settings);
-    if (auto* depthWindow = m_imguiSystem->GetWindow<DepthPreviewWindow>()) {
-        depthWindow->SetCullingSystem(&m_cullingSystem);
-    }
 
     // The main module starts in Run, once the initial scene is loaded
-    m_scriptSystem->SetEngineContext({ &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings });
+    m_scriptSystem->SetEngineContext({ &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get() });
     if (auto scriptInit = m_scriptSystem->Init(); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, "EngineApp", "%s", scriptInit.error().message.c_str());
 
@@ -151,6 +145,9 @@ auto EngineApp::Run() -> EngineResult<void>
     // A broken script is reported (Start logs its errors) but does not stop the engine
     if (m_scriptSystem->IsInitialized())
         (void)m_scriptSystem->Start(m_settings);
+    // The engine starts in Edit mode: physics and entity scripts wait for Play
+    if (m_settings.Get<bool>(Settings::Category::Script, script::ScriptSystem::PlayOnStartSetting, false))
+        m_scriptSystem->Play();
 
     // Start the render thread
     m_renderThread = std::thread(&EngineApp::RenderThreadFunc, this);
@@ -262,8 +259,10 @@ void EngineApp::SubmitFrame(render::FrameWriter& frame)
 void EngineApp::FixedUpdate(float fixedDeltaTime)
 {
     ELM_PROFILE_SCOPE_N("FixedUpdate Physics Step");
-    if (m_physicsSystem) {
-        m_physicsSystem->Step(fixedDeltaTime);
+    // Edit mode: the scene stands still
+    if (m_physicsSystem && m_scriptSystem->IsPlaying()) {
+        m_physicsSystem->Step(m_scene, fixedDeltaTime);
+        m_scriptSystem->DispatchCollisionEvents(m_physicsSystem->CollisionEvents());
     }
     m_scriptSystem->FixedUpdate(fixedDeltaTime);
 }
@@ -283,6 +282,9 @@ void EngineApp::Update(float deltaTime)
         m_frameCounterTime = 0.0f;
     }
 
+    // The viewport state comes from the previous UI frame
+    m_cameraController.SetViewportState(m_imguiSystem->IsSceneViewportHovered(), m_imguiSystem->IsSceneViewportFocused());
+
     m_inputSystem->Update();
 
     m_scriptSystem->Update(deltaTime);
@@ -294,11 +296,8 @@ void EngineApp::Update(float deltaTime)
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
     m_cullingSystem.ExecuteCulling(m_scene, m_models, cullingVP, m_settings);
 
-    // Query synchronized physics transforms for display/rendering
     if (m_physicsSystem) {
         m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
-        m_currentStats.boxTransform = m_physicsSystem->GetDynamicBoxTransform();
-        m_currentStats.groundTransform = m_physicsSystem->GetGroundTransform();
     }
 }
 

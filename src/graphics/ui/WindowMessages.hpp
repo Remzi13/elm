@@ -16,6 +16,13 @@ namespace elm {
 		size_t index;
 	};
 
+	/// Provided by the Inspector (scripts): Edit or Play mode of the engine, see ScriptSystem::Play.
+	struct PlayControls {
+		bool playing;
+		/// Play in Edit mode, Stop in Play mode; applied on the next update.
+		std::function<void()> toggle;
+	};
+
 	enum class GizmoOperation {
 		Translate,
 		Rotate,

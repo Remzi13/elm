@@ -27,14 +27,17 @@ Lua собирается **как C++**. Поэтому `lua_error` бросае
 ```lua
 local main = {}
 function main.on_start() end
-function main.on_update(dt) end        -- после input, до пересчёта трансформов и culling
-function main.on_fixed_update(dt) end  -- после шага физики
+function main.on_update(dt) end        -- Play: после input, до пересчёта трансформов и culling
+function main.on_fixed_update(dt) end  -- Play: после шага физики
+function main.on_play() end            -- нажали Play: снимок сцены уже сделан
+function main.on_stop() end            -- нажали Stop: до того как сцена вернётся
 function main.on_shutdown() end
 return main
 ```
 
 Главный модуль стартует в начале `EngineApp::Run`, после того как загружена начальная сцена
-(`--scene`).
+(`--scene`). Движок начинает в режиме Edit ([[Редактор]]): там вызываются только `on_start`,
+`on_reload` и `build_scene`, а `on_update` и `on_fixed_update` — только в Play.
 
 ### main.lua — точка входа
 
@@ -45,6 +48,113 @@ return main
 
 `BUILD_SCENE = false` в начале файла оставляет сцену из `--scene` или окна Scene Hierarchy. Если хук упал, ошибка с traceback уходит в лог, и хуки главного модуля
 не вызываются до перезагрузки модуля или перезапуска скриптов.
+
+## Скрипты сущностей
+
+Логика отдельного объекта (NPC, дверь, ловушка) живёт в компоненте `Script` его узла сцены.
+Модуль скрипта возвращает **класс**: методы и значения `props` по умолчанию. Каждая сущность
+с компонентом получает свой **экземпляр** `self`.
+
+```lua
+-- assets/scripts/npc/guard.lua
+local Guard = { props = { speed = 2.5, view_distance = 8 } }    -- значения по умолчанию
+
+function Guard:on_start() self.post = self.entity.position end   -- self.entity — сама сущность
+function Guard:on_update(dt) --[[ ... ]] end
+return Guard
+```
+
+```lua
+local npc = elm.scene.spawn("Guard 1", cube)
+local guard = npc:add("Script", { module = "npc.guard", props = { speed = 3 } })   -- или npc:add("Script", "npc.guard")
+print(guard.speed, npc.script == guard)    -- 3  true: props лежат в self
+npc:has("Script")
+npc:remove("Script")                       -- on_destroy, сущность остаётся
+for _, e in ipairs(elm.scene.with("Script")) do print(e.script) end
+```
+
+Хуки, все необязательные:
+
+| Хук | Когда вызывается |
+|---|---|
+| `on_start(self)` | в начале следующего `Update` в режиме Play, до первого `on_update`. В Edit скрипты сущностей не стартуют |
+| `on_update(self, dt)` | каждый кадр, после `on_update` главного модуля |
+| `on_fixed_update(self, dt)` | после шага физики, после главного модуля |
+| `on_destroy(self)` | `destroy()`, `remove("Script")`, `clear_scene`/`load_scene`/`load_test_scene`, перезапуск скриптов; только после `on_start` |
+| `on_script_reload(self)` | после перезагрузки модуля этого скрипта |
+| `on_collision_enter(self, other, contact)` | после шага физики: тела начали касаться. `contact = { point, normal }`, нормаль от `self` к `other` |
+| `on_collision_exit(self, other)` | тела перестали касаться |
+| `on_trigger_enter(self, other)`, `on_trigger_exit(self, other)` | одно из двух — триггер: вошло, вышло |
+
+Как это устроено:
+- **Данные** — `ScriptComponent` (`Scene/ScriptComponent.hpp`): имя модуля и props, которые
+  отличаются от значений по умолчанию. Компонент хранится в сцене (`scene.Components<ScriptComponent>()`)
+  без Lua, поэтому переживает перезапуск скриптов: экземпляры создаются из него заново. Он же
+  сохраняется в [[Файл сцены]].
+- **Экземпляр** — `ScriptSystem::EntityScript` (`script/EntityScripts.cpp`): таблица
+  `self = { entity, <props> }`, у которой класс стоит в `__index`. Поэтому работают и
+  унаследованные методы (`setmetatable(Guard, { __index = require "npc.base" })`).
+- `entity:add` создаёт экземпляр сразу. Ошибка в модуле или в props поднимается в месте вызова,
+  и компонент не добавляется. Компоненту, добавленному из C++, экземпляр создаёт следующий `Update`.
+- **Типы props:** `boolean`, `number`, `string`, `Vector3`, `Vector4`, `Entity`. Это то, что
+  сохраняется в файл сцены и сможет показать редактор. Переопределение должно совпадать по типу со значением по
+  умолчанию. Векторы из `props` копируются в каждый экземпляр. Остальное состояние (таблицы,
+  ссылки) держите в полях `self` и заполняйте в `on_start`.
+- Один `Script` на сущность. Поведение из частей собирается внутри Lua: `require`, наследование.
+- **Ошибка в хуке останавливает только этот экземпляр.** Текст уходит в лог, одинаковые ошибки
+  разных экземпляров — один раз. Любая успешная перезагрузка модуля снимает остановку. Компонент
+  с модулем, который не загрузился, пробует создаться снова.
+- **Hot reload:** таблица класса меняется на месте, все экземпляры сразу выполняют новый код и
+  сохраняют поля `self`. Не называйте метод экземпляра `on_reload`: так называется хук модуля
+  `on_reload(previous)`, его вызовут с полями старой таблицы.
+- `on_destroy` при `entity:destroy()` видит сущность живой. Если узел удалили в обход скриптов
+  (окно сцены, C++), `on_destroy` вызывается на следующем проходе, и `self.entity.valid` уже `false`.
+- Экземпляры вызываются в порядке создания. Сущности, созданные главным модулем, стартуют в том же
+  кадре. Созданные внутри `on_start`/`on_update` других скриптов стартуют в следующем.
+- Настройка `Script/Enabled = false` выключает и скрипты сущностей.
+
+Пример: `assets/scripts/demo/npcs.lua` (`Script/MainModule = demo.npcs`) спавнит стражей
+`assets/scripts/npc/guard.lua`. Они патрулируют у своих постов и гонятся за кубом игрока, которого
+двигают стрелки. Стражи и игрок — кинематические тела, они расталкивают ящики, а ящик между
+стражем и игроком прячет игрока (луч в `Guard:can_see`).
+
+### Физика из Lua
+
+Компоненты `RigidBody` и `Collider` добавляются так же, как `Script`. `add` возвращает их хэндл,
+он же — `entity.rigidbody` и `entity.collider` (`nil` без компонента). Поля хэндла читают и пишут
+компонент в сцене. Тело строится заново на следующем шаге физики. Подробности — [[Физика]].
+
+```lua
+local crate = elm.scene.spawn("Crate", elm.models.cube(1))
+crate:add("Collider")                         -- без размеров коллайдер повторяет модель
+local body = crate:add("RigidBody", { mass = 2, restitution = 0.3 })
+body.velocity = Vector3(0, 5, 0)              -- тело есть сразу после add
+body:add_impulse(Vector3(10, 0, 0))
+
+local zone = elm.scene.spawn("Zone")
+zone:add("Collider", { shape = "sphere", radius = 3, trigger = true })
+zone:add("Script", "gameplay.launch_pad")     -- on_trigger_enter(self, other)
+```
+
+| Хэндл | Поля и методы |
+|---|---|
+| `RigidBody` | `type` (`"static"`, `"kinematic"`, `"dynamic"`), `mass`, `friction`, `restitution` (0..1), `linear_damping`, `angular_damping` (0..1), `gravity_scale`; `velocity`, `angular_velocity`, `add_force(force)`, `add_impulse(impulse)` — только у динамических; `valid`, `entity` |
+| `Collider` | `shape` (`"box"`, `"sphere"`, `"capsule"`), `half_extents`, `radius`, `half_height`, `offset`, `trigger`; `valid`, `entity` |
+
+- Поля init — те же поля хэндла. Неизвестное поле или неверное значение — ошибка, и компонент
+  не добавляется.
+- `Collider` без размеров повторяет модель сущности: коробка по её границам, радиус сферы и капсулы
+  по X/Z. Плоская модель (`elm.models.plane`) получает коробку толщиной 0.5 под собой.
+- `velocity`, силы и импульсы нужны телу, а тело есть только с `Collider`. Без него — ошибка.
+- Кинематическое тело двигают через `entity.position`: физика сама доводит до него тело со
+  скоростью и толкает динамические тела по пути.
+- `elm.physics.raycast(origin, direction, max_distance?, ignore?)` возвращает `entity, point,
+  normal, distance` ближайшего твёрдого тела (триггеры пропускаются) или ничего. `ignore` — сущность,
+  из которой выходит луч. Ещё есть `gravity()`, `set_gravity(v)`, `body_count()`.
+
+Пример: `assets/scripts/demo/physics.lua` (`Script/MainModule = demo.physics`): пирамида ящиков,
+батут-триггер `gameplay/launch_pad.lua`, Space бросает камни `gameplay/projectile.lua`, которые
+вспыхивают в `on_collision_enter`.
 
 ## Hot reload
 
@@ -113,7 +223,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 
 | Модуль | Что даёт |
 |---|---|
-| `elm.engine` | `load_test_scene(preset, instances?)`, `clear_scene()`, `save_scene(file)`, `load_scene(file)` (файлы относительно `assets/scenes`) |
+| `elm.engine` | `load_test_scene(preset, instances?)`, `clear_scene()`, `save_scene(file)`, `load_scene(file)` (файлы относительно `assets/scenes`); `play()`, `stop()`, `is_playing()` ([[Редактор]]) |
 | `elm.script` | `reload(module)`, `reload_changed()`, `restart()`, `modules()`, `persist(key, default)`, `memory()`, `engine_memory()` |
 
 ## Обёртка
@@ -158,9 +268,10 @@ lua::Class<Vector3>(module, "Vector3")
 | `elm.settings` | `get("Script/MainModule")`, `set(key, value)`: тип значения как при регистрации |
 | `elm.math` | `Vector3`, `Vector4`, `Quaternion`, `Matrix4x4`, `lerp`, `clamp`, `radians`, `degrees`, `pi` |
 | `elm.input` | `is_down/is_pressed/is_released(key)`, `is_mouse_*`, `mouse_position()`, `mouse_delta()`, `axis(name)`; константы `elm.input.key.W`, `elm.input.mouse.Left` |
-| `elm.scene` | `spawn(name?, model?, parent?)`, `find`, `find_all`, `all`, `count`; класс `Entity` |
+| `elm.scene` | `spawn(name?, model?, parent?)`, `find`, `find_all`, `all`, `count`, `with(type)`; класс `Entity` (`add/remove/has(type)` для `Script`, `RigidBody`, `Collider`; `script`, `rigidbody`, `collider`) |
 | `elm.models` | `cube(size?)`, `box(half)`, `plane(x, z)`, `load(path)` (.model / .gltf от `assets/`), `find(name)`; класс `Model` |
 | `elm.camera` | `position`/`set_position`, `translate`, `forward`, `right`, `yaw`/`pitch`/`set_orientation`, `rotate`, `look_at`, `fov`/`set_fov` |
+| `elm.physics` | `raycast(origin, direction, max_distance?, ignore?)`, `gravity`/`set_gravity`, `body_count`; классы `RigidBody`, `Collider` |
 
 ```lua
 local Vector3 = elm.math.Vector3
@@ -198,6 +309,11 @@ e:destroy()                                   -- вместе с потомка�
 - `Scene::SetLocalTransform` + `UpdateWorldTransforms()` пересчитывают мировые трансформы
   за один проход.
 - `RemoveNode` переносит детей к родителю удалённого узла и сохраняет их мировые трансформы.
+- `Scene::Components<T>()` — компоненты типа `T` по `NodeId` (sparse set, `Scene/ComponentStore.hpp`):
+  добавление, поиск и удаление за O(1), обход по плотному массиву. Хранилище создаётся при первом
+  обращении, компоненты удаляются вместе с узлом (`RemoveNode`, `Clear`). Так хранятся
+  `ScriptComponent`, `RigidBody` и `Collider`. Биндинги работают с типами по имени через
+  `bindings::ComponentKind` (`script/bindings/Components.hpp`).
 
 ## Инструменты
 

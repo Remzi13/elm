@@ -250,6 +250,39 @@ namespace elm::resmgr {
         return node && static_cast<const glz::json_t*>(*node)->get_if<glz::json_t::array_t>();
     }
 
+    auto JsonValue::GetKind() const -> Kind
+    {
+        auto node = Resolve(false);
+        if (!node)
+            return Kind::Null;
+        const auto& value = *static_cast<const glz::json_t*>(*node);
+        if (value.holds<bool>())
+            return Kind::Boolean;
+        if (value.holds<double>())
+            return Kind::Number;
+        if (value.holds<std::string>())
+            return Kind::String;
+        if (value.holds<glz::json_t::array_t>())
+            return Kind::Array;
+        if (value.holds<glz::json_t::object_t>())
+            return Kind::Object;
+        return Kind::Null;
+    }
+
+    auto JsonValue::Keys() const -> Vector<String>
+    {
+        Vector<String> keys;
+        auto node = Resolve(false);
+        if (!node)
+            return keys;
+        if (const auto* object = static_cast<const glz::json_t*>(*node)->get_if<glz::json_t::object_t>()) {
+            keys.reserve(object->size());
+            for (const auto& field : *object)
+                keys.emplace_back(field.first.begin(), field.first.end());
+        }
+        return keys;
+    }
+
     auto JsonValue::AsNumber() const -> EngineResult<double>
     {
         auto node = Resolve(false);

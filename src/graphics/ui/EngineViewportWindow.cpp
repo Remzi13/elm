@@ -48,6 +48,8 @@ namespace elm {
 		auto& scene = context.scene;
 		auto& camera = context.camera;
 		auto& viewPort = context.viewPort;
+		m_hovered = false;
+		m_focused = false;
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -55,6 +57,19 @@ namespace elm {
 		if (!ImGui::Begin(GetName().data(), &m_visible)) {
 			ImGui::End();
 			return;
+		}
+		m_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+
+		// Edit / Play mode, provided by the Inspector of the scripts; F5 switches too
+		if (const auto play = Request<PlayControls>()) {
+			if (ImGui::Button(play->playing ? "Stop" : "Play")
+				|| (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F5, false)))
+				play->toggle();
+			ImGui::SameLine();
+			if (play->playing)
+				ImGui::TextColored(ImVec4(1.0f, 0.62f, 0.25f, 1.0f), "Playing: changes are undone on Stop (F5)");
+			else
+				ImGui::TextDisabled("Edit mode (F5 plays)");
 		}
 
 		const auto selectedInstance = Request<SelectedSceneInstance>();
@@ -73,6 +88,8 @@ namespace elm {
 				});
 				camera.SetAspect(available.x / available.y);
 				ImGui::Image(texture, available);
+				// Popups and other windows on top of the image block the hover
+				m_hovered = ImGui::IsItemHovered();
 
 				if (hasSelection && gizmoSettings && scene.nodes[selectedInstance->index].visible) {
 					auto& instance = scene.nodes[selectedInstance->index];

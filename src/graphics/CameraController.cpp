@@ -5,8 +5,11 @@ namespace elm {
 	bool CameraController::OnKeyEvent(const KeyEvent& event) {
 		const int key = static_cast<int>(event.key);
 		if (key >= 0 && key < static_cast<int>(m_keys.size())) {
+			// Releases always pass so a key pressed in the viewport does not stick after a focus change
 			if (event.action == KeyAction::Press || event.action == KeyAction::Repeat) {
-				m_keys[static_cast<size_t>(key)] = true;
+				if (m_viewportFocused || m_rightMouseDown) {
+					m_keys[static_cast<size_t>(key)] = true;
+				}
 			}
 			else if (event.action == KeyAction::Release) {
 				m_keys[static_cast<size_t>(key)] = false;
@@ -25,10 +28,24 @@ namespace elm {
 
 	bool CameraController::OnMouseButtonEvent(const MouseButtonEvent& event) {
 		if (event.button == MouseButton::Right || static_cast<uint8_t>(event.button) == 1) {
-			m_rightMouseDown = (event.action == KeyAction::Press);
-			return true;
+			if (event.action == KeyAction::Press && m_viewportHovered) {
+				m_rightMouseDown = true;
+				return true;
+			}
+			if (event.action == KeyAction::Release && m_rightMouseDown) {
+				m_rightMouseDown = false;
+				return true;
+			}
 		}
 		return false;
+	}
+
+	void CameraController::SetViewportState(bool hovered, bool focused) noexcept {
+		m_viewportHovered = hovered;
+		m_viewportFocused = focused;
+		if (!m_viewportFocused && !m_rightMouseDown) {
+			m_keys.fill(false);
+		}
 	}
 
 	bool CameraController::OnMouseMoveEvent(const MouseMoveEvent& event) {

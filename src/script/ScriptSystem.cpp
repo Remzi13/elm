@@ -162,6 +162,7 @@ namespace elm::script {
         settings.Register(Settings::Category::Script, EnabledSetting, "Run scripts", true);
         settings.Register(Settings::Category::Script, MainModuleSetting, "Main module", String("main"));
         settings.Register(Settings::Category::Script, HotReloadSetting, "Reload changed scripts", true);
+        settings.Register(Settings::Category::Script, PlayOnStartSetting, "Start in Play mode", false);
     }
 
     auto ScriptSystem::Init(Path scriptRoot) -> EngineResult<void>
@@ -176,6 +177,7 @@ namespace elm::script {
         m_state->OpenLibraries();
         InstallModuleSearcher();
         InstallHelpers();
+        InstallEntityScriptHelpers();
         bindings::RegisterAll(*m_state);
 
         LOG_MESSAGE(log::Category::Script, LogSource, "%s initialized, scripts in %s", LUA_RELEASE,
@@ -188,7 +190,8 @@ namespace elm::script {
         if (!m_state)
             return MakeUnexpected(ErrorCode::ScriptError, "ScriptSystem::Start called before Init", log::Category::Script, LogSource);
         m_mainModuleName = settings.Get<String>(Settings::Category::Script, MainModuleSetting, String("main"));
-        if (!settings.Get<bool>(Settings::Category::Script, EnabledSetting, true))
+        m_scriptsEnabled = settings.Get<bool>(Settings::Category::Script, EnabledSetting, true);
+        if (!m_scriptsEnabled)
             return { };
 
         if (m_mainModuleName.empty() || FindModule(m_mainModuleName).Empty()) {
@@ -215,20 +218,30 @@ namespace elm::script {
             if (auto restarted = Restart(); !restarted)
                 ERROR_MESSAGE(log::Category::Script, LogSource, "Restart failed: %s", restarted.error().message.c_str());
         }
+        if (const auto request = std::exchange(m_playRequest, PlayRequest::None); request == PlayRequest::Play)
+            Play();
+        else if (request == PlayRequest::Stop)
+            Stop();
         if (HotReloadEnabled())
             PollFileChanges();
 
         m_time.deltaTime = deltaTime;
         m_time.time += deltaTime;
         ++m_time.frame;
-        CallHook("on_update", deltaTime, true);
+        if (m_playing)
+            CallHook("on_update", deltaTime, true);
+        // After the main module: entities it spawned start and update in the same frame
+        UpdateEntityScripts(deltaTime);
     }
 
     void ScriptSystem::FixedUpdate(float fixedDeltaTime)
     {
         ELM_PROFILE_SCOPE_N("Scripts FixedUpdate");
         m_time.fixedDeltaTime = fixedDeltaTime;
+        if (!m_playing)
+            return;
         CallHook("on_fixed_update", fixedDeltaTime, true);
+        FixedUpdateEntityScripts(fixedDeltaTime);
     }
 
     void ScriptSystem::Shutdown()
@@ -238,7 +251,11 @@ namespace elm::script {
         ELM_ASSERT_THREAD(Update);
 
         CallHook("on_shutdown", 0.0f, false);
+        // The scene stays: a restart makes the instances again from its ScriptComponents
+        DestroyAllEntityScripts();
         // References go before the state they point into
+        ReleaseEntityScripts();
+        m_scriptDefaults.clear();
         m_mainModule.Reset();
         m_state.reset();
         m_loadedModules.clear();
@@ -419,6 +436,7 @@ namespace elm::script {
             ERROR_MESSAGE(log::Category::Script, LogSource, "%s.on_reload failed:\n%s", moduleName.c_str(), hookError.c_str());
         LOG_MESSAGE(log::Category::Script, LogSource, "Reloaded '%s'", moduleName.c_str());
 
+        OnModuleReloaded(moduleName);
         if (startMain)
             CallHook("on_start", 0.0f, false);
         return { };

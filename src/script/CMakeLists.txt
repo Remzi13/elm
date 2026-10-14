@@ -1,11 +1,17 @@
 engine_add_library(script
     ScriptSystem.hpp
     ScriptSystem.cpp
+    EntityScripts.cpp
+    PlayMode.cpp
     SelfTest.hpp
     SelfTest.cpp
 
     bindings/Bindings.hpp
+    bindings/Components.hpp
     bindings/Entity.hpp
+    bindings/PhysicsBindings.cpp
+    bindings/ScriptValues.hpp
+    bindings/ScriptValues.cpp
     bindings/CoreBindings.cpp
     bindings/MathBindings.cpp
     bindings/InputBindings.cpp
@@ -13,6 +19,8 @@ engine_add_library(script
 
     ui/ScriptWindow.hpp
     ui/ScriptWindow.cpp
+    ui/InspectorWindow.hpp
+    ui/InspectorWindow.cpp
     ui/ScriptEditor.hpp
     ui/ScriptEditor.cpp
     ui/LuaHighlighter.hpp
@@ -33,4 +41,4 @@ engine_add_library(script
 
 target_link_libraries(script PUBLIC core lua)
 # The engine systems the bindings expose
-target_link_libraries(script PRIVATE math input Scene graphics resmgr)
+target_link_libraries(script PRIVATE math input Scene graphics resmgr physics)

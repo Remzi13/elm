@@ -2,6 +2,7 @@
 #include "core/Unexpected.hpp"
 
 #include "graphics/ui/DepthPreviewWindow.hpp"
+#include "graphics/ui/EditorStyle.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ui/LogWindow.hpp"
 #include "graphics/ui/ModelEditorWindow.hpp"
@@ -13,9 +14,13 @@
 #include <GLFW/glfw3.h>
 
 #include <algorithm>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 #include "backends/imgui_impl_glfw.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 
 namespace elm {
 
@@ -49,6 +54,7 @@ namespace elm {
 
 	void ImGuiSystem::AddWindow( UniquePtr<IImGuiWindow> window ) {
 		if ( window ) {
+			ApplySavedVisibility( *window );
 			window->Attach(m_windowMessageBus);
 			m_windows.push_back( std::move( window ) );
 		}
@@ -61,7 +67,18 @@ namespace elm {
 	//	return reinterpret_cast<ImTextureID>( value );
 	//}
 
-	auto ImGuiSystem::Init( platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title ) -> elm::EngineResult<void> {
+	bool ImGuiSystem::IsSceneViewportHovered() const noexcept {
+		const auto* window = GetWindow<EngineViewportWindow>();
+		return window && window->IsHovered();
+	}
+
+	bool ImGuiSystem::IsSceneViewportFocused() const noexcept {
+		const auto* window = GetWindow<EngineViewportWindow>();
+		return window && window->IsFocused();
+	}
+
+	auto ImGuiSystem::Init( platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title,
+		const OcclusionCullingSystem* cullingSystem ) -> elm::EngineResult<void> {
 		m_window = window.GetHandle();
 		m_title = title;
 
@@ -71,11 +88,15 @@ namespace elm {
 			m_imguiContextCreated = true;
 		}
 
+		// Before the renderer builds the font atlas
+		LoadEditorFonts();
+		ApplyEditorStyle();
+
 		// Register standard engine editor windows
 		EmplaceWindow<SocLabWindow>( settings );
 		EmplaceWindow<SceneHierarchyWindow>( settings );
 		EmplaceWindow<EngineViewportWindow>( settings );
-		EmplaceWindow<DepthPreviewWindow>( settings );
+		EmplaceWindow<DepthPreviewWindow>( settings, cullingSystem );
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 		EmplaceWindow<SettingsWindow>( settings );
@@ -98,10 +119,18 @@ namespace elm {
 		m_iniFilePath = FileSystem::Resolve( "imgui.ini" ).string();
 		io.IniFilename = m_iniFilePath.c_str();
 
+		ImGuiSettingsHandler settingsHandler;
+		settingsHandler.TypeName = "Elm";
+		settingsHandler.TypeHash = ImHashStr( "Elm" );
+		settingsHandler.ReadOpenFn = &ImGuiSystem::OnSettingsReadOpen;
+		settingsHandler.ReadLineFn = &ImGuiSystem::OnSettingsReadLine;
+		settingsHandler.ApplyAllFn = &ImGuiSystem::OnSettingsApplyAll;
+		settingsHandler.WriteAllFn = &ImGuiSystem::OnSettingsWriteAll;
+		settingsHandler.UserData = this;
+		ImGui::AddSettingsHandler( &settingsHandler );
 
 		ImGui::LoadIniSettingsFromDisk( io.IniFilename );
 
-		ImGui::StyleColorsDark();
 		m_glfwInitialized = ImGui_ImplGlfw_InitForOther( m_window, true );
 		if ( !m_glfwInitialized ) {
 			Shutdown();
@@ -189,6 +218,128 @@ namespace elm {
 		return xScale > 0.0f ? xScale : 1.0f;
 	}
 
+	// --- imgui.ini settings (main thread, inside LoadIniSettings*/SaveIniSettings*) ---
+
+	namespace {
+		// Entries of the [Elm][...] sections
+		int windowsEntry = 0;
+		int mainWindowEntry = 0;
+	}
+
+	void* ImGuiSystem::OnSettingsReadOpen( ImGuiContext*, ImGuiSettingsHandler*, const char* name ) {
+		if ( std::strcmp( name, "Windows" ) == 0 ) return &windowsEntry;
+		if ( std::strcmp( name, "MainWindow" ) == 0 ) return &mainWindowEntry;
+		return nullptr;
+	}
+
+	void ImGuiSystem::OnSettingsReadLine( ImGuiContext*, ImGuiSettingsHandler* handler, void* entry, const char* line ) {
+		auto* system = static_cast<ImGuiSystem*>( handler->UserData );
+		if ( entry == &windowsEntry ) {
+			// "<window name>=<0|1>", the name may itself contain '='
+			const char* separator = std::strrchr( line, '=' );
+			if ( !separator || separator == line ) return;
+			system->m_savedVisibility[String( line, separator )] = std::atoi( separator + 1 ) != 0;
+			return;
+		}
+		if ( entry == &mainWindowEntry ) {
+			auto& placement = system->m_mainWindowPlacement;
+			int a = 0;
+			int b = 0;
+			if ( std::sscanf( line, "Pos=%d,%d", &a, &b ) == 2 ) {
+				placement.x = a;
+				placement.y = b;
+			}
+			else if ( std::sscanf( line, "Size=%d,%d", &a, &b ) == 2 ) {
+				placement.width = a;
+				placement.height = b;
+				placement.valid = a > 0 && b > 0;
+			}
+			else if ( std::sscanf( line, "Maximized=%d", &a ) == 1 ) {
+				placement.maximized = a != 0;
+			}
+		}
+	}
+
+	void ImGuiSystem::OnSettingsApplyAll( ImGuiContext*, ImGuiSettingsHandler* handler ) {
+		auto* system = static_cast<ImGuiSystem*>( handler->UserData );
+		for ( const auto& window : system->m_windows ) {
+			if ( window ) system->ApplySavedVisibility( *window );
+		}
+		system->ApplyMainWindowPlacement();
+	}
+
+	void ImGuiSystem::OnSettingsWriteAll( ImGuiContext*, ImGuiSettingsHandler* handler, ImGuiTextBuffer* buffer ) {
+		auto* system = static_cast<ImGuiSystem*>( handler->UserData );
+
+		// Windows that are not created in this run keep their saved state
+		for ( const auto& window : system->m_windows ) {
+			if ( window ) system->m_savedVisibility[String( window->GetName() )] = window->IsVisible();
+		}
+		buffer->append( "[Elm][Windows]\n" );
+		for ( const auto& [name, visible] : system->m_savedVisibility ) {
+			buffer->appendf( "%s=%d\n", name.c_str(), visible ? 1 : 0 );
+		}
+		buffer->append( "\n" );
+
+		system->TrackMainWindowPlacement();
+		const auto& placement = system->m_mainWindowPlacement;
+		if ( placement.valid ) {
+			buffer->append( "[Elm][MainWindow]\n" );
+			buffer->appendf( "Pos=%d,%d\n", placement.x, placement.y );
+			buffer->appendf( "Size=%d,%d\n", placement.width, placement.height );
+			buffer->appendf( "Maximized=%d\n", placement.maximized ? 1 : 0 );
+			buffer->append( "\n" );
+		}
+	}
+
+	void ImGuiSystem::ApplySavedVisibility( IImGuiWindow& window ) const {
+		const auto it = m_savedVisibility.find( String( window.GetName() ) );
+		if ( it != m_savedVisibility.end() ) {
+			window.SetVisible( it->second );
+		}
+	}
+
+	void ImGuiSystem::ApplyMainWindowPlacement() {
+		const auto& placement = m_mainWindowPlacement;
+		if ( !m_window || !placement.valid ) return;
+
+		// A monitor that was disconnected since the last run would leave the window out of sight
+		bool onScreen = false;
+		int monitorCount = 0;
+		GLFWmonitor** monitors = glfwGetMonitors( &monitorCount );
+		for ( int i = 0; i < monitorCount && !onScreen; ++i ) {
+			int x = 0, y = 0, width = 0, height = 0;
+			glfwGetMonitorWorkarea( monitors[i], &x, &y, &width, &height );
+			onScreen = placement.x < x + width && placement.x + placement.width > x &&
+				placement.y < y + height && placement.y + 32 > y;
+		}
+
+		glfwRestoreWindow( m_window );
+		if ( onScreen ) {
+			glfwSetWindowPos( m_window, placement.x, placement.y );
+		}
+		glfwSetWindowSize( m_window, placement.width, placement.height );
+		if ( placement.maximized ) {
+			glfwMaximizeWindow( m_window );
+		}
+	}
+
+	void ImGuiSystem::TrackMainWindowPlacement() {
+		if ( !m_window ) return;
+		auto& placement = m_mainWindowPlacement;
+		if ( glfwGetWindowAttrib( m_window, GLFW_ICONIFIED ) ) return;
+
+		placement.maximized = glfwGetWindowAttrib( m_window, GLFW_MAXIMIZED ) != 0;
+		// A maximized window keeps the restored placement for the next start
+		if ( placement.maximized && placement.valid ) return;
+
+		int x = 0, y = 0, width = 0, height = 0;
+		glfwGetWindowPos( m_window, &x, &y );
+		glfwGetWindowSize( m_window, &width, &height );
+		if ( width <= 0 || height <= 0 ) return;
+		placement = { x, y, width, height, placement.maximized, true };
+	}
+
 	// --- Main thread ---
 
 	void ImGuiSystem::DestroyReleasedPlatformWindows( bool all ) {
@@ -219,6 +370,7 @@ namespace elm {
 		}
 
 		DestroyReleasedPlatformWindows( false );
+		TrackMainWindowPlacement();
 
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
@@ -347,9 +499,12 @@ namespace elm {
 		}
 
 		if ( m_initialized ) {
-			const auto& io = ImGui::GetIO();
+			auto& io = ImGui::GetIO();
 			if ( io.IniFilename != nullptr ) {
 				ImGui::SaveIniSettingsToDisk( io.IniFilename );
+				// The layout is saved while every window still exists; DestroyContext must not
+				// write it again from the half torn down state (or call back into this system)
+				io.IniFilename = nullptr;
 			}
 		}
 		if ( m_glfwInitialized ) {

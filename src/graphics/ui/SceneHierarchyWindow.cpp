@@ -65,8 +65,13 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     // A relative scene file name is taken from the scenes asset folder
     const Path scenePath = Path(m_sceneFilePath).IsAbsolute() ? Path(m_sceneFilePath) : AssetPaths::Scenes() / m_sceneFilePath;
     if (ImGui::Button("Save Scene")) {
-        auto result = resmgr::Serializer::SaveScene(scene, context.models, scenePath, AssetPaths::Models());
-        m_sceneFileStatus = result ? "Scene saved to " + String(scenePath.string().c_str()) + "." : result.error().message;
+        // In Play mode the scene is the running game: Stop brings the edited one back
+        if (const auto play = Request<PlayControls>(); play && play->playing) {
+            m_sceneFileStatus = "Stop first: in Play mode the scene is the running game.";
+        } else {
+            auto result = resmgr::Serializer::SaveScene(scene, context.models, scenePath, AssetPaths::Models());
+            m_sceneFileStatus = result ? "Scene saved to " + String(scenePath.string().c_str()) + "." : result.error().message;
+        }
     }
     ImGui::SameLine();
     if (ImGui::Button("Load Scene")) {
@@ -103,11 +108,13 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
 
     if (ImGui::Button("Add Object")) {
         if (!scene.nodes.empty()) {
+            const NodeId source = scene.IdOf(m_selectedInstance);
             auto node = scene.nodes[m_selectedInstance];
             node.worldTransform(0, 3) += 1.0f;
             node.localTransform(0, 3) += 1.0f;
             node.name += " Copy";
-            scene.AppendNode(std::move(node));
+            const NodeId copy = scene.AppendNode(std::move(node)).id;
+            scene.CopyComponents(source, copy);
         } else {            
             graphics::Model model;
             model.name = "Cube";            

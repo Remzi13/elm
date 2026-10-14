@@ -1,8 +1,8 @@
 {
    "settings": {
       "Core/FileSystem/RootPath": ".",
-      "Render/culling/DepthBias": 0,
-      "Render/culling/DepthFalseColor": false,
+      "Render/culling/DepthBias": 0.009999999776482582,
+      "Render/culling/DepthFalseColor": true,
       "Render/culling/EnableFrustumCulling": false,
       "Render/culling/EnableOcclusionCulling": false,
       "Render/culling/Resolution/Height": 144,
@@ -10,7 +10,8 @@
       "Render/culling/VisualMode": 1,
       "Script/Enabled": true,
       "Script/HotReload": true,
-      "Script/MainModule": "main"
+      "Script/MainModule": "demo.physics",
+      "Script/PlayOnStart": false
    },
    "version": 1
 }

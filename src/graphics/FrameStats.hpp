@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Scene/Transform.hpp"
-
 #include <cstdint>
 
 namespace elm {
@@ -11,8 +9,6 @@ namespace elm {
         float fps { 0.0f };
         float deltaTimeMs { 0.0f };
         uint32_t physicsBodyCount { 0 };
-        Transform boxTransform;
-        Transform groundTransform;
     };
 
 } // namespace elm

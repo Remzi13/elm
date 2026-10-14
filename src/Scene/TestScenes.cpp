@@ -123,8 +123,13 @@ bool Scene::RemoveNode(size_t nodeIndex)
     const size_t removedParent = removed.parentIndex;
     const size_t newParent = removedParent != NoNode && removedParent > nodeIndex ? removedParent - 1 : removedParent;
     // A copy pushed into nodes directly may share the id of another node, that one keeps it
-    if (IndexOf(removed.id) == nodeIndex)
+    if (IndexOf(removed.id) == nodeIndex) {
+        for (const auto& store : m_componentStores) {
+            if (store)
+                store->Remove(removed.id);
+        }
         FreeId(removed.id);
+    }
     nodes.erase(nodes.begin() + static_cast<std::ptrdiff_t>(nodeIndex));
 
     for (size_t index = 0; index < nodes.size(); ++index) {
@@ -155,14 +160,36 @@ size_t Scene::Append(SceneAsset&& asset, graphics::ModelManager& models)
         handlers.push_back(models.Insert(std::move(model)));
 
     const size_t nodeOffset = nodes.size();
-    nodes.reserve(nodes.size() + asset.scene.nodes.size());
-    for (size_t nodeIndex = 0; nodeIndex < asset.scene.nodes.size(); ++nodeIndex) {
+    const size_t nodeCount = asset.scene.nodes.size();
+    nodes.reserve(nodes.size() + nodeCount);
+    for (size_t nodeIndex = 0; nodeIndex < nodeCount; ++nodeIndex) {
         auto& node = asset.scene.nodes[nodeIndex];
         if (node.parentIndex != NoNode)
             node.parentIndex += nodeOffset;
         const size_t modelIndex = nodeIndex < asset.nodeModels.size() ? asset.nodeModels[nodeIndex] : SceneAsset::NoModel;
         node.model = modelIndex < handlers.size() ? handlers[modelIndex] : graphics::ModelHandler {};
         AppendNode(std::move(node));
+    }
+
+    // Entity props refer to nodes of the asset: they get the ids those nodes have now
+    auto idOf = [&](NodeId reference) {
+        const size_t nodeIndex = SceneAsset::NodeIndexOf(reference);
+        return nodeIndex < nodeCount ? nodes[nodeOffset + nodeIndex].id : NodeId {};
+    };
+    for (size_t nodeIndex = 0; nodeIndex < nodeCount && nodeIndex < asset.nodeComponents.size(); ++nodeIndex) {
+        auto& components = asset.nodeComponents[nodeIndex];
+        const NodeId id = nodes[nodeOffset + nodeIndex].id;
+        if (components.script) {
+            for (auto& prop : components.script->props) {
+                if (auto* reference = std::get_if<NodeId>(&prop.second))
+                    *reference = idOf(*reference);
+            }
+            Components<ScriptComponent>().Emplace(id, std::move(*components.script));
+        }
+        if (components.rigidBody)
+            Components<RigidBody>().Emplace(id, *components.rigidBody);
+        if (components.collider)
+            Components<Collider>().Emplace(id, *components.collider);
     }
     return nodeOffset;
 }
@@ -172,12 +199,72 @@ void Scene::Clear()
     for (const auto& node : nodes)
         FreeId(node.id);
     nodes.clear();
+    for (const auto& store : m_componentStores) {
+        if (store)
+            store->Clear();
+    }
     m_transformsDirty = false;
 }
 
 void Scene::ReserveNodes(size_t capacity)
 {
     nodes.reserve(capacity);
+}
+
+void Scene::CopyComponents(NodeId from, NodeId to)
+{
+    for (const auto& store : m_componentStores) {
+        if (store)
+            store->Copy(from, to);
+    }
+}
+
+Scene Scene::Clone() const
+{
+    Scene copy;
+    copy.nodes = nodes;
+    copy.m_idSlots = m_idSlots;
+    copy.m_freeIdSlots = m_freeIdSlots;
+    copy.m_transformsDirty = m_transformsDirty;
+    copy.m_componentStores.resize(m_componentStores.size());
+    for (size_t type = 0; type < m_componentStores.size(); ++type) {
+        if (m_componentStores[type])
+            copy.m_componentStores[type] = m_componentStores[type]->Clone();
+    }
+    return copy;
+}
+
+void Scene::RestoreFrom(Scene&& snapshot)
+{
+    // Slots of the snapshot's nodes come back as they were. Every other slot may have handed out
+    // ids since: it stays free with the generation it reached, one more when it is in use now.
+    for (size_t slotIndex = 0; slotIndex < m_idSlots.size(); ++slotIndex) {
+        const bool snapshotUses = slotIndex < snapshot.m_idSlots.size() && snapshot.m_idSlots[slotIndex].index != NoNode;
+        if (snapshotUses)
+            continue;
+        const IdSlot& current = m_idSlots[slotIndex];
+        IdSlot restored;
+        restored.generation = current.generation;
+        if (current.index != NoNode)
+            ++restored.generation; // wraps to 0: retired, see FreeId
+        if (slotIndex < snapshot.m_idSlots.size())
+            snapshot.m_idSlots[slotIndex] = restored;
+        else
+            snapshot.m_idSlots.push_back(restored);
+    }
+    // A free slot at generation 0 has wrapped: it is retired and never handed out again
+    snapshot.m_freeIdSlots.clear();
+    for (size_t slotIndex = 0; slotIndex < snapshot.m_idSlots.size(); ++slotIndex) {
+        const IdSlot& slot = snapshot.m_idSlots[slotIndex];
+        if (slot.index == NoNode && slot.generation != 0)
+            snapshot.m_freeIdSlots.push_back(static_cast<uint32_t>(slotIndex));
+    }
+
+    nodes = std::move(snapshot.nodes);
+    m_idSlots = std::move(snapshot.m_idSlots);
+    m_freeIdSlots = std::move(snapshot.m_freeIdSlots);
+    m_componentStores = std::move(snapshot.m_componentStores);
+    m_transformsDirty = true;
 }
 
 NodeId Scene::IdOf(size_t nodeIndex)

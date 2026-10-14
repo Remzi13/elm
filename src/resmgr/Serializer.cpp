@@ -6,10 +6,15 @@
 #include "resmgr/SerializationError.hpp"
 
 #include <cctype>
+#include <charconv>
 #include <cmath>
 #include <fstream>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
+#include <optional>
+#include <type_traits>
+#include <variant>
 
 namespace elm::resmgr {
     namespace {
@@ -228,6 +233,352 @@ namespace elm::resmgr {
             if (!result)
                 return UnexpectedSerializationError("Invalid boolean scene field: " + String(key), "Serializer");
             return *result;
+        }
+
+        // ── Node components ─────────────────────────────────────────────────────
+        // "components": { "Script": {...}, "RigidBody": {...}, "Collider": {...} } of a node.
+        // Every field is written; a missing field reads as the component's default.
+
+        /// The double printed as the float's shortest form: 0.1f is written as 0.1, not 0.10000000149011612,
+        /// and still reads back as the same float.
+        auto ShortNumber(float value) -> JsonValue
+        {
+            char buffer[32];
+            double result = value;
+            if (const auto written = std::to_chars(buffer, buffer + sizeof(buffer), value); written.ec == std::errc {})
+                std::from_chars(buffer, written.ptr, result);
+            return JsonValue(result);
+        }
+
+        auto MakeShortArray(std::initializer_list<float> values) -> EngineResult<JsonValue>
+        {
+            JsonValue array { JsonValue::Type::Array };
+            for (const float value : values) {
+                auto result = AddToArray(array, ShortNumber(value));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            return array;
+        }
+
+        auto MakeShortVector(const Vector3& vector) -> EngineResult<JsonValue> { return MakeShortArray({ vector.x, vector.y, vector.z }); }
+
+        auto SetResult(JsonValue& object, StringView key, EngineResult<JsonValue> value) -> EngineResult<void>
+        {
+            if (!value)
+                return UnexpectedSerializationError(value.error());
+            return SetField(object, key, std::move(*value));
+        }
+
+        auto SetFields(JsonValue& object, std::initializer_list<std::pair<StringView, JsonValue>> fields) -> EngineResult<void>
+        {
+            for (const auto& [key, value] : fields) {
+                auto result = SetField(object, key, value);
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            return {};
+        }
+
+        /// A script prop: boolean, number, string, [x, y, z] for a Vector3, [x, y, z, w] for a Vector4,
+        /// { "entity": node index } for an Entity (null when it refers to no node of the scene).
+        auto MakeScriptValue(const ScriptValue& value, const Scene& scene) -> EngineResult<JsonValue>
+        {
+            return std::visit([&]<typename V>(const V& item) -> EngineResult<JsonValue> {
+                if constexpr (std::is_same_v<V, bool>) {
+                    return JsonValue(item);
+                } else if constexpr (std::is_same_v<V, int64_t> || std::is_same_v<V, double>) {
+                    return JsonValue(static_cast<double>(item));
+                } else if constexpr (std::is_same_v<V, String>) {
+                    return JsonValue(StringView(item));
+                } else if constexpr (std::is_same_v<V, Vector3>) {
+                    return MakeShortVector(item);
+                } else if constexpr (std::is_same_v<V, Vector4>) {
+                    return MakeShortArray({ item.x, item.y, item.z, item.w });
+                } else {
+                    JsonValue reference { JsonValue::Type::Object };
+                    const size_t index = scene.IndexOf(item);
+                    auto result = SetField(reference, "entity", index == Scene::NoNode ? JsonValue() : JsonValue(static_cast<double>(index)));
+                    if (!result)
+                        return UnexpectedSerializationError(result.error());
+                    return reference;
+                }
+            }, value);
+        }
+
+        auto MakeScript(const ScriptComponent& script, const Scene& scene) -> EngineResult<JsonValue>
+        {
+            JsonValue props { JsonValue::Type::Object };
+            for (const auto& [name, value] : script.props) {
+                auto result = SetResult(props, name, MakeScriptValue(value, scene));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            JsonValue serialized { JsonValue::Type::Object };
+            auto result = SetFields(serialized, { { "module", JsonValue(StringView(script.module)) }, { "props", std::move(props) } });
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            return serialized;
+        }
+
+        auto MakeRigidBody(const RigidBody& body) -> EngineResult<JsonValue>
+        {
+            JsonValue serialized { JsonValue::Type::Object };
+            auto result = SetFields(serialized, {
+                { "type", JsonValue(BodyTypeName(body.type)) },
+                { "mass", ShortNumber(body.mass) },
+                { "friction", ShortNumber(body.friction) },
+                { "restitution", ShortNumber(body.restitution) },
+                { "linearDamping", ShortNumber(body.linearDamping) },
+                { "angularDamping", ShortNumber(body.angularDamping) },
+                { "gravityScale", ShortNumber(body.gravityScale) },
+            });
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            return serialized;
+        }
+
+        auto MakeCollider(const Collider& collider) -> EngineResult<JsonValue>
+        {
+            JsonValue serialized { JsonValue::Type::Object };
+            auto result = SetFields(serialized, {
+                { "shape", JsonValue(ColliderShapeName(collider.shape)) },
+                { "radius", ShortNumber(collider.radius) },
+                { "halfHeight", ShortNumber(collider.halfHeight) },
+                { "trigger", JsonValue(collider.trigger) },
+            });
+            if (result)
+                result = SetResult(serialized, "halfExtents", MakeShortVector(collider.halfExtents));
+            if (result)
+                result = SetResult(serialized, "offset", MakeShortVector(collider.offset));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            return serialized;
+        }
+
+        /// The components of a node, nullopt when it has none.
+        auto MakeComponents(const Scene& scene, NodeId node) -> EngineResult<std::optional<JsonValue>>
+        {
+            const auto* scripts = scene.FindComponents<ScriptComponent>();
+            const auto* bodies = scene.FindComponents<RigidBody>();
+            const auto* colliders = scene.FindComponents<Collider>();
+            const ScriptComponent* script = scripts ? scripts->Find(node) : nullptr;
+            const RigidBody* body = bodies ? bodies->Find(node) : nullptr;
+            const Collider* collider = colliders ? colliders->Find(node) : nullptr;
+            if (!script && !body && !collider)
+                return std::optional<JsonValue> {};
+
+            JsonValue components { JsonValue::Type::Object };
+            EngineResult<void> result;
+            if (script)
+                result = SetResult(components, "Script", MakeScript(*script, scene));
+            if (result && body)
+                result = SetResult(components, "RigidBody", MakeRigidBody(*body));
+            if (result && collider)
+                result = SetResult(components, "Collider", MakeCollider(*collider));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            return std::optional<JsonValue>(std::move(components));
+        }
+
+        auto ReadFloat(const JsonValue& value, StringView description) -> EngineResult<float>
+        {
+            auto number = ReadNumber(value, description);
+            if (!number)
+                return UnexpectedSerializationError(number.error());
+            if (std::abs(*number) > std::numeric_limits<float>::max())
+                return UnexpectedSerializationError("Scene number is outside the float range: " + String(description), "Serializer");
+            return static_cast<float>(*number);
+        }
+
+        // Read a field into target when the object has it, target keeps its default otherwise
+
+        auto ReadFloatInto(const JsonValue& object, StringView key, float& target) -> EngineResult<void>
+        {
+            const auto field = object.Find(key);
+            if (!field)
+                return {};
+            auto value = ReadFloat(*field, key);
+            if (!value)
+                return UnexpectedSerializationError(value.error());
+            target = *value;
+            return {};
+        }
+
+        auto ReadVector3Into(const JsonValue& object, StringView key, Vector3& target) -> EngineResult<void>
+        {
+            const auto field = object.Find(key);
+            if (!field)
+                return {};
+            auto value = ReadVector3(*field, key);
+            if (!value)
+                return UnexpectedSerializationError(value.error());
+            target = *value;
+            return {};
+        }
+
+        auto ReadBoolInto(const JsonValue& object, StringView key, bool& target) -> EngineResult<void>
+        {
+            const auto field = object.Find(key);
+            if (!field)
+                return {};
+            if (field->GetKind() != JsonValue::Kind::Boolean)
+                return UnexpectedSerializationError("Invalid boolean scene field: " + String(key), "Serializer");
+            target = *field->AsBoolean();
+            return {};
+        }
+
+        /// A name field of an enum, through fromName (BodyTypeFromName, ColliderShapeFromName).
+        template <typename E>
+        auto ReadEnumInto(const JsonValue& object, StringView key, std::optional<E> (*fromName)(StringView), E& target) -> EngineResult<void>
+        {
+            const auto field = object.Find(key);
+            if (!field)
+                return {};
+            std::optional<E> value;
+            if (field->GetKind() == JsonValue::Kind::String)
+                value = fromName(*field->AsString());
+            if (!value)
+                return UnexpectedSerializationError("Invalid scene field: " + String(key), "Serializer");
+            target = *value;
+            return {};
+        }
+
+        /// See MakeScriptValue. JSON has one kind of number: a whole number comes back as an integer.
+        auto ReadScriptValue(const JsonValue& value, size_t nodeCount, StringView description) -> EngineResult<ScriptValue>
+        {
+            switch (value.GetKind()) {
+            case JsonValue::Kind::Boolean:
+                return ScriptValue(*value.AsBoolean());
+            case JsonValue::Kind::Number: {
+                auto number = ReadNumber(value, description);
+                if (!number)
+                    return UnexpectedSerializationError(number.error());
+                constexpr double LargestExactInteger = 9007199254740992.0;
+                if (std::floor(*number) == *number && std::abs(*number) <= LargestExactInteger)
+                    return ScriptValue(static_cast<int64_t>(*number));
+                return ScriptValue(*number);
+            }
+            case JsonValue::Kind::String:
+                return ScriptValue(*value.AsString());
+            case JsonValue::Kind::Array: {
+                const auto size = value.Size();
+                if (size && *size == 3) {
+                    auto vector = ReadVector3(value, description);
+                    if (!vector)
+                        return UnexpectedSerializationError(vector.error());
+                    return ScriptValue(*vector);
+                }
+                if (size && *size == 4) {
+                    auto components = ReadFloatArray<4>(value, description);
+                    if (!components)
+                        return UnexpectedSerializationError(components.error());
+                    return ScriptValue(Vector4 { (*components)[0], (*components)[1], (*components)[2], (*components)[3] });
+                }
+                break;
+            }
+            case JsonValue::Kind::Object:
+                if (const auto reference = value.Find("entity")) {
+                    if (reference->GetKind() == JsonValue::Kind::Null)
+                        return ScriptValue(NodeId {});
+                    auto index = ReadUnsigned<size_t>(*reference, description);
+                    if (!index || *index >= nodeCount)
+                        return UnexpectedSerializationError("Script prop refers to a missing node: " + String(description), "Serializer");
+                    return ScriptValue(SceneAsset::NodeRef(*index));
+                }
+                break;
+            case JsonValue::Kind::Null:
+                break;
+            }
+            return UnexpectedSerializationError("Invalid script prop: " + String(description), "Serializer");
+        }
+
+        auto ReadScript(const JsonValue& serialized, size_t nodeCount) -> EngineResult<ScriptComponent>
+        {
+            ScriptComponent script;
+            if (const auto module = serialized.Find("module"); module && module->GetKind() == JsonValue::Kind::String)
+                script.module = *module->AsString();
+            if (script.module.empty())
+                return UnexpectedSerializationError("Script component needs a module name", "Serializer");
+
+            if (const auto props = serialized.Find("props")) {
+                if (!props->IsObject())
+                    return UnexpectedSerializationError("Script props must be an object", "Serializer");
+                // Keys come sorted, as CheckScriptProps keeps them
+                for (const auto& name : props->Keys()) {
+                    auto value = ReadScriptValue((*props)[name], nodeCount, "Script.props." + name);
+                    if (!value)
+                        return UnexpectedSerializationError(value.error());
+                    script.props.emplace_back(name, std::move(*value));
+                }
+            }
+            return script;
+        }
+
+        auto ReadRigidBody(const JsonValue& serialized) -> EngineResult<RigidBody>
+        {
+            RigidBody body;
+            for (auto result : {
+                     ReadEnumInto(serialized, "type", &BodyTypeFromName, body.type),
+                     ReadFloatInto(serialized, "mass", body.mass),
+                     ReadFloatInto(serialized, "friction", body.friction),
+                     ReadFloatInto(serialized, "restitution", body.restitution),
+                     ReadFloatInto(serialized, "linearDamping", body.linearDamping),
+                     ReadFloatInto(serialized, "angularDamping", body.angularDamping),
+                     ReadFloatInto(serialized, "gravityScale", body.gravityScale),
+                 }) {
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            return body;
+        }
+
+        auto ReadCollider(const JsonValue& serialized) -> EngineResult<Collider>
+        {
+            Collider collider;
+            for (auto result : {
+                     ReadEnumInto(serialized, "shape", &ColliderShapeFromName, collider.shape),
+                     ReadVector3Into(serialized, "halfExtents", collider.halfExtents),
+                     ReadFloatInto(serialized, "radius", collider.radius),
+                     ReadFloatInto(serialized, "halfHeight", collider.halfHeight),
+                     ReadVector3Into(serialized, "offset", collider.offset),
+                     ReadBoolInto(serialized, "trigger", collider.trigger),
+                 }) {
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            return collider;
+        }
+
+        auto ReadComponents(const JsonValue& serialized, size_t nodeCount) -> EngineResult<NodeComponents>
+        {
+            if (!serialized.IsObject())
+                return UnexpectedSerializationError("Scene node components must be an object", "Serializer");
+            NodeComponents components;
+            for (const auto& name : serialized.Keys()) {
+                const JsonValue component = serialized[name];
+                if (!component.IsObject())
+                    return UnexpectedSerializationError("Scene node component must be an object: " + name, "Serializer");
+                if (name == "Script") {
+                    auto script = ReadScript(component, nodeCount);
+                    if (!script)
+                        return UnexpectedSerializationError(script.error());
+                    components.script = std::move(*script);
+                } else if (name == "RigidBody") {
+                    auto body = ReadRigidBody(component);
+                    if (!body)
+                        return UnexpectedSerializationError(body.error());
+                    components.rigidBody = *body;
+                } else if (name == "Collider") {
+                    auto collider = ReadCollider(component);
+                    if (!collider)
+                        return UnexpectedSerializationError(collider.error());
+                    components.collider = *collider;
+                } else {
+                    return UnexpectedSerializationError("Scene node has an unknown component: " + name, "Serializer");
+                }
+            }
+            return components;
         }
 
         auto SerializeModel(const graphics::Model& model) -> EngineResult<JsonValue>
@@ -485,7 +836,8 @@ namespace elm::resmgr {
         const Path& modelDirectory) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
-        auto result = SetField(document, "formatVersion", JsonValue(4.0));
+        // 5: nodes may have components
+        auto result = SetField(document, "formatVersion", JsonValue(5.0));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
@@ -565,6 +917,14 @@ namespace elm::resmgr {
             result = SetField(serializedNode, "visible", JsonValue(node.visible));
             if (!result)
                 return UnexpectedSerializationError(result.error());
+            auto components = MakeComponents(scene, node.id);
+            if (!components)
+                return UnexpectedSerializationError(components.error());
+            if (*components) {
+                result = SetField(serializedNode, "components", std::move(**components));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
             result = AddToArray(serializedNodes, std::move(serializedNode));
             if (!result)
                 return UnexpectedSerializationError(result.error());
@@ -598,12 +958,13 @@ namespace elm::resmgr {
         auto formatVersion = ReadUnsigned<uint32_t>(*versionField, "formatVersion");
         if (!formatVersion)
             return UnexpectedSerializationError(formatVersion.error());
-        if (*formatVersion != 1 && *formatVersion != 2 && *formatVersion != 3 && *formatVersion != 4)
+        if (*formatVersion < 1 || *formatVersion > 5)
             return UnexpectedSerializationError("Unsupported scene file version", "Serializer");
 
         SceneAsset loaded;
 
-        if (*formatVersion == 4) {
+        // 5 is 4 with node components
+        if (*formatVersion >= 4) {
             auto serializedModels = ReadArrayField(document, "models");
             auto serializedNodes = ReadArrayField(document, "nodes");
             if (!serializedModels || !serializedNodes)
@@ -615,6 +976,7 @@ namespace elm::resmgr {
 
             loaded.scene.nodes.reserve(*nodeCount);
             loaded.models.reserve(*modelCount);
+            loaded.nodeComponents.resize(*nodeCount);
             for (size_t modelIndex = 0; modelIndex < *modelCount; ++modelIndex) {
                 auto modelReference = GetElement(*serializedModels, modelIndex);
                 if (!modelReference)
@@ -677,6 +1039,12 @@ namespace elm::resmgr {
                     if (!name)
                         return UnexpectedSerializationError(name.error());
                     node.name = std::move(*name);
+                }
+                if (const auto componentsField = serializedNode->Find("components")) {
+                    auto components = ReadComponents(*componentsField, *nodeCount);
+                    if (!components)
+                        return UnexpectedSerializationError(components.error());
+                    loaded.nodeComponents[nodeIndex] = std::move(*components);
                 }
                 loaded.scene.nodes.push_back(std::move(node));
                 loaded.nodeModels.push_back(nodeModel);

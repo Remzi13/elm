@@ -91,6 +91,11 @@ namespace elm::script {
 
     } // namespace
 
+    UniquePtr<IImGuiWindow> ScriptSystem::CreateEditorWindow(Settings& settings)
+    {
+        return MakeUnique<ScriptWindow>(settings, *this);
+    }
+
     ScriptWindow::ScriptWindow(Settings& settings, ScriptSystem& scripts)
         : IImGuiWindow(settings)
         , m_scripts(scripts)
@@ -159,6 +164,25 @@ namespace elm::script {
         }
         ImGui::SameLine();
         ImGui::TextDisabled("| %.1f KB", static_cast<double>(m_scripts.GetState().MemoryUsage()) / 1024.0);
+
+        size_t entityScripts = 0;
+        size_t stoppedScripts = 0;
+        const ScriptSystem::EntityScript* firstStopped = nullptr;
+        for (const auto& script : m_scripts.EntityScripts()) {
+            if (script.dead)
+                continue;
+            ++entityScripts;
+            if (script.faulted && !stoppedScripts++)
+                firstStopped = &script;
+        }
+        ImGui::SameLine();
+        if (!firstStopped) {
+            ImGui::TextDisabled("| entity scripts: %zu", entityScripts);
+        } else {
+            ImGui::TextColored(ErrorColor, "| entity scripts: %zu, %zu stopped", entityScripts, stoppedScripts);
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("%s: %s\nA module reload starts them again", firstStopped->module.c_str(), firstStopped->error.c_str());
+        }
 
         bool hotReload = m_settings.Get<bool>(Settings::Category::Script, ScriptSystem::HotReloadSetting, true);
         if (ImGui::Checkbox("Hot reload", &hotReload))

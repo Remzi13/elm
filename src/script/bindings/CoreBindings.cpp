@@ -195,6 +195,7 @@ namespace elm::script::bindings {
         RegisterMath(state);
         RegisterInput(state);
         RegisterScene(state);
+        RegisterPhysics(state);
     }
 
 } // namespace elm::script::bindings
