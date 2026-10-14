@@ -1,7 +1,9 @@
 #include "script/bindings/Bindings.hpp"
+#include "script/ScriptSystem.hpp"
 
 #include "core/Log.hpp"
 #include "core/Memory.hpp"
+#include "core/Settings.hpp"
 
 #include <variant>
 

@@ -1,8 +1,18 @@
 engine_add_library(script
+    ScriptContext.hpp
+    ScriptContext.cpp
+    ScriptModuleManager.hpp
+    ScriptModuleManager.cpp
+    EntityScriptManager.hpp
+    EntityScriptManager.cpp
+    ScriptConsole.hpp
+    ScriptConsole.cpp
+    ScriptReflection.hpp
+    ScriptReflection.cpp
+    PlayModeController.hpp
+    PlayModeController.cpp
     ScriptSystem.hpp
     ScriptSystem.cpp
-    EntityScripts.cpp
-    PlayMode.cpp
     SelfTest.hpp
     SelfTest.cpp
 

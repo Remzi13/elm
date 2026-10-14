@@ -1,7 +1,7 @@
 #pragma once
 
 #include "graphics/ui/IImGuiWindow.hpp"
-
+#include "script/PlayModeController.hpp"
 #include "script/ScriptSystem.hpp"
 
 #include <array>
@@ -16,7 +16,7 @@ namespace elm::script {
     /// The bar on top switches Edit and Play mode; the window provides PlayControls for the viewport.
     class InspectorWindow final : public IImGuiWindow {
     public:
-        InspectorWindow(Settings& settings, ScriptSystem& scripts);
+        InspectorWindow(Settings& settings, PlayModeController& playMode, ScriptSystem& scripts);
 
         [[nodiscard]] StringView GetName() const override { return "Inspector"; }
         void Render(ImGuiWindowContext& context) override;
@@ -35,6 +35,7 @@ namespace elm::script {
         bool DrawValue(const char* label, ScriptValue& value, Scene& scene);
         void TogglePlay();
 
+        PlayModeController& m_playMode;
         ScriptSystem& m_scripts;
         Vector<MessageBus::Subscription> m_querySubscriptions;
         /// For Add Component > Script, listed when the popup opens.

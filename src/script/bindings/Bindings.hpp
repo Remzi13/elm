@@ -1,6 +1,7 @@
 #pragma once
 
-#include "script/ScriptSystem.hpp"
+#include "script/ScriptContext.hpp"
+#include "script/lua/Bind.hpp"
 
 namespace elm::script::bindings {
 
@@ -24,6 +25,6 @@ namespace elm::script::bindings {
         return *system;
     }
 
-    [[nodiscard]] inline const EngineContext& Engine(lua_State* L) noexcept { return ScriptSystem::From(L).Engine(); }
+    [[nodiscard]] inline const EngineContext& Engine(lua_State* L) noexcept { return ScriptContext::From(L).engine; }
 
 } // namespace elm::script::bindings

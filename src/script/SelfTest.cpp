@@ -1,5 +1,6 @@
 #include "script/SelfTest.hpp"
 
+#include "script/PlayModeController.hpp"
 #include "script/ScriptSystem.hpp"
 #include "script/ui/LuaHighlighter.hpp"
 #include "script/ui/ScriptEditor.hpp"
@@ -441,14 +442,15 @@ namespace elm::script {
 
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
+            PlayModeController playMode;
             ScriptSystem system;
-            system.SetEngineContext({ nullptr, nullptr, nullptr, nullptr, &settings });
+            system.SetEngineContext({ nullptr, nullptr, nullptr, nullptr, &settings, nullptr, &playMode });
             if (!system.Init(Path(root.generic_string().c_str()))) {
                 report.Check(false, "hot::init");
                 return;
             }
             // The main module's on_update runs in Play mode only
-            system.Play();
+            playMode.Play(nullptr, nullptr, nullptr, &system);
             lua_State* L = system.GetState();
 
             // ── Module reload ──
@@ -617,13 +619,14 @@ namespace elm::script {
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
             Scene scene;
+            PlayModeController playMode;
             ScriptSystem system;
-            system.SetEngineContext({ &scene, nullptr, nullptr, nullptr, &settings });
+            system.SetEngineContext({ &scene, nullptr, nullptr, nullptr, &settings, nullptr, &playMode });
             if (!system.Init(Path(root.generic_string().c_str()))) {
                 report.Check(false, "entity::init");
                 return;
             }
-            system.Play();
+            playMode.Play(&scene, nullptr, nullptr, &system);
             auto eval = [&](const char* code) { return Evaluate(system, code); };
             auto fails = [&](const char* code, const char* text) {
                 const String result = eval(code);
@@ -877,13 +880,14 @@ namespace elm::script {
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
             Scene scene;
+            PlayModeController playMode;
             ScriptSystem system;
-            system.SetEngineContext({ &scene, nullptr, nullptr, nullptr, &settings, &physics });
+            system.SetEngineContext({ &scene, nullptr, nullptr, nullptr, &settings, &physics, &playMode });
             if (!system.Init(Path(root.generic_string().c_str()))) {
                 report.Check(false, "physics_lua::init");
                 return;
             }
-            system.Play();
+            playMode.Play(&scene, nullptr, &physics, &system);
             auto eval = [&](const char* code) { return Evaluate(system, code); };
             auto fails = [&](const char* code, const char* text) {
                 const String result = eval(code);

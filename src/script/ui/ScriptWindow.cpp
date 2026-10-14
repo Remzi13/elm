@@ -91,10 +91,6 @@ namespace elm::script {
 
     } // namespace
 
-    UniquePtr<IImGuiWindow> ScriptSystem::CreateEditorWindow(Settings& settings)
-    {
-        return MakeUnique<ScriptWindow>(settings, *this);
-    }
 
     ScriptWindow::ScriptWindow(Settings& settings, ScriptSystem& scripts)
         : IImGuiWindow(settings)

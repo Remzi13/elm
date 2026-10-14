@@ -134,30 +134,26 @@ namespace elm::script {
 
     } // namespace
 
-    InspectorWindow::InspectorWindow(Settings& settings, ScriptSystem& scripts)
+    InspectorWindow::InspectorWindow(Settings& settings, PlayModeController& playMode, ScriptSystem& scripts)
         : IImGuiWindow(settings)
+        , m_playMode(playMode)
         , m_scripts(scripts)
     {
-    }
-
-    UniquePtr<IImGuiWindow> ScriptSystem::CreateInspectorWindow(Settings& settings)
-    {
-        return MakeUnique<InspectorWindow>(settings, *this);
     }
 
     void InspectorWindow::OnAttach()
     {
         m_querySubscriptions.push_back(RegisterQuery<PlayControls>([this] {
-            return PlayControls { m_scripts.IsPlaying(), [this] { TogglePlay(); } };
+            return PlayControls { m_playMode.IsPlaying(), [this] { TogglePlay(); } };
         }));
     }
 
     void InspectorWindow::TogglePlay()
     {
-        if (m_scripts.IsPlaying())
-            m_scripts.RequestStop();
+        if (m_playMode.IsPlaying())
+            m_playMode.RequestStop();
         else
-            m_scripts.RequestPlay();
+            m_playMode.RequestPlay();
     }
 
     void InspectorWindow::Render(ImGuiWindowContext& context)
@@ -201,7 +197,7 @@ namespace elm::script {
 
     void InspectorWindow::DrawPlayBar()
     {
-        const bool playing = m_scripts.IsPlaying();
+        const bool playing = m_playMode.IsPlaying();
         if (ImGui::Button(playing ? "Stop" : "Play"))
             TogglePlay();
         if (ImGui::IsItemHovered())
@@ -245,7 +241,7 @@ namespace elm::script {
             ImGui::EndPopup();
         }
 
-        if (!m_scripts.IsPlaying()) {
+        if (!m_playMode.IsPlaying()) {
             ImGui::TextDisabled("Starts on Play");
         } else if (const auto* instance = m_scripts.FindEntityScript(node); instance && instance->faulted) {
             const String error = instance->error;
@@ -382,7 +378,7 @@ namespace elm::script {
         ImGui::SliderFloat("Restitution", &body.restitution, 0.0f, 1.0f, "%.2f");
 
         const auto* physics = m_scripts.Engine().physics;
-        if (m_scripts.IsPlaying() && physics) {
+        if (m_playMode.IsPlaying() && physics) {
             if (const auto velocity = physics->GetLinearVelocity(node))
                 ImGui::TextDisabled("Velocity %.2f, %.2f, %.2f", velocity->x, velocity->y, velocity->z);
             else

@@ -18,6 +18,7 @@
 
 #include "input/Input.hpp"
 
+#include "script/PlayModeController.hpp"
 #include "script/ScriptSystem.hpp"
 
 #include <thread>
@@ -56,6 +57,7 @@ namespace elm {
 		UniquePtr<PhysicsSystem> m_physicsSystem;
 		UniquePtr<InputSystem> m_inputSystem;
 		UniquePtr<script::ScriptSystem> m_scriptSystem;
+		PlayModeController m_playMode;
 
 		Camera m_camera;
 		CameraController m_cameraController;

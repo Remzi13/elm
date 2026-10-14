@@ -2,6 +2,8 @@
 #include "script/bindings/Components.hpp"
 #include "script/bindings/Entity.hpp"
 #include "script/bindings/ScriptValues.hpp"
+#include "script/PlayModeController.hpp"
+#include "script/ScriptSystem.hpp"
 
 #include "Scene/ScriptComponent.hpp"
 #include "core/AssetPaths.hpp"
@@ -568,10 +570,22 @@ namespace elm::script::bindings {
             return scene.nodes.size();
         }
 
-        // Play mode, applied at the start of the next update (ScriptSystem::Play)
-        void PlayScene(lua_State* L) { ScriptSystem::From(L).RequestPlay(); }
-        void StopScene(lua_State* L) { ScriptSystem::From(L).RequestStop(); }
-        bool IsPlaying(lua_State* L) { return ScriptSystem::From(L).IsPlaying(); }
+        // Play mode, applied at the start of the next update
+        void PlayScene(lua_State* L)
+        {
+            if (auto* playMode = Engine(L).playMode)
+                playMode->RequestPlay();
+        }
+        void StopScene(lua_State* L)
+        {
+            if (auto* playMode = Engine(L).playMode)
+                playMode->RequestStop();
+        }
+        bool IsPlaying(lua_State* L)
+        {
+            const auto* playMode = Engine(L).playMode;
+            return playMode && playMode->IsPlaying();
+        }
 
         void RegisterEngine(lua::State& state)
         {

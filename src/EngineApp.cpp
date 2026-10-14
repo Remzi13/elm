@@ -8,6 +8,9 @@
 #include "core/JobSystem.hpp"
 #include "core/Threading.hpp"
 
+#include "script/ui/ScriptWindow.hpp"
+#include "script/ui/InspectorWindow.hpp"
+
 #include <iostream>
 
 namespace elm {
@@ -94,13 +97,13 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         return MakeUnexpected(physicsInit.error());
     }
 
-    m_imguiSystem->AddWindow(m_scriptSystem->CreateEditorWindow(m_settings));
-    m_imguiSystem->AddWindow(m_scriptSystem->CreateInspectorWindow(m_settings));
+    m_imguiSystem->AddWindow(MakeUnique<script::ScriptWindow>(m_settings, *m_scriptSystem));
+    m_imguiSystem->AddWindow(MakeUnique<script::InspectorWindow>(m_settings, m_playMode, *m_scriptSystem));
 
     m_cullingSystem.Init(m_renderSystem->Resources(), m_settings);
 
     // The main module starts in Run, once the initial scene is loaded
-    m_scriptSystem->SetEngineContext({ &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get() });
+    m_scriptSystem->SetEngineContext({ &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get(), &m_playMode });
     if (auto scriptInit = m_scriptSystem->Init(); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, "EngineApp", "%s", scriptInit.error().message.c_str());
 
@@ -147,7 +150,7 @@ auto EngineApp::Run() -> EngineResult<void>
         (void)m_scriptSystem->Start(m_settings);
     // The engine starts in Edit mode: physics and entity scripts wait for Play
     if (m_settings.Get<bool>(Settings::Category::Script, script::ScriptSystem::PlayOnStartSetting, false))
-        m_scriptSystem->Play();
+        m_playMode.Play(&m_scene, &m_models, m_physicsSystem.get(), m_scriptSystem.get());
 
     // Start the render thread
     m_renderThread = std::thread(&EngineApp::RenderThreadFunc, this);
@@ -260,7 +263,7 @@ void EngineApp::FixedUpdate(float fixedDeltaTime)
 {
     ELM_PROFILE_SCOPE_N("FixedUpdate Physics Step");
     // Edit mode: the scene stands still
-    if (m_physicsSystem && m_scriptSystem->IsPlaying()) {
+    if (m_physicsSystem && m_playMode.IsPlaying()) {
         m_physicsSystem->Step(m_scene, fixedDeltaTime);
         m_scriptSystem->DispatchCollisionEvents(m_physicsSystem->CollisionEvents());
     }
@@ -270,6 +273,8 @@ void EngineApp::FixedUpdate(float fixedDeltaTime)
 void EngineApp::Update(float deltaTime)
 {
     ELM_PROFILE_SCOPE_N("Update Engine Logic");
+
+    m_playMode.ApplyPendingRequests(&m_scene, &m_models, m_physicsSystem.get(), m_scriptSystem.get());
 
     // Accumulate FPS statistics
     m_frameCounterTime += deltaTime;
@@ -317,6 +322,7 @@ void EngineApp::Shutdown()
         m_renderThread.join();
     }
 
+    m_playMode.Stop(&m_scene, &m_models, m_physicsSystem.get(), m_scriptSystem.get());
     // Scripts go first: they may still talk to the other systems in on_shutdown
     m_scriptSystem->Shutdown();
 
