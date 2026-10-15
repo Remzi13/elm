@@ -130,14 +130,14 @@ private:
     /// The body of a node when it is dynamic, InvalidBody otherwise.
     [[nodiscard]] uint32_t DynamicBodyOf(NodeId node) const;
 
-    std::unique_ptr<JPH::PhysicsSystem> m_physicsSystem;
-    std::unique_ptr<JPH::TempAllocatorImpl> m_tempAllocator;
-    std::unique_ptr<JPH::JobSystemThreadPool> m_jobSystem;
+    UniquePtr<JPH::PhysicsSystem> m_physicsSystem;
+    UniquePtr<JPH::TempAllocatorImpl> m_tempAllocator;
+    UniquePtr<JPH::JobSystemThreadPool> m_jobSystem;
 
-    std::unique_ptr<JPH::BroadPhaseLayerInterface> m_broadPhaseLayerInterface;
-    std::unique_ptr<JPH::ObjectVsBroadPhaseLayerFilter> m_objectVsBroadPhaseFilter;
-    std::unique_ptr<JPH::ObjectLayerPairFilter> m_objectLayerPairFilter;
-    std::unique_ptr<ContactQueue> m_contacts;
+    UniquePtr<JPH::BroadPhaseLayerInterface> m_broadPhaseLayerInterface;
+    UniquePtr<JPH::ObjectVsBroadPhaseLayerFilter> m_objectVsBroadPhaseFilter;
+    UniquePtr<JPH::ObjectLayerPairFilter> m_objectLayerPairFilter;
+    UniquePtr<ContactQueue> m_contacts;
 
     /// NodeId::Raw() -> the node's body.
     UnorderedMap<uint32_t, BodyLink> m_links;

@@ -16,7 +16,7 @@ namespace elm {
 		size_t index;
 	};
 
-	/// Provided by the Inspector (scripts): Edit or Play mode of the engine, see ScriptSystem::Play.
+	/// Provided by the Inspector (scripts): Edit or Play mode of the engine, see script::PlayMode.
 	struct PlayControls {
 		bool playing;
 		/// Play in Edit mode, Stop in Play mode; applied on the next update.

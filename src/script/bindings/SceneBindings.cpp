@@ -1,18 +1,15 @@
 #include "script/bindings/Bindings.hpp"
 #include "script/bindings/Components.hpp"
-#include "script/bindings/Entity.hpp"
-#include "script/bindings/ScriptValues.hpp"
+
+#include "script/entity/EntityScripts.hpp"
+#include "script/values/Entity.hpp"
+#include "script/values/ScriptValues.hpp"
 
 #include "Scene/ScriptComponent.hpp"
-#include "core/AssetPaths.hpp"
-#include "graphics/Camera.hpp"
 #include "graphics/ModelManager.hpp"
 #include "math/Rotation.hpp"
-#include "resmgr/GltfExporter.hpp"
-#include "resmgr/Serializer.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cstring>
 #include <functional>
 
@@ -25,9 +22,17 @@ namespace elm::script::bindings {
         using math::Vector3;
         using math::Vector4;
 
-        Scene& SceneOf(lua_State* L) { return RequireSystem(L, Engine(L).scene, "elm.scene"); }
-        graphics::ModelManager& ModelsOf(lua_State* L) { return RequireSystem(L, Engine(L).models, "elm.models"); }
-        Camera& CameraOf(lua_State* L) { return RequireSystem(L, Engine(L).camera, "elm.camera"); }
+        /// What elm.scene, the Entity class and the Script component reach.
+        struct SceneContext {
+            Scene* scene { nullptr };
+            graphics::ModelManager* models { nullptr };
+            EntityScripts* entityScripts { nullptr };
+        };
+
+        SceneContext& Context(lua_State* L) { return ContextOf<SceneContext>(L); }
+        Scene& SceneOf(lua_State* L) { return RequireSystem(L, Context(L).scene, "elm.scene"); }
+        graphics::ModelManager& ModelsOf(lua_State* L) { return RequireSystem(L, Context(L).models, "elm.models"); }
+        EntityScripts& ScriptsOf(lua_State* L) { return RequireSystem(L, Context(L).entityScripts, "entity scripts"); }
 
         // ── Entity ──────────────────────────────────────────────────────────────
 
@@ -45,7 +50,7 @@ namespace elm::script::bindings {
 
         bool IsValid(lua_State* L, const Entity& entity)
         {
-            const Scene* scene = Engine(L).scene;
+            const Scene* scene = Context(L).scene;
             return scene && scene->IndexOf(entity.id) != Scene::NoNode;
         }
 
@@ -199,7 +204,7 @@ namespace elm::script::bindings {
 
             // Scripts get on_destroy while their entities still exist. It may change the scene,
             // so the nodes are found again by id afterwards.
-            ScriptSystem::From(L).DestroyEntityScripts(doomedIds);
+            ScriptsOf(L).Destroy(doomedIds);
             Vector<size_t> indices;
             for (const NodeId id : doomedIds) {
                 if (const size_t index = scene.IndexOf(id); index != Scene::NoNode)
@@ -276,7 +281,7 @@ namespace elm::script::bindings {
         {
             ScriptComponent component = ReadScriptInit(L, init);
             SceneOf(L).Components<ScriptComponent>().Emplace(node, std::move(component));
-            if (auto made = ScriptSystem::From(L).PushEntityScript(node, false); !made) {
+            if (auto made = ScriptsOf(L).PushNew(node); !made) {
                 SceneOf(L).Components<ScriptComponent>().Remove(node);
                 luaL_error(L, "%s", made.error().message.c_str());
             }
@@ -285,7 +290,7 @@ namespace elm::script::bindings {
             return instance;
         }
 
-        void EndScript(lua_State* L, NodeId node) { ScriptSystem::From(L).DestroyEntityScripts({ &node, 1 }); }
+        void EndScript(lua_State* L, NodeId node) { ScriptsOf(L).Destroy({ &node, 1 }); }
 
         constexpr ComponentKind ScriptKind { "Script", &FindStore<ScriptComponent>, &StoreOf<ScriptComponent>, &AddScript, &EndScript };
 
@@ -337,7 +342,7 @@ namespace elm::script::bindings {
         lua::Ref GetScript(lua_State* L, const Entity& entity)
         {
             IndexOf(L, entity);
-            if (auto pushed = ScriptSystem::From(L).PushEntityScript(entity.id); !pushed)
+            if (auto pushed = ScriptsOf(L).Push(entity.id); !pushed)
                 luaL_error(L, "%s: %s", EntityToString(L, entity).c_str(), pushed.error().message.c_str());
             lua::Ref instance(L, -1);
             lua_pop(L, 1);
@@ -442,196 +447,20 @@ namespace elm::script::bindings {
             return found;
         }
 
-        // ── Model, elm.models ───────────────────────────────────────────────────
-
-        const graphics::Model& ModelOf(lua_State* L, const ModelRef& model)
-        {
-            const auto* found = ModelsOf(L).Get(model.handle);
-            if (!found)
-                luaL_error(L, "the model was removed");
-            return *found;
-        }
-
-        bool IsModelValid(lua_State* L, const ModelRef& model)
-        {
-            const auto* models = Engine(L).models;
-            return models && models->Get(model.handle);
-        }
-
-        ModelRef Insert(lua_State* L, graphics::Model model) { return { ModelsOf(L).Insert(std::move(model)) }; }
-
-        ModelRef MakePrimitive(lua_State* L, const char* name, MeshData mesh)
-        {
-            graphics::Model model { String(name) };
-            model.AddSubmesh(std::move(mesh));
-            return Insert(L, std::move(model));
-        }
-
-        ModelRef Cube(lua_State* L, std::optional<float> size)
-        {
-            return MakePrimitive(L, "Cube", GeometryPrimitives::CreateCube(size.value_or(1.0f)));
-        }
-        ModelRef Box(lua_State* L, const Vector3& halfExtents) { return MakePrimitive(L, "Box", GeometryPrimitives::CreateBox(halfExtents)); }
-        ModelRef Plane(lua_State* L, float sizeX, float sizeZ)
-        {
-            return MakePrimitive(L, "Plane", GeometryPrimitives::CreateGroundPlane(sizeX, sizeZ));
-        }
-
-        /// A .model or .gltf file; a relative path starts at the assets folder.
-        EngineResult<ModelRef> Load(lua_State* L, StringView file)
-        {
-            ModelsOf(L);
-            const Path relative(file);
-            const Path path = relative.IsAbsolute() ? relative : AssetPaths::Root() / relative;
-            const bool gltf = path.Extension().string() == ".gltf";
-            auto model = gltf ? resmgr::GltfExporter::LoadModel(path) : resmgr::Serializer::LoadModel(path);
-            if (!model)
-                return MakeUnexpected(model.error());
-            return Insert(L, std::move(*model));
-        }
-
-        std::optional<ModelRef> FindModel(lua_State* L, StringView name)
-        {
-            std::optional<ModelRef> found;
-            ModelsOf(L).ForEach([&](graphics::ModelHandler handle, const graphics::Model& model) {
-                if (!found && model.name == name)
-                    found = ModelRef { handle };
-            });
-            return found;
-        }
-
-        void RegisterModels(lua::State& state)
-        {
-            lua::Module module(state, "elm.models");
-            module
-                .Function<&Cube>("cube", { "size" })
-                .Function<&Box>("box", { "half_extents" })
-                .Function<&Plane>("plane", { "size_x", "size_z" })
-                .Function<&Load>("load", { "path" })
-                .Function<&FindModel>("find", { "name" });
-
-            lua::Class<ModelRef>(module, "Model")
-                .Property<&IsModelValid>("valid")
-                .Property<[](lua_State* L, const ModelRef& model) { return ModelOf(L, model).name; }>("name")
-                .Property<[](lua_State* L, const ModelRef& model) { return ModelOf(L, model).submeshes.size(); }>("submesh_count")
-                .Meta<[](lua_State* L, const ModelRef& model) {
-                    return IsModelValid(L, model) ? "Model(" + ModelOf(L, model).name + ")" : String("Model(removed)");
-                }>("__tostring");
-        }
-
-        // ── elm.engine: scene commands, the same as the Scene Hierarchy window ──
-
-        /// Replaces the scene and all models with a built-in test scene (0 Box, 1 WallAndGrid,
-        /// 2 RoomsAndCorridors, 3 PhysicsSandbox).
-        void LoadTestScene(lua_State* L, uint32_t preset, std::optional<uint32_t> instances)
-        {
-            if (preset > static_cast<uint32_t>(ScenePreset::PhysicsSandbox))
-                luaL_argerror(L, 1, "preset must be 0..3");
-            ScriptSystem::From(L).DestroyAllEntityScripts();
-            TestScenes::BuildScene(static_cast<ScenePreset>(preset), instances.value_or(1500), SceneOf(L), ModelsOf(L));
-        }
-
-        /// Removes every node and model; entity scripts get on_destroy first.
-        void ClearScene(lua_State* L)
-        {
-            SceneOf(L);
-            ScriptSystem::From(L).DestroyAllEntityScripts();
-            SceneOf(L).Clear();
-            if (auto* models = Engine(L).models)
-                models->Clear();
-        }
-
-        /// A relative scene file is taken from assets/scenes.
-        Path ScenePath(StringView file)
-        {
-            const Path path(file);
-            return path.IsAbsolute() ? path : AssetPaths::Scenes() / path;
-        }
-
-        EngineResult<void> SaveScene(lua_State* L, StringView file)
-        {
-            return resmgr::Serializer::SaveScene(SceneOf(L), ModelsOf(L), ScenePath(file), AssetPaths::Models());
-        }
-
-        /// Replaces the scene with a scene file; returns how many nodes it has.
-        EngineResult<size_t> LoadScene(lua_State* L, StringView file)
-        {
-            auto& scene = SceneOf(L);
-            auto& models = ModelsOf(L);
-            auto loaded = resmgr::Serializer::LoadScene(ScenePath(file));
-            if (!loaded)
-                return MakeUnexpected(loaded.error());
-            ScriptSystem::From(L).DestroyAllEntityScripts();
-            scene.Clear();
-            models.Clear();
-            scene.Append(std::move(*loaded), models);
-            return scene.nodes.size();
-        }
-
-        // Play mode, applied at the start of the next update (ScriptSystem::Play)
-        void PlayScene(lua_State* L) { ScriptSystem::From(L).RequestPlay(); }
-        void StopScene(lua_State* L) { ScriptSystem::From(L).RequestStop(); }
-        bool IsPlaying(lua_State* L) { return ScriptSystem::From(L).IsPlaying(); }
-
-        void RegisterEngine(lua::State& state)
-        {
-            lua::Module(state, "elm.engine")
-                .Function<&LoadTestScene>("load_test_scene", { "preset", "instances" })
-                .Function<&ClearScene>("clear_scene")
-                .Function<&SaveScene>("save_scene", { "file" })
-                .Function<&LoadScene>("load_scene", { "file" })
-                .Function<&PlayScene>("play")
-                .Function<&StopScene>("stop")
-                .Function<&IsPlaying>("is_playing");
-        }
-
-        // ── elm.camera ──────────────────────────────────────────────────────────
-
-        /// yaw and pitch that look along a direction (Camera: forward = (sin yaw cos pitch, sin pitch, cos yaw cos pitch)).
-        void LookAt(lua_State* L, const Vector3& target)
-        {
-            auto& camera = CameraOf(L);
-            const Vector3 direction = (target - camera.GetPosition()).Normalized();
-            if (direction.Length() == 0.0f)
-                return;
-            camera.SetOrientation(std::atan2(direction.x, direction.z), std::asin(direction.y));
-        }
-
-        void RegisterCamera(lua::State& state)
-        {
-            lua::Module(state, "elm.camera")
-                .Function<[](lua_State* L) { return CameraOf(L).GetPosition(); }>("position")
-                .Function<[](lua_State* L, const Vector3& position) { CameraOf(L).SetPosition(position); }>("set_position", { "position" })
-                .Function<[](lua_State* L, const Vector3& offset) { CameraOf(L).Translate(offset); }>("translate", { "offset" })
-                .Function<[](lua_State* L) { return CameraOf(L).GetForwardDirection(); }>("forward")
-                .Function<[](lua_State* L) { return CameraOf(L).GetRightDirection(); }>("right")
-                .Function<[](lua_State* L) { return CameraOf(L).GetYaw(); }>("yaw")
-                .Function<[](lua_State* L) { return CameraOf(L).GetPitch(); }>("pitch")
-                .Function<[](lua_State* L, float yaw, float pitch) { CameraOf(L).SetOrientation(yaw, pitch); }>("set_orientation", { "yaw", "pitch" })
-                .Function<[](lua_State* L, float yaw, float pitch) { CameraOf(L).Rotate(yaw, pitch); }>("rotate", { "yaw", "pitch" })
-                .Function<&LookAt>("look_at", { "target" })
-                .Function<[](lua_State* L) { return CameraOf(L).fovRadians; }>("fov")
-                .Function<[](lua_State* L, float radians) { CameraOf(L).fovRadians = radians; }>("set_fov", { "radians" });
-        }
-
     } // namespace
 
-    void RegisterScene(lua::State& state)
+    void RegisterScene(lua::State& state, Scene* scene, graphics::ModelManager* models, EntityScripts& entityScripts)
     {
-        {
-            lua::Module module(state, "elm.scene");
-            module
-                .Function<&Spawn>("spawn", { "name", "model", "parent" })
-                .Function<&Find>("find", { "name" })
-                .Function<&FindAll>("find_all", { "name" })
-                .Function<&All>("all")
-                .Function<&Count>("count")
-                .Function<&With>("with", { "type" });
-            RegisterEntity(module);
-        }
-        RegisterModels(state);
-        RegisterCamera(state);
-        RegisterEngine(state);
+        state.SetContext(SceneContext { scene, models, &entityScripts });
+        lua::Module module(state, "elm.scene");
+        module
+            .Function<&Spawn>("spawn", { "name", "model", "parent" })
+            .Function<&Find>("find", { "name" })
+            .Function<&FindAll>("find_all", { "name" })
+            .Function<&All>("all")
+            .Function<&Count>("count")
+            .Function<&With>("with", { "type" });
+        RegisterEntity(module);
     }
 
 } // namespace elm::script::bindings

@@ -1,3 +1,5 @@
+#include "script/PlayMode.hpp"
+
 #include "script/ScriptSystem.hpp"
 
 #include "Scene/SceneSnapshot.hpp"
@@ -5,46 +7,71 @@
 #include "core/Log.hpp"
 #include "physics/PhysicsSystem.hpp"
 
+#include <utility>
+
 namespace elm::script {
 
     namespace {
 
-        constexpr const char* LogSource = "ScriptSystem";
+        constexpr const char* LogSource = "PlayMode";
 
     } // namespace
 
-    void ScriptSystem::Play()
+    PlayMode::PlayMode(Scene& scene, graphics::ModelManager* models, PhysicsSystem* physics, ScriptSystem& scripts) noexcept
+        : m_scene(scene)
+        , m_models(models)
+        , m_physics(physics)
+        , m_scripts(scripts)
+    {
+    }
+
+    PlayMode::~PlayMode() = default;
+
+    void PlayMode::RegisterSettings(Settings& settings)
+    {
+        settings.Register(Settings::Category::Script, PlayOnStartSetting, "Start in Play mode", false);
+    }
+
+    void PlayMode::Play()
     {
         if (m_playing)
             return;
         ELM_ASSERT_THREAD(Update);
-        if (m_engine.scene)
-            m_snapshot = MakeUnique<SceneSnapshot>(SceneSnapshot::Take(*m_engine.scene, m_engine.models));
+        m_snapshot = MakeUnique<SceneSnapshot>(SceneSnapshot::Take(m_scene, m_models));
         m_playing = true;
         LOG_MESSAGE(log::Category::Script, LogSource, "Play: entity scripts and physics run, Stop brings the scene back");
-        // The entity scripts start on the next Update
-        CallHook("on_play", 0.0f, false);
+        // The entity scripts start on the next update
+        m_scripts.OnPlay();
     }
 
-    void ScriptSystem::Stop()
+    void PlayMode::Stop()
     {
         if (!m_playing)
             return;
         ELM_ASSERT_THREAD(Update);
-        ELM_ASSERT(m_entityPassDepth == 0 && "Stop from inside a Lua call: use RequestStop");
-
         // The scripts end while the scene they played in is still there
-        DestroyAllEntityScripts();
-        CallHook("on_stop", 0.0f, false);
+        m_scripts.OnStop();
         m_playing = false;
-        // Instances made by those calls go too: none runs in Edit mode
-        ReleaseEntityScripts();
-        if (m_engine.physics)
-            m_engine.physics->Clear();
-        if (m_snapshot && m_engine.scene)
-            std::move(*m_snapshot).Restore(*m_engine.scene, m_engine.models);
+        if (m_physics)
+            m_physics->Clear();
+        if (m_snapshot)
+            std::move(*m_snapshot).Restore(m_scene, m_models);
         m_snapshot.reset();
         LOG_MESSAGE(log::Category::Script, LogSource, "Stop: the scene is back as Play found it");
+    }
+
+    void PlayMode::ApplyRequest()
+    {
+        const Request request = std::exchange(m_request, Request::None);
+        if (request == Request::Play)
+            Play();
+        else if (request == Request::Stop)
+            Stop();
+    }
+
+    PlayRequests PlayMode::Requests()
+    {
+        return { [this] { RequestPlay(); }, [this] { RequestStop(); }, [this] { return IsPlaying(); } };
     }
 
 } // namespace elm::script

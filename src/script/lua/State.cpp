@@ -31,23 +31,43 @@ namespace elm::script::lua {
 
     State::State()
     {
+        Open();
+    }
+
+    State::~State()
+    {
+        Close();
+    }
+
+    State& State::From(lua_State* L) noexcept
+    {
+        return **static_cast<State**>(lua_getextraspace(L));
+    }
+
+    void State::Reset()
+    {
+        Close();
+        Open();
+    }
+
+    void State::Close() noexcept
+    {
+        if (m_state)
+            lua_close(m_state);
+        m_state = nullptr;
+        m_contexts.clear();
+        m_api = { };
+    }
+
+    void State::Open()
+    {
+        ELM_ASSERT(m_state == nullptr && "Close the Lua state before opening another one");
         m_state = lua_newstate(&State::Allocate, nullptr);
         ELM_ASSERT(m_state != nullptr);
         *static_cast<State**>(lua_getextraspace(m_state)) = this;
         lua_atpanic(m_state, &State::Panic);
         // Frame-sized pauses: scripts allocate small temporaries every frame
         lua_gc(m_state, LUA_GCGEN, 0, 0);
-    }
-
-    State::~State()
-    {
-        if (m_state)
-            lua_close(m_state);
-    }
-
-    State& State::From(lua_State* L) noexcept
-    {
-        return **static_cast<State**>(lua_getextraspace(L));
     }
 
     void State::OpenLibraries()
@@ -123,6 +143,16 @@ namespace elm::script::lua {
         if (auto loaded = Load(code, chunkName); !loaded)
             return loaded;
         return ProtectedCall(0, 0);
+    }
+
+    auto State::InstallHelper(const char* key, StringView source) -> EngineResult<void>
+    {
+        if (auto loaded = Load(source, "=engine"); !loaded)
+            return loaded;
+        if (auto ran = ProtectedCall(0, 1); !ran)
+            return ran;
+        lua_setfield(m_state, LUA_REGISTRYINDEX, key);
+        return { };
     }
 
     size_t State::MemoryUsage() const noexcept

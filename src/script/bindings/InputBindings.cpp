@@ -8,7 +8,12 @@ namespace elm::script::bindings {
 
     namespace {
 
-        InputSystem& Input(lua_State* L) { return RequireSystem(L, Engine(L).input, "elm.input"); }
+        /// What elm.input reaches.
+        struct InputContext {
+            InputSystem* input { nullptr };
+        };
+
+        InputSystem& Input(lua_State* L) { return RequireSystem(L, ContextOf<InputContext>(L).input, "elm.input"); }
 
         bool IsDown(lua_State* L, Key key) { return Input(L).IsKeyDown(key); }
         bool IsPressed(lua_State* L, Key key) { return Input(L).IsKeyPressed(key); }
@@ -68,8 +73,9 @@ namespace elm::script::bindings {
 
     } // namespace
 
-    void RegisterInput(lua::State& state)
+    void RegisterInput(lua::State& state, InputSystem* input)
     {
+        state.SetContext(InputContext { input });
         lua::Module(state, "elm.input")
             .Function<&IsDown>("is_down", { "key" })
             .Function<&IsPressed>("is_pressed", { "key" })

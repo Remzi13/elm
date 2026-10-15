@@ -6,6 +6,10 @@
 #include "graphics/ui/WindowMessages.hpp"
 #include "physics/PhysicsSystem.hpp"
 #include "script/bindings/Components.hpp"
+#include "script/entity/EntityScripts.hpp"
+#include "script/entity/ScriptDefaults.hpp"
+#include "script/module/ModulePaths.hpp"
+#include "script/reload/HotReload.hpp"
 
 #include "imgui.h"
 
@@ -134,30 +138,34 @@ namespace elm::script {
 
     } // namespace
 
-    InspectorWindow::InspectorWindow(Settings& settings, ScriptSystem& scripts)
+    InspectorWindow::InspectorWindow(Settings& settings, const InspectorWindowDesc& desc)
         : IImGuiWindow(settings)
-        , m_scripts(scripts)
+        , m_entityScripts(desc.entityScripts)
+        , m_defaults(desc.defaults)
+        , m_paths(desc.paths)
+        , m_hotReload(desc.hotReload)
+        , m_play(desc.play)
+        , m_physics(desc.physics)
     {
-    }
-
-    UniquePtr<IImGuiWindow> ScriptSystem::CreateInspectorWindow(Settings& settings)
-    {
-        return MakeUnique<InspectorWindow>(settings, *this);
     }
 
     void InspectorWindow::OnAttach()
     {
         m_querySubscriptions.push_back(RegisterQuery<PlayControls>([this] {
-            return PlayControls { m_scripts.IsPlaying(), [this] { TogglePlay(); } };
+            return PlayControls { IsPlaying(), [this] { TogglePlay(); } };
         }));
     }
 
     void InspectorWindow::TogglePlay()
     {
-        if (m_scripts.IsPlaying())
-            m_scripts.RequestStop();
-        else
-            m_scripts.RequestPlay();
+        const auto& request = IsPlaying() ? m_play.stop : m_play.play;
+        if (request)
+            request();
+    }
+
+    bool InspectorWindow::IsPlaying() const
+    {
+        return m_play.isPlaying && m_play.isPlaying();
     }
 
     void InspectorWindow::Render(ImGuiWindowContext& context)
@@ -201,7 +209,7 @@ namespace elm::script {
 
     void InspectorWindow::DrawPlayBar()
     {
-        const bool playing = m_scripts.IsPlaying();
+        const bool playing = IsPlaying();
         if (ImGui::Button(playing ? "Stop" : "Play"))
             TogglePlay();
         if (ImGui::IsItemHovered())
@@ -221,7 +229,7 @@ namespace elm::script {
         bool open = false;
         if (ComponentHeader("Script", open)) {
             // The instance ends first, as with entity:remove("Script")
-            m_scripts.DestroyEntityScripts({ &node, 1 });
+            m_entityScripts.Destroy({ &node, 1 });
             scene.Components<ScriptComponent>().Remove(node);
             return;
         }
@@ -233,7 +241,7 @@ namespace elm::script {
             scene.Components<ScriptComponent>().Find(node)->module = module;
         ImGui::SameLine();
         if (ImGui::SmallButton("...")) {
-            m_modules = m_scripts.ListModules();
+            m_modules = m_paths.List();
             m_moduleFilter.fill('\0');
             ImGui::OpenPopup("PickModule");
         }
@@ -245,9 +253,9 @@ namespace elm::script {
             ImGui::EndPopup();
         }
 
-        if (!m_scripts.IsPlaying()) {
+        if (!IsPlaying()) {
             ImGui::TextDisabled("Starts on Play");
-        } else if (const auto* instance = m_scripts.FindEntityScript(node); instance && instance->faulted) {
+        } else if (const auto* instance = m_entityScripts.Find(node); instance && instance->faulted) {
             const String error = instance->error;
             const String instanceModule = instance->module;
             ImGui::TextColored(ErrorColor, "Stopped by an error until a module reloads");
@@ -255,7 +263,7 @@ namespace elm::script {
             ImGui::TextWrapped("%s", error.c_str());
             ImGui::PopStyleColor();
             if (ImGui::SmallButton("Reload module"))
-                (void)m_scripts.ReloadModule(instanceModule);
+                (void)m_hotReload.Reload(instanceModule);
         } else if (instance && instance->started) {
             ImGui::TextColored(OkColor, "Running");
         } else {
@@ -268,17 +276,17 @@ namespace elm::script {
 
     void InspectorWindow::DrawProps(Scene& scene, NodeId node, const String& module)
     {
-        const auto& defaults = m_scripts.ScriptDefaults(module);
+        const auto& defaults = m_defaults.Get(module);
         if (!defaults) {
             ImGui::PushStyleColor(ImGuiCol_Text, ErrorColor);
             ImGui::TextWrapped("%s", defaults.error().message.c_str());
             ImGui::PopStyleColor();
             if (ImGui::SmallButton("Try again"))
-                m_scripts.ForgetScriptDefaults();
+                m_defaults.Forget();
             return;
         }
         // Loading the module ran its code, which may have changed the scene: the component is looked up again
-        const ScriptSystem::ScriptProps props = *defaults;
+        const ScriptProps props = *defaults;
         if (props.empty())
             ImGui::TextDisabled("The script has no props");
 
@@ -297,13 +305,13 @@ namespace elm::script {
                 ImGui::PopStyleColor();
             if (changed) {
                 SetOverride(*script, name, value);
-                m_scripts.SetEntityScriptField(node, name, value);
+                m_entityScripts.SetField(node, name, value);
             }
             if (overridden) {
                 ImGui::SameLine();
                 if (ImGui::SmallButton("Reset")) {
                     RemoveOverride(*script, name);
-                    m_scripts.SetEntityScriptField(node, name, fallback);
+                    m_entityScripts.SetField(node, name, fallback);
                 }
                 if (ImGui::IsItemHovered())
                     ImGui::SetTooltip("Take the value of the script again");
@@ -381,8 +389,8 @@ namespace elm::script {
         ImGui::DragFloat("Friction", &body.friction, 0.01f, 0.0f, 10.0f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
         ImGui::SliderFloat("Restitution", &body.restitution, 0.0f, 1.0f, "%.2f");
 
-        const auto* physics = m_scripts.Engine().physics;
-        if (m_scripts.IsPlaying() && physics) {
+        const auto* physics = m_physics;
+        if (IsPlaying() && physics) {
             if (const auto velocity = physics->GetLinearVelocity(node))
                 ImGui::TextDisabled("Velocity %.2f, %.2f, %.2f", velocity->x, velocity->y, velocity->z);
             else
@@ -439,7 +447,7 @@ namespace elm::script {
         Scene& scene = context.scene;
         ImGui::Separator();
         if (ImGui::Button("Add Component")) {
-            m_modules = m_scripts.ListModules();
+            m_modules = m_paths.List();
             m_moduleFilter.fill('\0');
             ImGui::OpenPopup("AddComponent");
         }

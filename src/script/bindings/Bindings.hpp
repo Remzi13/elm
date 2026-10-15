@@ -1,21 +1,63 @@
 #pragma once
 
-#include "script/ScriptSystem.hpp"
+#include "script/EngineContext.hpp"
+#include "script/lua/Bind.hpp"
+
+#include <functional>
+
+namespace elm::script {
+    class EntityScripts;
+    class HotReload;
+    class ModuleLoader;
+}
 
 namespace elm::script::bindings {
 
-    /// Registers every engine module: elm.log, elm.time, elm.settings, elm.math, elm.input,
-    /// elm.scene, elm.models, elm.camera, elm.physics; print goes to the engine log.
-    void RegisterAll(lua::State& state);
+    // Each Register* adds one engine module to a Lua state with only the systems that module reaches,
+    // kept in the state as the module's own context. A missing system (tools, tests) makes the
+    // functions that need it raise a Lua error.
 
-    void RegisterCore(lua::State& state);
+    /// elm.log and print: lines go to the engine log with the file and line of the caller.
+    void RegisterLog(lua::State& state);
+    /// elm.time: the frame timing its owner updates.
+    void RegisterTime(lua::State& state, const ScriptTime& time);
+    /// elm.settings: get and set by "Category/path".
+    void RegisterSettingsModule(lua::State& state, Settings* settings);
+    /// elm.script: reloads, restarts, persist, memory.
+    void RegisterScriptModule(lua::State& state, ModuleLoader& modules, HotReload& hotReload, std::function<void()> requestRestart);
     void RegisterMath(lua::State& state);
-    void RegisterInput(lua::State& state);
-    void RegisterScene(lua::State& state);
-    void RegisterPhysics(lua::State& state);
+    void RegisterInput(lua::State& state, InputSystem* input);
+    /// elm.scene, the Entity class and the Script component.
+    void RegisterScene(lua::State& state, Scene* scene, graphics::ModelManager* models, EntityScripts& entityScripts);
+    /// elm.models and the Model class.
+    void RegisterModels(lua::State& state, graphics::ModelManager* models);
+    void RegisterCamera(lua::State& state, Camera* camera);
+    /// elm.physics, the RigidBody and Collider components.
+    void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, graphics::ModelManager* models);
 
-    /// An engine system from the script context; raises a Lua error when the engine
-    /// runs without it (tools, tests).
+    /// What elm.engine reaches: the scene and its models, the entity scripts that end before the
+    /// scene is replaced, and the Play/Stop requests.
+    struct EngineModuleContext {
+        Scene* scene { nullptr };
+        graphics::ModelManager* models { nullptr };
+        EntityScripts* entityScripts { nullptr };
+        PlayRequests play;
+    };
+    /// elm.engine: scene commands, the same as in the Scene Hierarchy window, and Play/Stop.
+    void RegisterEngine(lua::State& state, EngineModuleContext context);
+
+    /// The context a binding module registered (lua::State::SetContext); a Lua error without it.
+    template <typename T>
+    [[nodiscard]] T& ContextOf(lua_State* L)
+    {
+        T* context = lua::State::Context<T>(L);
+        if (!context)
+            luaL_error(L, "this engine module is not registered here");
+        return *context;
+    }
+
+    /// An engine system from a binding context; raises a Lua error when the engine runs
+    /// without it (tools, tests).
     template <typename T>
     T& RequireSystem(lua_State* L, T* system, const char* name)
     {
@@ -23,7 +65,5 @@ namespace elm::script::bindings {
             luaL_error(L, "%s is not available here", name);
         return *system;
     }
-
-    [[nodiscard]] inline const EngineContext& Engine(lua_State* L) noexcept { return ScriptSystem::From(L).Engine(); }
 
 } // namespace elm::script::bindings

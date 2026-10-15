@@ -18,6 +18,7 @@
 
 #include "input/Input.hpp"
 
+#include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
 
 #include <thread>
@@ -63,6 +64,8 @@ namespace elm {
 		graphics::ModelManager m_models;
 		Settings m_settings;
 		render::ViewPort m_engineViewPort;
+		/// Edit or Play: physics steps and entity scripts run only in Play.
+		script::PlayMode m_playMode;
 
 		bool m_isRunning{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step

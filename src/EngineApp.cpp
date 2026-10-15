@@ -20,6 +20,7 @@ EngineApp::EngineApp()
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
     , m_cameraController(m_camera)
     , m_models(m_renderSystem->Resources())
+    , m_playMode(m_scene, &m_models, m_physicsSystem.get(), *m_scriptSystem)
 {
 }
 
@@ -36,6 +37,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     FileSystem::RegisterSettings(m_settings);
     m_cullingSystem.RegisterSettings(m_settings);
     script::ScriptSystem::RegisterSettings(m_settings);
+    script::PlayMode::RegisterSettings(m_settings);
     const Path settingsPath = Settings::DefaultFilePath();
     if (auto loadedSettings = m_settings.Load(settingsPath); !loadedSettings)
         return MakeUnexpected(loadedSettings.error());
@@ -94,15 +96,15 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         return MakeUnexpected(physicsInit.error());
     }
 
-    m_imguiSystem->AddWindow(m_scriptSystem->CreateEditorWindow(m_settings));
-    m_imguiSystem->AddWindow(m_scriptSystem->CreateInspectorWindow(m_settings));
-
     m_cullingSystem.Init(m_renderSystem->Resources(), m_settings);
 
     // The main module starts in Run, once the initial scene is loaded
-    m_scriptSystem->SetEngineContext({ &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get() });
-    if (auto scriptInit = m_scriptSystem->Init(); !scriptInit)
+    const script::EngineContext scriptEngine { &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get(),
+        m_playMode.Requests() };
+    if (auto scriptInit = m_scriptSystem->Init(scriptEngine); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, "EngineApp", "%s", scriptInit.error().message.c_str());
+    for (auto& window : m_scriptSystem->CreateEditorWindows(m_settings))
+        m_imguiSystem->AddWindow(std::move(window));
 
     m_isRunning = true;
     
@@ -146,8 +148,8 @@ auto EngineApp::Run() -> EngineResult<void>
     if (m_scriptSystem->IsInitialized())
         (void)m_scriptSystem->Start(m_settings);
     // The engine starts in Edit mode: physics and entity scripts wait for Play
-    if (m_settings.Get<bool>(Settings::Category::Script, script::ScriptSystem::PlayOnStartSetting, false))
-        m_scriptSystem->Play();
+    if (m_settings.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting, false))
+        m_playMode.Play();
 
     // Start the render thread
     m_renderThread = std::thread(&EngineApp::RenderThreadFunc, this);
@@ -260,11 +262,12 @@ void EngineApp::FixedUpdate(float fixedDeltaTime)
 {
     ELM_PROFILE_SCOPE_N("FixedUpdate Physics Step");
     // Edit mode: the scene stands still
-    if (m_physicsSystem && m_scriptSystem->IsPlaying()) {
+    std::span<const CollisionEvent> collisions;
+    if (m_physicsSystem && m_playMode.IsPlaying()) {
         m_physicsSystem->Step(m_scene, fixedDeltaTime);
-        m_scriptSystem->DispatchCollisionEvents(m_physicsSystem->CollisionEvents());
+        collisions = m_physicsSystem->CollisionEvents();
     }
-    m_scriptSystem->FixedUpdate(fixedDeltaTime);
+    m_scriptSystem->FixedUpdate(fixedDeltaTime, collisions);
 }
 
 void EngineApp::Update(float deltaTime)
@@ -287,6 +290,8 @@ void EngineApp::Update(float deltaTime)
 
     m_inputSystem->Update();
 
+    // Play/Stop asked for by scripts and windows since the last update
+    m_playMode.ApplyRequest();
     m_scriptSystem->Update(deltaTime);
     // Scripts move nodes through local transforms
     m_scene.UpdateWorldTransforms();

@@ -1,6 +1,15 @@
 #include "script/SelfTest.hpp"
 
+#include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
+#include "script/console/ScriptConsole.hpp"
+#include "script/entity/EntityScripts.hpp"
+#include "script/entity/ScriptDefaults.hpp"
+#include "script/lua/Bind.hpp"
+#include "script/module/MainModule.hpp"
+#include "script/module/ModuleLoader.hpp"
+#include "script/module/ModulePaths.hpp"
+#include "script/reload/HotReload.hpp"
 #include "script/ui/LuaHighlighter.hpp"
 #include "script/ui/ScriptEditor.hpp"
 
@@ -24,6 +33,19 @@
 #include <stdexcept>
 
 namespace elm::script {
+
+    /// The self-tests check the parts of a ScriptSystem directly: they are its friend.
+    struct SelfTestAccess {
+        static lua::State& State(ScriptSystem& system) { return system.m_state; }
+        static const ModulePaths& Paths(ScriptSystem& system) { return *system.m_modulePaths; }
+        static ModuleLoader& Loader(ScriptSystem& system) { return *system.m_moduleLoader; }
+        static MainModule& Main(ScriptSystem& system) { return *system.m_mainModule; }
+        static HotReload& Reload(ScriptSystem& system) { return *system.m_hotReload; }
+        static ScriptDefaults& Defaults(ScriptSystem& system) { return *system.m_scriptDefaults; }
+        static EntityScripts& Entities(ScriptSystem& system) { return *system.m_entityScripts; }
+        static ScriptConsole& Console(ScriptSystem& system) { return *system.m_console; }
+        static void RequestRestart(ScriptSystem& system) { system.m_restartRequested = true; }
+    };
 
     namespace {
 
@@ -213,7 +235,7 @@ namespace elm::script {
 
         void RunNativeTests(ScriptSystem& system, Report& report)
         {
-            auto& state = system.GetState();
+            auto& state = SelfTestAccess::State(system);
             lua_State* L = state;
             const int top = lua_gettop(L);
 
@@ -259,6 +281,11 @@ namespace elm::script {
                 const auto result = state.Run("local x = ", "=syntax");
                 report.Check(!result && result.error().message.find("syntax") != String::npos, "native::syntax_error_reported");
             }
+            {
+                // The console's print outside a console command only logs
+                const auto result = state.Run("local keep = print keep('print outside a command')", "=native");
+                report.Check(result.has_value(), "native::print_outside_a_command");
+            }
 
             const String meta = state.Api().GenerateLuaMeta();
             report.Check(meta.find("---@class TestVector") != String::npos
@@ -270,6 +297,33 @@ namespace elm::script {
 
             report.Check(state.MemoryUsage() > 0, "native::memory_is_tracked");
             report.Check(lua_gettop(L) == top, "native::stack_balanced");
+        }
+
+        // ── Lua state ───────────────────────────────────────────────────────────
+
+        void RunStateTests(Report& report)
+        {
+            struct First {
+                int value { 0 };
+            };
+            struct Second {
+                int value { 0 };
+            };
+            lua::State state;
+            state.SetContext(First { 1 });
+            state.SetContext(Second { 2 });
+            state.SetContext(First { 3 });
+            report.Check(lua::State::Context<First>(state)->value == 3 && lua::State::Context<Second>(state)->value == 2,
+                "state::contexts_by_type");
+
+            lua::Module(state, "elm_reset").Value("answer", 42);
+            state.Reset();
+            const bool empty = state.IsOpen() && !lua::State::Context<First>(state) && state.Api().Modules().empty()
+                && lua_getglobal(state, "elm_reset") == LUA_TNIL;
+            lua_settop(state, 0);
+            report.Check(empty, "state::reset_opens_an_empty_state");
+            state.Close();
+            report.Check(!state.IsOpen(), "state::close");
         }
 
         // ── Scene node ids ──────────────────────────────────────────────────────
@@ -416,13 +470,13 @@ namespace elm::script {
 
         String Evaluate(ScriptSystem& system, const char* code)
         {
-            auto result = system.Execute(code);
+            auto result = SelfTestAccess::Console(system).Execute(code);
             return result ? *result : "error: " + result.error().message;
         }
 
-        const ScriptSystem::LoadedModule* Loaded(ScriptSystem& system, StringView name)
+        const LoadedModule* Loaded(ScriptSystem& system, StringView name)
         {
-            for (const auto& module : system.LoadedModules()) {
+            for (const auto& module : SelfTestAccess::Loader(system).LoadedModules()) {
                 if (module.name == name)
                     return &module;
             }
@@ -442,14 +496,13 @@ namespace elm::script {
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
             ScriptSystem system;
-            system.SetEngineContext({ nullptr, nullptr, nullptr, nullptr, &settings });
-            if (!system.Init(Path(root.generic_string().c_str()))) {
+            if (!system.Init({ nullptr, nullptr, nullptr, nullptr, &settings }, Path(root.generic_string().c_str()))) {
                 report.Check(false, "hot::init");
                 return;
             }
             // The main module's on_update runs in Play mode only
-            system.Play();
-            lua_State* L = system.GetState();
+            system.OnPlay();
+            lua_State* L = SelfTestAccess::State(system);
 
             // ── Module reload ──
             WriteScript(hot, "local M = {} M.value = 1 function M.get() return M.value end return M");
@@ -457,46 +510,46 @@ namespace elm::script {
 
             WriteScript(hot, "local M = {} M.value = 2 function M.get() return M.value * 10 end return M");
             Touch(hot, 2);
-            const bool reloaded = system.ReloadModule("hot").has_value();
+            const bool reloaded = SelfTestAccess::Reload(system).Reload("hot").has_value();
             report.Check(reloaded && Evaluate(system, "hot.get()") == "20", "hot::reload_updates_the_held_table");
             report.Check(Evaluate(system, "rawequal(hot, require 'hot')") == "true", "hot::module_keeps_its_identity");
 
             WriteScript(hot, "local M = {} M.value = = 3 return M");
-            report.Check(!system.ReloadModule("hot") && !Loaded(system, "hot")->error.empty(), "hot::syntax_error_is_reported");
+            report.Check(!SelfTestAccess::Reload(system).Reload("hot") && !Loaded(system, "hot")->error.empty(), "hot::syntax_error_is_reported");
             report.Check(Evaluate(system, "hot.get()") == "20", "hot::failed_reload_keeps_the_old_version");
 
             WriteScript(hot, "local M = {} M.value = 3 function M.on_reload(previous) M.carried = previous.value end return M");
-            report.Check(system.ReloadModule("hot").has_value() && Loaded(system, "hot")->error.empty(), "hot::fixed_module_reloads");
+            report.Check(SelfTestAccess::Reload(system).Reload("hot").has_value() && Loaded(system, "hot")->error.empty(), "hot::fixed_module_reloads");
             report.Check(Evaluate(system, "hot.carried") == "2", "hot::on_reload_gets_the_previous_fields");
             report.Check(Evaluate(system, "hot.get") == "nil", "hot::removed_fields_disappear");
 
             WriteScript(hot, "local M = { counter = 0 } function M.inc() M.counter = M.counter + 1 end return M");
-            (void)system.ReloadModule("hot");
+            (void)SelfTestAccess::Reload(system).Reload("hot");
             report.Check(Evaluate(system, "hot.inc() hot.inc() return hot.counter") == "2",
                 "hot::module_code_sees_the_held_table");
 
             WriteScript(hot, "local state = elm.script.persist('hot', { count = 0 }) state.count = state.count + 1 return { count = function() return state.count end }");
-            (void)system.ReloadModule("hot");
-            (void)system.ReloadModule("hot");
+            (void)SelfTestAccess::Reload(system).Reload("hot");
+            (void)SelfTestAccess::Reload(system).Reload("hot");
             report.Check(Evaluate(system, "hot.count()") == "2", "hot::persist_survives_reloads");
 
             WriteScript(hot, "local M = {} M.value = 4 return M");
             Touch(hot, 4);
-            report.Check(system.ReloadChanged() == 1 && Evaluate(system, "hot.value") == "4", "hot::reload_changed_finds_the_file");
-            report.Check(system.ReloadChanged() == 0, "hot::reload_changed_skips_unchanged");
+            report.Check(SelfTestAccess::Reload(system).ReloadChanged() == 1 && Evaluate(system, "hot.value") == "4", "hot::reload_changed_finds_the_file");
+            report.Check(SelfTestAccess::Reload(system).ReloadChanged() == 0, "hot::reload_changed_skips_unchanged");
 
             // Polling: the change is applied once two polls see the same file time
             WriteScript(hot, "local M = {} M.value = 5 return M");
             Touch(hot, 6);
             for (int poll = 0; poll < 3; ++poll) {
-                system.PollFileChanges();
+                SelfTestAccess::Reload(system).Poll();
                 std::this_thread::sleep_for(std::chrono::milliseconds(260));
             }
             report.Check(Evaluate(system, "hot.value") == "5", "hot::poll_reloads_changed_files");
 
             // ── Main module ──
             WriteScript(mainFile, "local main = {} function main.on_start() started = (started or 0) + 1 end return main =");
-            report.Check(!system.Start(settings) && system.GetMainState() == ScriptSystem::MainState::Idle
+            report.Check(!system.Start(settings) && SelfTestAccess::Main(system).GetState() == MainState::Idle
                     && Loaded(system, "main") && !Loaded(system, "main")->error.empty(),
                 "hot::broken_main_is_idle");
             WriteScript(mainFile,
@@ -504,17 +557,17 @@ namespace elm::script {
                 "function main.on_start() started = (started or 0) + 1 end\n"
                 "function main.on_update(dt) if fail then error('update failed') end ticks = (ticks or 0) + 1 end\n"
                 "return main\n");
-            report.Check(system.ReloadModule("main").has_value() && system.GetMainState() == ScriptSystem::MainState::Running
+            report.Check(SelfTestAccess::Reload(system).Reload("main").has_value() && SelfTestAccess::Main(system).GetState() == MainState::Running
                     && Evaluate(system, "started") == "1",
                 "hot::fixed_main_starts");
 
-            (void)system.Execute("fail = true");
+            (void)SelfTestAccess::Console(system).Execute("fail = true");
             system.Update(0.016f);
-            report.Check(system.GetMainState() == ScriptSystem::MainState::Faulted
-                    && system.MainError().find("update failed") != String::npos,
+            report.Check(SelfTestAccess::Main(system).GetState() == MainState::Faulted
+                    && SelfTestAccess::Main(system).Error().find("update failed") != String::npos,
                 "hot::failing_hook_faults_the_main_module");
-            (void)system.Execute("fail = false");
-            report.Check(system.ReloadModule("main").has_value() && system.GetMainState() == ScriptSystem::MainState::Running,
+            (void)SelfTestAccess::Console(system).Execute("fail = false");
+            report.Check(SelfTestAccess::Reload(system).Reload("main").has_value() && SelfTestAccess::Main(system).GetState() == MainState::Running,
                 "hot::reload_recovers_a_faulted_main");
             system.Update(0.016f);
             report.Check(Evaluate(system, "ticks") == "1" && Evaluate(system, "started") == "1", "hot::reload_does_not_restart_main");
@@ -531,36 +584,36 @@ namespace elm::script {
             auto has = [](const Vector<String>& list, StringView item) {
                 return std::find(list.begin(), list.end(), item) != list.end();
             };
-            const auto modules = system.Complete("elm.sc");
+            const auto modules = SelfTestAccess::Console(system).Complete("elm.sc");
             report.Check(has(modules, "elm.scene") && has(modules, "elm.script"), "console::complete_module");
-            report.Check(has(system.Complete("x = elm.math.Vector3.u"), "x = elm.math.Vector3.up"), "console::complete_in_expression");
-            (void)system.Execute("vv = elm.math.Vector3(1, 2, 3)");
-            report.Check(has(system.Complete("vv:norm"), "vv:normalized") && has(system.Complete("vv.le"), "vv.length")
-                    && !has(system.Complete("vv:le"), "vv:length"),
+            report.Check(has(SelfTestAccess::Console(system).Complete("x = elm.math.Vector3.u"), "x = elm.math.Vector3.up"), "console::complete_in_expression");
+            (void)SelfTestAccess::Console(system).Execute("vv = elm.math.Vector3(1, 2, 3)");
+            report.Check(has(SelfTestAccess::Console(system).Complete("vv:norm"), "vv:normalized") && has(SelfTestAccess::Console(system).Complete("vv.le"), "vv.length")
+                    && !has(SelfTestAccess::Console(system).Complete("vv:le"), "vv:length"),
                 "console::complete_userdata_members");
-            report.Check(system.Complete("nothing.here.").empty(), "console::complete_unknown_is_empty");
+            report.Check(SelfTestAccess::Console(system).Complete("nothing.here.").empty(), "console::complete_unknown_is_empty");
             report.Check(lua_gettop(L) == 0, "console::stack_balanced");
 
             // ── Module names and main functions ──
             const Path scriptRoot(root.generic_string().c_str());
-            report.Check(system.ModuleNameOf(scriptRoot / "hot.lua") == "hot"
-                    && system.ModuleNameOf(scriptRoot / "a/b.lua") == "a.b"
-                    && system.ModuleNameOf(scriptRoot / "pkg/init.lua") == "pkg"
-                    && system.ModuleNameOf(scriptRoot / "notes.txt").empty()
-                    && system.ModuleNameOf(scriptRoot / "../outside.lua").empty(),
+            report.Check(SelfTestAccess::Paths(system).NameOf(scriptRoot / "hot.lua") == "hot"
+                    && SelfTestAccess::Paths(system).NameOf(scriptRoot / "a/b.lua") == "a.b"
+                    && SelfTestAccess::Paths(system).NameOf(scriptRoot / "pkg/init.lua") == "pkg"
+                    && SelfTestAccess::Paths(system).NameOf(scriptRoot / "notes.txt").empty()
+                    && SelfTestAccess::Paths(system).NameOf(scriptRoot / "../outside.lua").empty(),
                 "hot::module_name_of_file");
             WriteScript(mainFile,
                 "local main = {}\n"
                 "function main.build_scene() built = (built or 0) + 1 end\n"
                 "function main.broken() error('build failed') end\n"
                 "return main\n");
-            (void)system.ReloadModule("main");
-            const auto built = system.CallMain("build_scene");
-            const auto missing = system.CallMain("missing");
-            const auto broken = system.CallMain("broken");
+            (void)SelfTestAccess::Reload(system).Reload("main");
+            const auto built = SelfTestAccess::Main(system).CallFunction("build_scene");
+            const auto missing = SelfTestAccess::Main(system).CallFunction("missing");
+            const auto broken = SelfTestAccess::Main(system).CallFunction("broken");
             report.Check(built && *built && Evaluate(system, "built") == "1" && missing && !*missing
                     && !broken && broken.error().message.find("build failed") != String::npos
-                    && system.GetMainState() == ScriptSystem::MainState::Running,
+                    && SelfTestAccess::Main(system).GetState() == MainState::Running,
                 "hot::call_main_function");
 
             // ── Error locations for the editor ──
@@ -576,9 +629,9 @@ namespace elm::script {
             }
 
             // ── Restart ──
-            system.RequestRestart();
+            SelfTestAccess::RequestRestart(system);
             system.Update(0.016f);
-            report.Check(system.IsInitialized() && system.GetMainState() == ScriptSystem::MainState::Running
+            report.Check(system.IsInitialized() && SelfTestAccess::Main(system).GetState() == MainState::Running
                     && Evaluate(system, "built") == "nil" && Evaluate(system, "hot") == "nil",
                 "hot::restart_starts_a_fresh_state");
 
@@ -618,18 +671,17 @@ namespace elm::script {
             ScriptSystem::RegisterSettings(settings);
             Scene scene;
             ScriptSystem system;
-            system.SetEngineContext({ &scene, nullptr, nullptr, nullptr, &settings });
-            if (!system.Init(Path(root.generic_string().c_str()))) {
+            if (!system.Init({ &scene, nullptr, nullptr, nullptr, &settings }, Path(root.generic_string().c_str()))) {
                 report.Check(false, "entity::init");
                 return;
             }
-            system.Play();
+            system.OnPlay();
             auto eval = [&](const char* code) { return Evaluate(system, code); };
             auto fails = [&](const char* code, const char* text) {
                 const String result = eval(code);
                 return result.starts_with("error: ") && result.find(text) != String::npos;
             };
-            (void)system.Execute("events = {}");
+            (void)SelfTestAccess::Console(system).Execute("events = {}");
 
             // ── Lifecycle ──
             report.Check(eval("a = elm.scene.spawn('a') wa = a:add('Script', { module = 'npc.walker', props = { label = 'a', speed = 5 } }) "
@@ -656,22 +708,22 @@ namespace elm::script {
                 "entity::component_from_cpp_starts");
 
             // ── Errors and reload ──
-            (void)system.Execute("wa.fail = true");
+            (void)SelfTestAccess::Console(system).Execute("wa.fail = true");
             system.Update(0.016f);
-            const auto* faulted = system.FindEntityScript(nodeA);
+            const auto* faulted = SelfTestAccess::Entities(system).Find(nodeA);
             report.Check(faulted && faulted->faulted && faulted->error.find("walker failed") != String::npos
                     && eval("return wa.ticks, wb.ticks") == "2\t3",
                 "entity::error_stops_only_that_instance");
 
-            (void)system.Execute("wa.fail = false");
+            (void)SelfTestAccess::Console(system).Execute("wa.fail = false");
             WriteScript(walker, WalkerSource(10).c_str());
-            report.Check(system.ReloadModule("npc.walker").has_value() && !system.FindEntityScript(nodeA)->faulted,
+            report.Check(SelfTestAccess::Reload(system).Reload("npc.walker").has_value() && !SelfTestAccess::Entities(system).Find(nodeA)->faulted,
                 "entity::reload_clears_the_fault");
             system.Update(0.016f);
             report.Check(eval("return wa.ticks, wb.ticks, wa.reloaded") == "12\t13\ttrue", "entity::reload_patches_the_instances");
 
             // ── Ending ──
-            (void)system.Execute("events = {} a:destroy()");
+            (void)SelfTestAccess::Console(system).Execute("events = {} a:destroy()");
             report.Check(eval("return events[1], wa.entity.valid, a.valid") == "destroy a true\tfalse\tfalse",
                 "entity::destroy_calls_on_destroy_first");
             // Removed behind the scripts' back (editor, C++): on_destroy on the next pass, the entity is gone already
@@ -684,10 +736,21 @@ namespace elm::script {
             report.Check(eval("return b:remove('Script')") == "false", "entity::remove_missing_component");
             report.Check(eval("events = {} d = elm.scene.spawn('d') d:add('Script', 'npc.walker') d:destroy() return #events") == "0",
                 "entity::no_on_destroy_without_on_start");
-            report.Check(system.EntityScripts().empty(), "entity::ended_instances_are_dropped");
+            // on_destroy that destroys its own entity: the instance ends once, the entity goes
+            WriteScript(root / "npc" / "selfish.lua",
+                "local Selfish = {}\n"
+                "function Selfish:on_start() end\n"
+                "function Selfish:on_destroy() events[#events + 1] = 'selfish' self.entity:destroy() end\n"
+                "return Selfish\n");
+            (void)SelfTestAccess::Console(system).Execute("events = {} s = elm.scene.spawn('s') s:add('Script', 'npc.selfish') "
+                                 "t = elm.scene.spawn('t') t:add('Script', 'npc.selfish')");
+            system.Update(0.016f);
+            report.Check(eval("s:destroy() t:remove('Script') return #events, s.valid, t.valid") == "2\tfalse\tfalse",
+                "entity::on_destroy_may_destroy_its_entity");
+            report.Check(SelfTestAccess::Entities(system).All().empty(), "entity::ended_instances_are_dropped");
 
             // ── Bad input ──
-            (void)system.Execute("e = elm.scene.spawn('e')");
+            (void)SelfTestAccess::Console(system).Execute("e = elm.scene.spawn('e')");
             report.Check(fails("e:add('Script', 'npc.missing')", "module 'npc.missing' not found") && eval("return e:has('Script')") == "false",
                 "entity::missing_module_fails_at_add");
             report.Check(fails("e:add('Script', 'broken')", "an entity script returns its class table"), "entity::module_returns_a_table");
@@ -705,7 +768,7 @@ namespace elm::script {
             const NodeId nodeF = scene.AddNode({ }, "f").id;
             scene.Components<ScriptComponent>().Emplace(nodeF, ScriptComponent { "npc.later", { } });
             system.Update(0.016f);
-            const auto* broken = system.FindEntityScript(nodeF);
+            const auto* broken = SelfTestAccess::Entities(system).Find(nodeF);
             report.Check(broken && broken->faulted && !broken->self && fails("return elm.scene.find('f').script", "npc.later"),
                 "entity::broken_component_stays_faulted");
             WriteScript(root / "npc" / "later.lua",
@@ -713,23 +776,46 @@ namespace elm::script {
                 "function Later:on_start() events[#events + 1] = 'later' end\n"
                 "function Later:on_destroy() events[#events + 1] = 'later destroyed' end\n"
                 "return Later\n");
-            (void)system.ReloadModule("npc.walker");
+            (void)SelfTestAccess::Reload(system).Reload("npc.walker");
             system.Update(0.016f);
             report.Check(eval("return events[#events]") == "later", "entity::reload_retries_broken_components");
 
             // ── Scene commands and restart ──
-            system.RequestRestart();
+            SelfTestAccess::RequestRestart(system);
             system.Update(0.016f);
-            report.Check(system.EntityScripts().size() == 2 && eval("table.sort(events) return table.concat(events, ',')") == "later,start walker",
+            report.Check(SelfTestAccess::Entities(system).All().size() == 2 && eval("table.sort(events) return table.concat(events, ',')") == "later,start walker",
                 "entity::restart_makes_the_instances_again");
             report.Check(eval("events = {} elm.engine.clear_scene() table.sort(events) return table.concat(events, ','), elm.scene.count()")
                     == "destroy walker true,later destroyed\t0",
                 "entity::clear_scene_ends_the_scripts_first");
             system.Update(0.016f);
-            report.Check(system.EntityScripts().empty() && lua_gettop(system.GetState()) == 0, "entity::nothing_left");
+            report.Check(SelfTestAccess::Entities(system).All().empty() && lua_gettop(SelfTestAccess::State(system)) == 0, "entity::nothing_left");
 
             system.Shutdown();
             fs::remove_all(root, error);
+        }
+
+        void RunEntityScriptListTests(Report& report)
+        {
+            EntityScriptList list;
+            const NodeId a(1, 1);
+            const NodeId b(2, 1);
+            const size_t first = list.Add(EntityScript { .node = a, .module = "m" });
+            (void)list.Add(EntityScript { .node = b, .module = "m" });
+            report.Check(first == 0 && list.FindIndex(a) == 0 && list.FindIndex(b) == 1 && list[0].serial != list[1].serial,
+                "entity_list::add_and_find");
+            {
+                EntityScriptList::Pass pass(list);
+                list.MarkDead(0);
+                list.DropDead();
+                report.Check(list.Size() == 2 && list.FindIndex(a) == EntityScriptList::NoIndex && list.IsPassRunning(),
+                    "entity_list::dead_entries_stay_while_a_pass_runs");
+            }
+            list.DropDead();
+            report.Check(list.Size() == 1 && list.FindIndex(b) == 0 && !list.IsPassRunning(), "entity_list::drop_dead_after_the_pass");
+            const uint64_t earlier = list[0].serial;
+            const size_t again = list.Add(EntityScript { .node = a, .module = "m" });
+            report.Check(list.FindIndex(a) == again && list[again].serial > earlier, "entity_list::new_instance_new_serial");
         }
 
         // ── Physics ─────────────────────────────────────────────────────────────
@@ -878,12 +964,11 @@ namespace elm::script {
             ScriptSystem::RegisterSettings(settings);
             Scene scene;
             ScriptSystem system;
-            system.SetEngineContext({ &scene, nullptr, nullptr, nullptr, &settings, &physics });
-            if (!system.Init(Path(root.generic_string().c_str()))) {
+            if (!system.Init({ &scene, nullptr, nullptr, nullptr, &settings, &physics }, Path(root.generic_string().c_str()))) {
                 report.Check(false, "physics_lua::init");
                 return;
             }
-            system.Play();
+            system.OnPlay();
             auto eval = [&](const char* code) { return Evaluate(system, code); };
             auto fails = [&](const char* code, const char* text) {
                 const String result = eval(code);
@@ -893,12 +978,11 @@ namespace elm::script {
             auto run = [&](int frames) {
                 for (int frame = 0; frame < frames; ++frame) {
                     physics.Step(scene, Step);
-                    system.DispatchCollisionEvents(physics.CollisionEvents());
-                    system.FixedUpdate(Step);
+                    system.FixedUpdate(Step, physics.CollisionEvents());
                     system.Update(Step);
                 }
             };
-            (void)system.Execute("hits = {} triggers = {} Vector3 = elm.math.Vector3");
+            (void)SelfTestAccess::Console(system).Execute("hits = {} triggers = {} Vector3 = elm.math.Vector3");
 
             report.Check(eval("ground = elm.scene.spawn('ground') ground.position = Vector3(0, -0.5, 0) "
                               "local c = ground:add('Collider', { half_extents = Vector3(10, 0.5, 10) }) "
@@ -925,7 +1009,7 @@ namespace elm::script {
                                "k:add('RigidBody', { type = 'kinematic' }):add_impulse(Vector3(1, 0, 0))",
                              "add_impulse needs a dynamic body, this one is kinematic"),
                 "physics_lua::forces_need_a_dynamic_body");
-            (void)system.Execute("elm.scene.find('x'):destroy() k:destroy()");
+            (void)SelfTestAccess::Console(system).Execute("elm.scene.find('x'):destroy() k:destroy()");
 
             // A launch pad: a trigger whose script throws what enters it upwards
             report.Check(eval("pad = elm.scene.spawn('pad') pad.position = Vector3(3, 0.5, 0) "
@@ -1093,14 +1177,13 @@ namespace elm::script {
             ScriptSystem::RegisterSettings(settings);
             Scene live;
             ScriptSystem system;
-            system.SetEngineContext({ &live, &models, nullptr, nullptr, &settings, &physics });
-            if (!system.Init(Path(String(root.generic_string().c_str())))) {
+            if (!system.Init({ &live, &models, nullptr, nullptr, &settings, &physics }, Path(String(root.generic_string().c_str())))) {
                 report.Check(false, "scene_file::script_init");
                 return;
             }
-            system.Play();
+            system.OnPlay();
             constexpr float Step = 1.0f / 60.0f;
-            (void)system.Execute(
+            (void)SelfTestAccess::Console(system).Execute(
                 "local b = elm.scene.spawn('b') b.position = elm.math.Vector3(0, 5, 0) "
                 "local a = elm.scene.spawn('a') a:add('Script', { module = 'mover', props = { speed = 7, target = b } }) "
                 "a:add('Collider', { shape = 'sphere', radius = 0.5 }) a:add('RigidBody', { mass = 5 })");
@@ -1138,7 +1221,7 @@ namespace elm::script {
                 "function main.on_start() log = {} end\n"
                 "function main.on_update(dt) ticks = (ticks or 0) + 1 end\n"
                 "function main.on_play() log[#log + 1] = 'play' end\n"
-                "function main.on_stop() log[#log + 1] = 'stop' end\n"
+                "function main.on_stop() log[#log + 1] = 'stop' stopped_spawn = elm.scene.spawn('z') stopped_spawn:add('Script', 'mover') end\n"
                 "return main\n");
 
             render::RenderResources resources;
@@ -1155,32 +1238,45 @@ namespace elm::script {
             ScriptSystem::RegisterSettings(settings);
             Scene scene;
             ScriptSystem system;
-            system.SetEngineContext({ &scene, &models, nullptr, nullptr, &settings, &physics });
-            if (!system.Init(Path(String(root.generic_string().c_str()))) || !system.Start(settings)) {
+            PlayMode playMode(scene, &models, &physics, system);
+            const EngineContext engine { &scene, &models, nullptr, nullptr, &settings, &physics, playMode.Requests() };
+            if (!system.Init(engine, Path(String(root.generic_string().c_str()))) || !system.Start(settings)) {
                 report.Check(false, "play::script_init");
                 return;
             }
             auto eval = [&](const char* code) { return Evaluate(system, code); };
             constexpr float Step = 1.0f / 60.0f;
+            // As EngineApp: physics steps in Play only, requests apply before the update
             auto frame = [&] {
-                if (system.IsPlaying())
+                std::span<const CollisionEvent> collisions;
+                if (playMode.IsPlaying()) {
                     physics.Step(scene, Step);
-                system.FixedUpdate(Step);
+                    collisions = physics.CollisionEvents();
+                }
+                system.FixedUpdate(Step, collisions);
+                playMode.ApplyRequest();
                 system.Update(Step);
             };
 
-            (void)system.Execute("a = elm.scene.spawn('a') a:add('Script', 'mover') a:add('Collider') b = elm.scene.spawn('b')");
+            (void)SelfTestAccess::Console(system).Execute("a = elm.scene.spawn('a') a:add('Script', 'mover') a:add('Collider') b = elm.scene.spawn('b')");
             const NodeId nodeA = scene.IdOf(0);
             scene.nodes[0].model = cube;
             for (int count = 0; count < 3; ++count)
                 frame();
-            report.Check(!system.IsPlaying() && eval("return #log, ticks, a.position.x") == "0\tnil\t0.0", "play::edit_mode_stands_still");
+            report.Check(!playMode.IsPlaying() && eval("return #log, ticks, a.position.x") == "0\tnil\t0.0", "play::edit_mode_stands_still");
 
-            const auto defaults = system.ScriptDefaults("mover");
+            const auto defaults = SelfTestAccess::Defaults(system).Get("mover");
             report.Check(defaults && defaults->size() == 1 && (*defaults)[0].first == "step" && std::get_if<int64_t>(&(*defaults)[0].second)
-                    && !system.ScriptDefaults("missing.module"),
+                    && !SelfTestAccess::Defaults(system).Get("missing.module"),
                 "play::script_defaults");
-            const auto modules = system.ListModules();
+            WriteScript(root / "badprops.lua", "return { props = { list = {} } }");
+            WriteScript(root / "notclass.lua", "return 42");
+            const auto& badProps = SelfTestAccess::Defaults(system).Get("badprops");
+            const auto& notClass = SelfTestAccess::Defaults(system).Get("notclass");
+            report.Check(!badProps && badProps.error().message.find("cannot be a prop: list") != String::npos && !notClass
+                    && notClass.error().message.find("returns its class table") != String::npos,
+                "play::script_defaults_check_the_class");
+            const auto modules = SelfTestAccess::Paths(system).List();
             report.Check(std::find(modules.begin(), modules.end(), "mover") != modules.end()
                     && std::find(modules.begin(), modules.end(), "main") != modules.end(),
                 "play::list_modules");
@@ -1189,34 +1285,35 @@ namespace elm::script {
             frame();
             report.Check(eval("return elm.engine.is_playing(), log[1], log[2], ticks, a.position.x") == "true\tplay\tstart a\t1\t1.0",
                 "play::play_starts_everything");
-            system.SetEntityScriptField(nodeA, "step", ScriptValue(int64_t { 5 }));
+            SelfTestAccess::Entities(system).SetField(nodeA, "step", ScriptValue(int64_t { 5 }));
             frame();
             report.Check(eval("return a.position.x") == "6.0", "play::inspector_writes_the_instance");
 
             // What the game does meanwhile goes away on Stop
-            (void)system.Execute("b:destroy() c = elm.scene.spawn('c') a.color = elm.math.Vector4(1, 0, 0, 1) a:remove('Collider')");
+            (void)SelfTestAccess::Console(system).Execute("b:destroy() c = elm.scene.spawn('c') a.color = elm.math.Vector4(1, 0, 0, 1) a:remove('Collider')");
             graphics::Model extraModel("Extra");
             extraModel.AddSubmesh(GeometryPrimitives::CreateCube(2.0f));
             const auto extra = models.Insert(extraModel);
             models.Remove(cube);
             frame();
-            (void)system.Execute("elm.engine.stop()");
+            (void)SelfTestAccess::Console(system).Execute("elm.engine.stop()");
             frame();
             report.Check(eval("return log[#log - 1], log[#log], a.valid, a.position.x, b.valid, c.valid, a:has('Collider'), a.color.y")
                     == "destroy a\tstop\ttrue\t0.0\ttrue\tfalse\ttrue\t1.0",
                 "play::stop_brings_the_scene_back", eval("return log[#log - 1], log[#log], a.valid, a.position.x, b.valid, c.valid"));
             const auto* restoredA = scene.Find(nodeA);
             report.Check(restoredA && models.Get(restoredA->model) && !models.Get(extra) && physics.GetNumBodies() == 0
-                    && system.EntityScripts().empty(),
+                    && SelfTestAccess::Entities(system).All().empty(),
                 "play::stop_restores_models_and_clears_runtime");
+            report.Check(eval("return stopped_spawn.valid") == "false", "play::scripts_made_in_on_stop_go_too");
 
             const String ticksBefore = eval("return ticks");
             frame();
             report.Check(eval("return ticks, a.position.x") == ticksBefore + "\t0.0", "play::edit_mode_again");
-            system.Play();
+            playMode.Play();
             frame();
             report.Check(eval("return log[#log], a.position.x") == "start a\t1.0", "play::play_again_with_the_same_entities");
-            system.Stop();
+            playMode.Stop();
 
             system.Shutdown();
             physics.Shutdown();
@@ -1227,8 +1324,8 @@ namespace elm::script {
         /// that comes close, goes back when it is gone.
         void RunGuardTests(ScriptSystem& system, Report& report)
         {
-            system.Play();
-            (void)system.Execute(
+            system.OnPlay();
+            (void)SelfTestAccess::Console(system).Execute(
                 "for _, e in ipairs(elm.scene.all()) do if e.valid then e:destroy() end end "
                 "guard_test = { player = elm.scene.spawn('Player'), guard = elm.scene.spawn('Guard') } "
                 "guard_test.player.position = elm.math.Vector3(30, 0, 0) "
@@ -1239,7 +1336,7 @@ namespace elm::script {
                 "local g = guard_test.guard return g.script.state, g.position:distance(g.script.post) <= g.script.patrol_radius + 0.01");
             report.Check(patrol == "patrol\ttrue", "demo::guard_patrols_at_its_post", patrol);
 
-            (void)system.Execute(
+            (void)SelfTestAccess::Console(system).Execute(
                 "guard_test.player.position = guard_test.guard.position + elm.math.Vector3(3, 0, 0) "
                 "guard_test.distance = guard_test.guard.position:distance(guard_test.player.position)");
             for (int frame = 0; frame < 5; ++frame)
@@ -1248,13 +1345,13 @@ namespace elm::script {
                 "local g = guard_test.guard return g.script.state, g.position:distance(guard_test.player.position) < guard_test.distance");
             report.Check(chase == "chase\ttrue", "demo::guard_chases_a_close_target", chase);
 
-            (void)system.Execute("guard_test.player:destroy()");
+            (void)SelfTestAccess::Console(system).Execute("guard_test.player:destroy()");
             for (int frame = 0; frame < 200; ++frame)
                 system.Update(0.05f);
             const String back = Evaluate(system, "return guard_test.guard.script.state");
             report.Check(back == "patrol", "demo::guard_goes_back_to_its_post", back);
-            (void)system.Execute("guard_test.guard:destroy() guard_test = nil");
-            system.Stop();
+            (void)SelfTestAccess::Console(system).Execute("guard_test.guard:destroy() guard_test = nil");
+            system.OnStop();
         }
 
         // ── Syntax coloring ─────────────────────────────────────────────────────
@@ -1312,7 +1409,7 @@ line]] .. [==[a]]b]==])",
 
         void RunScriptTests(ScriptSystem& system, Report& report)
         {
-            const Path testDirectory = system.ScriptRoot() / "tests";
+            const Path testDirectory = SelfTestAccess::Paths(system).Root() / "tests";
             Vector<String> modules;
             std::error_code error;
             for (auto it = Directory(testDirectory).Begin(error); !error && !it.IsEnd(); it.Next(error)) {
@@ -1323,9 +1420,9 @@ line]] .. [==[a]]b]==])",
             std::sort(modules.begin(), modules.end());
             report.Check(!modules.empty(), "lua::test_files_found", testDirectory.string().c_str());
 
-            lua_State* L = system.GetState();
+            lua_State* L = SelfTestAccess::State(system);
             for (const auto& module : modules) {
-                if (auto required = system.Require(module); !required) {
+                if (auto required = SelfTestAccess::Loader(system).Require(module); !required) {
                     report.Check(false, module, required.error().message);
                     continue;
                 }
@@ -1346,7 +1443,7 @@ line]] .. [==[a]]b]==])",
 
                 for (const auto& test : tests) {
                     lua_getfield(L, -1, test.c_str());
-                    const auto result = system.GetState().ProtectedCall(0, 0);
+                    const auto result = SelfTestAccess::State(system).ProtectedCall(0, 0);
                     report.Check(result.has_value(), module + "::" + test, result ? "" : result.error().message);
                 }
                 lua_pop(L, 1);
@@ -1358,11 +1455,13 @@ line]] .. [==[a]]b]==])",
     int RunSelfTests(const Path& scriptRoot)
     {
         Report report;
+        RunStateTests(report);
         RunSceneTests(report);
         RunSnapshotTests(report);
         RunComponentStoreTests(report);
         RunHotReloadTests(report);
         RunEntityScriptTests(report);
+        RunEntityScriptListTests(report);
         RunPhysicsTests(report);
         RunPhysicsScriptTests(report);
         RunSceneFileTests(report);
@@ -1377,24 +1476,23 @@ line]] .. [==[a]]b]==])",
             ScriptSystem::RegisterSettings(settings);
 
             ScriptSystem system;
-            system.SetEngineContext({ &scene, nullptr, &input, &camera, &settings });
-            if (auto init = system.Init(scriptRoot); !init) {
+            if (auto init = system.Init({ &scene, nullptr, &input, &camera, &settings }, scriptRoot); !init) {
                 std::cout << "[FAIL] init: " << init.error().message << "\n";
                 return 1;
             }
-            RegisterFixtures(system.GetState());
+            RegisterFixtures(SelfTestAccess::State(system));
 
             RunNativeTests(system, report);
             RunScriptTests(system, report);
             RunGuardTests(system, report);
 
             g_storedValue.Reset();
-            lua_gc(system.GetState(), LUA_GCCOLLECT, 0);
+            lua_gc(SelfTestAccess::State(system), LUA_GCCOLLECT, 0);
             report.Check(Tracked::alive == 0, "native::userdata_collected",
                 ("alive: " + std::to_string(Tracked::alive)).c_str());
 
             // Lua memory goes through the engine allocator: closing the state gives it all back
-            const auto luaBytes = static_cast<int64_t>(system.GetState().MemoryUsage());
+            const auto luaBytes = static_cast<int64_t>(SelfTestAccess::State(system).MemoryUsage());
             const int64_t before = memory::getStatistic().allocated;
             system.Shutdown();
             const int64_t released = before - memory::getStatistic().allocated;

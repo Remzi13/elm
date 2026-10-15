@@ -1,17 +1,44 @@
 ---
 tags: [script, lua]
-aliases: [ScriptSystem, Lua, lua::Class, lua::Module]
+aliases: [ScriptSystem, Lua, lua::Class, lua::Module, EntityScripts, HotReload, ScriptConsole]
 ---
 # Скрипты на Lua
 
-Файлы: `script/ScriptSystem.hpp`, `script/lua/*`. Единственная зависимость — Lua 5.4.7
-(`third_party/CMakeLists.txt`). Обёртка над C API своя, sol2 и подобных библиотек нет.
+Файлы: `script/*`. Единственная зависимость — Lua 5.4.7 (`third_party/CMakeLists.txt`).
+Обёртка над C API своя (`script/lua/*`), sol2 и подобных библиотек нет.
 
 Lua собирается **как C++**. Поэтому `lua_error` бросает исключение, а не делает `longjmp`,
 и ошибка в биндинге вызывает деструкторы C++-объектов. Заголовки подключаются через
 `script/lua/Lua.hpp`, никогда через `lua.hpp`: его `extern "C"` не совпадёт с линковкой.
 
-## ScriptSystem
+## Устройство модуля script
+
+`ScriptSystem` — только менеджер: открывает Lua-машину, собирает части и биндинги, ведёт их по
+кадру (`Update`, `FixedUpdate`) и завершает в правильном порядке. Работу делают части, они
+внутренние для модуля: снаружи видны только `ScriptSystem`, `EngineContext` и `PlayMode`.
+
+Части разложены по слоям, зависимость идёт только вниз. Части одного слоя друг о друге не знают:
+связи между ними задаёт `ScriptSystem` (колбэк после перезагрузки модуля, порядок вызовов в кадре).
+
+| Слой | Части | Что делают |
+|---|---|---|
+| 5 | `ScriptSystem` (`script/ScriptSystem.*`) | жизненный цикл, сборка частей, регистрация биндингов, окна редактора |
+| 4 | `bindings/*`, `ui/*` | адаптеры: Lua API и окна редактора. Каждый файл биндингов и каждая панель зависят только от того, что показывают |
+| 3 | `MainModule`, `EntityScripts` (+ `EntityScriptList`), `ScriptDefaults`, `HotReload`, `ScriptConsole` | главный модуль, скрипты сущностей, props для Inspector, перезагрузка, консоль |
+| 2 | `ScriptClass` (`entity/`) | модуль как класс скрипта: проверка таблицы и props, новый экземпляр |
+| 1 | `ModuleLoader` (`module/`), `values/` | `require` и список загруженных модулей; `Entity`, `ModelRef`, `ScriptValue` ↔ Lua |
+| 0 | `ModulePaths` (`module/`), `lua/` | имя модуля ↔ файл; обёртка над C API |
+
+- Части живут столько же, сколько `ScriptSystem`. Lua-машина `lua::State` пересоздаётся при
+  перезапуске (`lua::State::Reset`), части получают её ссылку в конструкторе, а в `Init`/`Shutdown`
+  ставят свои Lua-хелперы и освобождают ссылки на Lua-объекты.
+- Биндинги не знают `ScriptSystem`. Каждый Lua-модуль регистрируется своей функцией
+  (`bindings::RegisterScene(state, scene, models, entityScripts)` и т. п.) и кладёт свои зависимости
+  в `lua::State` под своим типом (`SetContext<T>`/`Context<T>(L)`).
+- Запросы вверх (перезапуск скриптов, Play/Stop) нижние слои получают функциями, не зная, кто их выполняет.
+- Self-тесты проверяют части напрямую: `SelfTestAccess` — друг `ScriptSystem`.
+
+## Lua-машина
 
 - Одна `lua_State`, живёт на update-потоке (`ELM_ASSERT_THREAD(Update)`).
 - Память идёт через аллокатор движка и видна в `memory::getStatistic()`.
@@ -44,7 +71,7 @@ return main
 `assets/scripts/main.lua` описывает сцену функцией `main.build_scene()`. Её вызывают `on_start`
 и `on_reload`, поэтому каждое сохранение файла собирает сцену заново по новому коду.
 Кнопка «Rebuild scene» в окне Scripts и команда `/scene` в его консоли вызывают
-`build_scene()` без перезагрузки модуля (`ScriptSystem::CallMain`).
+`build_scene()` без перезагрузки модуля (`MainModule::CallFunction`).
 
 `BUILD_SCENE = false` в начале файла оставляет сцену из `--scene` или окна Scene Hierarchy. Если хук упал, ошибка с traceback уходит в лог, и хуки главного модуля
 не вызываются до перезагрузки модуля или перезапуска скриптов.
@@ -91,7 +118,7 @@ for _, e in ipairs(elm.scene.with("Script")) do print(e.script) end
   отличаются от значений по умолчанию. Компонент хранится в сцене (`scene.Components<ScriptComponent>()`)
   без Lua, поэтому переживает перезапуск скриптов: экземпляры создаются из него заново. Он же
   сохраняется в [[Файл сцены]].
-- **Экземпляр** — `ScriptSystem::EntityScript` (`script/EntityScripts.cpp`): таблица
+- **Экземпляр** — `EntityScript` в `EntityScripts` (`script/entity/*`): таблица
   `self = { entity, <props> }`, у которой класс стоит в `__index`. Поэтому работают и
   унаследованные методы (`setmetatable(Guard, { __index = require "npc.base" })`).
 - `entity:add` создаёт экземпляр сразу. Ошибка в модуле или в props поднимается в месте вызова,
@@ -161,7 +188,7 @@ zone:add("Script", "gameplay.launch_pad")     -- on_trigger_enter(self, other)
 Настройка `Script/HotReload` (по умолчанию включена). Файлы загруженных модулей
 проверяются четыре раза в секунду. Изменение применяется, когда два опроса подряд видят
 одно и то же время файла: так редактор успевает дописать файл. Перезагрузка выполняется
-в начале `ScriptSystem::Update`, вне хуков.
+в начале `ScriptSystem::Update` (`HotReload::Poll`), вне хуков.
 
 Что происходит при перезагрузке модуля:
 1. Файл выполняется заново, как при `require`.
@@ -189,7 +216,10 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 
 ## Окно Scripts
 
-`script/ui/ScriptWindow.*`, пункт «Scripts» в меню Windows.
+`script/ui/ScriptWindow.*`, пункт «Scripts» в меню Windows. Окно только раскладывает свои части и выполняет
+`/`-команды консоли. Каждая панель работает только со своими частями модуля: `ScriptStatusBar` (панель сверху),
+`ConsolePanel` (`ScriptConsole`), `ScriptEditor`, `ModulesPanel` (`ModuleLoader`, `HotReload`), `ApiPanel` (`lua::State`).
+Окна создаёт `ScriptSystem::CreateEditorWindows`, `EngineApp` только добавляет их в `ImGuiSystem`.
 
 - **Панель сверху:** состояние главного модуля (running / stopped с текстом ошибки и кнопкой
   перезагрузки / not running), память Lua, флажок Hot reload, кнопки «Reload changed» и «Restart».
@@ -258,7 +288,7 @@ lua::Class<Vector3>(module, "Vector3")
 
 ## Модули движка
 
-Регистрируются в `script/bindings/*`. Системы движка приходят через `ScriptSystem::SetEngineContext`.
+Регистрируются в `script/bindings/*`, по файлу на модуль. Системы движка приходят в `ScriptSystem::Init` (`EngineContext`).
 Если какой-то системы нет (инструменты, самотесты), её функции бросают ошибку «not available here».
 
 | Модуль | Что даёт |

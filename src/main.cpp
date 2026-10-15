@@ -28,17 +28,16 @@ namespace {
     int DumpScriptApi(const char* fileName)
     {
         using namespace elm;
-        script::ScriptSystem scripts;
-        if (auto init = scripts.Init(); !init) {
-            std::cerr << init.error().message << std::endl;
+        const auto meta = script::ScriptSystem::GenerateApiMeta();
+        if (!meta) {
+            std::cerr << meta.error().message << std::endl;
             return 1;
         }
         const Path path = FileSystem::Resolve(fileName);
         std::error_code error;
         FileSystem::CreateDirectories(path.Parent(), error);
         auto stream = FileSystem::OpenForWriting(path, std::ios::out | std::ios::binary);
-        const String meta = scripts.GetState().Api().GenerateLuaMeta();
-        stream.write(meta.data(), static_cast<std::streamsize>(meta.size()));
+        stream.write(meta->data(), static_cast<std::streamsize>(meta->size()));
         if (!stream) {
             std::cerr << "Cannot write " << path.string() << std::endl;
             return 1;

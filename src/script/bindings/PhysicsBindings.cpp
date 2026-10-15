@@ -19,8 +19,16 @@ namespace elm::script::bindings {
 
         constexpr double Unbounded = std::numeric_limits<double>::infinity();
 
-        Scene& SceneOf(lua_State* L) { return RequireSystem(L, Engine(L).scene, "elm.scene"); }
-        PhysicsSystem& PhysicsOf(lua_State* L) { return RequireSystem(L, Engine(L).physics, "elm.physics"); }
+        /// What elm.physics and the RigidBody and Collider handles reach.
+        struct PhysicsContext {
+            PhysicsSystem* physics { nullptr };
+            Scene* scene { nullptr };
+            graphics::ModelManager* models { nullptr };
+        };
+
+        PhysicsContext& Context(lua_State* L) { return ContextOf<PhysicsContext>(L); }
+        Scene& SceneOf(lua_State* L) { return RequireSystem(L, Context(L).scene, "elm.scene"); }
+        PhysicsSystem& PhysicsOf(lua_State* L) { return RequireSystem(L, Context(L).physics, "elm.physics"); }
 
         void CheckAlive(lua_State* L, NodeId node)
         {
@@ -86,7 +94,7 @@ namespace elm::script::bindings {
 
         bool IsRigidBodyValid(lua_State* L, const RigidBodyRef& ref)
         {
-            const Scene* scene = Engine(L).scene;
+            const Scene* scene = Context(L).scene;
             const auto* bodies = scene ? scene->FindComponents<RigidBody>() : nullptr;
             return bodies && scene->IndexOf(ref.node) != Scene::NoNode && bodies->Contains(ref.node);
         }
@@ -158,7 +166,7 @@ namespace elm::script::bindings {
 
         bool IsColliderValid(lua_State* L, const ColliderRef& ref)
         {
-            const Scene* scene = Engine(L).scene;
+            const Scene* scene = Context(L).scene;
             const auto* colliders = scene ? scene->FindComponents<Collider>() : nullptr;
             return colliders && scene->IndexOf(ref.node) != Scene::NoNode && colliders->Contains(ref.node);
         }
@@ -175,7 +183,7 @@ namespace elm::script::bindings {
         /// The collider an entity gets before init applies: around the entity's model.
         Collider FitToModel(lua_State* L, NodeId node)
         {
-            const auto* models = Engine(L).models;
+            const auto* models = Context(L).models;
             const Scene& scene = SceneOf(L);
             const size_t index = scene.IndexOf(node);
             return FitColliderToModel(models && index != Scene::NoNode ? models->Get(scene.nodes[index].model) : nullptr);
@@ -296,8 +304,9 @@ namespace elm::script::bindings {
         return ColliderRef { entity.id };
     }
 
-    void RegisterPhysics(lua::State& state)
+    void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, graphics::ModelManager* models)
     {
+        state.SetContext(PhysicsContext { physics, scene, models });
         lua::Module module(state, "elm.physics");
         module
             .Function<&Raycast>("raycast", { "origin", "direction", "max_distance", "ignore" })

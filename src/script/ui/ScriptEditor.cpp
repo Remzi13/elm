@@ -1,5 +1,10 @@
 #include "script/ui/ScriptEditor.hpp"
 
+#include "script/module/MainModule.hpp"
+#include "script/module/ModuleLoader.hpp"
+#include "script/module/ModulePaths.hpp"
+#include "script/reload/HotReload.hpp"
+
 #include "imgui.h"
 #include "imgui_internal.h"
 
@@ -130,8 +135,11 @@ auto ScriptEditor::FindLocation(StringView message) -> std::optional<Location>
     return std::nullopt;
 }
 
-ScriptEditor::ScriptEditor(ScriptSystem& scripts)
-    : m_scripts(scripts)
+ScriptEditor::ScriptEditor(const ModulePaths& paths, const ModuleLoader& loader, HotReload& hotReload, const MainModule& mainModule)
+    : m_paths(paths)
+    , m_loader(loader)
+    , m_hotReload(hotReload)
+    , m_mainModule(mainModule)
 {
 }
 
@@ -144,12 +152,12 @@ void ScriptEditor::Open(const Path& path, int line)
             return;
         auto created = MakeUnique<Document>();
         created->path = path;
-        created->relative = String(path.LexicallyRelative(m_scripts.ScriptRoot()).generic_string().c_str());
+        created->relative = String(path.LexicallyRelative(m_paths.Root()).generic_string().c_str());
         created->text = *text;
         created->saved = std::move(*text);
         created->diskTime = WriteTimeOf(path);
         // A module that already failed shows its error line right away
-        if (const String error = ModuleError(m_scripts.ModuleNameOf(path)); !error.empty()) {
+        if (const String error = ModuleError(m_paths.NameOf(path)); !error.empty()) {
             created->status = error;
             created->statusError = true;
             if (const auto location = FindLocation(error); location && location->file == created->relative)
@@ -165,7 +173,7 @@ void ScriptEditor::Open(const Path& path, int line)
 
 bool ScriptEditor::OpenModule(StringView module, int line)
 {
-    const Path path = m_scripts.FindModule(module);
+    const Path path = m_paths.Find(module);
     if (path.Empty())
         return false;
     Open(path, line);
@@ -177,7 +185,7 @@ bool ScriptEditor::OpenLocation(StringView message)
     const auto location = FindLocation(message);
     if (!location)
         return false;
-    const Path path = m_scripts.ScriptRoot() / location->file;
+    const Path path = m_paths.Root() / location->file;
     if (!FileSystem::Exists(path))
         return false;
     Open(path, location->line);
@@ -274,7 +282,7 @@ void ScriptEditor::Draw()
 
 void ScriptEditor::DrawFiles()
 {
-    const String mainModule = m_scripts.MainModuleName();
+    const String mainModule = m_mainModule.Name();
 
     ImGui::AlignTextToFramePadding();
     ImGui::TextUnformatted("Scripts");
@@ -294,12 +302,12 @@ void ScriptEditor::DrawFiles()
     size_t visibleFiles = 0;
     const StringView filter(m_fileFilter.data());
     for (const auto& file : m_files) {
-        const String relative(file.LexicallyRelative(m_scripts.ScriptRoot()).generic_string().c_str());
+        const String relative(file.LexicallyRelative(m_paths.Root()).generic_string().c_str());
         if (!filter.empty() && relative.find(filter) == String::npos)
             continue;
 
         ++visibleFiles;
-        const bool isMain = !mainModule.empty() && m_scripts.ModuleNameOf(file) == mainModule;
+        const bool isMain = !mainModule.empty() && m_paths.NameOf(file) == mainModule;
         const Document* open = Find(file);
         String label = relative;
         if (open && open->Dirty())
@@ -330,8 +338,8 @@ void ScriptEditor::DrawFiles()
 
 void ScriptEditor::DrawDocument(Document& document)
 {
-    const String module = m_scripts.ModuleNameOf(document.path);
-    const auto& loaded = m_scripts.LoadedModules();
+    const String module = m_paths.NameOf(document.path);
+    const auto& loaded = m_loader.LoadedModules();
     const auto running = std::find_if(loaded.begin(), loaded.end(), [&](const auto& entry) { return entry.name == module; });
     const bool isLoaded = running != loaded.end();
 
@@ -348,7 +356,7 @@ void ScriptEditor::DrawDocument(Document& document)
     ImGui::BeginDisabled(!isLoaded);
     if (ImGui::Button("Reload module")) {
         document.errorLine = 0;
-        if (auto reloaded = m_scripts.ReloadModule(module); !reloaded) {
+        if (auto reloaded = m_hotReload.Reload(module); !reloaded) {
             document.status = reloaded.error().message;
             document.statusError = true;
         } else if (const String hookError = ModuleError(module); !hookError.empty()) {
@@ -580,8 +588,8 @@ void ScriptEditor::Save(Document& document)
     document.diskTime = WriteTimeOf(document.path);
     document.changedOnDisk = false;
 
-    const String module = m_scripts.ModuleNameOf(document.path);
-    const auto& loaded = m_scripts.LoadedModules();
+    const String module = m_paths.NameOf(document.path);
+    const auto& loaded = m_loader.LoadedModules();
     const bool isLoaded = std::any_of(loaded.begin(), loaded.end(), [&](const auto& entry) { return entry.name == module; });
     if (!isLoaded) {
         document.status = module.empty() ? "Saved." : "Saved. Module " + module + " is not loaded: require it to run it.";
@@ -589,7 +597,7 @@ void ScriptEditor::Save(Document& document)
         return;
     }
     // Reloaded here, not by the file watcher: the result belongs next to the text
-    if (auto reloaded = m_scripts.ReloadModule(module); !reloaded) {
+    if (auto reloaded = m_hotReload.Reload(module); !reloaded) {
         document.status = "Saved, but the reload failed (the previous version keeps running):\n" + reloaded.error().message;
         document.statusError = true;
     } else if (const String hookError = ModuleError(module); !hookError.empty()) {
@@ -633,7 +641,7 @@ void ScriptEditor::CheckDisk(Document& document)
 void ScriptEditor::RefreshFiles()
 {
     m_files.clear();
-    CollectScripts(m_scripts.ScriptRoot(), m_files);
+    CollectScripts(m_paths.Root(), m_files);
     std::sort(m_files.begin(), m_files.end(), [](const Path& a, const Path& b) { return a.generic_string() < b.generic_string(); });
 }
 
@@ -647,8 +655,8 @@ void ScriptEditor::CreateFile()
         return;
     if (!name.ends_with(".lua"))
         name += ".lua";
-    const Path path = m_scripts.ScriptRoot() / name;
-    if (m_scripts.ModuleNameOf(path).empty())
+    const Path path = m_paths.Root() / name;
+    if (m_paths.NameOf(path).empty())
         return; // outside the script root or not a valid module name
     if (!FileSystem::Exists(path) && !WriteFile(path, NewModuleTemplate))
         return;
@@ -667,7 +675,7 @@ void ScriptEditor::Close(Document* document)
 
 String ScriptEditor::ModuleError(StringView module) const
 {
-    for (const auto& loaded : m_scripts.LoadedModules()) {
+    for (const auto& loaded : m_loader.LoadedModules()) {
         if (loaded.name == module)
             return loaded.error;
     }

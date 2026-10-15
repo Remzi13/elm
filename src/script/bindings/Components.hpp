@@ -1,6 +1,6 @@
 #pragma once
 
-#include "script/bindings/Entity.hpp"
+#include "script/values/Entity.hpp"
 
 #include "script/lua/Ref.hpp"
 

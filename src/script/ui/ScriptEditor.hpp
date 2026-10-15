@@ -1,6 +1,7 @@
 #pragma once
 
-#include "script/ScriptSystem.hpp"
+#include "core/FileSystem.hpp"
+
 #include "script/ui/LuaHighlighter.hpp"
 
 #include <array>
@@ -12,6 +13,11 @@ struct ImVec2;
 typedef unsigned int ImGuiID;
 
 namespace elm::script {
+
+class HotReload;
+class MainModule;
+class ModuleLoader;
+class ModulePaths;
 
 /// Text editor for the files under the script root, drawn inside the Scripts window.
 /// Saving (Ctrl+S) writes the file and reloads its module right away, a failed reload shows
@@ -30,7 +36,7 @@ public:
     };
     [[nodiscard]] static std::optional<Location> FindLocation(StringView message);
 
-    explicit ScriptEditor(ScriptSystem& scripts);
+    ScriptEditor(const ModulePaths& paths, const ModuleLoader& loader, HotReload& hotReload, const MainModule& mainModule);
 
     ScriptEditor(const ScriptEditor&) = delete;
     ScriptEditor& operator=(const ScriptEditor&) = delete;
@@ -88,7 +94,11 @@ private:
     [[nodiscard]] String ModuleError(StringView module) const;
     static int TextCallback(ImGuiInputTextCallbackData* data);
 
-    ScriptSystem& m_scripts;
+    const ModulePaths& m_paths;
+    const ModuleLoader& m_loader;
+    HotReload& m_hotReload;
+    /// Its name marks the main module in the file list.
+    const MainModule& m_mainModule;
     /// Pointers stay valid while a tab is open: the text callback holds one.
     Vector<UniquePtr<Document>> m_documents;
     Document* m_active { nullptr };

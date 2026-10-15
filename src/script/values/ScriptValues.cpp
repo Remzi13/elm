@@ -1,10 +1,10 @@
-#include "script/bindings/ScriptValues.hpp"
+#include "script/values/ScriptValues.hpp"
 
-#include "script/bindings/Entity.hpp"
+#include "script/values/Entity.hpp"
 
 #include <algorithm>
 
-namespace elm::script::bindings {
+namespace elm::script {
 
     namespace {
 
@@ -74,11 +74,11 @@ namespace elm::script::bindings {
         return 1;
     }
 
-    Vector<std::pair<String, ScriptValue>> CheckScriptProps(lua_State* L, int index)
+    ScriptProps CheckScriptProps(lua_State* L, int index)
     {
         index = lua_absindex(L, index);
         luaL_checktype(L, index, LUA_TTABLE);
-        Vector<std::pair<String, ScriptValue>> props;
+        ScriptProps props;
         lua_pushnil(L);
         while (lua_next(L, index)) {
             if (lua_type(L, -2) != LUA_TSTRING)
@@ -97,4 +97,4 @@ namespace elm::script::bindings {
         return props;
     }
 
-} // namespace elm::script::bindings
+} // namespace elm::script

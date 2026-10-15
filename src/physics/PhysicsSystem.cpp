@@ -27,7 +27,6 @@
 #include <algorithm>
 #include <cmath>
 #include <mutex>
-#include <thread>
 
 namespace elm  {
 
@@ -248,16 +247,16 @@ auto PhysicsSystem::Init() -> elm::EngineResult<void> {
     JPH::RegisterTypes();
 
     // Create TempAllocator & JobSystem
-    m_tempAllocator = std::make_unique<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
+    m_tempAllocator = MakeUnique<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
 
     const uint32_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
-    m_jobSystem = std::make_unique<JPH::JobSystemThreadPool>(
+    m_jobSystem = MakeUnique<JPH::JobSystemThreadPool>(
         JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, static_cast<int>(numThreads));
 
     // Create BroadPhase and Object filter implementations
-    m_broadPhaseLayerInterface = std::make_unique<BPLayerInterfaceImpl>();
-    m_objectVsBroadPhaseFilter = std::make_unique<ObjectVsBroadPhaseLayerFilterImpl>();
-    m_objectLayerPairFilter = std::make_unique<ObjectLayerPairFilterImpl>();
+    m_broadPhaseLayerInterface = MakeUnique<BPLayerInterfaceImpl>();
+    m_objectVsBroadPhaseFilter = MakeUnique<ObjectVsBroadPhaseLayerFilterImpl>();
+    m_objectLayerPairFilter = MakeUnique<ObjectLayerPairFilterImpl>();
 
     // Init physics system settings
     constexpr uint32_t cMaxBodies = 8192;
@@ -265,7 +264,7 @@ auto PhysicsSystem::Init() -> elm::EngineResult<void> {
     constexpr uint32_t cMaxBodyPairs = 8192;
     constexpr uint32_t cMaxContactConstraints = 4096;
 
-    m_physicsSystem = std::make_unique<JPH::PhysicsSystem>();
+    m_physicsSystem = MakeUnique<JPH::PhysicsSystem>();
     m_physicsSystem->Init(
         cMaxBodies,
         cNumBodyMutexes,
@@ -275,7 +274,7 @@ auto PhysicsSystem::Init() -> elm::EngineResult<void> {
         *m_objectVsBroadPhaseFilter,
         *m_objectLayerPairFilter
     );
-    m_contacts = std::make_unique<ContactQueue>();
+    m_contacts = MakeUnique<ContactQueue>();
     m_physicsSystem->SetContactListener(m_contacts.get());
 
     m_initialized = true;
