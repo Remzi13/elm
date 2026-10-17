@@ -51,9 +51,21 @@ private:
     char m_newPropName[64] { "newProp" };
     int m_newPropType { 0 };
 
+    enum class ModelDialogAction {
+        AssignToComponent,
+        AddNewRootNode,
+        AddNewChildNode
+    };
+
     ui::FileDialog m_gltfFileDialog;
     ui::FileDialog m_sceneOpenFileDialog;
     ui::FileDialog m_sceneSaveFileDialog;
+    ui::FileDialog m_modelOpenFileDialog;
+    ui::FileDialog m_gltfSceneImportFileDialog;
+    ModelDialogAction m_modelDialogAction { ModelDialogAction::AssignToComponent };
+    NodeId m_modelDialogTargetNode;
+    bool m_deferModelOpen { false };
+    bool m_deferGltfSceneImport { false };
 
     String m_sceneFileStatus;
     Vector<MessageBus::Subscription> m_querySubscriptions;

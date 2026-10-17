@@ -78,8 +78,40 @@ void FileDialog::RefreshEntries()
                 m_error = String(typeError.message().c_str());
                 return;
             }
-            if (isRegularFile && entry.Extension() == m_extension)
-                files.push_back({ entry.CurrentPath(), false });
+            if (isRegularFile) {
+                bool matches = m_extension.empty();
+                if (!matches) {
+                    const String ext = entry.Extension().string().c_str();
+                    size_t start = 0;
+                    while (start < m_extension.size()) {
+                        size_t end = m_extension.find_first_of(";|, ", start);
+                        if (end == String::npos)
+                            end = m_extension.size();
+                        if (end > start) {
+                            String token = m_extension.substr(start, end - start);
+                            if (!token.empty() && token[0] != '.')
+                                token = "." + token;
+                            if (ext.size() == token.size()) {
+                                bool match = true;
+                                for (size_t i = 0; i < ext.size(); ++i) {
+                                    if (std::tolower(static_cast<unsigned char>(ext[i])) !=
+                                        std::tolower(static_cast<unsigned char>(token[i]))) {
+                                        match = false;
+                                        break;
+                                    }
+                                }
+                                if (match) {
+                                    matches = true;
+                                    break;
+                                }
+                            }
+                        }
+                        start = end + 1;
+                    }
+                }
+                if (matches)
+                    files.push_back({ entry.CurrentPath(), false });
+            }
         }
 
         entry.Next(error);

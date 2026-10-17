@@ -277,6 +277,10 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
         m_gltfFileDialog.SaveAs("Export Scene to glTF", ".gltf", "scene.gltf", AssetPaths::Scenes());
     }
     ImGui::SameLine();
+    if (ImGui::Button("Import glTF...")) {
+        m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", AssetPaths::Models());
+    }
+    ImGui::SameLine();
     if (ImGui::Button("Clear")) {
         scene.Clear();
         context.models.Clear();
@@ -318,6 +322,69 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
         m_sceneFileStatus = result ? "Scene exported to " + String(path->string().c_str()) + "." : result.error().message;
     }
 
+    // Handle deferred file dialog opens from DrawHierarchyTree popup
+    if (m_deferModelOpen) {
+        m_deferModelOpen = false;
+        m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+    }
+    if (m_deferGltfSceneImport) {
+        m_deferGltfSceneImport = false;
+        m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", AssetPaths::Models());
+    }
+
+    if (const auto path = m_gltfSceneImportFileDialog.Draw()) {
+        auto result = resmgr::GltfExporter::LoadScene(*path);
+        if (result) {
+            const auto handlers = context.models.InsertAll(std::move(result->models));
+            const auto newIds = scene.Append(std::move(*result), handlers);
+            if (!newIds.empty())
+                m_selectedNode = newIds.front();
+            m_sceneFileStatus = "glTF scene imported from " + String(path->Filename().c_str()) + ".";
+        } else {
+            m_sceneFileStatus = "Failed to import glTF scene: " + result.error().message;
+        }
+    }
+
+    if (const auto path = m_modelOpenFileDialog.Draw()) {
+        const String ext = path->Extension().string().c_str();
+        const bool isGltf = ext == ".gltf" || ext == ".glb";
+        auto modelResult = isGltf ? resmgr::GltfExporter::LoadModel(*path) : resmgr::Serializer::LoadModel(*path);
+        if (!modelResult) {
+            m_sceneFileStatus = "Failed to load model: " + modelResult.error().message;
+        } else {
+            graphics::Model loadedModel = std::move(*modelResult);
+            if (loadedModel.name.empty())
+                loadedModel.name = String(path->Stem().string().c_str());
+            const String modelName = loadedModel.name;
+            const auto handle = context.models.Insert(std::move(loadedModel));
+
+            if (m_modelDialogAction == ModelDialogAction::AssignToComponent) {
+                if (auto* comp = scene.Components<ModelComponent>().Find(m_modelDialogTargetNode)) {
+                    comp->model = handle;
+                    if (const auto* node = scene.Find(m_modelDialogTargetNode)) {
+                        if (node->name.empty() || node->name == "Cube" || node->name == "Empty Node" || node->name == "Node" || node->name == "Model")
+                            scene.SetName(m_modelDialogTargetNode, modelName);
+                    }
+                    m_sceneFileStatus = "Model assigned from " + String(path->Filename().c_str()) + ".";
+                }
+            } else if (m_modelDialogAction == ModelDialogAction::AddNewRootNode || m_modelDialogAction == ModelDialogAction::AddNewChildNode) {
+                const NodeId parentId = (m_modelDialogAction == ModelDialogAction::AddNewChildNode) ? m_modelDialogTargetNode : NodeId { };
+                const NodeId newNode = scene.AddNode(Scene::NodeDesc {
+                    .name = modelName,
+                    .parent = parentId,
+                    .localTransform = math::Matrix4x4::Identity(),
+                });
+                scene.Components<ModelComponent>().Emplace(newNode, ModelComponent {
+                    .model = handle,
+                    .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                    .visible = true,
+                });
+                m_selectedNode = newNode;
+                m_sceneFileStatus = "Added node \"" + modelName + "\" with model from " + String(path->Filename().c_str()) + ".";
+            }
+        }
+    }
+
     if (!m_sceneFileStatus.empty()) {
         ImVec4 statusColor(0.7f, 0.7f, 0.75f, 1.0f);
         if (m_sceneFileStatus.starts_with("Scene saved") || m_sceneFileStatus.starts_with("Scene loaded") || m_sceneFileStatus.starts_with("Scene exported"))
@@ -342,30 +409,90 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
     if (ImGui::BeginPopup("AddObjectPopup")) {
         if (ImGui::MenuItem("Empty Node"))
             m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Empty Node", 0);
-        if (ImGui::MenuItem("Cube"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Cube", 1);
-        if (ImGui::MenuItem("Wall"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Wall", 2);
-        if (ImGui::MenuItem("Ground Plane"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Ground Plane", 3);
+
+        if (ImGui::MenuItem("Model from Disk (.gltf, .glb, .model)...")) {
+            m_modelDialogAction = ModelDialogAction::AddNewRootNode;
+            m_modelDialogTargetNode = NodeId { };
+            m_deferModelOpen = true;
+        }
+
+        if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
+            context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                String label = FormatModelLabel(&m, handle);
+                if (ImGui::MenuItem(label.c_str())) {
+                    String name = m.name.empty() ? "Model" : m.name;
+                    const NodeId id = scene.AddNode({ .name = name, .parent = NodeId { }, .localTransform = math::Matrix4x4::Identity() });
+                    scene.Components<ModelComponent>().Emplace(id, ModelComponent {
+                        .model = handle,
+                        .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                        .visible = true,
+                    });
+                    m_selectedNode = id;
+                }
+            });
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("3D Primitives")) {
+            if (ImGui::MenuItem("Cube"))
+                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Cube", 1);
+            if (ImGui::MenuItem("Wall"))
+                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Wall", 2);
+            if (ImGui::MenuItem("Ground Plane"))
+                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Ground Plane", 3);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::MenuItem("Import glTF Scene Hierarchy...")) {
+            m_deferGltfSceneImport = true;
+        }
 
         if (m_selectedNode && scene.Find(m_selectedNode)) {
             ImGui::Separator();
             ImGui::TextDisabled("As Child of Selected:");
             if (ImGui::MenuItem("Empty Child Node"))
                 m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Empty Child", 0);
-            if (ImGui::MenuItem("Cube Child"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Cube", 1);
-            if (ImGui::MenuItem("Wall Child"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Wall", 2);
-            if (ImGui::MenuItem("Ground Plane Child"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Ground Plane", 3);
+
+            if (ImGui::MenuItem("Child Model from Disk...")) {
+                m_modelDialogAction = ModelDialogAction::AddNewChildNode;
+                m_modelDialogTargetNode = m_selectedNode;
+                m_deferModelOpen = true;
+            }
+
+            if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model (as Child)")) {
+                context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                    String label = FormatModelLabel(&m, handle);
+                    if (ImGui::MenuItem(label.c_str())) {
+                        String name = m.name.empty() ? "Model" : m.name;
+                        const NodeId id = scene.AddNode({ .name = name, .parent = m_selectedNode, .localTransform = math::Matrix4x4::Identity() });
+                        scene.Components<ModelComponent>().Emplace(id, ModelComponent {
+                            .model = handle,
+                            .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                            .visible = true,
+                        });
+                        m_selectedNode = id;
+                    }
+                });
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("3D Primitives (as Child)")) {
+                if (ImGui::MenuItem("Cube Child"))
+                    m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Cube", 1);
+                if (ImGui::MenuItem("Wall Child"))
+                    m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Wall", 2);
+                if (ImGui::MenuItem("Ground Plane Child"))
+                    m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Ground Plane", 3);
+                ImGui::EndMenu();
+            }
+
             ImGui::Separator();
             if (ImGui::MenuItem("Duplicate Selected"))
                 m_selectedNode = DuplicateNode(scene, m_selectedNode);
         }
         ImGui::EndPopup();
     }
+
 
     ImGui::SameLine();
     ImGui::BeginDisabled(!m_selectedNode || !scene.Find(m_selectedNode));
@@ -399,12 +526,39 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
     if (ImGui::BeginPopupContextWindow("TreeEmptyAreaContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
         if (ImGui::MenuItem("Add Empty Node"))
             m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Empty Node", 0);
-        if (ImGui::MenuItem("Add Cube"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Cube", 1);
-        if (ImGui::MenuItem("Add Wall"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Wall", 2);
-        if (ImGui::MenuItem("Add Ground Plane"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Ground Plane", 3);
+        if (ImGui::MenuItem("Add Model from Disk...")) {
+            m_modelDialogAction = ModelDialogAction::AddNewRootNode;
+            m_modelDialogTargetNode = NodeId { };
+            m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+        }
+        if (context.models.Size() > 0 && ImGui::BeginMenu("Add from Loaded Model")) {
+            context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                String label = FormatModelLabel(&m, handle);
+                if (ImGui::MenuItem(label.c_str())) {
+                    String name = m.name.empty() ? "Model" : m.name;
+                    const NodeId id = scene.AddNode({ .name = name, .parent = NodeId { }, .localTransform = math::Matrix4x4::Identity() });
+                    scene.Components<ModelComponent>().Emplace(id, ModelComponent {
+                        .model = handle,
+                        .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                        .visible = true,
+                    });
+                    m_selectedNode = id;
+                }
+            });
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Add 3D Primitive")) {
+            if (ImGui::MenuItem("Cube"))
+                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Cube", 1);
+            if (ImGui::MenuItem("Wall"))
+                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Wall", 2);
+            if (ImGui::MenuItem("Ground Plane"))
+                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Ground Plane", 3);
+            ImGui::EndMenu();
+        }
+        if (ImGui::MenuItem("Import glTF Scene Hierarchy...")) {
+            m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", AssetPaths::Models());
+        }
         ImGui::EndPopup();
     }
 
@@ -500,12 +654,36 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
         if (ImGui::BeginMenu("Add Child")) {
             if (ImGui::MenuItem("Empty Child Node"))
                 m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Empty Node", 0);
-            if (ImGui::MenuItem("Cube"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Cube", 1);
-            if (ImGui::MenuItem("Wall"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Wall", 2);
-            if (ImGui::MenuItem("Ground Plane"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Ground Plane", 3);
+            if (ImGui::MenuItem("Child Model from Disk...")) {
+                m_modelDialogAction = ModelDialogAction::AddNewChildNode;
+                m_modelDialogTargetNode = node.id;
+                m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+            }
+            if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
+                context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                    String modelItemLabel = FormatModelLabel(&m, handle);
+                    if (ImGui::MenuItem(modelItemLabel.c_str())) {
+                        String name = m.name.empty() ? "Model" : m.name;
+                        const NodeId id = scene.AddNode({ .name = name, .parent = node.id, .localTransform = math::Matrix4x4::Identity() });
+                        scene.Components<ModelComponent>().Emplace(id, ModelComponent {
+                            .model = handle,
+                            .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                            .visible = true,
+                        });
+                        m_selectedNode = id;
+                    }
+                });
+                ImGui::EndMenu();
+            }
+            if (ImGui::BeginMenu("3D Primitives")) {
+                if (ImGui::MenuItem("Cube"))
+                    m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Cube", 1);
+                if (ImGui::MenuItem("Wall"))
+                    m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Wall", 2);
+                if (ImGui::MenuItem("Ground Plane"))
+                    m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Ground Plane", 3);
+                ImGui::EndMenu();
+            }
             ImGui::EndMenu();
         }
         if (ImGui::MenuItem("Duplicate")) {
@@ -743,7 +921,11 @@ void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, graph
     const auto* model = models.Get(comp.model);
     String previewName = FormatModelLabel(model, comp.model);
 
-    if (ImGui::BeginCombo("Model", previewName.c_str())) {
+    ImGui::TextUnformatted("Model Asset:");
+    const float browseBtnWidth = 85.0f;
+    const float spacing = ImGui::GetStyle().ItemSpacing.x;
+    ImGui::SetNextItemWidth((std::max)(100.0f, ImGui::GetContentRegionAvail().x - browseBtnWidth - spacing));
+    if (ImGui::BeginCombo("##ModelCombo", previewName.c_str())) {
         models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
             String itemText = FormatModelLabel(&m, handle);
             ImGui::PushID(static_cast<int>(handle.Raw()));
@@ -752,6 +934,21 @@ void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, graph
             ImGui::PopID();
         });
         ImGui::EndCombo();
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Browse...##BrowseModelDisk", ImVec2(browseBtnWidth, 0.0f))) {
+        m_modelDialogAction = ModelDialogAction::AssignToComponent;
+        m_modelDialogTargetNode = nodeId;
+        m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+    }
+
+    if (model) {
+        ImGui::TextDisabled("Submeshes: %zu", model->submeshes.size());
+        const auto bounds = model->GetLocalBounds();
+        if (bounds.minBounds.x <= bounds.maxBounds.x) {
+            const math::Vector3 size = bounds.maxBounds - bounds.minBounds;
+            ImGui::TextDisabled("Dimensions: [%.2f, %.2f, %.2f]", size.x, size.y, size.z);
+        }
     }
 
     ImGui::TextUnformatted("Set Primitive:");
@@ -778,7 +975,8 @@ void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, graph
     }
 
     if (model) {
-        if (ImGui::Button("Open in Model Editor")) {
+        ImGui::SameLine();
+        if (ImGui::Button("Open in Editor")) {
             if (const auto editor = Request<OpenModelEditor>())
                 editor->open(comp.model);
         }
@@ -1007,16 +1205,71 @@ void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, co
         const bool hasCol = scene.FindComponents<Collider>() && scene.FindComponents<Collider>()->Contains(nodeId);
         const bool hasScript = scene.FindComponents<ScriptComponent>() && scene.FindComponents<ScriptComponent>()->Contains(nodeId);
 
-        if (ImGui::MenuItem("Model Component", nullptr, false, !hasModel)) {
-            graphics::Model model;
-            model.name = "Cube";
-            model.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
-            const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(model));
-            scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
-                .model = handle,
-                .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
-                .visible = true,
-            });
+        if (hasModel) {
+            ImGui::MenuItem("Model Component", nullptr, false, false);
+        } else if (ImGui::BeginMenu("Model Component")) {
+            if (ImGui::MenuItem("Browse from Disk (.gltf, .glb, .model)...")) {
+                m_modelDialogAction = ModelDialogAction::AssignToComponent;
+                m_modelDialogTargetNode = nodeId;
+                m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+                graphics::Model m;
+                m.name = "Model";
+                m.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
+                    .model = handle,
+                    .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                    .visible = true,
+                });
+            }
+            if (ImGui::MenuItem("Default Cube")) {
+                graphics::Model m;
+                m.name = "Cube";
+                m.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
+                    .model = handle,
+                    .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                    .visible = true,
+                });
+            }
+            if (ImGui::MenuItem("Default Wall")) {
+                graphics::Model m;
+                m.name = "Wall";
+                m.AddSubmesh(GeometryPrimitives::CreateWall(2.0f, 2.0f, 0.2f));
+                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
+                    .model = handle,
+                    .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                    .visible = true,
+                });
+            }
+            if (ImGui::MenuItem("Default Ground Plane")) {
+                graphics::Model m;
+                m.name = "Ground Plane";
+                m.AddSubmesh(GeometryPrimitives::CreateGroundPlane(10.0f, 10.0f));
+                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
+                    .model = handle,
+                    .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                    .visible = true,
+                });
+            }
+            if (models.Size() > 0) {
+                ImGui::Separator();
+                ImGui::TextDisabled("Loaded Models:");
+                models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                    String label = FormatModelLabel(&m, handle);
+                    if (ImGui::MenuItem(label.c_str())) {
+                        scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
+                            .model = handle,
+                            .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
+                            .visible = true,
+                        });
+                    }
+                });
+            }
+            ImGui::EndMenu();
         }
 
         if (ImGui::MenuItem("RigidBody (Physics)", nullptr, false, !hasRB)) {
