@@ -1155,12 +1155,26 @@ void ModelEditorWindow::DrawPreview(ImGuiWindowContext& context)
 
     const ImVec2 imagePosition = ImGui::GetCursorScreenPos();
     ImGui::Image(texture, available);
-    if (ImGui::IsItemHovered()) {
-        const auto& io = ImGui::GetIO();
-        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left)) {
+
+    // Overlay an invisible button across the entire preview canvas to claim mouse input.
+    // Without an interactive widget ID, Dear ImGui treats mouse dragging as window moving,
+    // which prevents orbiting and causes the window to move instead.
+    ImGui::SetCursorScreenPos(imagePosition);
+    ImGui::InvisibleButton("##ModelPreviewCanvas", available,
+        ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+    const bool isHovered = ImGui::IsItemHovered();
+    const bool isActive = ImGui::IsItemActive();
+    const auto& io = ImGui::GetIO();
+
+    if (isActive) {
+        ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeAll);
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Left, 0.0f) || ImGui::IsMouseDragging(ImGuiMouseButton_Right, 0.0f)) {
             m_cameraYaw += io.MouseDelta.x * 0.01f;
             m_cameraPitch = std::clamp(m_cameraPitch + io.MouseDelta.y * 0.01f, -1.5f, 1.5f);
         }
+    }
+
+    if (isHovered) {
         if (io.MouseWheel != 0.0f)
             m_cameraZoom = std::clamp(m_cameraZoom * std::pow(0.9f, io.MouseWheel), 0.1f, 20.0f);
         if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) {
@@ -1169,8 +1183,9 @@ void ModelEditorWindow::DrawPreview(ImGuiWindowContext& context)
             m_cameraZoom = 1.0f;
         }
     }
+
     ImGui::GetWindowDrawList()->AddText(ImVec2(imagePosition.x + 6.0f, imagePosition.y + 4.0f),
-        ImGui::GetColorU32(ImGuiCol_TextDisabled), "LMB drag: orbit   Wheel: zoom   Double click: reset");
+        ImGui::GetColorU32(ImGuiCol_TextDisabled), "LMB / RMB drag: orbit   Wheel: zoom   Double click: reset");
 
     // Orbit camera framing the whole model, so the view stays put while submeshes are soloed
     const auto* source = GetPreviewSource();
