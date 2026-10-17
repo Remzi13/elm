@@ -2,7 +2,9 @@
 
 #include "graphics/Model.hpp"
 
-#include "Scene/TestScenes.hpp"
+#include "Scene/SceneAsset.hpp"
+
+#include <span>
 
 namespace elm::graphics {
 
@@ -26,7 +28,7 @@ namespace elm::graphics {
     /// A model built from a loaded scene and the scene nodes that place it.
     struct ImportedModel {
         Model model;
-        /// Scene nodes of the asset using this model; Scene::NoNode means "at the scene origin"
+        /// Nodes of the asset using this model; SceneAsset::NoNode means "at the scene origin"
         /// (MergeAll bakes everything into scene space).
         Vector<size_t> instanceNodes;
     };
@@ -35,7 +37,7 @@ namespace elm::graphics {
     [[nodiscard]] Vector<ImportedModel> BuildSceneImport(const SceneAsset& asset, const Vector<bool>& selected,
         const SceneImportOptions& options);
 
-    /// Depth of every scene node, 0 for roots.
-    [[nodiscard]] Vector<uint32_t> ComputeNodeDepths(const Scene& scene);
+    /// Depth of every asset node, 0 for roots.
+    [[nodiscard]] Vector<uint32_t> ComputeNodeDepths(std::span<const SceneAsset::Node> nodes);
 
 } // namespace elm::graphics

@@ -3,7 +3,9 @@
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 
-#include <algorithm>
+#include "Scene/ModelComponent.hpp"
+
+#include <span>
 
 namespace elm {
 
@@ -92,7 +94,7 @@ void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Settings& settings)
     m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), m_depthBuffer.GetWidth() * sizeof(uint32_t)));
 }
 
-void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const graphics::ModelManager& models,
+void OcclusionCullingSystem::ExecuteCulling(const Scene& scene, const graphics::ModelManager& models,
     const Matrix4x4& cullingViewProj, const Settings& settings)
 {
     ELM_PROFILE_SCOPE_N("Execute Culling");
@@ -100,7 +102,17 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const graphics::ModelM
 
     ApplySettings(settings);
 
-    m_occludees.clear();
+    m_occludees.Clear();
+    // Nodes hidden by the user neither show nor hide anything; nodes without a model have nothing to cull
+    const auto* drawn = scene.FindComponents<ModelComponent>();
+    const std::span<const ModelComponent> components = drawn ? drawn->Components() : std::span<const ModelComponent> { };
+    const std::span<const NodeId> ids = drawn ? drawn->Ids() : std::span<const NodeId> { };
+    const auto worldTransforms = scene.WorldTransforms();
+    // Index of the node of components[index] when it takes part, Scene::NoNode otherwise
+    const auto takingPart = [&](size_t index) {
+        const bool shown = components[index].visible && models.Get(components[index].model) != nullptr;
+        return shown ? scene.IndexOf(ids[index]) : Scene::NoNode;
+    };
 
     // 1. Clear depth buffer
     m_depthBuffer.Clear(1.0f);
@@ -108,11 +120,12 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const graphics::ModelM
     // 2. Rasterize occluders to software depth buffer
     const auto tRasterStart = core::getTimeStamp();
     if (enableOcclusionCulling) {
-        for (const auto& node : scene.nodes) {
-            const auto* model = models.Get(node.model);
-            if (!model)
+        for (size_t index = 0; index < components.size(); ++index) {
+            const size_t nodeIndex = takingPart(index);
+            if (nodeIndex == Scene::NoNode)
                 continue;
-            const Matrix4x4 wvp = cullingViewProj * node.worldTransform;
+            const auto* model = models.Get(components[index].model);
+            const Matrix4x4 wvp = cullingViewProj * worldTransforms[nodeIndex];
             for (const auto& submesh : model->submeshes) {
                 const auto& data = submesh.data;
                 if (!data)
@@ -133,30 +146,24 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const graphics::ModelM
 
     const Frustum frustum = Frustum::FromViewProj(cullingViewProj);
 
-    m_stats.totalObjects = static_cast<uint32_t>(std::count_if(scene.nodes.begin(), scene.nodes.end(),
-        [&](const Scene::Node& node) { return models.Get(node.model) != nullptr; }));
+    m_stats.totalObjects = 0;
     m_stats.visibleCount = 0;
     m_stats.frustumCulledCount = 0;
     m_stats.occlusionCulledCount = 0;
 
-    for (auto& node : scene.nodes) {
+    for (size_t index = 0; index < components.size(); ++index) {
+        const size_t nodeIndex = takingPart(index);
+        if (nodeIndex == Scene::NoNode)
+            continue;
+        m_stats.totalObjects++;
 
         OccludeeInstance occInst;
         occInst.isFrustumCulled = false;
         occInst.isOcclusionCulled = false;
         occInst.isVisible = true;
-        occInst.worldTransform = node.worldTransform;
-        const auto* model = models.Get(node.model);
-        occInst.localBounds = model ? model->GetLocalBounds() : AABB{};
-        occInst.color = node.color;
-
-        if (!model) {
-            occInst.isVisible = node.visible;
-            m_occludees.emplace_back(occInst);
-            continue;
-        }
-
-        const AABB worldBounds = occInst.localBounds.Transformed(occInst.worldTransform);
+        occInst.color = components[index].color;
+        const auto* model = models.Get(components[index].model);
+        const AABB worldBounds = model->GetLocalBounds().Transformed(worldTransforms[nodeIndex]);
         auto finishCulling = [&](bool isCulled) {
             if (visualMode == VisualMode::HighlightCulled && isCulled) {
                 occInst.isVisible = true;
@@ -165,8 +172,7 @@ void OcclusionCullingSystem::ExecuteCulling(Scene& scene, const graphics::ModelM
             else if (visualMode == VisualMode::OccludersOnly) {
                 occInst.isVisible = enableOcclusionCulling;
             }
-            node.visible = occInst.isVisible;
-            m_occludees.emplace_back(occInst);
+            m_occludees.Emplace(ids[index], occInst);
         };
 
         // Frustum Culling

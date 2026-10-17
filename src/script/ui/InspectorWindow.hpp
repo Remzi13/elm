@@ -48,8 +48,8 @@ namespace elm::script {
         void DrawScript(Scene& scene, NodeId node);
         void DrawProps(Scene& scene, NodeId node, const String& module);
         void DrawRigidBody(Scene& scene, NodeId node);
-        void DrawCollider(ImGuiWindowContext& context, NodeId node, size_t nodeIndex);
-        void DrawAddComponent(ImGuiWindowContext& context, NodeId node, size_t nodeIndex);
+        void DrawCollider(ImGuiWindowContext& context, NodeId node);
+        void DrawAddComponent(ImGuiWindowContext& context, NodeId node);
         /// An editor for the value, of its type; true when the value changed.
         bool DrawValue(const char* label, ScriptValue& value, Scene& scene);
         void TogglePlay();

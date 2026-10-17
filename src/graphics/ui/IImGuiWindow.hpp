@@ -4,8 +4,10 @@
 #include "core/MessageBus.hpp"
 #include "core/Settings.hpp"
 
-#include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/ModelManager.hpp"
+
+#include "Scene/Scene.hpp"
 
 #include <optional>
 #include <utility>

@@ -4,13 +4,19 @@
 
 #include "script/lua/Ref.hpp"
 
+#include "graphics/Model.hpp"
+
+#include "Scene/PhysicsComponents.hpp"
+#include "Scene/Scene.hpp"
+
 #include <optional>
 
 namespace elm::script::bindings {
 
-    /// A component type as entity:add/remove/has and elm.scene.with see it, by its Lua name.
+    /// A component type as entity:add/remove/has and elm.scene.with see it, by its Lua name
+    /// (ComponentTypeName).
     struct ComponentKind {
-        const char* name;
+        ComponentType type;
         /// The scene's store of the type, nullptr while the scene has none.
         const IComponentStore* (*find)(const Scene& scene);
         IComponentStore& (*store)(Scene& scene);
@@ -20,13 +26,13 @@ namespace elm::script::bindings {
         void (*beforeRemove)(lua_State* L, NodeId node);
     };
 
-    template <typename T>
+    template <SceneComponent T>
     const IComponentStore* FindStore(const Scene& scene)
     {
         return scene.FindComponents<T>();
     }
 
-    template <typename T>
+    template <SceneComponent T>
     IComponentStore& StoreOf(Scene& scene)
     {
         return scene.Components<T>();

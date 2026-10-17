@@ -5,12 +5,12 @@
       "Render/culling/DepthFalseColor": true,
       "Render/culling/EnableFrustumCulling": false,
       "Render/culling/EnableOcclusionCulling": false,
-      "Render/culling/Resolution/Height": 144,
-      "Render/culling/Resolution/Width": 256,
-      "Render/culling/VisualMode": 1,
+      "Render/culling/Resolution/Height": 288,
+      "Render/culling/Resolution/Width": 512,
+      "Render/culling/VisualMode": 0,
       "Script/Enabled": true,
       "Script/HotReload": true,
-      "Script/MainModule": "demo.physics",
+      "Script/MainModule": "demo.spinner",
       "Script/PlayOnStart": false
    },
    "version": 1

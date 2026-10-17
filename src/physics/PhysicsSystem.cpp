@@ -1,6 +1,6 @@
 #include "physics/PhysicsSystem.hpp"
 
-#include "Scene/TestScenes.hpp"
+#include "Scene/Scene.hpp"
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
 
@@ -335,7 +335,7 @@ bool PhysicsSystem::SyncBody(Scene& scene, NodeId node, std::optional<float> del
     const auto* rigidBodies = scene.FindComponents<RigidBody>();
     const RigidBody* rigidBody = rigidBodies ? rigidBodies->Find(node) : nullptr;
     const RigidBody settings = rigidBody ? *rigidBody : RigidBody { .type = BodyType::Static };
-    const auto trs = math::DecomposeTRS(scene.nodes[index].worldTransform);
+    const auto trs = math::DecomposeTRS(scene.WorldTransforms()[index]);
 
     if (found == m_links.end())
         found = m_links.emplace(node.Raw(), BodyLink { .node = node }).first;
@@ -346,7 +346,7 @@ bool PhysicsSystem::SyncBody(Scene& scene, NodeId node, std::optional<float> del
         link.collider = *collider;
         link.rigidBody = settings;
         link.scale = trs.scale;
-        BuildBody(link, scene.nodes[index].name, trs.translation, trs.rotation);
+        BuildBody(link, scene.Nodes()[index].name, trs.translation, trs.rotation);
         return link.body != InvalidBody;
     }
     if (link.body == InvalidBody)
@@ -459,12 +459,12 @@ void PhysicsSystem::WriteBack(Scene& scene) {
         link.rotation = FromJolt(rotation);
 
         const math::Matrix4x4 world = math::ComposeTRS(link.position, link.rotation, link.scale);
-        const size_t parent = scene.nodes[index].parentIndex;
-        if (parent >= scene.nodes.size()) {
-            scene.SetLocalTransform(index, world);
-        } else if (const auto parentInverse = math::Inverse(scene.nodes[parent].worldTransform)) {
+        const size_t parent = scene.IndexOf(scene.Nodes()[index].parent);
+        if (parent == Scene::NoNode) {
+            scene.SetLocalTransform(link.node, world);
+        } else if (const auto parentInverse = math::Inverse(scene.WorldTransforms()[parent])) {
             // Relative to the parent as it was before the step
-            scene.SetLocalTransform(index, *parentInverse * world);
+            scene.SetLocalTransform(link.node, *parentInverse * world);
         }
     }
 }

@@ -5,7 +5,8 @@
 
 #include "graphics/ModelManager.hpp"
 
-#include "Scene/TestScenes.hpp"
+#include "Scene/Scene.hpp"
+#include "Scene/SceneAsset.hpp"
 
 namespace elm::resmgr {
     class Serializer {

@@ -1,19 +1,16 @@
 #pragma once
 
 #include "core/Debug.hpp"
-#include "core/Handler.hpp"
 #include "core/Std.hpp"
 
+#include "Scene/NodeId.hpp"
+
+#include <functional>
 #include <span>
 #include <type_traits>
 #include <utility>
 
 namespace elm {
-
-struct NodeTag;
-/// Stable reference to a scene node: survives removal and reordering of other nodes,
-/// a removed node's id stops resolving (generation check).
-using NodeId = core::Handle<NodeTag>;
 
 /// A component store without its type: what the scene needs to keep it in step with its nodes,
 /// and what code that knows a type only by name (script bindings) can ask.
@@ -28,6 +25,11 @@ public:
     [[nodiscard]] virtual UniquePtr<IComponentStore> Clone() const = 0;
     /// Gives node `to` a copy of the component of `from`, if it has one (duplicating a node).
     virtual void Copy(NodeId from, NodeId to) = 0;
+    /// An empty store of the same type.
+    [[nodiscard]] virtual UniquePtr<IComponentStore> MakeEmpty() const = 0;
+    /// Moves the components of source, a store of the same type, to the nodes remap gives for their
+    /// keys and empties it; a component whose key remaps to an invalid id is dropped.
+    virtual void TakeFrom(IComponentStore& source, const std::function<NodeId(NodeId)>& remap) = 0;
 };
 
 /// Components of one type keyed by NodeId (sparse set): add, find and remove in O(1),
@@ -107,6 +109,19 @@ public:
         }
     }
 
+    [[nodiscard]] UniquePtr<IComponentStore> MakeEmpty() const override { return MakeUnique<ComponentStore<T>>(); }
+
+    void TakeFrom(IComponentStore& source, const std::function<NodeId(NodeId)>& remap) override
+    {
+        // The caller pairs stores of one component type
+        auto& typed = static_cast<ComponentStore<T>&>(source);
+        for (size_t dense = 0; dense < typed.m_ids.size(); ++dense) {
+            if (const NodeId node = remap(typed.m_ids[dense]))
+                Emplace(node, std::move(typed.m_components[dense]));
+        }
+        typed.Clear();
+    }
+
     [[nodiscard]] size_t Size() const noexcept { return m_ids.size(); }
     [[nodiscard]] bool Empty() const noexcept { return m_ids.empty(); }
 
@@ -145,23 +160,5 @@ private:
     Vector<NodeId> m_ids;
     Vector<T> m_components;
 };
-
-namespace detail {
-
-    inline uint32_t NextComponentType() noexcept
-    {
-        static uint32_t next = 0;
-        return next++;
-    }
-
-} // namespace detail
-
-/// Dense number of a component type, the index of its store in a scene.
-template <typename T>
-[[nodiscard]] uint32_t ComponentType() noexcept
-{
-    static const uint32_t type = detail::NextComponentType();
-    return type;
-}
 
 } // namespace elm

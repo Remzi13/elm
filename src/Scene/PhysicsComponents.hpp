@@ -1,8 +1,11 @@
 #pragma once
 
-#include "Scene/ComponentStore.hpp"
+#include "core/Std.hpp"
 
 #include "math/Vector.hpp"
+
+#include "Scene/ComponentTypes.hpp"
+#include "Scene/NodeId.hpp"
 
 #include <initializer_list>
 #include <optional>
@@ -22,6 +25,8 @@ enum class BodyType : uint8_t {
 /// Physical behaviour of a node; it becomes a body together with a Collider. PhysicsSystem builds
 /// the body on the next step and builds it again when a field changes (the velocity is kept).
 struct RigidBody {
+    static constexpr ComponentType Type = ComponentType::RigidBody;
+
     BodyType type { BodyType::Dynamic };
     /// Kilograms, dynamic bodies only.
     float mass { 1.0f };
@@ -39,6 +44,8 @@ enum class ColliderShape : uint8_t { Box, Sphere, Capsule };
 
 /// Collision shape of a node in its local space; the node's world scale applies to it.
 struct Collider {
+    static constexpr ComponentType Type = ComponentType::Collider;
+
     ColliderShape shape { ColliderShape::Box };
     /// Box half size.
     math::Vector3 halfExtents { 0.5f, 0.5f, 0.5f };

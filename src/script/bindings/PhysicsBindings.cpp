@@ -1,6 +1,7 @@
 #include "script/bindings/Bindings.hpp"
 #include "script/bindings/Components.hpp"
 
+#include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "graphics/ModelManager.hpp"
 #include "physics/PhysicsSystem.hpp"
@@ -184,9 +185,9 @@ namespace elm::script::bindings {
         Collider FitToModel(lua_State* L, NodeId node)
         {
             const auto* models = Context(L).models;
-            const Scene& scene = SceneOf(L);
-            const size_t index = scene.IndexOf(node);
-            return FitColliderToModel(models && index != Scene::NoNode ? models->Get(scene.nodes[index].model) : nullptr);
+            const auto* nodeModels = SceneOf(L).FindComponents<ModelComponent>();
+            const ModelComponent* component = nodeModels ? nodeModels->Find(node) : nullptr;
+            return FitColliderToModel(models && component ? models->Get(component->model) : nullptr);
         }
 
         // ── entity:add ──────────────────────────────────────────────────────────
@@ -240,8 +241,8 @@ namespace elm::script::bindings {
         }
 
         // The physics system drops a body on its next step once the component is gone
-        constexpr ComponentKind RigidBodyComponent { "RigidBody", &FindStore<RigidBody>, &StoreOf<RigidBody>, &AddRigidBody, nullptr };
-        constexpr ComponentKind ColliderComponent { "Collider", &FindStore<Collider>, &StoreOf<Collider>, &AddCollider, nullptr };
+        constexpr ComponentKind RigidBodyComponent { ComponentType::RigidBody, &FindStore<RigidBody>, &StoreOf<RigidBody>, &AddRigidBody, nullptr };
+        constexpr ComponentKind ColliderComponent { ComponentType::Collider, &FindStore<Collider>, &StoreOf<Collider>, &AddCollider, nullptr };
 
         // ── elm.physics ─────────────────────────────────────────────────────────
 

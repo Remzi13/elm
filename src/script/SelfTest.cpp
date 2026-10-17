@@ -15,7 +15,11 @@
 
 #include "core/Memory.hpp"
 
+#include "Scene/ModelComponent.hpp"
+#include "Scene/NodeIdTable.hpp"
 #include "Scene/PhysicsComponents.hpp"
+#include "Scene/Scene.hpp"
+#include "Scene/SceneAsset.hpp"
 #include "Scene/ScriptComponent.hpp"
 #include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
@@ -328,83 +332,212 @@ namespace elm::script {
 
         // ── Scene node ids ──────────────────────────────────────────────────────
 
+        void RunNodeIdTableTests(Report& report)
+        {
+            NodeIdTable ids;
+            const NodeId a = ids.Allocate(0);
+            const NodeId b = ids.Allocate(1);
+            report.Check(a && b && a != b && ids.IndexOf(a) == 0 && ids.IndexOf(b) == 1 && ids.IndexOf({ }) == NodeIdTable::NoIndex,
+                "node_ids::allocate");
+            ids.Move(b, 7);
+            report.Check(ids.IndexOf(b) == 7, "node_ids::move");
+            report.Check(ids.Free(a) && !ids.Free(a) && ids.IndexOf(a) == NodeIdTable::NoIndex, "node_ids::free");
+            const NodeId reused = ids.Allocate(0);
+            report.Check(reused.Index() == a.Index() && reused.Generation() == a.Generation() + 1 && ids.IndexOf(a) == NodeIdTable::NoIndex,
+                "node_ids::reused_slot_new_generation");
+
+            // A slot that gave out every generation is retired
+            NodeIdTable worn;
+            NodeId last = worn.Allocate(0);
+            for (int round = 0; round < 255; ++round) {
+                worn.Free(last);
+                last = worn.Allocate(0);
+            }
+            worn.Free(last);
+            const NodeId next = worn.Allocate(0);
+            report.Check(last.Generation() == 255 && next.Index() != last.Index() && worn.IndexOf(last) == NodeIdTable::NoIndex,
+                "node_ids::exhausted_slot_retires");
+
+            // An id given out during Play stays stale after Stop, also once the restored node frees the slot
+            NodeIdTable live;
+            const NodeId kept = live.Allocate(0);
+            NodeIdTable snapshot = live;
+            live.Free(kept);
+            const NodeId playTime = live.Allocate(0);
+            live.RestoreFrom(std::move(snapshot));
+            report.Check(live.IndexOf(kept) == 0 && live.IndexOf(playTime) == NodeIdTable::NoIndex, "node_ids::restore_brings_back_ids");
+            live.Free(kept);
+            const NodeId afterStop = live.Allocate(0);
+            report.Check(afterStop.Index() == playTime.Index() && afterStop != playTime && live.IndexOf(playTime) == NodeIdTable::NoIndex,
+                "node_ids::play_id_stays_stale_after_stop");
+        }
+
+        /// World transform of a live node, pending changes included.
+        Matrix4x4 WorldOf(Scene& scene, NodeId node)
+        {
+            scene.UpdateWorldTransforms();
+            return scene.WorldTransforms()[scene.IndexOf(node)];
+        }
+
+        /// Every node comes after its parent.
+        bool ParentsComeFirst(const Scene& scene)
+        {
+            const auto nodes = scene.Nodes();
+            for (size_t index = 0; index < nodes.size(); ++index) {
+                const size_t parent = scene.IndexOf(nodes[index].parent);
+                if (nodes[index].parent && (parent == Scene::NoNode || parent >= index))
+                    return false;
+            }
+            return scene.WorldTransforms().size() == nodes.size();
+        }
+
         void RunSceneTests(Report& report)
         {
             Scene scene;
-            const NodeId a = scene.AddNode({ }, "a").id;
-            const NodeId b = scene.AddNode({ }, "b").id;
-            const NodeId c = scene.AddNode({ }, "c").id;
+            const NodeId a = scene.AddNode({ .name = "a" });
+            const NodeId b = scene.AddNode({ .name = "b" });
+            const NodeId c = scene.AddNode({ .name = "c" });
             report.Check(a && b && c && a != b && b != c, "scene::ids_assigned");
-            report.Check(scene.IndexOf(c) == 2 && scene.Find(b)->name == "b", "scene::ids_resolve");
+            report.Check(scene.IndexOf(c) == 2 && scene.Find(b)->name == "b" && scene.IdOf(2) == c && !scene.IdOf(3),
+                "scene::ids_resolve");
 
             // b becomes the parent of c, c sits 1 unit above b
-            scene.nodes[2].parentIndex = 1;
-            scene.SetLocalTransform(1, Matrix4x4::Translation(Vector3 { 5.0f, 0.0f, 0.0f }));
-            scene.SetLocalTransform(2, Matrix4x4::Translation(Vector3 { 0.0f, 1.0f, 0.0f }));
-            scene.UpdateWorldTransforms();
-            const auto& world = scene.Find(c)->worldTransform;
+            report.Check(scene.SetParent(c, b) == Scene::SetParentResult::Done, "scene::set_parent");
+            scene.SetLocalTransform(b, Matrix4x4::Translation(Vector3 { 5.0f, 0.0f, 0.0f }));
+            scene.SetLocalTransform(c, Matrix4x4::Translation(Vector3 { 0.0f, 1.0f, 0.0f }));
+            const Matrix4x4 world = WorldOf(scene, c);
             report.Check(world(0, 3) == 5.0f && world(1, 3) == 1.0f, "scene::world_follows_parent");
 
-            report.Check(scene.RemoveNode(0), "scene::remove");
+            report.Check(scene.RemoveNode(a), "scene::remove");
             report.Check(scene.IndexOf(a) == Scene::NoNode && !scene.Find(a), "scene::removed_id_is_stale");
-            report.Check(scene.IndexOf(b) == 0 && scene.IndexOf(c) == 1 && scene.nodes[1].parentIndex == 0,
+            report.Check(scene.IndexOf(b) == 0 && scene.IndexOf(c) == 1 && scene.Find(c)->parent == b,
                 "scene::ids_follow_moved_nodes");
 
             // Removing a parent keeps its child where it was in the world
-            report.Check(scene.RemoveNode(scene.IndexOf(b)), "scene::remove_parent");
-            const auto* child = scene.Find(c);
-            scene.UpdateWorldTransforms();
-            report.Check(child && child->parentIndex == Scene::NoNode && child->worldTransform(0, 3) == 5.0f
-                    && child->worldTransform(1, 3) == 1.0f,
+            report.Check(scene.RemoveNode(b), "scene::remove_parent");
+            const Matrix4x4 childWorld = WorldOf(scene, c);
+            report.Check(scene.Find(c) && !scene.Find(c)->parent && childWorld(0, 3) == 5.0f && childWorld(1, 3) == 1.0f,
                 "scene::child_keeps_world_transform");
 
-            const NodeId d = scene.AddNode({ }, "d").id;
+            const NodeId d = scene.AddNode({ .name = "d" });
             report.Check(d != a && d != b && scene.IndexOf(a) == Scene::NoNode, "scene::reused_slot_new_generation");
 
-            // Nodes edited behind the scene's back are found again
-            auto copy = scene.nodes[0];
-            scene.nodes.insert(scene.nodes.begin(), copy);
-            report.Check(scene.IndexOf(c) == 0 || scene.IndexOf(c) == 1, "scene::lookup_survives_direct_edits");
-            const NodeId copyId = scene.IdOf(1);
-            report.Check(copyId && copyId != c && scene.IndexOf(c) == 0 && scene.IndexOf(copyId) == 1,
-                "scene::duplicated_id_is_split");
+            // Every write goes through the scene; a stale id changes nothing
+            report.Check(!scene.SetName(a, "x") && !scene.SetWorldTransform(b, Matrix4x4::Identity())
+                    && !scene.SetLocalTransform(a, Matrix4x4::Identity()) && !scene.RemoveNode(a)
+                    && scene.SetParent(d, a) == Scene::SetParentResult::StaleNode,
+                "scene::setters_reject_stale_id");
+            report.Check(scene.SetName(d, "renamed") && scene.Find(d)->name == "renamed", "scene::setters_change_the_node");
 
             scene.Clear();
             report.Check(scene.IndexOf(c) == Scene::NoNode && scene.IndexOf(d) == Scene::NoNode, "scene::clear_releases_ids");
+        }
+
+        void RunSceneHierarchyTests(Report& report)
+        {
+            Scene scene;
+            const NodeId parent = scene.AddNode({ .name = "parent", .localTransform = Matrix4x4::Translation(Vector3 { 2.0f, 0.0f, 0.0f }) });
+            const NodeId child = scene.AddNode({
+                .name = "child",
+                .parent = parent,
+                .localTransform = Matrix4x4::Translation(Vector3 { 0.0f, 3.0f, 0.0f }),
+            });
+            const Matrix4x4 childWorld = WorldOf(scene, child);
+            report.Check(childWorld(0, 3) == 2.0f && childWorld(1, 3) == 3.0f && scene.Find(child)->parent == parent,
+                "scene::add_node_follows_parent");
+
+            const NodeId gone = scene.AddNode({ .name = "gone" });
+            scene.RemoveNode(gone);
+            report.Check(!scene.AddNode({ .name = "orphan", .parent = gone }) && scene.NodeCount() == 2, "scene::add_node_with_stale_parent");
+
+            // Reparenting keeps the world transform; a parent that comes later takes the child after it
+            const NodeId other = scene.AddNode({ .name = "other", .localTransform = Matrix4x4::Translation(Vector3 { 0.0f, 0.0f, 4.0f }) });
+            report.Check(scene.SetParent(child, other) == Scene::SetParentResult::Done, "scene::set_parent_done");
+            report.Check(scene.IndexOf(other) == 1 && scene.IndexOf(child) == 2 && ParentsComeFirst(scene),
+                "scene::set_parent_moves_the_child_after_its_parent");
+            const Matrix4x4 movedWorld = WorldOf(scene, child);
+            report.Check(movedWorld(0, 3) == 2.0f && movedWorld(1, 3) == 3.0f && scene.Find(child)->localTransform(2, 3) == -4.0f,
+                "scene::set_parent_keeps_world");
+            report.Check(scene.SetParent(other, child) == Scene::SetParentResult::Cycle
+                    && scene.SetParent(child, child) == Scene::SetParentResult::Cycle,
+                "scene::set_parent_rejects_cycle");
+            report.Check(scene.SetParent(child, { }) == Scene::SetParentResult::Done && !scene.Find(child)->parent
+                    && scene.Find(child)->localTransform(0, 3) == 2.0f,
+                "scene::set_parent_detaches");
+            const NodeId flat = scene.AddNode({ .name = "flat", .localTransform = Matrix4x4::Scaling(Vector3 { 1.0f, 0.0f, 1.0f }) });
+            report.Check(scene.SetParent(child, flat) == Scene::SetParentResult::SingularParent, "scene::set_parent_singular");
+        }
+
+        void RunSceneOrderTests(Report& report)
+        {
+            // x has y, y has w; q stands between x and the new parent z
+            Scene scene;
+            const NodeId x = scene.AddNode({ .name = "x", .localTransform = Matrix4x4::Translation(Vector3 { 1.0f, 0.0f, 0.0f }) });
+            const NodeId y = scene.AddNode({ .name = "y", .parent = x });
+            const NodeId q = scene.AddNode({ .name = "q" });
+            const NodeId z = scene.AddNode({ .name = "z", .localTransform = Matrix4x4::Translation(Vector3 { 0.0f, 0.0f, 7.0f }) });
+            const NodeId w = scene.AddNode({ .name = "w", .parent = y, .localTransform = Matrix4x4::Translation(Vector3 { 0.0f, 2.0f, 0.0f }) });
+            report.Check(scene.SetParent(x, z) == Scene::SetParentResult::Done && scene.IndexOf(q) == 0 && scene.IndexOf(z) == 1
+                    && scene.IndexOf(x) == 2 && scene.IndexOf(y) == 3 && scene.IndexOf(w) == 4 && ParentsComeFirst(scene),
+                "scene::subtree_moves_after_a_later_parent");
+            const Matrix4x4 world = WorldOf(scene, w);
+            report.Check(std::abs(world(0, 3) - 1.0f) < 1e-5f && std::abs(world(1, 3) - 2.0f) < 1e-5f && std::abs(world(2, 3)) < 1e-5f,
+                "scene::moved_subtree_keeps_world");
+            report.Check(scene.RemoveNode(z) && scene.Find(x) && !scene.Find(x)->parent && ParentsComeFirst(scene),
+                "scene::removed_parent_keeps_the_order");
+
+            // A scene file may list a parent after its child: the parent goes in first
+            SceneAsset asset;
+            asset.nodes.resize(2);
+            asset.nodes[0].name = "child";
+            asset.nodes[0].parentIndex = 1;
+            asset.nodes[1].name = "parent";
+            asset.components.Components<ModelComponent>().Emplace(SceneAsset::NodeRef(0),
+                ModelComponent { .model = SceneAsset::ModelRef(0), .color = { 1.0f, 0.0f, 0.0f, 1.0f } });
+            Scene target;
+            (void)target.AddNode({ .name = "existing" });
+            const graphics::ModelHandler model(3, 1);
+            const Vector<NodeId> ids = target.Append(std::move(asset), std::span(&model, 1));
+            report.Check(ids.size() == 2 && target.IndexOf(ids[1]) == 1 && target.IndexOf(ids[0]) == 2 && target.Find(ids[0])->name == "child"
+                    && target.Find(ids[0])->parent == ids[1] && ParentsComeFirst(target),
+                "scene::append_parent_after_child");
+            const auto* models = target.FindComponents<ModelComponent>();
+            const ModelComponent* childModel = models ? models->Find(ids[0]) : nullptr;
+            report.Check(childModel && childModel->model == model && childModel->color.x == 1.0f && !models->Contains(ids[1]),
+                "scene::append_gives_models_their_handles");
         }
 
         // ── Scene snapshots ─────────────────────────────────────────────────────
 
         void RunSnapshotTests(Report& report)
         {
-            struct Tag {
-                int value { 0 };
-            };
             Scene scene;
-            const NodeId a = scene.AddNode({ }, "a").id;
-            const NodeId b = scene.AddNode({ }, "b").id;
-            scene.Components<Tag>().Emplace(a, 7);
+            const NodeId a = scene.AddNode({ .name = "a" });
+            const NodeId b = scene.AddNode({ .name = "b" });
+            scene.Components<RigidBody>().Emplace(a, RigidBody { .mass = 7.0f });
             Scene copy = scene.Clone();
-            report.Check(copy.IndexOf(a) == 0 && copy.IndexOf(b) == 1 && copy.FindComponents<Tag>() && copy.FindComponents<Tag>()->Find(a)->value == 7,
+            report.Check(copy.IndexOf(a) == 0 && copy.IndexOf(b) == 1 && copy.FindComponents<RigidBody>()
+                    && copy.FindComponents<RigidBody>()->Find(a)->mass == 7.0f,
                 "snapshot::clone_keeps_ids_and_components");
 
             // Meanwhile: c comes in a new slot, b goes, a changes
-            const NodeId c = scene.AddNode({ }, "c").id;
-            report.Check(scene.RemoveNode(scene.IndexOf(b)), "snapshot::play_removes");
-            scene.Components<Tag>().Remove(a);
-            scene.Find(a)->name = "changed";
+            const NodeId c = scene.AddNode({ .name = "c" });
+            report.Check(scene.RemoveNode(b), "snapshot::play_removes");
+            scene.Components<RigidBody>().Remove(a);
+            scene.SetName(a, "changed");
             scene.RestoreFrom(std::move(copy));
-            report.Check(scene.nodes.size() == 2 && scene.IndexOf(a) == 0 && scene.IndexOf(b) == 1 && scene.Find(a)->name == "a"
-                    && scene.Components<Tag>().Find(a) && scene.IndexOf(c) == Scene::NoNode,
+            report.Check(scene.NodeCount() == 2 && scene.IndexOf(a) == 0 && scene.IndexOf(b) == 1 && scene.Find(a)->name == "a"
+                    && scene.Components<RigidBody>().Find(a) && scene.IndexOf(c) == Scene::NoNode,
                 "snapshot::restore_brings_back_nodes_and_ids");
             // c's slot is free again, at a newer generation: c's id stays stale
-            const NodeId d = scene.AddNode({ }, "d").id;
+            const NodeId d = scene.AddNode({ .name = "d" });
             report.Check(d.Index() == c.Index() && d != c && scene.IndexOf(c) == Scene::NoNode && scene.IndexOf(d) == 2,
                 "snapshot::ids_given_out_meanwhile_stay_stale");
 
-            const NodeId e = scene.AddNode({ }, "e").id;
+            const NodeId e = scene.AddNode({ .name = "e" });
             scene.CopyComponents(a, e);
-            report.Check(scene.Components<Tag>().Find(e) && scene.Components<Tag>().Find(e)->value == 7, "snapshot::copy_components");
+            report.Check(scene.Components<RigidBody>().Find(e) && scene.Components<RigidBody>().Find(e)->mass == 7.0f,
+                "snapshot::copy_components");
         }
 
         // ── Component stores ────────────────────────────────────────────────────
@@ -416,26 +549,26 @@ namespace elm::script {
             };
 
             Scene scene;
-            const NodeId a = scene.AddNode({ }, "a").id;
-            const NodeId b = scene.AddNode({ }, "b").id;
-            const NodeId c = scene.AddNode({ }, "c").id;
-            report.Check(!scene.FindComponents<Health>(), "components::no_store_before_use");
-            auto& health = scene.Components<Health>();
-            health.Emplace(a, 10);
-            health.Emplace(b, 20);
-            health.Emplace(c, 30);
-            report.Check(health.Size() == 3 && health.Find(b)->value == 20 && scene.FindComponents<Health>() == &health,
+            const NodeId a = scene.AddNode({ .name = "a" });
+            const NodeId b = scene.AddNode({ .name = "b" });
+            const NodeId c = scene.AddNode({ .name = "c" });
+            report.Check(!scene.FindComponents<RigidBody>(), "components::no_store_before_use");
+            auto& bodies = scene.Components<RigidBody>();
+            bodies.Emplace(a, RigidBody { .mass = 10.0f });
+            bodies.Emplace(b, RigidBody { .mass = 20.0f });
+            bodies.Emplace(c, RigidBody { .mass = 30.0f });
+            report.Check(bodies.Size() == 3 && bodies.Find(b)->mass == 20.0f && scene.FindComponents<RigidBody>() == &bodies,
                 "components::emplace_and_find");
-            health.Emplace(b, 25);
-            report.Check(health.Size() == 3 && health.Find(b)->value == 25 && health.Ids()[1] == b, "components::emplace_replaces_in_place");
+            bodies.Emplace(b, RigidBody { .mass = 25.0f });
+            report.Check(bodies.Size() == 3 && bodies.Find(b)->mass == 25.0f && bodies.Ids()[1] == b, "components::emplace_replaces_in_place");
 
-            report.Check(health.Remove(a) && !health.Contains(a) && health.Find(c)->value == 30 && health.Size() == 2,
+            report.Check(bodies.Remove(a) && !bodies.Contains(a) && bodies.Find(c)->mass == 30.0f && bodies.Size() == 2,
                 "components::remove_keeps_the_others");
-            report.Check(!health.Remove(a), "components::remove_missing");
+            report.Check(!bodies.Remove(a), "components::remove_missing");
 
-            report.Check(scene.RemoveNode(scene.IndexOf(b)) && !health.Contains(b) && health.Size() == 1, "components::go_with_their_node");
-            const NodeId d = scene.AddNode({ }, "d").id;
-            report.Check(d.Index() == b.Index() && !health.Contains(d) && !health.Find(b), "components::reused_slot_starts_empty");
+            report.Check(scene.RemoveNode(b) && !bodies.Contains(b) && bodies.Size() == 1, "components::go_with_their_node");
+            const NodeId d = scene.AddNode({ .name = "d" });
+            report.Check(d.Index() == b.Index() && !bodies.Contains(d) && !bodies.Find(b), "components::reused_slot_starts_empty");
 
             // A node that went away without the store hearing of it: its slot's next node replaces the entry
             ComponentStore<Health> store;
@@ -451,7 +584,23 @@ namespace elm::script {
             report.Check(store.Size() == 1 && store.Find(fresh) && store.Find(fresh)->value == 3, "components::removal_after_stale_entry");
 
             scene.Clear();
-            report.Check(health.Empty(), "components::clear_with_the_scene");
+            report.Check(bodies.Empty(), "components::clear_with_the_scene");
+
+            bool namesRoundTrip = !ComponentTypeFromName("Rigidbody");
+            for (const ComponentType type : AllComponentTypes)
+                namesRoundTrip = namesRoundTrip && ComponentTypeFromName(ComponentTypeName(type)) == type;
+            report.Check(namesRoundTrip, "components::type_names_round_trip");
+
+            // Components move over to the ids remap gives; the ones without a node are dropped
+            ComponentStores source;
+            source.Components<Collider>().Emplace(SceneAsset::NodeRef(0), Collider { .radius = 2.0f });
+            source.Components<Collider>().Emplace(SceneAsset::NodeRef(1), Collider { .radius = 3.0f });
+            const NodeId target = scene.AddNode({ .name = "target" });
+            ComponentStores moved;
+            moved.TakeFrom(std::move(source), [&](NodeId key) { return key == SceneAsset::NodeRef(0) ? target : NodeId { }; });
+            const auto* colliders = moved.FindComponents<Collider>();
+            report.Check(colliders && colliders->Size() == 1 && colliders->Find(target) && colliders->Find(target)->radius == 2.0f,
+                "components::take_from_remaps_ids");
         }
 
         // ── Hot reload and console ──────────────────────────────────────────────
@@ -700,8 +849,8 @@ namespace elm::script {
             report.Check(eval("return wa.fixed") == "1", "entity::on_fixed_update");
 
             // A component added without Lua (scene file, C++) gets its instance on the next update
-            const NodeId nodeA = scene.nodes[0].id;
-            const NodeId nodeC = scene.AddNode({ }, "c").id;
+            const NodeId nodeA = scene.IdOf(0);
+            const NodeId nodeC = scene.AddNode({ .name = "c" });
             scene.Components<ScriptComponent>().Emplace(nodeC, ScriptComponent { "npc.walker", { { "label", ScriptValue(String("c")) } } });
             system.Update(0.016f);
             report.Check(eval("c = elm.scene.find('c') return c.script.label, c.script.ticks, #elm.scene.with('Script')") == "c\t1\t3",
@@ -727,7 +876,7 @@ namespace elm::script {
             report.Check(eval("return events[1], wa.entity.valid, a.valid") == "destroy a true\tfalse\tfalse",
                 "entity::destroy_calls_on_destroy_first");
             // Removed behind the scripts' back (editor, C++): on_destroy on the next pass, the entity is gone already
-            scene.RemoveNode(scene.IndexOf(nodeC));
+            scene.RemoveNode(nodeC);
             system.Update(0.016f);
             report.Check(eval("return events[2]") == "destroy c false", "entity::removed_node_is_noticed");
             report.Check(eval("return b:remove('Script'), b:has('Script'), b.script, events[3], b.valid")
@@ -765,7 +914,7 @@ namespace elm::script {
                 "entity::one_script_per_entity");
 
             // A component naming a missing module is kept faulted, a reload makes it again
-            const NodeId nodeF = scene.AddNode({ }, "f").id;
+            const NodeId nodeF = scene.AddNode({ .name = "f" });
             scene.Components<ScriptComponent>().Emplace(nodeF, ScriptComponent { "npc.later", { } });
             system.Update(0.016f);
             const auto* broken = SelfTestAccess::Entities(system).Find(nodeF);
@@ -822,15 +971,12 @@ namespace elm::script {
 
         NodeId Place(Scene& scene, const char* name, const Vector3& position)
         {
-            const NodeId id = scene.AddNode({ }, name).id;
-            scene.SetLocalTransform(scene.nodes.size() - 1, Matrix4x4::Translation(position));
-            return id;
+            return scene.AddNode({ .name = name, .localTransform = Matrix4x4::Translation(position) });
         }
 
         Vector3 WorldPosition(Scene& scene, NodeId node)
         {
-            scene.UpdateWorldTransforms();
-            const auto& m = scene.Find(node)->worldTransform;
+            const Matrix4x4 m = WorldOf(scene, node);
             return { m(0, 3), m(1, 3), m(2, 3) };
         }
 
@@ -872,7 +1018,7 @@ namespace elm::script {
             report.Check(std::abs(restingY - 0.5f) < 0.05f, "physics::dynamic_body_falls_and_rests", "y: " + std::to_string(restingY));
             report.Check(landed, "physics::collision_enter_event");
 
-            scene.SetLocalTransform(scene.IndexOf(box), Matrix4x4::Translation(Vector3 { 5.0f, 3.0f, 0.0f }));
+            scene.SetLocalTransform(box, Matrix4x4::Translation(Vector3 { 5.0f, 3.0f, 0.0f }));
             physics.Step(scene, Step);
             report.Check(std::abs(WorldPosition(scene, box).x - 5.0f) < 0.01f, "physics::moved_node_teleports_the_body");
 
@@ -881,7 +1027,7 @@ namespace elm::script {
             colliders.Emplace(mover);
             bodies.Emplace(mover, RigidBody { .type = BodyType::Kinematic });
             physics.Step(scene, Step);
-            scene.SetLocalTransform(scene.IndexOf(mover), Matrix4x4::Translation(Vector3 { -4.0f, 1.0f, 0.0f }));
+            scene.SetLocalTransform(mover, Matrix4x4::Translation(Vector3 { -4.0f, 1.0f, 0.0f }));
             physics.Step(scene, Step);
             const auto moving = physics.GetLinearVelocity(mover);
             report.Check(moving && std::abs(moving->x - 60.0f) < 0.5f && std::abs(WorldPosition(scene, mover).x + 4.0f) < 1e-3f,
@@ -923,7 +1069,7 @@ namespace elm::script {
             report.Check(throughTrigger && throughTrigger->node == ball, "physics::raycast_skips_triggers");
 
             colliders.Remove(mover);
-            scene.RemoveNode(scene.IndexOf(ball));
+            scene.RemoveNode(ball);
             physics.Step(scene, Step);
             report.Check(!physics.HasBody(mover) && !physics.HasBody(ball) && physics.GetNumBodies() == 3,
                 "physics::bodies_go_with_their_component_or_node");
@@ -1074,8 +1220,15 @@ namespace elm::script {
             Scene scene;
             const NodeId guard = Place(scene, "guard", { 1.0f, 0.0f, 2.0f });
             const NodeId target = Place(scene, "target", { 5.0f, 0.0f, 0.0f });
-            (void)Place(scene, "plain", { });
+            const NodeId plain = Place(scene, "plain", { });
             const NodeId gone = Place(scene, "gone", { });
+            (void)scene.SetParent(target, guard);
+            graphics::Model cubeModel("Cube");
+            cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            const ModelComponent guardModel { .model = models.Insert(cubeModel), .color = { 0.5f, 0.25f, 1.0f, 1.0f }, .visible = false };
+            scene.Components<ModelComponent>().Emplace(guard, guardModel);
+            // Colored by a script, without a model
+            scene.Components<ModelComponent>().Emplace(plain, ModelComponent { .color = { 0.0f, 1.0f, 0.0f, 1.0f } });
             const ScriptComponent script { "npc.guard",
                 { { "alarm", ScriptValue(true) }, { "count", ScriptValue(int64_t { 3 }) }, { "label", ScriptValue(String("north")) },
                     { "lost", ScriptValue(gone) }, { "offset", ScriptValue(Vector3 { 1.0f, 2.0f, 3.0f }) }, { "speed", ScriptValue(2.5) },
@@ -1089,7 +1242,7 @@ namespace elm::script {
             scene.Components<Collider>().Emplace(guard, capsule);
             scene.Components<Collider>().Emplace(target);
             // An Entity prop pointing at a node that is gone is saved as no entity
-            scene.RemoveNode(scene.IndexOf(gone));
+            scene.RemoveNode(gone);
             scene.UpdateWorldTransforms();
 
             const auto saved = resmgr::Serializer::SaveScene(scene, models, pathOf("components.scene"), pathOf(""));
@@ -1101,6 +1254,10 @@ namespace elm::script {
                 report.Check(text.find("\"linearDamping\": 0.1") != String::npos && text.find("\"radius\": 0.4") != String::npos
                         && text.find("\"type\": \"kinematic\"") != String::npos && text.find("\"entity\": null") != String::npos,
                     "scene_file::readable_components", text.substr(text.find("\"components\"")));
+                // World transforms follow from the local ones and are not written
+                report.Check(text.find("worldTransform") == String::npos && text.find("\"Model\"") != String::npos
+                        && text.find("\"modelIndex\": 0") != String::npos && text.find("\"formatVersion\": 6") != String::npos,
+                    "scene_file::model_is_a_component", text.substr(0, 400));
             }
             auto loaded = resmgr::Serializer::LoadScene(pathOf("components.scene"));
             report.Check(loaded.has_value(), "scene_file::load_with_components", loaded ? "" : loaded.error().message);
@@ -1110,10 +1267,26 @@ namespace elm::script {
             // Into a scene that has a node already: the loaded nodes get other ids than they had
             Scene restored;
             (void)Place(restored, "existing", { });
-            const size_t first = restored.Append(std::move(*loaded), models);
-            const NodeId newGuard = restored.IdOf(first);
-            const NodeId newTarget = restored.IdOf(first + 1);
-            const NodeId newPlain = restored.IdOf(first + 2);
+            const auto handlers = models.InsertAll(std::move(loaded->models));
+            const Vector<NodeId> ids = restored.Append(std::move(*loaded), handlers);
+            if (ids.size() != 3) {
+                report.Check(false, "scene_file::nodes_round_trip", std::to_string(ids.size()));
+                return;
+            }
+            const NodeId newGuard = ids[0];
+            const NodeId newTarget = ids[1];
+            const NodeId newPlain = ids[2];
+            const Vector3 targetPosition = WorldPosition(restored, newTarget);
+            report.Check(restored.Find(newTarget)->parent == newGuard && std::abs(targetPosition.x - 5.0f) < 1e-5f
+                    && std::abs(targetPosition.z) < 1e-5f,
+                "scene_file::hierarchy_round_trip");
+            const auto* restoredModels = restored.FindComponents<ModelComponent>();
+            const ModelComponent* newGuardModel = restoredModels ? restoredModels->Find(newGuard) : nullptr;
+            const ModelComponent* newPlainModel = restoredModels ? restoredModels->Find(newPlain) : nullptr;
+            report.Check(handlers.size() == 1 && newGuardModel && newGuardModel->model == handlers[0] && models.Get(handlers[0])
+                    && newGuardModel->color.y == 0.25f && !newGuardModel->visible && newPlainModel && !newPlainModel->model
+                    && newPlainModel->color.y == 1.0f && !restoredModels->Contains(newTarget),
+                "scene_file::model_component_round_trip");
             const auto* scripts = restored.FindComponents<ScriptComponent>();
             const ScriptComponent* restoredScript = scripts ? scripts->Find(newGuard) : nullptr;
             const ScriptValue* tint = restoredScript ? FindProp(*restoredScript, "tint") : nullptr;
@@ -1143,14 +1316,30 @@ namespace elm::script {
                 return pathOf(name);
             };
             const auto old = resmgr::Serializer::LoadScene(writeScene("old.scene", 4, ""));
-            report.Check(old && old->scene.nodes.size() == 1 && !old->nodeComponents[0].script && !old->nodeComponents[0].collider,
+            report.Check(old && old->nodes.size() == 1 && !old->components.FindComponents<ScriptComponent>()
+                    && !old->components.FindComponents<Collider>() && !old->components.FindComponents<ModelComponent>(),
                 "scene_file::version_4_still_loads");
+            // Before version 6 the model, color and visible were fields of the node; the model file is the one saved above
+            const String legacyText = "{ \"formatVersion\": 5, \"models\": [ { \"path\": \"Cube.model\" } ], \"nodes\": [ { \"name\": \"a\", "
+                "\"localTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], \"worldTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], "
+                "\"visible\": false, \"color\": [0,0,1,1], \"modelIndex\": 0 } ] }";
+            WriteScript(root / "legacy.scene", legacyText.c_str());
+            const auto legacy = resmgr::Serializer::LoadScene(pathOf("legacy.scene"));
+            const auto* legacyModels = legacy ? legacy->components.FindComponents<ModelComponent>() : nullptr;
+            const ModelComponent* legacyModel = legacyModels ? legacyModels->Find(SceneAsset::NodeRef(0)) : nullptr;
+            report.Check(legacyModel && legacyModel->model == SceneAsset::ModelRef(0) && legacyModel->color.z == 1.0f
+                    && !legacyModel->visible && legacy->models.size() == 1,
+                "scene_file::version_5_node_model_becomes_a_component", legacy ? "" : legacy.error().message);
+            report.Check(!resmgr::Serializer::LoadScene(writeScene("model.scene", 6, R"(, "components": { "Model": { "modelIndex": 0 } })")),
+                "scene_file::missing_model_is_an_error");
             const auto defaults = resmgr::Serializer::LoadScene(
                 writeScene("defaults.scene", 5, R"(, "components": { "RigidBody": { "mass": 4 }, "Collider": { "shape": "sphere" } })"));
-            const auto* loadedBody = defaults ? &defaults->nodeComponents[0].rigidBody : nullptr;
-            const auto* loadedCollider = defaults ? &defaults->nodeComponents[0].collider : nullptr;
-            report.Check(loadedBody && *loadedBody && (*loadedBody)->mass == 4.0f && (*loadedBody)->type == BodyType::Dynamic
-                    && loadedCollider && *loadedCollider && (*loadedCollider)->shape == ColliderShape::Sphere && (*loadedCollider)->radius == 0.5f,
+            const auto* loadedBodies = defaults ? defaults->components.FindComponents<RigidBody>() : nullptr;
+            const auto* loadedColliders = defaults ? defaults->components.FindComponents<Collider>() : nullptr;
+            const RigidBody* loadedBody = loadedBodies ? loadedBodies->Find(SceneAsset::NodeRef(0)) : nullptr;
+            const Collider* loadedCollider = loadedColliders ? loadedColliders->Find(SceneAsset::NodeRef(0)) : nullptr;
+            report.Check(loadedBody && loadedBody->mass == 4.0f && loadedBody->type == BodyType::Dynamic
+                    && loadedCollider && loadedCollider->shape == ColliderShape::Sphere && loadedCollider->radius == 0.5f,
                 "scene_file::missing_fields_take_defaults");
             report.Check(!resmgr::Serializer::LoadScene(writeScene("unknown.scene", 5, R"(, "components": { "Rigidbody": { } })")),
                 "scene_file::unknown_component_is_an_error");
@@ -1260,7 +1449,16 @@ namespace elm::script {
 
             (void)SelfTestAccess::Console(system).Execute("a = elm.scene.spawn('a') a:add('Script', 'mover') a:add('Collider') b = elm.scene.spawn('b')");
             const NodeId nodeA = scene.IdOf(0);
-            scene.nodes[0].model = cube;
+            const NodeId nodeB = scene.IdOf(1);
+            auto& nodeModels = scene.Components<ModelComponent>();
+            nodeModels.Emplace(nodeA, ModelComponent { .model = cube });
+            // An entity without a model has no Model component until a script colors or hides it
+            const bool bareB = !nodeModels.Contains(nodeB);
+            (void)SelfTestAccess::Console(system).Execute("b.visible = false");
+            const ModelComponent* hiddenB = nodeModels.Find(nodeB);
+            report.Check(bareB && hiddenB && !hiddenB->model && !hiddenB->visible && eval("return b.visible, b.model") == "false\tnil",
+                "play::visible_without_a_model");
+            (void)SelfTestAccess::Console(system).Execute("b.visible = true");
             for (int count = 0; count < 3; ++count)
                 frame();
             report.Check(!playMode.IsPlaying() && eval("return #log, ticks, a.position.x") == "0\tnil\t0.0", "play::edit_mode_stands_still");
@@ -1301,7 +1499,9 @@ namespace elm::script {
             report.Check(eval("return log[#log - 1], log[#log], a.valid, a.position.x, b.valid, c.valid, a:has('Collider'), a.color.y")
                     == "destroy a\tstop\ttrue\t0.0\ttrue\tfalse\ttrue\t1.0",
                 "play::stop_brings_the_scene_back", eval("return log[#log - 1], log[#log], a.valid, a.position.x, b.valid, c.valid"));
-            const auto* restoredA = scene.Find(nodeA);
+            // Stop replaced the stores: the one taken before Play is gone
+            const auto* restoredModels = scene.FindComponents<ModelComponent>();
+            const ModelComponent* restoredA = restoredModels ? restoredModels->Find(nodeA) : nullptr;
             report.Check(restoredA && models.Get(restoredA->model) && !models.Get(extra) && physics.GetNumBodies() == 0
                     && SelfTestAccess::Entities(system).All().empty(),
                 "play::stop_restores_models_and_clears_runtime");
@@ -1456,7 +1656,10 @@ line]] .. [==[a]]b]==])",
     {
         Report report;
         RunStateTests(report);
+        RunNodeIdTableTests(report);
         RunSceneTests(report);
+        RunSceneHierarchyTests(report);
+        RunSceneOrderTests(report);
         RunSnapshotTests(report);
         RunComponentStoreTests(report);
         RunHotReloadTests(report);

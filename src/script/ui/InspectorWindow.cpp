@@ -1,5 +1,6 @@
 #include "script/ui/InspectorWindow.hpp"
 
+#include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/ScriptComponent.hpp"
 #include "graphics/ModelManager.hpp"
@@ -97,14 +98,16 @@ namespace elm::script {
                 changed = true;
             }
             ImGuiListClipper clipper;
-            clipper.Begin(static_cast<int>(scene.nodes.size()));
+            const auto nodes = scene.Nodes();
+            clipper.Begin(static_cast<int>(nodes.size()));
             while (clipper.Step()) {
                 for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row) {
                     const auto index = static_cast<size_t>(row);
-                    const String& name = scene.nodes[index].name;
+                    const auto& candidate = nodes[index];
+                    const String& name = candidate.name;
                     ImGui::PushID(row);
-                    if (ImGui::Selectable(name.empty() ? "Unnamed" : name.c_str(), target == &scene.nodes[index])) {
-                        id = scene.IdOf(index);
+                    if (ImGui::Selectable(name.empty() ? "Unnamed" : name.c_str(), target && target->id == candidate.id)) {
+                        id = candidate.id;
                         changed = true;
                     }
                     ImGui::PopID();
@@ -134,6 +137,14 @@ namespace elm::script {
             bool keep = true;
             open = ImGui::CollapsingHeader(name, &keep, ImGuiTreeNodeFlags_DefaultOpen);
             return !keep;
+        }
+
+        /// The model a node shows, nullptr without one: colliders are fitted around it.
+        const graphics::Model* ModelOf(const Scene& scene, const graphics::ModelManager& models, NodeId node)
+        {
+            const auto* nodeModels = scene.FindComponents<ModelComponent>();
+            const ModelComponent* component = nodeModels ? nodeModels->Find(node) : nullptr;
+            return component ? models.Get(component->model) : nullptr;
         }
 
     } // namespace
@@ -183,17 +194,17 @@ namespace elm::script {
 
         Scene& scene = context.scene;
         const auto selected = Request<SelectedSceneInstance>();
-        if (!selected || selected->index >= scene.nodes.size()) {
+        const Scene::Node* selectedNode = selected ? scene.Find(selected->node) : nullptr;
+        if (!selectedNode) {
             ImGui::TextDisabled("Select a node in Scene Hierarchy");
             ImGui::End();
             return;
         }
-        const size_t nodeIndex = selected->index;
-        const NodeId node = scene.IdOf(nodeIndex);
-        const String& name = scene.nodes[nodeIndex].name;
+        const NodeId node = selectedNode->id;
+        const String& name = selectedNode->name;
         ImGui::TextUnformatted(name.empty() ? "Unnamed node" : name.c_str());
         ImGui::SameLine();
-        ImGui::TextDisabled("node %zu", nodeIndex);
+        ImGui::TextDisabled("node %zu", scene.IndexOf(node));
 
         ImGui::PushID(static_cast<int>(node.Raw()));
         if (const auto* scripts = scene.FindComponents<ScriptComponent>(); scripts && scripts->Contains(node))
@@ -201,8 +212,8 @@ namespace elm::script {
         if (const auto* bodies = scene.FindComponents<RigidBody>(); bodies && bodies->Contains(node))
             DrawRigidBody(scene, node);
         if (const auto* colliders = scene.FindComponents<Collider>(); colliders && colliders->Contains(node))
-            DrawCollider(context, node, nodeIndex);
-        DrawAddComponent(context, node, nodeIndex);
+            DrawCollider(context, node);
+        DrawAddComponent(context, node);
         ImGui::PopID();
         ImGui::End();
     }
@@ -227,7 +238,7 @@ namespace elm::script {
     void InspectorWindow::DrawScript(Scene& scene, NodeId node)
     {
         bool open = false;
-        if (ComponentHeader("Script", open)) {
+        if (ComponentHeader(ComponentTypeName(ComponentType::Script), open)) {
             // The instance ends first, as with entity:remove("Script")
             m_entityScripts.Destroy({ &node, 1 });
             scene.Components<ScriptComponent>().Remove(node);
@@ -365,7 +376,7 @@ namespace elm::script {
     void InspectorWindow::DrawRigidBody(Scene& scene, NodeId node)
     {
         bool open = false;
-        if (ComponentHeader("RigidBody", open)) {
+        if (ComponentHeader(ComponentTypeName(ComponentType::RigidBody), open)) {
             scene.Components<RigidBody>().Remove(node);
             return;
         }
@@ -398,11 +409,11 @@ namespace elm::script {
         }
     }
 
-    void InspectorWindow::DrawCollider(ImGuiWindowContext& context, NodeId node, size_t nodeIndex)
+    void InspectorWindow::DrawCollider(ImGuiWindowContext& context, NodeId node)
     {
         Scene& scene = context.scene;
         bool open = false;
-        if (ComponentHeader("Collider", open)) {
+        if (ComponentHeader(ComponentTypeName(ComponentType::Collider), open)) {
             scene.Components<Collider>().Remove(node);
             return;
         }
@@ -431,7 +442,7 @@ namespace elm::script {
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Reports the bodies that enter it (on_trigger_enter) and pushes nothing");
         if (ImGui::Button("Fit to model")) {
-            Collider fitted = bindings::FitColliderToModel(context.models.Get(scene.nodes[nodeIndex].model));
+            Collider fitted = bindings::FitColliderToModel(ModelOf(scene, context.models, node));
             fitted.shape = collider.shape;
             fitted.trigger = collider.trigger;
             collider = fitted;
@@ -442,7 +453,7 @@ namespace elm::script {
 
     // ── Add Component ───────────────────────────────────────────────────────────
 
-    void InspectorWindow::DrawAddComponent(ImGuiWindowContext& context, NodeId node, size_t nodeIndex)
+    void InspectorWindow::DrawAddComponent(ImGuiWindowContext& context, NodeId node)
     {
         Scene& scene = context.scene;
         ImGui::Separator();
@@ -455,13 +466,13 @@ namespace elm::script {
             return;
 
         auto has = [&](const IComponentStore* store) { return store && store->Contains(node); };
-        if (ImGui::MenuItem("RigidBody", nullptr, false, !has(scene.FindComponents<RigidBody>())))
+        if (ImGui::MenuItem(ComponentTypeName(ComponentType::RigidBody), nullptr, false, !has(scene.FindComponents<RigidBody>())))
             scene.Components<RigidBody>().Emplace(node);
-        if (ImGui::MenuItem("Collider", nullptr, false, !has(scene.FindComponents<Collider>())))
-            scene.Components<Collider>().Emplace(node, bindings::FitColliderToModel(context.models.Get(scene.nodes[nodeIndex].model)));
+        if (ImGui::MenuItem(ComponentTypeName(ComponentType::Collider), nullptr, false, !has(scene.FindComponents<Collider>())))
+            scene.Components<Collider>().Emplace(node, bindings::FitColliderToModel(ModelOf(scene, context.models, node)));
         if (has(scene.FindComponents<ScriptComponent>())) {
-            ImGui::MenuItem("Script", nullptr, false, false);
-        } else if (ImGui::BeginMenu("Script")) {
+            ImGui::MenuItem(ComponentTypeName(ComponentType::Script), nullptr, false, false);
+        } else if (ImGui::BeginMenu(ComponentTypeName(ComponentType::Script))) {
             // In Play mode the instance starts on the next update
             if (const String module = PickModule(m_modules, m_moduleFilter); !module.empty())
                 scene.Components<ScriptComponent>().Emplace(node, ScriptComponent { module, { } });

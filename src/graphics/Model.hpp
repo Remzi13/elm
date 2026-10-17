@@ -1,17 +1,15 @@
 #pragma once
 
 #include "core/Std.hpp"
-#include "core/Handler.hpp"
 
 #include "math/Primitivs.hpp"
+
+#include "graphics/ModelHandler.hpp"
 
 #include <algorithm>
 #include <cmath>
 
 namespace elm::graphics {
-
-    struct ModelTag;
-    using ModelHandler = core::Handle<ModelTag>;
 
     /// Geometry is shared between models and the render thread, it must not change once created.
     using MeshDataPtr = SharedPtr<const MeshData>;

@@ -5,6 +5,7 @@
 #include "script/values/Entity.hpp"
 
 #include "Scene/PhysicsComponents.hpp"
+#include "Scene/Scene.hpp"
 #include "Scene/ScriptComponent.hpp"
 
 #include "core/Debug.hpp"

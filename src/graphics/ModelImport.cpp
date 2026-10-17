@@ -4,25 +4,26 @@ namespace elm::graphics {
 
 namespace {
 
-    [[nodiscard]] String NodeName(const Scene& scene, size_t nodeIndex)
+    [[nodiscard]] String NodeName(std::span<const SceneAsset::Node> nodes, size_t nodeIndex)
     {
-        const auto& name = scene.nodes[nodeIndex].name;
+        const auto& name = nodes[nodeIndex].name;
         return name.empty() ? "Node " + String(std::to_string(nodeIndex)) : name;
     }
 
     /// Parent of a node, or NoNode for roots and nodes whose parent does not precede them.
-    [[nodiscard]] size_t ParentOf(const Scene& scene, size_t nodeIndex)
+    [[nodiscard]] size_t ParentOf(std::span<const SceneAsset::Node> nodes, size_t nodeIndex)
     {
-        const size_t parent = scene.nodes[nodeIndex].parentIndex;
-        return parent < nodeIndex ? parent : Scene::NoNode;
+        const size_t parent = nodes[nodeIndex].parentIndex;
+        return parent < nodeIndex ? parent : SceneAsset::NoNode;
     }
 
     /// Appends the submeshes of the node's mesh with transform baked into the geometry.
     void AppendNodeMesh(Model& target, const SceneAsset& asset, size_t nodeIndex, const Matrix4x4& transform)
     {
-        const auto& source = asset.models[asset.nodeModels[nodeIndex]];
+        const auto& node = asset.nodes[nodeIndex];
+        const auto& source = asset.models[asset.ModelIndexOfNode(nodeIndex)];
         const bool identity = transform.m == Matrix4x4::Identity().m;
-        const String nodeName = asset.scene.nodes[nodeIndex].name;
+        const String nodeName = node.name;
         for (const auto& submesh : source.submeshes) {
             if (!submesh.data)
                 continue;
@@ -41,13 +42,13 @@ namespace {
 
 } // namespace
 
-Vector<uint32_t> ComputeNodeDepths(const Scene& scene)
+Vector<uint32_t> ComputeNodeDepths(std::span<const SceneAsset::Node> nodes)
 {
     // Parents precede their children (glTF loading is depth-first)
-    Vector<uint32_t> depths(scene.nodes.size(), 0);
-    for (size_t nodeIndex = 0; nodeIndex < scene.nodes.size(); ++nodeIndex) {
-        const size_t parent = ParentOf(scene, nodeIndex);
-        depths[nodeIndex] = parent == Scene::NoNode ? 0 : depths[parent] + 1;
+    Vector<uint32_t> depths(nodes.size(), 0);
+    for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
+        const size_t parent = ParentOf(nodes, nodeIndex);
+        depths[nodeIndex] = parent == SceneAsset::NoNode ? 0 : depths[parent] + 1;
     }
     return depths;
 }
@@ -55,22 +56,22 @@ Vector<uint32_t> ComputeNodeDepths(const Scene& scene)
 Vector<ImportedModel> BuildSceneImport(const SceneAsset& asset, const Vector<bool>& selected,
     const SceneImportOptions& options)
 {
-    const auto& scene = asset.scene;
+    const std::span<const SceneAsset::Node> nodes = asset.nodes;
     const auto hasMesh = [&](size_t nodeIndex) {
-        return nodeIndex < selected.size() && selected[nodeIndex] && nodeIndex < asset.nodeModels.size()
-            && asset.nodeModels[nodeIndex] < asset.models.size();
+        return nodeIndex < selected.size() && selected[nodeIndex] && asset.ModelIndexOfNode(nodeIndex) < asset.models.size();
     };
 
     Vector<ImportedModel> result;
     switch (options.mode) {
     case SceneImportMode::MergeAll: {
         ImportedModel merged { Model(options.name), {} };
-        for (size_t nodeIndex = 0; nodeIndex < scene.nodes.size(); ++nodeIndex) {
+        const auto worldTransforms = asset.WorldTransforms();
+        for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
             if (hasMesh(nodeIndex))
-                AppendNodeMesh(merged.model, asset, nodeIndex, scene.nodes[nodeIndex].worldTransform);
+                AppendNodeMesh(merged.model, asset, nodeIndex, worldTransforms[nodeIndex]);
         }
         if (!merged.model.submeshes.empty()) {
-            merged.instanceNodes.push_back(Scene::NoNode);
+            merged.instanceNodes.push_back(SceneAsset::NoNode);
             result.push_back(std::move(merged));
         }
         break;
@@ -78,10 +79,10 @@ Vector<ImportedModel> BuildSceneImport(const SceneAsset& asset, const Vector<boo
 
     case SceneImportMode::ModelPerMesh: {
         Vector<size_t> slots(asset.models.size(), SceneAsset::NoModel);
-        for (size_t nodeIndex = 0; nodeIndex < scene.nodes.size(); ++nodeIndex) {
+        for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
             if (!hasMesh(nodeIndex))
                 continue;
-            const size_t meshIndex = asset.nodeModels[nodeIndex];
+            const size_t meshIndex = asset.ModelIndexOfNode(nodeIndex);
             if (slots[meshIndex] == SceneAsset::NoModel) {
                 slots[meshIndex] = result.size();
                 ImportedModel imported { asset.models[meshIndex], {} };
@@ -96,17 +97,17 @@ Vector<ImportedModel> BuildSceneImport(const SceneAsset& asset, const Vector<boo
 
     case SceneImportMode::ModelPerGroup: {
         // A node belongs to its ancestor at groupDepth; shallower nodes are groups of their own mesh only
-        const auto depths = ComputeNodeDepths(scene);
-        Vector<size_t> groups(scene.nodes.size(), Scene::NoNode);
-        Vector<Matrix4x4> toGroup(scene.nodes.size(), Matrix4x4::Identity());
-        Vector<size_t> slots(scene.nodes.size(), SceneAsset::NoModel);
-        for (size_t nodeIndex = 0; nodeIndex < scene.nodes.size(); ++nodeIndex) {
-            const size_t parent = ParentOf(scene, nodeIndex);
-            if (depths[nodeIndex] <= options.groupDepth || parent == Scene::NoNode) {
+        const auto depths = ComputeNodeDepths(nodes);
+        Vector<size_t> groups(nodes.size(), SceneAsset::NoNode);
+        Vector<Matrix4x4> toGroup(nodes.size(), Matrix4x4::Identity());
+        Vector<size_t> slots(nodes.size(), SceneAsset::NoModel);
+        for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
+            const size_t parent = ParentOf(nodes, nodeIndex);
+            if (depths[nodeIndex] <= options.groupDepth || parent == SceneAsset::NoNode) {
                 groups[nodeIndex] = nodeIndex;
             } else {
                 groups[nodeIndex] = groups[parent];
-                toGroup[nodeIndex] = toGroup[parent] * scene.nodes[nodeIndex].localTransform;
+                toGroup[nodeIndex] = toGroup[parent] * nodes[nodeIndex].localTransform;
             }
             if (!hasMesh(nodeIndex))
                 continue;
@@ -114,7 +115,7 @@ Vector<ImportedModel> BuildSceneImport(const SceneAsset& asset, const Vector<boo
             const size_t group = groups[nodeIndex];
             if (slots[group] == SceneAsset::NoModel) {
                 slots[group] = result.size();
-                result.push_back({ Model(NodeName(scene, group)), { group } });
+                result.push_back({ Model(NodeName(nodes, group)), { group } });
             }
             AppendNodeMesh(result[slots[group]].model, asset, nodeIndex, toGroup[nodeIndex]);
         }

@@ -14,6 +14,8 @@
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/ModelManager.hpp"
 
+#include "Scene/TestScenes.hpp"
+
 #include "physics/PhysicsSystem.hpp"
 
 #include "input/Input.hpp"
@@ -24,6 +26,8 @@
 #include <thread>
 
 namespace elm {
+
+	struct ModelComponent;
 
 	class EngineApp {
 	public:
@@ -46,6 +50,8 @@ namespace elm {
 		void FixedUpdate(float fixedDeltaTime);
 		void Update(float deltaTime);
 		void SubmitFrame(render::FrameWriter& frame);
+		/// Draws the shown models of the scene that culling did not reject.
+		void SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame);
 
 		/// Render thread entry point: draws submitted frames until rendering is stopped.
 		void RenderThreadFunc();

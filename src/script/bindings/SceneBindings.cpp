@@ -5,11 +5,14 @@
 #include "script/values/Entity.hpp"
 #include "script/values/ScriptValues.hpp"
 
+#include "Scene/ModelComponent.hpp"
+#include "Scene/Scene.hpp"
 #include "Scene/ScriptComponent.hpp"
 #include "graphics/ModelManager.hpp"
 #include "math/Rotation.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <functional>
 
@@ -44,9 +47,16 @@ namespace elm::script::bindings {
             return index;
         }
 
-        Scene::Node& NodeOf(lua_State* L, const Entity& entity) { return SceneOf(L).nodes[IndexOf(L, entity)]; }
+        const Scene::Node& NodeOf(lua_State* L, const Entity& entity) { return SceneOf(L).Nodes()[IndexOf(L, entity)]; }
 
-        Entity EntityAt(Scene& scene, size_t index) { return { scene.IdOf(index) }; }
+        /// The id of a live entity, for the scene's setters; a destroyed one raises the error.
+        NodeId AliveId(lua_State* L, const Entity& entity)
+        {
+            IndexOf(L, entity);
+            return entity.id;
+        }
+
+        Entity EntityAt(const Scene& scene, size_t index) { return { scene.IdOf(index) }; }
 
         bool IsValid(lua_State* L, const Entity& entity)
         {
@@ -55,11 +65,31 @@ namespace elm::script::bindings {
         }
 
         String GetName(lua_State* L, const Entity& entity) { return NodeOf(L, entity).name; }
-        void SetName(lua_State* L, Entity& entity, String name) { NodeOf(L, entity).name = std::move(name); }
-        bool GetVisible(lua_State* L, const Entity& entity) { return NodeOf(L, entity).visible; }
-        void SetVisible(lua_State* L, Entity& entity, bool visible) { NodeOf(L, entity).visible = visible; }
-        Vector4 GetColor(lua_State* L, const Entity& entity) { return NodeOf(L, entity).color; }
-        void SetColor(lua_State* L, Entity& entity, const Vector4& color) { NodeOf(L, entity).color = color; }
+        void SetName(lua_State* L, Entity& entity, String name) { SceneOf(L).SetName(AliveId(L, entity), std::move(name)); }
+
+        // Model, color and visible are the entity's ModelComponent. An entity without one reads its defaults;
+        // a write of color or visible gives it one, so they work without a model as on an entity with one.
+
+        ModelComponent ModelOrDefault(lua_State* L, const Entity& entity)
+        {
+            IndexOf(L, entity);
+            const auto* models = SceneOf(L).FindComponents<ModelComponent>();
+            const ModelComponent* model = models ? models->Find(entity.id) : nullptr;
+            return model ? *model : ModelComponent { };
+        }
+
+        ModelComponent& ModelToWrite(lua_State* L, const Entity& entity)
+        {
+            const NodeId id = AliveId(L, entity);
+            auto& models = SceneOf(L).Components<ModelComponent>();
+            ModelComponent* model = models.Find(id);
+            return model ? *model : models.Emplace(id);
+        }
+
+        bool GetVisible(lua_State* L, const Entity& entity) { return ModelOrDefault(L, entity).visible; }
+        void SetVisible(lua_State* L, Entity& entity, bool visible) { ModelToWrite(L, entity).visible = visible; }
+        Vector4 GetColor(lua_State* L, const Entity& entity) { return ModelOrDefault(L, entity).color; }
+        void SetColor(lua_State* L, Entity& entity, const Vector4& color) { ModelToWrite(L, entity).color = color; }
 
         // Local transform, relative to the parent. Writes mark the scene dirty, world
         // transforms follow before culling (or on the next world_* read).
@@ -67,7 +97,7 @@ namespace elm::script::bindings {
         Matrix4x4 GetLocal(lua_State* L, const Entity& entity) { return NodeOf(L, entity).localTransform; }
         void SetLocal(lua_State* L, Entity& entity, const Matrix4x4& transform)
         {
-            SceneOf(L).SetLocalTransform(IndexOf(L, entity), transform);
+            SceneOf(L).SetLocalTransform(AliveId(L, entity), transform);
         }
 
         Vector3 GetPosition(lua_State* L, const Entity& entity)
@@ -111,23 +141,20 @@ namespace elm::script::bindings {
 
         // World transform
 
-        const Scene::Node& UpdatedNodeOf(lua_State* L, const Entity& entity)
-        {
-            SceneOf(L).UpdateWorldTransforms();
-            return NodeOf(L, entity);
-        }
-
-        Matrix4x4 GetWorld(lua_State* L, const Entity& entity) { return UpdatedNodeOf(L, entity).worldTransform; }
-        void SetWorld(lua_State* L, Entity& entity, const Matrix4x4& transform)
+        Matrix4x4 GetWorld(lua_State* L, const Entity& entity)
         {
             auto& scene = SceneOf(L);
             scene.UpdateWorldTransforms();
-            if (!scene.SetWorldTransform(IndexOf(L, entity), transform))
+            return scene.WorldTransforms()[IndexOf(L, entity)];
+        }
+        void SetWorld(lua_State* L, Entity& entity, const Matrix4x4& transform)
+        {
+            if (!SceneOf(L).SetWorldTransform(AliveId(L, entity), transform))
                 luaL_error(L, "cannot place the entity: its parent transform is singular");
         }
         Vector3 GetWorldPosition(lua_State* L, const Entity& entity)
         {
-            const auto& m = UpdatedNodeOf(L, entity).worldTransform;
+            const Matrix4x4 m = GetWorld(L, entity);
             return { m(0, 3), m(1, 3), m(2, 3) };
         }
 
@@ -135,47 +162,39 @@ namespace elm::script::bindings {
 
         std::optional<Entity> GetParent(lua_State* L, const Entity& entity)
         {
-            auto& scene = SceneOf(L);
-            const size_t parent = NodeOf(L, entity).parentIndex;
-            if (parent >= scene.nodes.size())
+            const NodeId parent = NodeOf(L, entity).parent;
+            if (!parent)
                 return std::nullopt;
-            return EntityAt(scene, parent);
+            return Entity { parent };
         }
 
         /// Reparents and keeps the world transform. nil detaches.
         void SetParent(lua_State* L, Entity& entity, std::optional<Entity> parent)
         {
-            auto& scene = SceneOf(L);
-            const size_t index = IndexOf(L, entity);
-            scene.UpdateWorldTransforms();
-            const Matrix4x4 world = scene.nodes[index].worldTransform;
-
-            if (!parent) {
-                scene.nodes[index].parentIndex = Scene::NoNode;
-                scene.SetLocalTransform(index, world);
+            const NodeId node = AliveId(L, entity);
+            const NodeId parentNode = parent ? AliveId(L, *parent) : NodeId { };
+            switch (SceneOf(L).SetParent(node, parentNode)) {
+            case Scene::SetParentResult::Done:
+                return;
+            case Scene::SetParentResult::StaleNode:
+                luaL_error(L, "the entity was destroyed");
+                return;
+            case Scene::SetParentResult::Cycle:
+                luaL_error(L, "an entity cannot become a child of itself or of its descendant");
+                return;
+            case Scene::SetParentResult::SingularParent:
+                luaL_error(L, "cannot attach to a parent with a singular transform");
                 return;
             }
-
-            const size_t parentIndex = IndexOf(L, *parent);
-            for (size_t current = parentIndex; current < scene.nodes.size(); current = scene.nodes[current].parentIndex) {
-                if (current == index)
-                    luaL_error(L, "an entity cannot become a child of itself or of its descendant");
-            }
-            const auto parentInverse = math::Inverse(scene.nodes[parentIndex].worldTransform);
-            if (!parentInverse)
-                luaL_error(L, "cannot attach to a parent with a singular transform");
-            scene.nodes[index].parentIndex = parentIndex;
-            scene.SetLocalTransform(index, *parentInverse * world);
         }
 
         Vector<Entity> Children(lua_State* L, const Entity& entity)
         {
-            auto& scene = SceneOf(L);
-            const size_t index = IndexOf(L, entity);
+            const NodeId id = AliveId(L, entity);
             Vector<Entity> children;
-            for (size_t child = 0; child < scene.nodes.size(); ++child) {
-                if (scene.nodes[child].parentIndex == index)
-                    children.push_back(EntityAt(scene, child));
+            for (const auto& node : SceneOf(L).Nodes()) {
+                if (node.parent == id)
+                    children.push_back({ node.id });
             }
             return children;
         }
@@ -185,49 +204,43 @@ namespace elm::script::bindings {
         {
             auto& scene = SceneOf(L);
             const size_t root = IndexOf(L, entity);
-            Vector<bool> doomed(scene.nodes.size(), false);
+            const auto nodes = scene.Nodes();
+            // Descendants come after the entity, each after its parent: one pass finds them all
+            Vector<bool> doomed(nodes.size(), false);
             doomed[root] = true;
-            // Parents may follow their children: repeat until no new descendant shows up
-            for (bool grown = true; grown;) {
-                grown = false;
-                for (size_t index = 0; index < scene.nodes.size(); ++index) {
-                    const size_t parent = scene.nodes[index].parentIndex;
-                    if (!doomed[index] && parent < scene.nodes.size() && doomed[parent])
-                        grown = doomed[index] = true;
-                }
-            }
-            Vector<NodeId> doomedIds;
-            for (size_t index = 0; index < scene.nodes.size(); ++index) {
-                if (doomed[index])
-                    doomedIds.push_back(scene.IdOf(index));
+            Vector<NodeId> doomedIds { entity.id };
+            for (size_t index = root + 1; index < nodes.size(); ++index) {
+                const size_t parent = scene.IndexOf(nodes[index].parent);
+                if (parent == Scene::NoNode || !doomed[parent])
+                    continue;
+                doomed[index] = true;
+                doomedIds.push_back(nodes[index].id);
             }
 
             // Scripts get on_destroy while their entities still exist. It may change the scene,
-            // so the nodes are found again by id afterwards.
+            // ids of nodes it removed already just find nothing.
             ScriptsOf(L).Destroy(doomedIds);
-            Vector<size_t> indices;
-            for (const NodeId id : doomedIds) {
-                if (const size_t index = scene.IndexOf(id); index != Scene::NoNode)
-                    indices.push_back(index);
-            }
-            // From the back: a removal shifts only the nodes after it
-            std::sort(indices.begin(), indices.end(), std::greater<>());
-            for (const size_t index : indices)
-                scene.RemoveNode(index);
+            for (const NodeId id : doomedIds)
+                scene.RemoveNode(id);
         }
 
         std::optional<ModelRef> GetModel(lua_State* L, const Entity& entity)
         {
-            const auto handle = NodeOf(L, entity).model;
+            const auto handle = ModelOrDefault(L, entity).model;
             if (!handle)
                 return std::nullopt;
             return ModelRef { handle };
         }
+        /// nil takes the model away and keeps the color and visible flag for a model set later.
         void SetModel(lua_State* L, Entity& entity, std::optional<ModelRef> model)
         {
             if (model && !ModelsOf(L).Get(model->handle))
                 luaL_error(L, "the model was removed");
-            NodeOf(L, entity).model = model ? model->handle : graphics::ModelHandler { };
+            auto& models = SceneOf(L).Components<ModelComponent>();
+            if (ModelComponent* existing = models.Find(AliveId(L, entity)))
+                existing->model = model ? model->handle : graphics::ModelHandler { };
+            else if (model)
+                models.Emplace(entity.id, ModelComponent { .model = model->handle });
         }
 
         String EntityToString(lua_State* L, const Entity& entity)
@@ -292,15 +305,32 @@ namespace elm::script::bindings {
 
         void EndScript(lua_State* L, NodeId node) { ScriptsOf(L).Destroy({ &node, 1 }); }
 
-        constexpr ComponentKind ScriptKind { "Script", &FindStore<ScriptComponent>, &StoreOf<ScriptComponent>, &AddScript, &EndScript };
+        constexpr ComponentKind ScriptKind { ComponentType::Script, &FindStore<ScriptComponent>, &StoreOf<ScriptComponent>, &AddScript, &EndScript };
 
-        const ComponentKind& KindOf(lua_State* L, StringView type)
+        /// The component types entity:add/remove/has and elm.scene.with know. Model is not one of them:
+        /// scripts reach it as entity.model, color and visible.
+        std::array<const ComponentKind*, 3> LuaKinds() { return { &ScriptKind, &RigidBodyKind(), &ColliderKind() }; }
+
+        /// "Script, RigidBody, Collider"
+        String KnownComponentTypes()
         {
-            for (const ComponentKind* kind : { &ScriptKind, &RigidBodyKind(), &ColliderKind() }) {
-                if (type == kind->name)
+            String known;
+            for (const ComponentKind* kind : LuaKinds()) {
+                if (!known.empty())
+                    known += ", ";
+                known += ComponentTypeName(kind->type);
+            }
+            return known;
+        }
+
+        const ComponentKind& KindOf(lua_State* L, StringView name)
+        {
+            const auto type = ComponentTypeFromName(name);
+            for (const ComponentKind* kind : LuaKinds()) {
+                if (type == kind->type)
                     return *kind;
             }
-            luaL_error(L, "unknown component type '%s' (known: Script, RigidBody, Collider)", String(type).c_str());
+            luaL_error(L, "unknown component type '%s' (known: %s)", String(name).c_str(), KnownComponentTypes().c_str());
             std::unreachable();
         }
 
@@ -312,7 +342,7 @@ namespace elm::script::bindings {
             const NodeId id = entity.id;
             IndexOf(L, entity);
             if (const auto* store = kind.find(SceneOf(L)); store && store->Contains(id))
-                luaL_error(L, "%s already has a %s, remove it first", EntityToString(L, entity).c_str(), kind.name);
+                luaL_error(L, "%s already has a %s, remove it first", EntityToString(L, entity).c_str(), ComponentTypeName(kind.type));
             return kind.add(L, id, init);
         }
 
@@ -385,47 +415,43 @@ namespace elm::script::bindings {
             auto& scene = SceneOf(L);
             if (model && !ModelsOf(L).Get(model->handle))
                 luaL_error(L, "the model was removed");
-            const size_t parentIndex = parent ? IndexOf(L, *parent) : Scene::NoNode;
-
-            auto& node = scene.AddNode(model ? model->handle : graphics::ModelHandler { }, name.value_or(String("Entity")));
-            node.parentIndex = parentIndex;
-            const size_t index = scene.nodes.size() - 1;
-            scene.SetLocalTransform(index, Matrix4x4::Identity());
-            return EntityAt(scene, index);
+            const NodeId parentNode = parent ? AliveId(L, *parent) : NodeId { };
+            const NodeId node = scene.AddNode({ .name = name.value_or(String("Entity")), .parent = parentNode });
+            if (model)
+                scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = model->handle });
+            return { node };
         }
 
         std::optional<Entity> Find(lua_State* L, StringView name)
         {
-            auto& scene = SceneOf(L);
-            for (size_t index = 0; index < scene.nodes.size(); ++index) {
-                if (scene.nodes[index].name == name)
-                    return EntityAt(scene, index);
+            for (const auto& node : SceneOf(L).Nodes()) {
+                if (node.name == name)
+                    return Entity { node.id };
             }
             return std::nullopt;
         }
 
         Vector<Entity> FindAll(lua_State* L, StringView name)
         {
-            auto& scene = SceneOf(L);
             Vector<Entity> found;
-            for (size_t index = 0; index < scene.nodes.size(); ++index) {
-                if (scene.nodes[index].name == name)
-                    found.push_back(EntityAt(scene, index));
+            for (const auto& node : SceneOf(L).Nodes()) {
+                if (node.name == name)
+                    found.push_back({ node.id });
             }
             return found;
         }
 
         Vector<Entity> All(lua_State* L)
         {
-            auto& scene = SceneOf(L);
+            const auto nodes = SceneOf(L).Nodes();
             Vector<Entity> all;
-            all.reserve(scene.nodes.size());
-            for (size_t index = 0; index < scene.nodes.size(); ++index)
-                all.push_back(EntityAt(scene, index));
+            all.reserve(nodes.size());
+            for (const auto& node : nodes)
+                all.push_back({ node.id });
             return all;
         }
 
-        size_t Count(lua_State* L) { return SceneOf(L).nodes.size(); }
+        size_t Count(lua_State* L) { return SceneOf(L).NodeCount(); }
 
         /// Entities that have a component of the type, in scene order.
         Vector<Entity> With(lua_State* L, StringView type)

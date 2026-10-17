@@ -1,6 +1,8 @@
 #pragma once
 
-#include "Scene/TestScenes.hpp"
+#include "graphics/ModelManager.hpp"
+
+#include "Scene/Scene.hpp"
 
 namespace elm {
 

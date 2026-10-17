@@ -1,0 +1,857 @@
+{
+   "formatVersion": 6,
+   "models": [
+      {
+         "path": "../models/Plane.model"
+      },
+      {
+         "path": "../models/Cube.model"
+      },
+      {
+         "path": "../models/Cube_1.model"
+      },
+      {
+         "path": "../models/Box.model"
+      },
+      {
+         "path": "../models/Cube_2.model"
+      }
+   ],
+   "nodes": [
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.25,
+                  0.3,
+                  0.25,
+                  1
+               ],
+               "modelIndex": 0,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Ground"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.3,
+                  0.9,
+                  0.4,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               0.009999999776482582,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               0.5,
+               0,
+               0.25
+            ],
+            [
+               0,
+               0,
+               0.5,
+               11
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Score bar"
+      },
+      {
+         "components": {
+            "Script": {
+               "module": "coin_rush.game",
+               "props": {
+                  "bar_length": 20
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Game"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.5,
+                  0.5,
+                  0.5
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.5,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.2,
+                  0.6,
+                  1,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "kinematic"
+            },
+            "Script": {
+               "module": "coin_rush.player",
+               "props": {
+                  "arena": 9.5
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0.5
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Player"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               7
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               4.949747562408447
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               4.949747562408447
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               4.2862638516991895E-16
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -4.949747562408447
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               4.949747562408447
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -7
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               8.572527703398379E-16
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -4.949747562408447
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.949747562408447
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -1.2858791290399772E-15
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               -7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.35,
+                  0.35,
+                  0.08
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.6,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  1,
+                  0.8,
+                  0.1,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               4.949747562408447
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.949747562408447
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Coin"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.9,
+                  0.2,
+                  0.2,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.hazard",
+               "props": {
+                  "offset": [
+                     4,
+                     0,
+                     0
+                  ],
+                  "speed": 1.5
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -4
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               -4
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Hazard 1"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.9,
+                  0.2,
+                  0.2,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.hazard",
+               "props": {
+                  "offset": [
+                     -8,
+                     0,
+                     0
+                  ],
+                  "speed": 1
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               4
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               4
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Hazard 2"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.9,
+                  0.2,
+                  0.2,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin_rush.hazard",
+               "props": {
+                  "offset": [
+                     0,
+                     0,
+                     8
+                  ],
+                  "speed": 2
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -8
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6000000238418579
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Hazard 3"
+      }
+   ]
+}

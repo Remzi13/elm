@@ -5,6 +5,7 @@ engine_add_library(graphics
     CameraController.cpp
     Model.cpp
     Model.hpp
+    ModelHandler.hpp
     ModelManager.cpp
     ModelManager.hpp
     ModelImport.hpp

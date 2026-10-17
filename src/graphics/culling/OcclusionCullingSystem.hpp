@@ -6,8 +6,10 @@
 #include "render/api/RenderResources.hpp"
 
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
+#include "graphics/ModelManager.hpp"
 
-#include "Scene/TestScenes.hpp"
+#include "Scene/ComponentStore.hpp"
+#include "Scene/Scene.hpp"
 
 namespace elm {
 
@@ -28,9 +30,9 @@ struct CullingStats {
     float cullingRatioPercent { 0.0f };
 };
 
+/// Culling result of a scene node that is shown and has a model.
 struct OccludeeInstance {
-    AABB localBounds;
-    Matrix4x4 worldTransform;
+    /// The node's color, red for a culled node in VisualMode::HighlightCulled.
     Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
     bool isVisible { true };
     bool isFrustumCulled { false };
@@ -57,11 +59,14 @@ public:
     void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
     void UpdateDepthPreviewTexture(const Settings& settings);
 
-    void ExecuteCulling(Scene& scene, const graphics::ModelManager& models,
+    /// Reads the scene only: ModelComponent::visible is the user's flag, the result stays here.
+    void ExecuteCulling(const Scene& scene, const graphics::ModelManager& models,
         const Matrix4x4& cullingViewProj, const Settings& settings);
 
     [[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }
-    [[nodiscard]] const Vector<OccludeeInstance>& GetOccludees() const noexcept { return m_occludees; }
+    /// Result of the last ExecuteCulling for a node; nullptr for a node it did not see (hidden, without
+    /// a model, added or removed since).
+    [[nodiscard]] const OccludeeInstance* FindOccludee(NodeId node) const noexcept { return m_occludees.Find(node); }
     [[nodiscard]] const render::Texture& GetDepthPreviewTexture() const { return m_depthPreviewTexture; }
     [[nodiscard]] uint32_t GetWidth() const noexcept { return m_depthBuffer.GetWidth(); }
     [[nodiscard]] uint32_t GetHeight() const noexcept { return m_depthBuffer.GetHeight(); }
@@ -79,7 +84,8 @@ private:
 
     SoftwareDepthBuffer m_depthBuffer;
     CullingStats m_stats;
-    Vector<OccludeeInstance> m_occludees;
+    /// Same sparse set by NodeId as scene components: a stale id finds nothing.
+    ComponentStore<OccludeeInstance> m_occludees;
     render::RenderResources* m_resources { nullptr };
     render::Texture m_depthPreviewTexture;
 };

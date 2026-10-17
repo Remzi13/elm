@@ -1,8 +1,11 @@
 #pragma once
 
-#include "Scene/ComponentStore.hpp"
+#include "core/Std.hpp"
 
 #include "math/Vector.hpp"
+
+#include "Scene/ComponentTypes.hpp"
+#include "Scene/NodeId.hpp"
 
 #include <variant>
 
@@ -15,6 +18,8 @@ using ScriptValue = std::variant<bool, int64_t, double, String, math::Vector3, m
 /// with this component an instance of it (see "Скрипты сущностей" in docs/script/Скрипты на Lua.md).
 /// Only data lives here, so the component outlives Lua restarts: the instance is made again from it.
 struct ScriptComponent {
+    static constexpr ComponentType Type = ComponentType::Script;
+
     /// Module name as for require: "npc.guard" -> assets/scripts/npc/guard.lua.
     String module;
     /// Props that differ from the defaults of the module (its `props` table).

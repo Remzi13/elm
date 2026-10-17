@@ -8,6 +8,8 @@
 #include "core/JobSystem.hpp"
 #include "core/Threading.hpp"
 
+#include "Scene/ModelComponent.hpp"
+
 #include <iostream>
 
 namespace elm {
@@ -233,29 +235,43 @@ void EngineApp::SubmitFrame(render::FrameWriter& frame)
     const render::CameraData camera { m_camera.GetViewProjectionMatrix(), m_camera.GetPosition() };
     frame.BeginSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
 
-    const auto& occludees = m_cullingSystem.GetOccludees();
+    // The UI may have moved nodes since the update
+    m_scene.UpdateWorldTransforms();
+    if (const auto* drawn = m_scene.FindComponents<ModelComponent>())
+        SubmitModels(*drawn, frame);
+
+    m_renderSystem->SubmitFrame(frame);
+}
+
+void EngineApp::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame)
+{
+    const auto ids = drawn.Ids();
+    const auto components = drawn.Components();
+    const auto worldTransforms = m_scene.WorldTransforms();
     size_t drawCount = 0;
-    for (const auto& node : m_scene.nodes)
-        drawCount += m_models.GetMeshes(node.model).size();
+    for (const auto& component : components)
+        drawCount += m_models.GetMeshes(component.model).size();
     frame.ReserveDraws(drawCount);
-    for (size_t nodeIndex = 0; nodeIndex < m_scene.nodes.size(); ++nodeIndex) {
-        const auto& node = m_scene.nodes[nodeIndex];
-        const bool visible = nodeIndex < occludees.size() ? occludees[nodeIndex].isVisible : node.visible;
-        const Vector4& tint = nodeIndex < occludees.size() ? occludees[nodeIndex].color : node.color;
-        if (!visible)
+    for (size_t index = 0; index < components.size(); ++index) {
+        const ModelComponent& component = components[index];
+        const size_t nodeIndex = m_scene.IndexOf(ids[index]);
+        if (!component.visible || nodeIndex == Scene::NoNode)
             continue;
-        m_models.ForEachSubmesh(node.model, [&](const graphics::Model::Submesh& submesh, render::MeshHandle mesh) {
+        // A node culling did not see yet (added by the UI, a scene just loaded) is drawn
+        const auto* occludee = m_cullingSystem.FindOccludee(ids[index]);
+        if (occludee && !occludee->isVisible)
+            continue;
+        const Vector4& tint = occludee ? occludee->color : component.color;
+        m_models.ForEachSubmesh(component.model, [&](const graphics::Model::Submesh& submesh, render::MeshHandle mesh) {
             const Vector4 color {
                 submesh.color.x * tint.x,
                 submesh.color.y * tint.y,
                 submesh.color.z * tint.z,
                 submesh.color.w * tint.w
             };
-            frame.Draw(mesh, node.worldTransform, color);
+            frame.Draw(mesh, worldTransforms[nodeIndex], color);
         });
     }
-
-    m_renderSystem->SubmitFrame(frame);
 }
 
 void EngineApp::FixedUpdate(float fixedDeltaTime)

@@ -4,8 +4,6 @@
 
 #include "graphics/ui/IImGuiWindow.hpp"
 
-#include "Scene/TestScenes.hpp"
-
 #include <array>
 #include <cstdint>
 

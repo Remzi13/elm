@@ -30,7 +30,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
   и код это обрабатывает (`nullptr`, `false`, пропуск).
 - **Владелец и поток известны.** В `///` комментарии класса сказано, кто владеет объектом, из какого
   потока его можно вызывать и что будет с невалидным хэндлом (образец: `PhysicsSystem`, `RenderSystem`).
-- **Данные отдельно от систем.** Компоненты (`ScriptComponent`, `RigidBody`, `Collider`) остаются
+- **Данные отдельно от систем.** Компоненты (`ScriptComponent`, `RigidBody`, `Collider`, `ModelComponent`) остаются
   простыми `struct` без логики и без ссылок на Lua/Jolt/GPU. Поведение живёт в системах.
 - **Новая сущность** → строка в глоссарий ниже и раздел в соответствующей заметке `docs/`.
 
@@ -53,14 +53,19 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 | Сущность | Что это | Владелец / поток |
 |---|---|---|
-| `Scene` | плоский массив `Scene::Node` (иерархия через `parentIndex`) + хранилища компонентов | `EngineApp`, update |
-| `Scene::Node`, «узел» | элемент сцены: трансформы, имя, модель, цвет, видимость. В Lua это `Entity` («сущность») | `Scene` |
-| `NodeId` | стабильная ссылка на узел. Индекс узла (`size_t`) нестабилен, живёт в пределах одной операции | — |
-| `IComponentStore`, `ComponentStore<T>` | компоненты одного типа по `NodeId` (sparse set), `scene.Components<T>()` | `Scene` |
+| `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `EngineApp`, update |
+| `Scene::Node`, «узел» | ядро элемента сцены: `id`, родитель (`NodeId`), имя, локальный трансформ. Остальное — компоненты. В Lua это `Entity` («сущность») | `Scene` |
+| `Scene::NodeDesc`, `Scene::SetParentResult` | с чем создаётся новый узел (`AddNode`); итог `SetParent` | — |
+| `NodeId` | стабильная ссылка на узел (`Scene/NodeId.hpp`). Индекс узла (`size_t`) нестабилен, живёт в пределах одной операции | — |
+| `NodeIdTable` | выдаёт `NodeId` и знает индекс живого узла; поколения слотов, id из Play после Stop не оживают | `Scene` |
+| `IComponentStore`, `ComponentStore<T>` | компоненты одного типа по `NodeId` (sparse set), `scene.Components<T>()` | `ComponentStores` |
+| `ComponentStores` | по хранилищу на каждый `ComponentType`, создаются при первом обращении | `Scene`, `SceneAsset` |
+| `ComponentType`, `SceneComponent` | закрытый список типов компонентов (`Script`, `RigidBody`, `Collider`, `Model`), имена — `ComponentTypeName`/`ComponentTypeFromName` | — |
+| `ModelComponent` | что узел рисует: модель (`ModelHandler`), цвет, `visible` (флаг пользователя, отсечение его не меняет). У узла без модели его нет | `Scene` |
 | `ScriptComponent` | Lua-модуль узла и переопределённые `props` (`ScriptValue`) | `Scene` |
 | `RigidBody`, `Collider`, `BodyType`, `ColliderShape` | физические данные узла | `Scene` |
 | `CollisionEvent` | начало и конец контакта за шаг физики | `PhysicsSystem` |
-| `SceneAsset`, `NodeComponents` | сцена из файла до `Scene::Append`. Ссылки на узлы в ней — `SceneAsset::NodeRef(index)` | вызывающий |
+| `SceneAsset`, `SceneAsset::Node` | сцена из файла до `Scene::Append`: узлы без id, родитель — индекс в ассете. Компоненты и ссылки на узлы — по `SceneAsset::NodeRef(index)`, модель в `ModelComponent` — `SceneAsset::ModelRef(index)` | вызывающий |
 | `SceneSnapshot` | снимок сцены и моделей: Play делает его, Stop восстанавливает | `PlayMode` |
 | `ScenePreset`, `TestScenes` | генераторы тестовых сцен | — |
 
@@ -69,12 +74,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | Сущность | Что это |
 |---|---|
 | `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком |
-| `ModelHandler` | хэндл модели в `ModelManager` (историческое имя, не путать с `Handle`) |
+| `ModelHandler` | хэндл модели в `ModelManager` (`graphics/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
 | `graphics::ModelManager` | владеет моделями сцены и их GPU-мешами (`render::Mesh`) |
 | `Camera`, `CameraController` | камера вида и её управление |
-| `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion) |
+| `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
-| `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`) |
+| `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
 | Edit / Play, `PlayMode` | режимы редактора: в Edit сцена — это данные, в Play работают физика и скрипты сущностей. `script::PlayMode`, владелец `EngineApp` |
 
 **Рендер** (`src/render`, `elm::render`)
@@ -109,7 +114,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ScriptConsole` | Lua-консоль окна Scripts | `script/console` |
 | `Entity`, `ModelRef`, `ScriptProps` | как узлы, модели и props видны из Lua | `script/values` |
 | `lua::State`, `lua::Module`, `lua::Class`, `ApiRegistry` | своя обёртка над Lua C API и реестр API для LuaLS | `script/lua` |
-| `bindings::Register*`, `ComponentKind` | Lua API по модулям, у каждого свой контекст в `lua::State` | `script/bindings` |
+| `bindings::Register*`, `ComponentKind` | Lua API по модулям, у каждого свой контекст в `lua::State`; `ComponentKind` — компонент для Lua по `ComponentType` | `script/bindings` |
 
 ## 2. Модули и зависимости
 
@@ -136,8 +141,9 @@ Engine     (EngineApp, main.cpp) собирает всё
 (`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`, `ui/`) не подключаются вне `src/script/`:
 снаружи видны `ScriptSystem`, `EngineContext`, `PlayMode` и `RunSelfTests`.
 
-Известные нарушения, их не расширяй: `Scene/TestScenes.hpp` и `Scene/Transform.hpp` подключают
-заголовки `graphics` (цикл Scene ↔ graphics через resmgr); `using namespace math;` в
+Известные нарушения, их не расширяй: заголовки модуля Scene подключают заголовки `graphics` (`Scene.hpp` и
+`ModelComponent.hpp` — `ModelHandler.hpp`, `SceneAsset.hpp` — `Model.hpp`, `SceneSnapshot.hpp` и `TestScenes.hpp` — `ModelManager.hpp`,
+`Transform.hpp` — `culling/MathTypes.hpp`; цикл Scene ↔ graphics через resmgr); `using namespace math;` в
 `math/Primitivs.hpp`, `Scene/TestScenes.hpp`, `graphics/culling/MathTypes.hpp`.
 
 ### Границы, которые нельзя нарушать
@@ -197,7 +203,7 @@ Engine     (EngineApp, main.cpp) собирает всё
   Математика исторически в корневом `math`. Закрывающий комментарий называет namespace верно:
   `} // namespace elm::render`. Встречающееся `// namespace Engine` не копируй.
 - Lua-сторона: `snake_case` (`elm.scene.spawn`, `on_start`, `props`). Имена компонентов в Lua и
-  в файле сцены: `Script`, `RigidBody`, `Collider`.
+  в файле сцены: `Script`, `RigidBody`, `Collider`; в файле есть ещё `Model` (в Lua — `entity.model/color/visible`).
 - Имена говорят о назначении: никаких `data`, `tmp`, `x1`, `doStuff`. Сокращения только общепринятые.
 
 ## 5. Современный C++ и ресурсы

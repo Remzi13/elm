@@ -1,5 +1,7 @@
 #include "Scene/SceneSnapshot.hpp"
 
+#include "Scene/ModelComponent.hpp"
+
 namespace elm {
 
 SceneSnapshot SceneSnapshot::Take(const Scene& scene, const graphics::ModelManager* models)
@@ -35,10 +37,10 @@ void SceneSnapshot::Restore(Scene& scene, graphics::ModelManager* models) &&
     }
 
     Set<graphics::ModelHandler> used;
-    for (auto& node : scene.nodes) {
-        if (const auto found = reinserted.find(node.model); found != reinserted.end())
-            node.model = found->second;
-        used.insert(node.model);
+    for (auto& component : scene.Components<ModelComponent>().Components()) {
+        if (const auto found = reinserted.find(component.model); found != reinserted.end())
+            component.model = found->second;
+        used.insert(component.model);
     }
 
     Vector<graphics::ModelHandler> added;

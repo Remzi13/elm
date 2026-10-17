@@ -3,6 +3,7 @@
 #include "core/Log.hpp"
 #include "graphics/ui/WindowMessages.hpp"
 #include "render/ViewPort.hpp"
+#include "Scene/ModelComponent.hpp"
 
 #include "imgui.h"
 #include "ImGuizmo.h"
@@ -74,7 +75,11 @@ namespace elm {
 
 		const auto selectedInstance = Request<SelectedSceneInstance>();
 		const auto gizmoSettings = Request<GizmoSettings>();
-		const bool hasSelection = selectedInstance && selectedInstance->index < scene.nodes.size();
+		const Scene::Node* selected = selectedInstance ? scene.Find(selectedInstance->node) : nullptr;
+		// A node the user hid gets no gizmo; a node without a model is not hidden
+		const auto* nodeModels = scene.FindComponents<ModelComponent>();
+		const ModelComponent* selectedModel = selected && nodeModels ? nodeModels->Find(selected->id) : nullptr;
+		const bool selectedShown = selected && (!selectedModel || selectedModel->visible);
 
 		if (auto texture = ToTextureId(viewPort.GetColorTexture())) {
 			const ImVec2 available = ImGui::GetContentRegionAvail();
@@ -91,21 +96,20 @@ namespace elm {
 				// Popups and other windows on top of the image block the hover
 				m_hovered = ImGui::IsItemHovered();
 
-				if (hasSelection && gizmoSettings && scene.nodes[selectedInstance->index].visible) {
-					auto& instance = scene.nodes[selectedInstance->index];
+				if (selectedShown && gizmoSettings) {
 					ImGuizmo::BeginFrame();
 					ImGuizmo::SetDrawlist();
 					ImGuizmo::SetRect(imagePosition.x, imagePosition.y, available.x, available.y);
 
 					auto view = ToGizmoMatrix(camera.GetViewMatrix());
 					auto projection = ToGizmoMatrix(camera.GetProjectionMatrix());
-					auto transform = ToGizmoMatrix(instance.worldTransform);
+					auto transform = ToGizmoMatrix(scene.WorldTransforms()[scene.IndexOf(selected->id)]);
 					const ImGuizmo::OPERATION operation = gizmoSettings->operation == GizmoOperation::Translate
 						? ImGuizmo::TRANSLATE
 						: gizmoSettings->operation == GizmoOperation::Rotate ? ImGuizmo::ROTATE : ImGuizmo::SCALE;
 					const ImGuizmo::MODE mode = gizmoSettings->space == GizmoSpace::Local ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
 					if (ImGuizmo::Manipulate(view.data(), projection.data(), operation, mode, transform.data())) {
-						if (!scene.SetWorldTransform(selectedInstance->index, FromGizmoMatrix(transform))) {
+						if (!scene.SetWorldTransform(selected->id, FromGizmoMatrix(transform))) {
 							ERROR_MESSAGE(log::Category::Core, "EngineViewportWindow",
 								"Unable to update the selected node transform because its parent transform is singular");
 						}

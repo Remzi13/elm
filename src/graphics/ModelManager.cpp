@@ -25,6 +25,14 @@ namespace elm::graphics {
         return ModelHandler(index + 1, slot.generation);
     }
 
+    Vector<ModelHandler> ModelManager::InsertAll(Vector<Model> models)
+    {
+        Vector<ModelHandler> handlers;
+        handlers.reserve(models.size());
+        for (auto& model : models)
+            handlers.push_back(Insert(std::move(model)));
+        return handlers;
+    }
 
     bool ModelManager::Replace(ModelHandler handler, Model model)
     {

@@ -1,6 +1,8 @@
 #pragma once
 
-#include "graphics/Model.hpp"
+#include "graphics/ModelHandler.hpp"
+
+#include "Scene/NodeId.hpp"
 
 #include <cstddef>
 #include <functional>
@@ -12,8 +14,9 @@ namespace elm {
 		std::function<void(graphics::ModelHandler)> open;
 	};
 
+	/// Provided by Scene Hierarchy: the node it shows; an invalid id while the scene is empty.
 	struct SelectedSceneInstance {
-		size_t index;
+		NodeId node;
 	};
 
 	/// Provided by the Inspector (scripts): Edit or Play mode of the engine, see script::PlayMode.

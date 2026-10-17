@@ -6,12 +6,14 @@
 #include "render/api/FrameWriter.hpp"
 #include "resmgr/GltfExporter.hpp"
 #include "resmgr/Serializer.hpp"
+#include "Scene/ModelComponent.hpp"
 
 #include "imgui.h"
 
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <span>
 
 namespace elm {
 namespace {
@@ -126,6 +128,17 @@ namespace {
         for (const auto& submesh : model.submeshes)
             triangles += submesh.data ? submesh.data->indices.size() / 3 : 0;
         return triangles;
+    }
+
+    /// The Model component an imported glTF node gets in the scene: the model it went into, with the color
+    /// and the visible flag the node had.
+    [[nodiscard]] ModelComponent ImportedNodeModel(const SceneAsset& asset, size_t nodeIndex, graphics::ModelHandler model)
+    {
+        const auto* sourceModels = asset.components.FindComponents<ModelComponent>();
+        const ModelComponent* source = sourceModels ? sourceModels->Find(SceneAsset::NodeRef(nodeIndex)) : nullptr;
+        ModelComponent component = source ? *source : ModelComponent { };
+        component.model = model;
+        return component;
     }
 
 } // namespace
@@ -282,10 +295,11 @@ void ModelEditorWindow::ImportGltf(const Path& path)
     ImportSession session;
     session.path = path;
     session.options.name = String(path.Stem().c_str());
-    session.selected.assign(asset->scene.nodes.size(), true);
+    session.selected.assign(asset->nodes.size(), true);
     session.asset = std::move(*asset);
-    const size_t meshNodes = static_cast<size_t>(std::count_if(session.asset.nodeModels.begin(), session.asset.nodeModels.end(),
-        [](size_t model) { return model != SceneAsset::NoModel; }));
+    // A glTF node gets a Model component for its mesh only
+    const auto* meshNodeModels = session.asset.components.FindComponents<ModelComponent>();
+    const size_t meshNodes = meshNodeModels ? meshNodeModels->Size() : 0;
 
     // A single mesh needs no splitting: open it right away
     if (meshNodes <= 1) {
@@ -344,7 +358,7 @@ void ModelEditorWindow::SaveImported(const Path& anyFileInDirectory)
 void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
 {
     const auto& session = *m_import;
-    const auto& sourceNodes = session.asset.scene.nodes;
+    const auto& sourceNodes = session.asset.nodes;
     auto& scene = context.scene;
 
     // Every model goes to the scene once; the glTF nodes using them keep their hierarchy
@@ -370,39 +384,33 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
     }
 
     // One root for the whole import: the set moves as a whole, each model stays a node of its own
-    const size_t root = scene.nodes.size();
     const auto rootName = String(session.path.Stem().c_str());
-    scene.AppendNode(Scene::Node {}).name = rootName;
+    const NodeId root = scene.AddNode({ .name = rootName });
+    auto& sceneModels = scene.Components<ModelComponent>();
 
     size_t created = 0;
     for (const auto handler : originModels) {
-        Scene::Node node;
-        node.parentIndex = root;
-        node.model = handler;
-        node.name = context.models.Get(handler)->name;
-        scene.AppendNode(std::move(node));
+        const NodeId node = scene.AddNode({ .name = context.models.Get(handler)->name, .parent = root });
+        sceneModels.Emplace(node, ModelComponent { .model = handler });
         ++created;
     }
 
     // Parents precede their children in the asset, so they are already in the scene when needed
-    Vector<size_t> sceneIndices(sourceNodes.size(), Scene::NoNode);
+    Vector<NodeId> sceneNodes(sourceNodes.size());
     for (size_t nodeIndex = 0; nodeIndex < sourceNodes.size(); ++nodeIndex) {
         if (!needed[nodeIndex])
             continue;
         const auto& source = sourceNodes[nodeIndex];
-        const size_t parent = source.parentIndex < nodeIndex && sceneIndices[source.parentIndex] != Scene::NoNode
-            ? sceneIndices[source.parentIndex]
+        const NodeId parent = source.parentIndex < nodeIndex && sceneNodes[source.parentIndex]
+            ? sceneNodes[source.parentIndex]
             : root;
-        Scene::Node node;
-        node.parentIndex = parent;
-        node.localTransform = source.localTransform;
-        node.worldTransform = scene.nodes[parent].worldTransform * source.localTransform;
-        node.name = source.name.empty() ? "Node " + ToString(nodeIndex) : source.name;
-        node.model = nodeModels[nodeIndex];
-        node.color = source.color;
-        node.visible = source.visible;
-        sceneIndices[nodeIndex] = scene.nodes.size();
-        scene.AppendNode(std::move(node));
+        sceneNodes[nodeIndex] = scene.AddNode({
+            .name = source.name.empty() ? "Node " + ToString(nodeIndex) : source.name,
+            .parent = parent,
+            .localTransform = source.localTransform,
+        });
+        if (nodeModels[nodeIndex])
+            sceneModels.Emplace(sceneNodes[nodeIndex], ImportedNodeModel(session.asset, nodeIndex, nodeModels[nodeIndex]));
         ++created;
     }
 
@@ -481,9 +489,8 @@ void ModelEditorWindow::AddToScene(ImGuiWindowContext& context)
 
     const String name = m_model->name.empty() ? String("Model") : m_model->name;
     m_sceneModel = context.models.Insert(*m_model);
-    auto& node = context.scene.AddNode(m_sceneModel, name);
-    node.localTransform = Matrix4x4::Translation(position);
-    node.worldTransform = node.localTransform;
+    const NodeId node = context.scene.AddNode({ .name = name, .localTransform = Matrix4x4::Translation(position) });
+    context.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = m_sceneModel });
     m_status = "Added \"" + name + "\" to the scene, Apply to Scene now updates it.";
 }
 
@@ -842,8 +849,10 @@ void ModelEditorWindow::DrawProperties(ImGuiWindowContext& context)
         ImGui::TextDisabled("File: %s", m_filePath.string().c_str());
     if (m_sceneModel) {
         if (IsSceneModelAlive(context)) {
-            const auto users = std::count_if(context.scene.nodes.begin(), context.scene.nodes.end(),
-                [&](const Scene::Node& node) { return node.model == m_sceneModel; });
+            const auto* nodeModels = context.scene.FindComponents<ModelComponent>();
+            const auto components = nodeModels ? nodeModels->Components() : std::span<const ModelComponent> { };
+            const auto users = std::count_if(components.begin(), components.end(),
+                [&](const ModelComponent& component) { return component.model == m_sceneModel; });
             ImGui::TextDisabled("Scene model, used by %zu node(s)", static_cast<size_t>(users));
         } else {
             ImGui::TextDisabled("Scene model was removed from the scene");
@@ -1013,7 +1022,7 @@ void ModelEditorWindow::DrawImport(ImGuiWindowContext& context)
         break;
     case graphics::SceneImportMode::ModelPerGroup: {
         ImGui::TextDisabled("Nodes at the group depth are models with the meshes below them.");
-        const auto depths = graphics::ComputeNodeDepths(session.asset.scene);
+        const auto depths = graphics::ComputeNodeDepths(session.asset.nodes);
         const int maxDepth = depths.empty() ? 0 : static_cast<int>(*std::max_element(depths.begin(), depths.end()));
         int depth = static_cast<int>(options.groupDepth);
         if (ImGui::SliderInt("Group depth", &depth, 0, maxDepth)) {
@@ -1071,7 +1080,7 @@ void ModelEditorWindow::DrawImportTree()
 {
     auto& session = *m_import;
     const auto& asset = session.asset;
-    const auto& nodes = asset.scene.nodes;
+    const auto& nodes = asset.nodes;
 
     if (ImGui::SmallButton("All")) {
         std::fill(session.selected.begin(), session.selected.end(), true);
@@ -1106,7 +1115,7 @@ void ModelEditorWindow::DrawImportTree()
         ImGui::SameLine();
 
         String label = node.name.empty() ? "Node " + ToString(index) : node.name;
-        const size_t meshIndex = index < asset.nodeModels.size() ? asset.nodeModels[index] : SceneAsset::NoModel;
+        const size_t meshIndex = asset.ModelIndexOfNode(index);
         if (meshIndex < asset.models.size()) {
             const auto& mesh = asset.models[meshIndex];
             label += "  [" + (mesh.name.empty() ? "mesh " + ToString(meshIndex) : mesh.name) + ", "

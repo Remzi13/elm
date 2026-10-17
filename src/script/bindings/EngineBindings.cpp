@@ -67,8 +67,9 @@ namespace elm::script::bindings {
             EndEntityScripts(L);
             scene.Clear();
             models.Clear();
-            scene.Append(std::move(*loaded), models);
-            return scene.nodes.size();
+            const auto handlers = models.InsertAll(std::move(loaded->models));
+            (void)scene.Append(std::move(*loaded), handlers);
+            return scene.NodeCount();
         }
 
         // Play mode: requests, the mode changes at the start of the next update (PlayMode)

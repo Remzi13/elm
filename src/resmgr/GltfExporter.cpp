@@ -3,6 +3,8 @@
 #include "resmgr/JsonValue.hpp"
 #include "resmgr/SerializationError.hpp"
 
+#include "Scene/ModelComponent.hpp"
+
 #include <algorithm>
 #include <array>
 #include <bit>
@@ -1185,10 +1187,28 @@ namespace elm::resmgr {
             return result;
         }
 
+        /// The Model component of a glTF node with a mesh: the asset's model of the mesh, with the color and
+        /// the visible flag the engine keeps in "extras".
+        auto ReadNodeModel(const JsonValue& node, size_t meshIndex) -> ModelComponent
+        {
+            ModelComponent model { .model = SceneAsset::ModelRef(meshIndex) };
+            const auto extras = Optional(node, "extras");
+            if (!extras || !extras->IsObject())
+                return model;
+            if (const auto color = Optional(*extras, "elmColor")) {
+                if (auto values = ReadFloatArray<4>(*color, "nodes.extras.elmColor"))
+                    model.color = Vector4 { (*values)[0], (*values)[1], (*values)[2], (*values)[3] };
+            }
+            if (const auto visible = Optional(*extras, "elmVisible")) {
+                if (auto value = visible->AsBoolean())
+                    model.visible = *value;
+            }
+            return model;
+        }
+
         auto AddNodeInstances(
             const JsonValue& nodes,
             size_t nodeIndex,
-            const Matrix4x4& parentTransform,
             Vector<bool>& recursionStack,
             Vector<bool>& visitedNodes,
             size_t meshCount,
@@ -1209,7 +1229,6 @@ namespace elm::resmgr {
             auto localTransform = ReadNodeTransform(node);
             if (!localTransform)
                 return UnexpectedSerializationError(localTransform.error());
-            const Matrix4x4 worldTransform = parentTransform * *localTransform;
 
             String nodeName;
             if (const auto nameField = Optional(node, "name")) {
@@ -1218,30 +1237,19 @@ namespace elm::resmgr {
                     return Failure("Invalid glTF node name");
                 nodeName = std::move(*name);
             }
-            const size_t sceneNodeIndex = asset.scene.nodes.size();
-            asset.scene.nodes.push_back(Scene::Node{});
-            asset.nodeModels.push_back(SceneAsset::NoModel);
-            auto& sceneNode = asset.scene.nodes.back();
+            const size_t sceneNodeIndex = asset.nodes.size();
+            asset.nodes.push_back(SceneAsset::Node {});
+            auto& sceneNode = asset.nodes.back();
             sceneNode.parentIndex = parentSceneNodeIndex;
             sceneNode.localTransform = *localTransform;
-            sceneNode.worldTransform = worldTransform;
             sceneNode.name = std::move(nodeName);
-            if (const auto extras = Optional(node, "extras"); extras && extras->IsObject()) {
-                if (const auto color = Optional(*extras, "elmColor")) {
-                    if (auto values = ReadFloatArray<4>(*color, "nodes.extras.elmColor"))
-                        sceneNode.color = Vector4 { (*values)[0], (*values)[1], (*values)[2], (*values)[3] };
-                }
-                if (const auto visible = Optional(*extras, "elmVisible")) {
-                    if (auto value = visible->AsBoolean())
-                        sceneNode.visible = *value;
-                }
-            }
 
             if (const auto meshField = Optional(node, "mesh")) {
                 auto meshIndex = ReadUnsigned<size_t>(*meshField, "nodes.mesh");
                 if (!meshIndex || *meshIndex >= meshCount)
                     return Failure("glTF node references an invalid mesh");
-                asset.nodeModels[sceneNodeIndex] = *meshIndex;
+                asset.components.Components<ModelComponent>().Emplace(SceneAsset::NodeRef(sceneNodeIndex),
+                    ReadNodeModel(node, *meshIndex));
             }
 
             auto children = ReadNodeChildIndices(node);
@@ -1249,7 +1257,7 @@ namespace elm::resmgr {
                 return UnexpectedSerializationError(children.error());
             for (const auto childIndex : *children) {
                 auto result = AddNodeInstances(
-                    nodes, childIndex, worldTransform, recursionStack, visitedNodes,
+                    nodes, childIndex, recursionStack, visitedNodes,
                     meshCount, sceneNodeIndex, asset);
                 if (!result)
                     return UnexpectedSerializationError(result.error());
@@ -1280,21 +1288,27 @@ namespace elm::resmgr {
         // One glTF mesh per engine model, shared by every node that uses it
         GltfWriter writer;
         UnorderedMap<graphics::ModelHandler, size_t> meshIndices;
-        Vector<ExportNode> nodes(scene.nodes.size());
-        for (size_t nodeIndex = 0; nodeIndex < scene.nodes.size(); ++nodeIndex) {
-            const auto& sceneNode = scene.nodes[nodeIndex];
+        const auto sceneNodes = scene.Nodes();
+        const auto* modelComponents = scene.FindComponents<ModelComponent>();
+        Vector<ExportNode> nodes(sceneNodes.size());
+        for (size_t nodeIndex = 0; nodeIndex < sceneNodes.size(); ++nodeIndex) {
+            const auto& sceneNode = sceneNodes[nodeIndex];
             auto& node = nodes[nodeIndex];
             node.name = sceneNode.name;
-            node.transform = sceneNode.parentIndex < scene.nodes.size() ? sceneNode.localTransform : sceneNode.worldTransform;
-            node.tint = sceneNode.color;
-            node.visible = sceneNode.visible;
-            if (sceneNode.parentIndex < scene.nodes.size())
-                nodes[sceneNode.parentIndex].children.push_back(nodeIndex);
+            // A root is placed in the world by its local transform
+            node.transform = sceneNode.localTransform;
+            if (const size_t parentIndex = scene.IndexOf(sceneNode.parent); parentIndex != Scene::NoNode)
+                nodes[parentIndex].children.push_back(nodeIndex);
 
-            const auto* model = models.Get(sceneNode.model);
+            const ModelComponent* component = modelComponents ? modelComponents->Find(sceneNode.id) : nullptr;
+            if (!component)
+                continue;
+            node.tint = component->color;
+            node.visible = component->visible;
+            const auto* model = models.Get(component->model);
             if (!model)
                 continue;
-            auto mesh = meshIndices.find(sceneNode.model);
+            auto mesh = meshIndices.find(component->model);
             if (mesh == meshIndices.end()) {
                 auto exportMesh = MakeExportMesh(*model);
                 if (!exportMesh)
@@ -1302,7 +1316,7 @@ namespace elm::resmgr {
                 auto result = writer.AddMesh(*exportMesh);
                 if (!result)
                     return UnexpectedSerializationError(result.error());
-                mesh = meshIndices.emplace(sceneNode.model, meshIndices.size()).first;
+                mesh = meshIndices.emplace(component->model, meshIndices.size()).first;
             }
             node.mesh = mesh->second;
         }
@@ -1311,7 +1325,7 @@ namespace elm::resmgr {
             auto result = writer.AddNode(nodes[nodeIndex]);
             if (!result)
                 return UnexpectedSerializationError(result.error());
-            if (scene.nodes[nodeIndex].parentIndex >= scene.nodes.size()) {
+            if (scene.IndexOf(sceneNodes[nodeIndex].parent) == Scene::NoNode) {
                 result = writer.AddRoot(nodeIndex);
                 if (!result)
                     return UnexpectedSerializationError(result.error());
@@ -1327,11 +1341,12 @@ namespace elm::resmgr {
             return UnexpectedSerializationError(asset.error());
 
         graphics::Model model(String(path.Stem().c_str()));
-        for (size_t nodeIndex = 0; nodeIndex < asset->scene.nodes.size(); ++nodeIndex) {
-            const size_t modelIndex = asset->nodeModels[nodeIndex];
-            if (modelIndex == SceneAsset::NoModel)
+        const auto worldTransforms = asset->WorldTransforms();
+        for (size_t nodeIndex = 0; nodeIndex < asset->nodes.size(); ++nodeIndex) {
+            const auto& node = asset->nodes[nodeIndex];
+            const size_t modelIndex = asset->ModelIndexOfNode(nodeIndex);
+            if (modelIndex >= asset->models.size())
                 continue;
-            const auto& node = asset->scene.nodes[nodeIndex];
             for (const auto& submesh : asset->models[modelIndex].submeshes) {
                 String name = node.name;
                 if (!submesh.name.empty() && submesh.name != node.name) {
@@ -1341,7 +1356,7 @@ namespace elm::resmgr {
                 }
                 if (name.empty())
                     name = "Submesh " + String(std::to_string(model.submeshes.size()));
-                model.AddSubmesh(graphics::TransformMeshData(*submesh.data, node.worldTransform),
+                model.AddSubmesh(graphics::TransformMeshData(*submesh.data, worldTransforms[nodeIndex]),
                     submesh.color, std::move(name));
             }
         }
@@ -1384,6 +1399,9 @@ namespace elm::resmgr {
             imported.models.push_back(std::move(model));
         }
 
+        // Model components are keyed by SceneAsset::NodeRef, a NodeId
+        if (*nodeCount >= NodeId::MaxIndex)
+            return Failure("glTF scene has too many nodes");
         Vector<bool> hasParent(*nodeCount, false);
         for (size_t nodeIndex = 0; nodeIndex < *nodeCount; ++nodeIndex) {
             auto children = ReadNodeChildIndices(nodes.At(nodeIndex));
@@ -1439,11 +1457,10 @@ namespace elm::resmgr {
 
         Vector<bool> recursionStack(*nodeCount, false);
         Vector<bool> visitedNodes(*nodeCount, false);
-        const Matrix4x4 identity = Matrix4x4::Identity();
         for (const auto rootIndex : roots) {
             auto result = AddNodeInstances(
-                nodes, rootIndex, identity, recursionStack, visitedNodes,
-                *meshCount, Scene::NoNode, imported);
+                nodes, rootIndex, recursionStack, visitedNodes,
+                *meshCount, SceneAsset::NoNode, imported);
             if (!result)
                 return UnexpectedSerializationError(result.error());
         }

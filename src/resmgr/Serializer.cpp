@@ -5,6 +5,11 @@
 #include "resmgr/JsonValue.hpp"
 #include "resmgr/SerializationError.hpp"
 
+#include "Scene/ComponentTypes.hpp"
+#include "Scene/ModelComponent.hpp"
+#include "Scene/PhysicsComponents.hpp"
+#include "Scene/ScriptComponent.hpp"
+
 #include <cctype>
 #include <charconv>
 #include <cmath>
@@ -236,7 +241,7 @@ namespace elm::resmgr {
         }
 
         // ── Node components ─────────────────────────────────────────────────────
-        // "components": { "Script": {...}, "RigidBody": {...}, "Collider": {...} } of a node.
+        // "components": { "Script": {...}, "RigidBody": {...}, "Collider": {...}, "Model": {...} } of a node.
         // Every field is written; a missing field reads as the component's default.
 
         /// The double printed as the float's shortest form: 0.1f is written as 0.1, not 0.10000000149011612,
@@ -356,29 +361,93 @@ namespace elm::resmgr {
             return serialized;
         }
 
-        /// The components of a node, nullopt when it has none.
-        auto MakeComponents(const Scene& scene, NodeId node) -> EngineResult<std::optional<JsonValue>>
-        {
-            const auto* scripts = scene.FindComponents<ScriptComponent>();
-            const auto* bodies = scene.FindComponents<RigidBody>();
-            const auto* colliders = scene.FindComponents<Collider>();
-            const ScriptComponent* script = scripts ? scripts->Find(node) : nullptr;
-            const RigidBody* body = bodies ? bodies->Find(node) : nullptr;
-            const Collider* collider = colliders ? colliders->Find(node) : nullptr;
-            if (!script && !body && !collider)
-                return std::optional<JsonValue> {};
+        /// Index of every saved model in the file's "models".
+        using ModelIndices = UnorderedMap<graphics::ModelHandler, size_t>;
 
-            JsonValue components { JsonValue::Type::Object };
-            EngineResult<void> result;
-            if (script)
-                result = SetResult(components, "Script", MakeScript(*script, scene));
-            if (result && body)
-                result = SetResult(components, "RigidBody", MakeRigidBody(*body));
-            if (result && collider)
-                result = SetResult(components, "Collider", MakeCollider(*collider));
+        /// The model as its index in "models" (none for a component without a model), the tint and the user's flag.
+        auto MakeModel(const ModelComponent& component, const ModelIndices& modelIndices) -> EngineResult<JsonValue>
+        {
+            JsonValue serialized { JsonValue::Type::Object };
+            const Vector4& color = component.color;
+            auto result = SetFields(serialized, { { "visible", JsonValue(component.visible) } });
+            if (result)
+                result = SetResult(serialized, "color", MakeShortArray({ color.x, color.y, color.z, color.w }));
+            if (const auto model = modelIndices.find(component.model); result && model != modelIndices.end())
+                result = SetField(serialized, "modelIndex", JsonValue(static_cast<double>(model->second)));
             if (!result)
                 return UnexpectedSerializationError(result.error());
+            return serialized;
+        }
+
+        /// The node's component of type T as make writes it, nullopt when the node has none.
+        template <SceneComponent T, typename Make>
+        auto MakeComponentOf(const Scene& scene, NodeId node, Make&& make) -> EngineResult<std::optional<JsonValue>>
+        {
+            const auto* store = scene.FindComponents<T>();
+            const T* component = store ? store->Find(node) : nullptr;
+            if (!component)
+                return std::optional<JsonValue> {};
+            auto serialized = make(*component);
+            if (!serialized)
+                return UnexpectedSerializationError(serialized.error());
+            return std::optional<JsonValue>(std::move(*serialized));
+        }
+
+        auto MakeComponent(const Scene& scene, NodeId node, ComponentType type, const ModelIndices& modelIndices)
+            -> EngineResult<std::optional<JsonValue>>
+        {
+            switch (type) {
+            case ComponentType::Script:
+                return MakeComponentOf<ScriptComponent>(scene, node, [&](const ScriptComponent& script) { return MakeScript(script, scene); });
+            case ComponentType::RigidBody:
+                return MakeComponentOf<RigidBody>(scene, node, MakeRigidBody);
+            case ComponentType::Collider:
+                return MakeComponentOf<Collider>(scene, node, MakeCollider);
+            case ComponentType::Model:
+                return MakeComponentOf<ModelComponent>(scene, node, [&](const ModelComponent& model) { return MakeModel(model, modelIndices); });
+            }
+            return UnexpectedSerializationError("Scene node has an unknown component type", "Serializer");
+        }
+
+        /// The components of a node under their names, nullopt when it has none.
+        auto MakeComponents(const Scene& scene, NodeId node, const ModelIndices& modelIndices) -> EngineResult<std::optional<JsonValue>>
+        {
+            JsonValue components { JsonValue::Type::Object };
+            bool empty = true;
+            for (const ComponentType type : AllComponentTypes) {
+                auto component = MakeComponent(scene, node, type, modelIndices);
+                if (!component)
+                    return UnexpectedSerializationError(component.error());
+                if (!*component)
+                    continue;
+                auto result = SetField(components, ComponentTypeName(type), std::move(**component));
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+                empty = false;
+            }
+            if (empty)
+                return std::optional<JsonValue> {};
             return std::optional<JsonValue>(std::move(components));
+        }
+
+        /// A node with its parent as an index in the file and its components. The world transform is not
+        /// written: it follows from the local ones.
+        auto MakeNode(const Scene& scene, const Scene::Node& node, const ModelIndices& modelIndices) -> EngineResult<JsonValue>
+        {
+            JsonValue serialized { JsonValue::Type::Object };
+            auto result = SetField(serialized, "name", JsonValue(node.name.c_str()));
+            if (result)
+                result = SetResult(serialized, "localTransform", MakeMatrix(node.localTransform.m));
+            if (const size_t parentIndex = scene.IndexOf(node.parent); result && parentIndex != Scene::NoNode)
+                result = SetField(serialized, "parentIndex", JsonValue(static_cast<double>(parentIndex)));
+            auto components = MakeComponents(scene, node.id, modelIndices);
+            if (!components)
+                return UnexpectedSerializationError(components.error());
+            if (result && *components)
+                result = SetField(serialized, "components", std::move(**components));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            return serialized;
         }
 
         auto ReadFloat(const JsonValue& value, StringView description) -> EngineResult<float>
@@ -414,6 +483,18 @@ namespace elm::resmgr {
             if (!value)
                 return UnexpectedSerializationError(value.error());
             target = *value;
+            return {};
+        }
+
+        auto ReadVector4Into(const JsonValue& object, StringView key, Vector4& target) -> EngineResult<void>
+        {
+            const auto field = object.Find(key);
+            if (!field)
+                return {};
+            auto values = ReadFloatArray<4>(*field, key);
+            if (!values)
+                return UnexpectedSerializationError(values.error());
+            target = Vector4 { (*values)[0], (*values)[1], (*values)[2], (*values)[3] };
             return {};
         }
 
@@ -550,35 +631,128 @@ namespace elm::resmgr {
             return collider;
         }
 
-        auto ReadComponents(const JsonValue& serialized, size_t nodeCount) -> EngineResult<NodeComponents>
+        /// The model is SceneAsset::ModelRef of its index in "models"; modelCount bounds it.
+        auto ReadModel(const JsonValue& serialized, size_t modelCount) -> EngineResult<ModelComponent>
+        {
+            ModelComponent model;
+            for (auto result : { ReadVector4Into(serialized, "color", model.color), ReadBoolInto(serialized, "visible", model.visible) }) {
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            if (const auto modelField = serialized.Find("modelIndex")) {
+                auto modelIndex = ReadUnsigned<size_t>(*modelField, "Model.modelIndex");
+                if (!modelIndex || *modelIndex >= modelCount)
+                    return UnexpectedSerializationError("Scene node refers to a missing model", "Serializer");
+                model.model = SceneAsset::ModelRef(*modelIndex);
+            }
+            return model;
+        }
+
+        template <SceneComponent T>
+        auto StoreComponent(EngineResult<T> component, NodeId node, ComponentStores& components) -> EngineResult<void>
+        {
+            if (!component)
+                return UnexpectedSerializationError(component.error());
+            components.Components<T>().Emplace(node, std::move(*component));
+            return {};
+        }
+
+        /// How many nodes and models a scene file has: Entity props and Model components refer to them by index.
+        struct SceneFileCounts {
+            size_t nodeCount { 0 };
+            size_t modelCount { 0 };
+        };
+
+        /// Reads the components of an asset node into the asset's stores under the node's key.
+        auto ReadComponents(const JsonValue& serialized, SceneFileCounts counts, NodeId node, ComponentStores& components)
+            -> EngineResult<void>
         {
             if (!serialized.IsObject())
                 return UnexpectedSerializationError("Scene node components must be an object", "Serializer");
-            NodeComponents components;
             for (const auto& name : serialized.Keys()) {
                 const JsonValue component = serialized[name];
                 if (!component.IsObject())
                     return UnexpectedSerializationError("Scene node component must be an object: " + name, "Serializer");
-                if (name == "Script") {
-                    auto script = ReadScript(component, nodeCount);
-                    if (!script)
-                        return UnexpectedSerializationError(script.error());
-                    components.script = std::move(*script);
-                } else if (name == "RigidBody") {
-                    auto body = ReadRigidBody(component);
-                    if (!body)
-                        return UnexpectedSerializationError(body.error());
-                    components.rigidBody = *body;
-                } else if (name == "Collider") {
-                    auto collider = ReadCollider(component);
-                    if (!collider)
-                        return UnexpectedSerializationError(collider.error());
-                    components.collider = *collider;
-                } else {
+                const auto type = ComponentTypeFromName(name);
+                if (!type)
                     return UnexpectedSerializationError("Scene node has an unknown component: " + name, "Serializer");
+                EngineResult<void> stored;
+                switch (*type) {
+                case ComponentType::Script:
+                    stored = StoreComponent(ReadScript(component, counts.nodeCount), node, components);
+                    break;
+                case ComponentType::RigidBody:
+                    stored = StoreComponent(ReadRigidBody(component), node, components);
+                    break;
+                case ComponentType::Collider:
+                    stored = StoreComponent(ReadCollider(component), node, components);
+                    break;
+                case ComponentType::Model:
+                    stored = StoreComponent(ReadModel(component, counts.modelCount), node, components);
+                    break;
                 }
+                if (!stored)
+                    return UnexpectedSerializationError(stored.error());
             }
-            return components;
+            return {};
+        }
+
+        /// A node of a version 4 file or later without its components: name, parent and local transform.
+        auto ReadNode(const JsonValue& serialized, size_t nodeIndex, size_t nodeCount) -> EngineResult<SceneAsset::Node>
+        {
+            if (!serialized.IsObject())
+                return UnexpectedSerializationError("Scene node must be an object", "Serializer");
+            auto localField = GetField(serialized, "localTransform");
+            if (!localField)
+                return UnexpectedSerializationError("Scene node is missing required fields", "Serializer");
+            auto localTransform = ReadMatrix(*localField, "node.localTransform");
+            if (!localTransform)
+                return UnexpectedSerializationError(localTransform.error());
+
+            SceneAsset::Node node;
+            node.localTransform.m = *localTransform;
+            if (const auto parentField = serialized.Find("parentIndex")) {
+                auto parentIndex = ReadUnsigned<size_t>(*parentField, "node.parentIndex");
+                if (!parentIndex || *parentIndex >= nodeCount || *parentIndex == nodeIndex)
+                    return UnexpectedSerializationError("Scene node has an invalid parent index", "Serializer");
+                node.parentIndex = *parentIndex;
+            }
+            if (const auto nameField = serialized.Find("name")) {
+                auto name = nameField->AsString();
+                if (!name)
+                    return UnexpectedSerializationError(name.error());
+                node.name = std::move(*name);
+            }
+            return node;
+        }
+
+        /// Versions 4 and 5 keep the model, color and visible on the node: a node with a model gets them as
+        /// its Model component, without a model they meant nothing. The world transform is checked and
+        /// dropped, it follows from the local ones.
+        auto ReadNodeModel(const JsonValue& serialized, size_t modelCount) -> EngineResult<std::optional<ModelComponent>>
+        {
+            auto worldField = GetField(serialized, "worldTransform");
+            auto visibleField = GetField(serialized, "visible");
+            auto colorField = GetField(serialized, "color");
+            if (!worldField || !visibleField || !colorField)
+                return UnexpectedSerializationError("Scene node is missing required fields", "Serializer");
+            auto worldTransform = ReadMatrix(*worldField, "node.worldTransform");
+            auto visible = visibleField->AsBoolean();
+            auto color = ReadFloatArray<4>(*colorField, "node.color");
+            if (!worldTransform || !visible || !color)
+                return UnexpectedSerializationError("Invalid scene node data", "Serializer");
+
+            const auto modelField = serialized.Find("modelIndex");
+            if (!modelField)
+                return std::optional<ModelComponent> {};
+            auto modelIndex = ReadUnsigned<size_t>(*modelField, "node.modelIndex");
+            if (!modelIndex || *modelIndex >= modelCount)
+                return UnexpectedSerializationError("Scene node refers to a missing model", "Serializer");
+            return std::optional<ModelComponent>(ModelComponent {
+                .model = SceneAsset::ModelRef(*modelIndex),
+                .color = Vector4 { (*color)[0], (*color)[1], (*color)[2], (*color)[3] },
+                .visible = *visible,
+            });
         }
 
         auto SerializeModel(const graphics::Model& model) -> EngineResult<JsonValue>
@@ -836,18 +1010,21 @@ namespace elm::resmgr {
         const Path& modelDirectory) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
-        // 5: nodes may have components
-        auto result = SetField(document, "formatVersion", JsonValue(5.0));
+        // 6: model, color and visible are the Model component, world transforms are not written
+        auto result = SetField(document, "formatVersion", JsonValue(6.0));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
         JsonValue serializedModels{ JsonValue::Type::Array };
-        UnorderedMap<graphics::ModelHandler, size_t> modelIndices;
+        ModelIndices modelIndices;
         Set<String> modelFileNames;
         const auto sceneDirectory = path.Parent().Empty() ? Path(".") : path.Parent();
-        for (const auto& node : scene.nodes) {
-            const auto* model = models.Get(node.model);
-            if (!model || modelIndices.contains(node.model))
+        const auto* modelComponents = scene.FindComponents<ModelComponent>();
+        // In scene order, so the models are numbered as the nodes go
+        for (const auto& node : scene.Nodes()) {
+            const ModelComponent* component = modelComponents ? modelComponents->Find(node.id) : nullptr;
+            const auto* model = component ? models.Get(component->model) : nullptr;
+            if (!model || modelIndices.contains(component->model))
                 continue;
             const auto baseStem = MakeModelFileStem(
                 StringView(model->name.data(), model->name.size()), modelIndices.size());
@@ -870,7 +1047,7 @@ namespace elm::resmgr {
             if (!result)
                 return UnexpectedSerializationError(result.error());
 
-            modelIndices.emplace(node.model, modelIndices.size());
+            modelIndices.emplace(component->model, modelIndices.size());
             result = AddToArray(serializedModels, std::move(modelReference));
             if (!result)
                 return UnexpectedSerializationError(result.error());
@@ -880,52 +1057,13 @@ namespace elm::resmgr {
         if (!result)
             return UnexpectedSerializationError(result.error());
 
+        // Parents come before their children, as in the scene
         JsonValue serializedNodes{ JsonValue::Type::Array };
-        for (const auto& node : scene.nodes) {
-            JsonValue serializedNode{ JsonValue::Type::Object };
-            result = SetField(serializedNode, "name", JsonValue(node.name.c_str()));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            auto localTransform = MakeMatrix(node.localTransform.m);
-            if (!localTransform)
-                return UnexpectedSerializationError(localTransform.error());
-            result = SetField(serializedNode, "localTransform", std::move(*localTransform));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            auto worldTransform = MakeMatrix(node.worldTransform.m);
-            if (!worldTransform)
-                return UnexpectedSerializationError(worldTransform.error());
-            result = SetField(serializedNode, "worldTransform", std::move(*worldTransform));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            if (node.parentIndex != Scene::NoNode) {
-                result = SetField(serializedNode, "parentIndex", JsonValue(static_cast<double>(node.parentIndex)));
-                if (!result)
-                    return UnexpectedSerializationError(result.error());
-            }
-            if (const auto model = modelIndices.find(node.model); model != modelIndices.end()) {
-                result = SetField(serializedNode, "modelIndex", JsonValue(static_cast<double>(model->second)));
-                if (!result)
-                    return UnexpectedSerializationError(result.error());
-            }
-            auto color = MakeArray(std::array{ node.color.x, node.color.y, node.color.z, node.color.w });
-            if (!color)
-                return UnexpectedSerializationError(color.error());
-            result = SetField(serializedNode, "color", std::move(*color));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            result = SetField(serializedNode, "visible", JsonValue(node.visible));
-            if (!result)
-                return UnexpectedSerializationError(result.error());
-            auto components = MakeComponents(scene, node.id);
-            if (!components)
-                return UnexpectedSerializationError(components.error());
-            if (*components) {
-                result = SetField(serializedNode, "components", std::move(**components));
-                if (!result)
-                    return UnexpectedSerializationError(result.error());
-            }
-            result = AddToArray(serializedNodes, std::move(serializedNode));
+        for (const auto& node : scene.Nodes()) {
+            auto serializedNode = MakeNode(scene, node, modelIndices);
+            if (!serializedNode)
+                return UnexpectedSerializationError(serializedNode.error());
+            result = AddToArray(serializedNodes, std::move(*serializedNode));
             if (!result)
                 return UnexpectedSerializationError(result.error());
         }
@@ -958,12 +1096,12 @@ namespace elm::resmgr {
         auto formatVersion = ReadUnsigned<uint32_t>(*versionField, "formatVersion");
         if (!formatVersion)
             return UnexpectedSerializationError(formatVersion.error());
-        if (*formatVersion < 1 || *formatVersion > 5)
+        if (*formatVersion < 1 || *formatVersion > 6)
             return UnexpectedSerializationError("Unsupported scene file version", "Serializer");
 
         SceneAsset loaded;
 
-        // 5 is 4 with node components
+        // 5 is 4 with node components, 6 moves model, color and visible of a node into its Model component
         if (*formatVersion >= 4) {
             auto serializedModels = ReadArrayField(document, "models");
             auto serializedNodes = ReadArrayField(document, "nodes");
@@ -973,10 +1111,12 @@ namespace elm::resmgr {
             auto nodeCount = serializedNodes->Size();
             if (!modelCount || !nodeCount)
                 return UnexpectedSerializationError("Invalid models or nodes array", "Serializer");
+            // Components and Entity props are keyed by SceneAsset::NodeRef, a NodeId
+            if (*nodeCount >= NodeId::MaxIndex)
+                return UnexpectedSerializationError("Scene file has too many nodes", "Serializer");
 
-            loaded.scene.nodes.reserve(*nodeCount);
+            loaded.nodes.reserve(*nodeCount);
             loaded.models.reserve(*modelCount);
-            loaded.nodeComponents.resize(*nodeCount);
             for (size_t modelIndex = 0; modelIndex < *modelCount; ++modelIndex) {
                 auto modelReference = GetElement(*serializedModels, modelIndex);
                 if (!modelReference)
@@ -997,66 +1137,36 @@ namespace elm::resmgr {
                 loaded.models.push_back(std::move(*model));
             }
 
+            const SceneFileCounts counts { .nodeCount = *nodeCount, .modelCount = *modelCount };
             for (size_t nodeIndex = 0; nodeIndex < *nodeCount; ++nodeIndex) {
                 auto serializedNode = GetElement(*serializedNodes, nodeIndex);
                 if (!serializedNode)
                     return UnexpectedSerializationError(serializedNode.error());
-                if (!serializedNode->IsObject())
-                    return UnexpectedSerializationError("Scene node must be an object", "Serializer");
-                auto localField = GetField(*serializedNode, "localTransform");
-                auto worldField = GetField(*serializedNode, "worldTransform");
-                auto visibleField = GetField(*serializedNode, "visible");
-                auto colorField = GetField(*serializedNode, "color");
-                if (!localField || !worldField || !visibleField || !colorField)
-                    return UnexpectedSerializationError("Scene node is missing required fields", "Serializer");
-                auto localTransform = ReadMatrix(*localField, "node.localTransform");
-                auto worldTransform = ReadMatrix(*worldField, "node.worldTransform");
-                auto visible = visibleField->AsBoolean();
-                auto color = ReadFloatArray<4>(*colorField, "node.color");
-                if (!localTransform || !worldTransform || !visible || !color)
-                    return UnexpectedSerializationError("Invalid scene node data", "Serializer");
-
-                Scene::Node node;
-                size_t nodeModel = SceneAsset::NoModel;
-                node.localTransform.m = *localTransform;
-                node.worldTransform.m = *worldTransform;
-                node.visible = *visible;
-                node.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
-                if (const auto parentField = serializedNode->Find("parentIndex")) {
-                    auto parentIndex = ReadUnsigned<size_t>(*parentField, "node.parentIndex");
-                    if (!parentIndex || *parentIndex >= *nodeCount || *parentIndex == nodeIndex)
-                        return UnexpectedSerializationError("Scene node has an invalid parent index", "Serializer");
-                    node.parentIndex = *parentIndex;
-                }
-                if (const auto modelField = serializedNode->Find("modelIndex")) {
-                    auto modelIndex = ReadUnsigned<size_t>(*modelField, "node.modelIndex");
-                    if (!modelIndex || *modelIndex >= *modelCount)
-                        return UnexpectedSerializationError("Scene node refers to a missing model", "Serializer");
-                    nodeModel = *modelIndex;
-                }
-                if (const auto nameField = serializedNode->Find("name")) {
-                    auto name = nameField->AsString();
-                    if (!name)
-                        return UnexpectedSerializationError(name.error());
-                    node.name = std::move(*name);
+                auto node = ReadNode(*serializedNode, nodeIndex, *nodeCount);
+                if (!node)
+                    return UnexpectedSerializationError(node.error());
+                if (*formatVersion <= 5) {
+                    auto model = ReadNodeModel(*serializedNode, *modelCount);
+                    if (!model)
+                        return UnexpectedSerializationError(model.error());
+                    if (*model)
+                        loaded.components.Components<ModelComponent>().Emplace(SceneAsset::NodeRef(nodeIndex), std::move(**model));
                 }
                 if (const auto componentsField = serializedNode->Find("components")) {
-                    auto components = ReadComponents(*componentsField, *nodeCount);
+                    auto components = ReadComponents(*componentsField, counts, SceneAsset::NodeRef(nodeIndex), loaded.components);
                     if (!components)
                         return UnexpectedSerializationError(components.error());
-                    loaded.nodeComponents[nodeIndex] = std::move(*components);
                 }
-                loaded.scene.nodes.push_back(std::move(node));
-                loaded.nodeModels.push_back(nodeModel);
+                loaded.nodes.push_back(std::move(*node));
             }
 
-            for (size_t nodeIndex = 0; nodeIndex < loaded.scene.nodes.size(); ++nodeIndex) {
+            for (size_t nodeIndex = 0; nodeIndex < loaded.nodes.size(); ++nodeIndex) {
                 size_t current = nodeIndex;
-                for (size_t depth = 0; depth <= loaded.scene.nodes.size(); ++depth) {
-                    const size_t parentIndex = loaded.scene.nodes[current].parentIndex;
-                    if (parentIndex == Scene::NoNode)
+                for (size_t depth = 0; depth <= loaded.nodes.size(); ++depth) {
+                    const size_t parentIndex = loaded.nodes[current].parentIndex;
+                    if (parentIndex == SceneAsset::NoNode)
                         break;
-                    if (depth == loaded.scene.nodes.size())
+                    if (depth == loaded.nodes.size())
                         return UnexpectedSerializationError("Scene node hierarchy contains a cycle", "Serializer");
                     current = parentIndex;
                 }
@@ -1078,7 +1188,7 @@ namespace elm::resmgr {
         if (!instanceCount)
             return UnexpectedSerializationError(instanceCount.error());
 
-        loaded.scene.nodes.reserve(*instanceCount + (*formatVersion >= 3 ? *meshCount : 0));
+        loaded.nodes.reserve(*instanceCount + (*formatVersion >= 3 ? *meshCount : 0));
         loaded.models.reserve(*meshCount);
         Vector<Vector4> modelColors;
         modelColors.reserve(*meshCount);
@@ -1090,7 +1200,7 @@ namespace elm::resmgr {
             auto nodeCount = serializedNodes->Size();
             if (!nodeCount)
                 return UnexpectedSerializationError(nodeCount.error());
-            loaded.scene.nodes.reserve(*nodeCount);
+            loaded.nodes.reserve(*nodeCount);
             for (size_t nodeIndex = 0; nodeIndex < *nodeCount; ++nodeIndex) {
                 auto serializedNode = GetElement(*serializedNodes, nodeIndex);
                 if (!serializedNode)
@@ -1105,7 +1215,7 @@ namespace elm::resmgr {
                 if (!localTransform)
                     return UnexpectedSerializationError(localTransform.error());
 
-                Scene::Node node;
+                SceneAsset::Node node;
                 node.localTransform.m = *localTransform;
                 if (const auto parentField = serializedNode->Find("parentIndex")) {
                     auto parentIndex = ReadUnsigned<size_t>(*parentField, "node.parentIndex");
@@ -1121,17 +1231,16 @@ namespace elm::resmgr {
                         return UnexpectedSerializationError(name.error());
                     node.name = std::move(*name);
                 }
-                loaded.scene.nodes.push_back(std::move(node));
-                loaded.nodeModels.push_back(SceneAsset::NoModel);
+                loaded.nodes.push_back(std::move(node));
             }
 
-            for (size_t nodeIndex = 0; nodeIndex < loaded.scene.nodes.size(); ++nodeIndex) {
+            for (size_t nodeIndex = 0; nodeIndex < loaded.nodes.size(); ++nodeIndex) {
                 size_t current = nodeIndex;
-                for (size_t depth = 0; depth <= loaded.scene.nodes.size(); ++depth) {
-                    const size_t parentIndex = loaded.scene.nodes[current].parentIndex;
-                    if (parentIndex == Scene::NoNode)
+                for (size_t depth = 0; depth <= loaded.nodes.size(); ++depth) {
+                    const size_t parentIndex = loaded.nodes[current].parentIndex;
+                    if (parentIndex == SceneAsset::NoNode)
                         break;
-                    if (depth == loaded.scene.nodes.size())
+                    if (depth == loaded.nodes.size())
                         return UnexpectedSerializationError("Scene node hierarchy contains a cycle", "Serializer");
                     current = parentIndex;
                 }
@@ -1198,6 +1307,9 @@ namespace elm::resmgr {
             }
         }
 
+        // Model components are keyed by SceneAsset::NodeRef, a NodeId
+        if (loaded.nodes.size() + *instanceCount >= NodeId::MaxIndex)
+            return UnexpectedSerializationError("Scene file has too many nodes", "Serializer");
         for (size_t index = 0; index < *instanceCount; ++index) {
             auto serializedInstance = GetElement(*instances, index);
             if (!serializedInstance)
@@ -1224,18 +1336,16 @@ namespace elm::resmgr {
             if (!visible)
                 return UnexpectedSerializationError(visible.error());
 
-            Scene::Node node;
-            node.worldTransform.m = *worldTransform;
+            SceneAsset::Node node;
             node.localTransform.m = *worldTransform;
-            node.color = modelColors[*meshIndex];
+            ModelComponent model { .model = SceneAsset::ModelRef(*meshIndex), .color = modelColors[*meshIndex], .visible = *visible };
             auto colorField = (*serializedInstance)["color"];
             if (colorField.Exists()) {
                 auto color = ReadFloatArray<4>(colorField, "instance.color");
                 if (!color)
                     return UnexpectedSerializationError(color.error());
-                node.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
+                model.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
             }
-            node.visible = *visible;
             if (const auto nameField = serializedInstance->Find("name")) {
                 auto name = nameField->AsString();
                 if (!name)
@@ -1247,13 +1357,13 @@ namespace elm::resmgr {
                     auto nodeIndex = ReadUnsigned<size_t>(*nodeField, "instance.nodeIndex");
                     if (!nodeIndex)
                         return UnexpectedSerializationError(nodeIndex.error());
-                    if (*nodeIndex >= loaded.scene.nodes.size())
+                    if (*nodeIndex >= loaded.nodes.size())
                         return UnexpectedSerializationError("Scene instance refers to a missing node", "Serializer");
                     node.parentIndex = *nodeIndex;
                 }
             }
-            loaded.scene.nodes.push_back(std::move(node));
-            loaded.nodeModels.push_back(*meshIndex);
+            loaded.components.Components<ModelComponent>().Emplace(SceneAsset::NodeRef(loaded.nodes.size()), model);
+            loaded.nodes.push_back(std::move(node));
         }
 
         return loaded;

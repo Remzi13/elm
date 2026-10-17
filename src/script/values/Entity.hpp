@@ -1,6 +1,8 @@
 #pragma once
 
-#include "Scene/TestScenes.hpp"
+#include "graphics/ModelHandler.hpp"
+
+#include "Scene/NodeId.hpp"
 
 #include "script/lua/Stack.hpp"
 

@@ -21,6 +21,8 @@ namespace elm::graphics {
         ModelManager& operator=(ModelManager&&) noexcept = default;
 
         [[nodiscard]] ModelHandler Insert(Model model);
+        /// Inserts every model; the handles come in the same order (a SceneAsset's models for Scene::Append).
+        [[nodiscard]] Vector<ModelHandler> InsertAll(Vector<Model> models);
 
         /// Replaces the model behind a live handle. Meshes whose geometry is shared with
         /// the previous version are kept, the rest are created anew.

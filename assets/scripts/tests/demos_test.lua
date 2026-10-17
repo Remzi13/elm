@@ -5,14 +5,15 @@ local expect = require "tests.expect"
 local tests = {}
 
 function tests.demos_load()
-    for _, name in ipairs({ "demo.spinner", "demo.npcs", "demo.physics" }) do
+    for _, name in ipairs({ "demo.spinner", "demo.npcs", "demo.physics", "coin_rush.main" }) do
         local demo = require(name)
         expect.eq(type(demo.on_start), "function", name .. ".on_start")
     end
 end
 
 function tests.entity_scripts_load()
-    for _, name in ipairs({ "npc.guard", "gameplay.launch_pad", "gameplay.projectile" }) do
+    for _, name in ipairs({ "npc.guard", "gameplay.launch_pad", "gameplay.projectile",
+            "coin_rush.player", "coin_rush.coin", "coin_rush.hazard", "coin_rush.game" }) do
         local class = require(name)
         expect.eq(type(class), "table", name)
         expect.eq(type(class.props), "table", name .. ".props")
