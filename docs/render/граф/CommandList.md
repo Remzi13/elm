@@ -26,6 +26,10 @@ cmd.DrawIndexed(/*indexCount, 0 = весь меш*/ 0, /*instances*/ count);
 cmd.EndRenderPass();
 ```
 
+Без индексного буфера рисует `Draw(vertexCount, instances, firstVertex)`: вершины идут
+подряд из подключённых вершинных буферов. Так удобно рисовать данные кадра из
+[[UploadAllocator]], например список линий (`PrimitiveTopology::LineList` в [[Шейдеры и пайплайны]]).
+
 Откуда брать attachment'ы `color`/`depth`, описано в [[Ресурсы графа#В execute]]. Как
 получить `constantsRef` и `instancesRef`, описано в [[UploadAllocator]]. Слоты задаются
 в [[Шейдеры и пайплайны]].

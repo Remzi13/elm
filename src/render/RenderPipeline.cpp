@@ -4,6 +4,7 @@
 #include "core/Profiling.hpp"
 
 #include "render/frame/FrameSnapshot.hpp"
+#include "render/passes/DebugDrawPass.hpp"
 #include "render/passes/OverlayPass.hpp"
 #include "render/passes/ScenePass.hpp"
 #include "render/rhi/IRenderBackend.hpp"
@@ -19,6 +20,7 @@ bool RenderPipeline::Init(rhi::IRenderBackend& backend)
 
     // Order of features is the order their passes are declared in
     m_features.push_back(MakeUnique<ScenePass>());
+    m_features.push_back(MakeUnique<DebugDrawPass>());
     m_features.push_back(MakeUnique<OverlayPass>());
 
     bool result = true;

@@ -46,9 +46,7 @@ namespace elm {
 			const OcclusionCullingSystem* cullingSystem = nullptr) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame.
 		// Windows may add their own scene views (previews) to the frame.
-		void BuildFrame(render::RenderSystem& renderSystem, Scene& scene, graphics::ModelManager& models,
-			Camera& camera, const FrameStats& stats,
-			render::ViewPort& viewPort, render::FrameWriter& frame);
+		void BuildFrame(const ImGuiWindowContext& context);
 		// Render thread: reports viewport surfaces released by the render graph
 		void NotifyViewportSurfacesReleased(uint64_t count);
 		void Shutdown();

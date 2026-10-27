@@ -2,6 +2,7 @@
 
 #include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
+#include "script/bindings/Bindings.hpp"
 #include "script/console/ScriptConsole.hpp"
 #include "script/entity/EntityScripts.hpp"
 #include "script/entity/ScriptDefaults.hpp"
@@ -10,6 +11,7 @@
 #include "script/module/ModuleLoader.hpp"
 #include "script/module/ModulePaths.hpp"
 #include "script/reload/HotReload.hpp"
+#include "script/ui/CodeIndent.hpp"
 #include "script/ui/LuaHighlighter.hpp"
 #include "script/ui/ScriptEditor.hpp"
 
@@ -23,8 +25,15 @@
 #include "Scene/ScriptComponent.hpp"
 #include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/debug/ColliderVisualizer.hpp"
+#include "graphics/debug/DebugDraw.hpp"
+#include "graphics/debug/DebugDrawSystem.hpp"
+#include "graphics/debug/PhysicsVisualizer.hpp"
+#include "graphics/debug/WorldAxesVisualizer.hpp"
+#include "graphics/gizmo/TransformGizmo.hpp"
 #include "input/Input.hpp"
 #include "physics/PhysicsSystem.hpp"
+#include "render/api/FrameWriter.hpp"
 #include "resmgr/Serializer.hpp"
 
 #include <algorithm>
@@ -1578,6 +1587,372 @@ namespace elm::script {
             return described;
         }
 
+        /// What debugDraw writes into a frame of one scene view, as the render thread gets it.
+        render::DebugGeometry WrittenDebugGeometry(const graphics::DebugDraw& debugDraw)
+        {
+            render::FrameSnapshot frame;
+            render::FrameWriter writer(&frame);
+            writer.BeginSceneView({}, {}, {});
+            debugDraw.WriteTo(writer);
+            return std::move(frame.debug);
+        }
+
+        void RunFrameDebugTests(Report& report)
+        {
+            using render::DebugDepth;
+            using render::DebugTopology;
+            const std::array<render::DebugVertex, 2> line {};
+            const render::DebugStyle tested { DebugTopology::Lines, DebugDepth::Tested };
+            const render::DebugStyle onTop { DebugTopology::Lines, DebugDepth::OnTop };
+
+            render::FrameSnapshot frame;
+            render::FrameWriter writer(&frame);
+            writer.AddDebugVertices(tested, line);
+            report.Check(frame.debug.vertices.empty(), "frame_debug::ignored_before_scene_view");
+
+            writer.BeginSceneView({}, {}, {});
+            writer.AddDebugVertices(tested, line);
+            writer.AddDebugVertices(tested, line);
+            writer.AddDebugVertices(onTop, {});
+            writer.AddDebugVertices(onTop, line);
+            report.Check(frame.debug.batches.size() == 2 && frame.debug.batches[0].vertexCount == 4
+                    && frame.debug.batches[1].firstVertex == 4 && frame.sceneViews.back().debugBatchCount == 2,
+                "frame_debug::same_style_extends_batch");
+
+            // A second view starts its own batches even in the style the first view ended with
+            writer.BeginSceneView({}, {}, {});
+            writer.AddDebugVertices(onTop, line);
+            report.Check(frame.debug.batches.size() == 3 && frame.sceneViews.back().firstDebugBatch == 2
+                    && frame.sceneViews.back().debugBatchCount == 1,
+                "frame_debug::view_owns_its_batches");
+        }
+
+        void RunWorldAxesVisualizerTests(Report& report)
+        {
+            Settings settings;
+            graphics::DebugDraw debugDraw(settings);
+            graphics::WorldAxesVisualizer visualizer(debugDraw);
+            visualizer.Draw(debugDraw);
+            const render::DebugGeometry geometry = WrittenDebugGeometry(debugDraw);
+            const auto channels = debugDraw.GetChannels();
+            report.Check(geometry.vertices.size() == 6 && channels.size() == 1 && channels[0].name == "Editor/WorldAxes",
+                "world_axes_visualizer::three_axes_in_own_channel");
+        }
+
+        void RunDebugDrawTests(Report& report)
+        {
+            using render::DebugDepth;
+            Settings settings;
+            graphics::DebugDraw debugDraw(settings);
+            render::DebugGeometry geometry;
+            const auto shown = debugDraw.RegisterChannel("Test/Shown", "Shown", true);
+            const auto hidden = debugDraw.RegisterChannel("Test/Hidden", "Hidden", false);
+            report.Check(shown.IsValid() && shown != hidden, "debug_draw::channels_are_distinct");
+            report.Check(debugDraw.RegisterChannel("Test/Shown", "Shown", false) == shown, "debug_draw::same_name_same_channel");
+
+            debugDraw.Line(shown, {}, { 1.0f, 0.0f, 0.0f }, {});
+            debugDraw.Line(hidden, {}, { 0.0f, 1.0f, 0.0f }, {});
+            debugDraw.Line({}, {}, { 0.0f, 0.0f, 1.0f }, {});
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.batches.size() == 1 && geometry.vertices.size() == 2, "debug_draw::disabled_and_invalid_channels_drop");
+
+            debugDraw.Line(shown, {}, { 1.0f, 0.0f, 0.0f }, { .depth = DebugDepth::OnTop });
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.batches.size() == 2 && geometry.batches.back().style.depth == DebugDepth::OnTop,
+                "debug_draw::batch_per_style_on_top_last");
+
+            debugDraw.BeginFrame(0.1f);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.IsEmpty(), "debug_draw::frame_primitives_last_one_frame");
+
+            settings.Set(Settings::Category::Render, String(graphics::DebugDraw::ChannelSettingPrefix) + "Test/Hidden", true);
+            debugDraw.BeginFrame(0.1f);
+            report.Check(debugDraw.IsEnabled(hidden), "debug_draw::setting_switches_channel");
+
+            debugDraw.Box(shown, math::Matrix4x4::Identity(), { 1.0f, 1.0f, 1.0f }, { .duration = 1.0f });
+            debugDraw.BeginFrame(0.6f);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.vertices.size() == 24, "debug_draw::timed_box_survives_its_duration");
+            debugDraw.BeginFrame(0.6f);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.IsEmpty(), "debug_draw::timed_primitive_expires");
+        }
+
+        void RunDebugLabelTests(Report& report)
+        {
+            Settings settings;
+            graphics::DebugDraw debugDraw(settings);
+            const auto shown = debugDraw.RegisterChannel("Test/Shown", "Shown", true);
+            const auto hidden = debugDraw.RegisterChannel("Test/Hidden", "Hidden", false);
+            const auto published = [&] {
+                debugDraw.PublishLabels();
+                return debugDraw.GetPublishedLabels();
+            };
+
+            debugDraw.Text(shown, { 1.0f, 2.0f, 3.0f }, "hello", {});
+            debugDraw.Text(hidden, {}, "hidden", {});
+            debugDraw.Text(shown, {}, "", {});
+            const auto labels = published();
+            report.Check(labels.size() == 1 && labels[0].text == "hello" && labels[0].position.y == 2.0f,
+                "debug_labels::published_from_enabled_channels");
+
+            debugDraw.BeginFrame(0.1f);
+            report.Check(published().empty(), "debug_labels::frame_label_lasts_one_frame");
+
+            debugDraw.Text(shown, {}, "timed", { .duration = 1.0f });
+            debugDraw.BeginFrame(0.6f);
+            report.Check(published().size() == 1, "debug_labels::timed_label_survives_its_duration");
+            debugDraw.BeginFrame(0.6f);
+            report.Check(published().empty(), "debug_labels::timed_label_expires");
+
+            debugDraw.Text(shown, {}, "cleared", { .duration = 5.0f });
+            debugDraw.ClearChannel(shown);
+            report.Check(published().empty(), "debug_labels::clear_channel_drops_timed_labels");
+        }
+
+        void RunColliderVisualizerTests(Report& report)
+        {
+            Settings settings;
+            graphics::DebugDraw debugDraw(settings);
+            render::DebugGeometry geometry;
+            Scene scene;
+            graphics::ColliderVisualizer visualizer(scene, debugDraw);
+            auto& colliders = scene.Components<Collider>();
+            colliders.Emplace(Place(scene, "box", { 2.0f, 0.0f, 0.0f }), Collider { .offset = { 0.0f, 1.0f, 0.0f } });
+            colliders.Emplace(Place(scene, "zone", {}), Collider { .shape = ColliderShape::Sphere, .trigger = true });
+            scene.UpdateWorldTransforms();
+
+            constexpr size_t BoxVertices = 24;
+            constexpr size_t SphereVertices = 144;
+            visualizer.Draw(debugDraw);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.vertices.size() == BoxVertices + SphereVertices, "collider_visualizer::draws_colliders_and_triggers",
+                std::to_string(geometry.vertices.size()));
+            const Vector3 corner = geometry.vertices.empty() ? Vector3 {} : geometry.vertices.front().position;
+            report.Check(std::abs(corner.x - 1.5f) < 1e-4f && std::abs(corner.y - 0.5f) < 1e-4f && std::abs(corner.z + 0.5f) < 1e-4f,
+                "collider_visualizer::box_follows_node_and_offset");
+
+            const auto channels = debugDraw.GetChannels();
+            report.Check(channels.size() == 2 && channels[0].name == "Physics/Colliders" && channels[1].name == "Physics/Triggers",
+                "debug_draw::channels_listed_by_name");
+            debugDraw.SetEnabled(channels[1].channel, false);
+            debugDraw.BeginFrame(0.0f);
+            visualizer.Draw(debugDraw);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.vertices.size() == BoxVertices, "collider_visualizer::triggers_channel_switches_off");
+            report.Check(!settings.Get<bool>(Settings::Category::Render, String(graphics::DebugDraw::ChannelSettingPrefix) + "Physics/Triggers", true),
+                "debug_draw::set_enabled_stores_setting");
+        }
+
+        void RunPhysicsFrameLogTests(Report& report)
+        {
+            PhysicsSystem physics;
+            if (!physics.Init()) {
+                report.Check(false, "physics_frame_log::init");
+                return;
+            }
+            Scene scene;
+            scene.Components<Collider>().Emplace(Place(scene, "ground", {}), Collider { .halfExtents = { 5.0f, 0.5f, 5.0f } });
+            physics.Step(scene, 1.0f / 60.0f);
+            const PhysicsFrameLog& log = physics.FrameLog();
+
+            const Vector3 down { 0.0f, -1.0f, 0.0f };
+            const Vector3 up { 0.0f, 1.0f, 0.0f };
+            (void)physics.CastRay({ 0.0f, 3.0f, 0.0f }, down, 10.0f);
+            (void)physics.CastRay({ 0.0f, 3.0f, 0.0f }, up, 10.0f);
+            (void)physics.CastRay({ 0.0f, 3.0f, 0.0f }, {}, 10.0f);
+            const auto& queries = log.rayQueries;
+            report.Check(queries.size() == 2 && queries[0].hit && !queries[1].hit, "physics_frame_log::records_hit_and_miss");
+            report.Check(!queries.empty() && queries[0].hit && std::abs(queries[0].hit->point.y - 0.5f) < 1e-3f,
+                "physics_frame_log::hit_point_on_surface");
+
+            physics.ClearFrameLog();
+            report.Check(log.rayQueries.empty(), "physics_frame_log::clear");
+            for (size_t ray = 0; ray < PhysicsFrameLog::MaxRayQueries + 10; ++ray)
+                (void)physics.CastRay({ 0.0f, 3.0f, 0.0f }, down, 10.0f);
+            report.Check(log.rayQueries.size() == PhysicsFrameLog::MaxRayQueries, "physics_frame_log::rays_are_capped");
+
+            // A box dropped on the ground: the contact of every step stays in the log until it is cleared
+            const NodeId box = Place(scene, "box", { 0.0f, 1.2f, 0.0f });
+            scene.Components<Collider>().Emplace(box);
+            scene.Components<RigidBody>().Emplace(box);
+            physics.ClearFrameLog();
+            for (int step = 0; step < 60 && log.contacts.empty(); ++step)
+                physics.Step(scene, 1.0f / 60.0f);
+            physics.Step(scene, 1.0f / 60.0f);
+            report.Check(!log.contacts.empty() && std::ranges::all_of(log.contacts, [](const CollisionEvent& event) {
+                    return event.kind == CollisionEvent::Kind::Enter;
+                }) && physics.CollisionEvents().empty(),
+                "physics_frame_log::contacts_outlive_their_step");
+            physics.ClearFrameLog();
+            report.Check(log.contacts.empty(), "physics_frame_log::clear_drops_contacts");
+            physics.Shutdown();
+        }
+
+        void RunPhysicsVisualizerTests(Report& report)
+        {
+            Settings settings;
+            graphics::DebugDraw debugDraw(settings);
+            render::DebugGeometry geometry;
+            PhysicsFrameLog log;
+            graphics::PhysicsVisualizer visualizer(log, debugDraw);
+
+            const RayHit hit { .point = { 0.0f, 0.5f, 0.0f }, .normal = { 0.0f, 1.0f, 0.0f }, .distance = 2.5f };
+            log.rayQueries = {
+                RayQuery { .origin = { 0.0f, 3.0f, 0.0f }, .direction = { 0.0f, -1.0f, 0.0f }, .maxDistance = 10.0f, .hit = hit },
+                RayQuery { .origin = { 0.0f, 3.0f, 0.0f }, .direction = { 0.0f, 1.0f, 0.0f }, .maxDistance = 10.0f },
+            };
+            // Hit: line, point cross and normal arrow; miss: one line
+            constexpr size_t HitVertices = 2 + 6 + 10;
+            constexpr size_t MissVertices = 2;
+            visualizer.Draw(debugDraw);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.vertices.size() == HitVertices + MissVertices, "physics_visualizer::rays_hit_and_miss",
+                std::to_string(geometry.vertices.size()));
+
+            // A new frame: the rays are gone from the log, a contact began
+            debugDraw.BeginFrame(0.0f);
+            log.Clear();
+            log.contacts = {
+                CollisionEvent { .kind = CollisionEvent::Kind::Enter, .point = { 1.0f, 0.0f, 0.0f }, .normal = { 0.0f, 1.0f, 0.0f } },
+            };
+            visualizer.Draw(debugDraw);
+            log.Clear();
+            debugDraw.BeginFrame(graphics::PhysicsVisualizer::ContactLifetime * 0.5f);
+            visualizer.Draw(debugDraw);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.vertices.size() == 6 + 10 && geometry.batches.size() == 1
+                    && geometry.batches[0].style.depth == render::DebugDepth::OnTop,
+                "physics_visualizer::contact_on_top_and_kept");
+            debugDraw.BeginFrame(graphics::PhysicsVisualizer::ContactLifetime);
+            geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(geometry.IsEmpty(), "physics_visualizer::contact_expires");
+        }
+
+        /// A visualizer that draws one line and counts its calls.
+        class CountingVisualizer final : public graphics::IDebugVisualizer {
+        public:
+            CountingVisualizer(graphics::DebugDraw& debugDraw, int& draws)
+                : m_channel(debugDraw.RegisterChannel("Test/Counting", "Counting", true))
+                , m_draws(draws)
+            {
+            }
+
+            void Draw(graphics::DebugDraw& debugDraw) override
+            {
+                ++m_draws;
+                debugDraw.Line(m_channel, {}, { 1.0f, 0.0f, 0.0f }, {});
+                debugDraw.Text(m_channel, {}, "counted", {});
+            }
+
+        private:
+            graphics::DebugChannel m_channel;
+            int& m_draws;
+        };
+
+        void RunDebugDrawSystemTests(Report& report)
+        {
+            Settings settings;
+            graphics::DebugDrawSystem system(settings);
+            int draws = 0;
+            system.AddVisualizer(MakeUnique<CountingVisualizer>(system.GetDebugDraw(), draws));
+
+            render::FrameSnapshot frame;
+            render::FrameWriter writer(&frame);
+            writer.BeginSceneView({}, {}, {});
+            system.BeginFrame(0.0f);
+            system.EndFrame(writer);
+            const auto labels = system.GetDebugDraw().GetPublishedLabels();
+            report.Check(draws == 1 && frame.debug.vertices.size() == 2 && frame.sceneViews.back().debugBatchCount == 1,
+                "debug_draw_system::end_frame_draws_visualizers_into_frame");
+            report.Check(labels.size() == 1 && labels[0].text == "counted", "debug_draw_system::end_frame_publishes_labels");
+        }
+
+        /// elm.debug as the engine sees it: what reaches DebugDraw and what Stop clears.
+        void RunDebugBindingTests(ScriptSystem& system, graphics::DebugDraw& debugDraw, Report& report)
+        {
+            render::DebugGeometry geometry;
+            const auto drawnVertices = [&] {
+                geometry = WrittenDebugGeometry(debugDraw);
+                return geometry.vertices.size();
+            };
+            debugDraw.BeginFrame(0.0f);
+            const String line = Evaluate(system, "elm.debug.line(elm.math.Vector3(0, 0, 0), elm.math.Vector3(1, 0, 0))");
+            const auto channels = debugDraw.GetChannels();
+            report.Check(drawnVertices() == 2 && std::ranges::any_of(channels, [](const auto& c) { return c.name == "Script/Default"; }),
+                "debug_bindings::line_in_default_channel", line);
+
+            debugDraw.BeginFrame(0.0f);
+            (void)Evaluate(system, "elm.debug.line(elm.math.Vector3(0, 0, 0), elm.math.Vector3(1, 0, 0), "
+                                   "{ channel = elm.debug.channel('off', false) })");
+            report.Check(drawnVertices() == 0, "debug_bindings::disabled_channel_draws_nothing");
+
+            (void)Evaluate(system, "elm.debug.point(elm.math.Vector3(0, 0, 0), 0.2, { duration = 5, channel = elm.debug.channel('kept') })");
+            debugDraw.BeginFrame(0.1f);
+            report.Check(drawnVertices() == 6, "debug_bindings::duration_keeps_the_primitive");
+            bindings::ClearScriptDebugDraw(SelfTestAccess::State(system));
+            report.Check(drawnVertices() == 0, "debug_bindings::stop_clears_script_channels");
+
+            debugDraw.BeginFrame(0.0f);
+            const String text = Evaluate(system, "elm.debug.text(elm.math.Vector3(0, 1, 0), 'speed ' .. 3)");
+            debugDraw.PublishLabels();
+            const auto labels = debugDraw.GetPublishedLabels();
+            report.Check(labels.size() == 1 && labels[0].text == "speed 3", "debug_bindings::text_reaches_labels", text);
+        }
+
+        void RunTransformGizmoTests(Report& report)
+        {
+            using graphics::GizmoInput;
+            Settings settings;
+            graphics::DebugDraw debugDraw(settings);
+            const Camera camera({ 0.0f, 0.0f, -10.0f }, 0.0f, 0.0f);
+            const Vector3 eye = camera.GetPosition();
+            const auto rayTo = [&](const Vector3& target) { return ViewRay { eye, (target - eye).Normalized() }; };
+            const auto near = [](float a, float b) { return std::abs(a - b) < 1e-3f; };
+
+            const Vector3 target { 1.0f, 1.0f, 0.0f };
+            const math::Vector4 clip = camera.GetViewProjectionMatrix().TransformPoint(target);
+            const ViewRay through = camera.GetRayThrough(clip.x / clip.w, clip.y / clip.w);
+            const Vector3 expected = rayTo(target).direction;
+            report.Check(near(through.direction.Dot(expected), 1.0f) && near(camera.GetRayThrough(0.0f, 0.0f).direction.z, 1.0f),
+                "camera::ray_through_a_projected_point");
+
+            // The camera is 10 away: handles are 1.5 long
+            const math::Matrix4x4 identity = math::Matrix4x4::Identity();
+            const auto press = [&](graphics::TransformGizmo& gizmo, const GizmoSettings& mode, const Vector3& at) {
+                return gizmo.Update(identity, mode, GizmoInput { rayTo(at), eye, true, true, true });
+            };
+            const auto dragTo = [&](graphics::TransformGizmo& gizmo, const GizmoSettings& mode, const Vector3& at) {
+                return gizmo.Update(identity, mode, GizmoInput { rayTo(at), eye, true, false, true });
+            };
+
+            graphics::TransformGizmo gizmo(debugDraw);
+            const GizmoSettings translate { GizmoOperation::Translate, GizmoSpace::World };
+            (void)gizmo.Update(identity, translate, GizmoInput { rayTo({ 5.0f, 5.0f, 0.0f }), eye, true, true, true });
+            report.Check(!gizmo.IsDragging() && gizmo.GetHovered() == graphics::GizmoAxis::None, "gizmo::miss_starts_no_drag");
+            (void)press(gizmo, translate, { 0.75f, 0.0f, 0.0f });
+            const auto moved = dragTo(gizmo, translate, { 1.75f, 0.0f, 0.0f });
+            report.Check(gizmo.IsDragging() && moved && near((*moved)(0, 3), 1.0f) && near((*moved)(1, 3), 0.0f), "gizmo::translate_along_x");
+            const auto released = gizmo.Update(identity, translate, GizmoInput { rayTo({ 1.75f, 0.0f, 0.0f }), eye, true, false, false });
+            report.Check(!released && !gizmo.IsDragging(), "gizmo::release_ends_drag");
+
+            const GizmoSettings rotate { GizmoOperation::Rotate, GizmoSpace::World };
+            graphics::TransformGizmo rotator(debugDraw);
+            (void)press(rotator, rotate, { 1.5f, 0.0f, 0.0f });
+            const auto turned = dragTo(rotator, rotate, { 0.0f, 1.5f, 0.0f });
+            report.Check(turned && near((*turned)(1, 0), 1.0f) && near((*turned)(0, 0), 0.0f), "gizmo::rotate_quarter_turn_around_z");
+
+            const GizmoSettings scale { GizmoOperation::Scale, GizmoSpace::World };
+            graphics::TransformGizmo scaler(debugDraw);
+            (void)press(scaler, scale, { 1.2f, 0.0f, 0.0f });
+            const auto scaled = dragTo(scaler, scale, { 2.4f, 0.0f, 0.0f });
+            report.Check(scaled && near((*scaled)(0, 0), 2.0f) && near((*scaled)(1, 1), 1.0f), "gizmo::scale_doubles_x");
+
+            gizmo.Draw(debugDraw);
+            const render::DebugGeometry geometry = WrittenDebugGeometry(debugDraw);
+            report.Check(!geometry.IsEmpty() && geometry.batches[0].style.depth == render::DebugDepth::OnTop, "gizmo::drawn_on_top");
+        }
+
         void RunHighlighterTests(Report& report)
         {
             auto check = [&](const char* name, StringView source, StringView expected) {
@@ -1603,6 +1978,32 @@ line]] .. [==[a]]b]==])",
                 "num:3 num:0x1F num:1.5e-3 num:.5 num:0x1p4 num:2E10 ");
             check("highlight::operators_are_text", "a.b:c(d) ~= e // 2", "num:2 ");
             check("highlight::empty", "", "");
+        }
+
+        // ── Editor indentation ──────────────────────────────────────────────────
+
+        /// The edited text with the selection marked: "[" at its begin, "]" at its end (the cursor).
+        String DescribeIndent(StringView text, size_t begin, size_t end, IndentEdit edit)
+        {
+            const IndentedText edited = ApplyIndentEdit(text, begin, end, edit);
+            String described = edited.text;
+            described.insert(edited.selectionEnd, "]");
+            described.insert(edited.selectionBegin, "[");
+            return described;
+        }
+
+        void RunCodeIndentTests(Report& report)
+        {
+            auto check = [&](const char* name, const String& actual, StringView expected) {
+                report.Check(actual == expected, name, ("got: " + actual).c_str());
+            };
+            check("indent::tab_at_cursor", DescribeIndent("ab", 1, 1, IndentEdit::Indent), "a    []b");
+            check("indent::tab_replaces_selection_in_a_line", DescribeIndent("abc", 1, 2, IndentEdit::Indent), "a    []c");
+            check("indent::selected_lines_skip_empty", DescribeIndent("a\n\nb\nc", 0, 4, IndentEdit::Indent), "[    a\n\n    b]\nc");
+            check("indent::selection_after_newline_leaves_next_line", DescribeIndent("a\nb\n", 0, 2, IndentEdit::Indent), "[    a\n]b\n");
+            check("indent::outdent_one_level_or_tab", DescribeIndent("      a\n\tb\nc", 0, 12, IndentEdit::Outdent), "[  a\nb\nc]");
+            check("indent::outdent_cursor_in_indentation", DescribeIndent("    x", 2, 2, IndentEdit::Outdent), "[]x");
+            check("indent::line_indent", String(LineIndent("  a\n\t b", 6)), "\t ");
         }
 
         // ── Lua side ────────────────────────────────────────────────────────────
@@ -1669,7 +2070,17 @@ line]] .. [==[a]]b]==])",
         RunPhysicsScriptTests(report);
         RunSceneFileTests(report);
         RunPlayModeTests(report);
+        RunFrameDebugTests(report);
+        RunDebugDrawTests(report);
+        RunDebugLabelTests(report);
+        RunWorldAxesVisualizerTests(report);
+        RunColliderVisualizerTests(report);
+        RunPhysicsFrameLogTests(report);
+        RunPhysicsVisualizerTests(report);
+        RunDebugDrawSystemTests(report);
+        RunTransformGizmoTests(report);
         RunHighlighterTests(report);
+        RunCodeIndentTests(report);
         {
             // Engine systems the bindings can reach without a window; models need the renderer
             Scene scene;
@@ -1677,15 +2088,18 @@ line]] .. [==[a]]b]==])",
             Camera camera;
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
+            graphics::DebugDraw debugDraw(settings);
 
             ScriptSystem system;
-            if (auto init = system.Init({ &scene, nullptr, &input, &camera, &settings }, scriptRoot); !init) {
+            const EngineContext engine { .scene = &scene, .input = &input, .camera = &camera, .settings = &settings, .debugDraw = &debugDraw };
+            if (auto init = system.Init(engine, scriptRoot); !init) {
                 std::cout << "[FAIL] init: " << init.error().message << "\n";
                 return 1;
             }
             RegisterFixtures(SelfTestAccess::State(system));
 
             RunNativeTests(system, report);
+            RunDebugBindingTests(system, debugDraw, report);
             RunScriptTests(system, report);
             RunGuardTests(system, report);
 

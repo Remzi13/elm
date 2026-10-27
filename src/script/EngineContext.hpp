@@ -10,6 +10,7 @@ namespace elm {
     class Scene;
     class Settings;
     namespace graphics {
+        class DebugDraw;
         class ModelManager;
     }
 }
@@ -35,6 +36,8 @@ namespace elm::script {
         Settings* settings { nullptr };
         PhysicsSystem* physics { nullptr };
         PlayRequests play;
+        /// Debug drawing of the engine view (elm.debug).
+        graphics::DebugDraw* debugDraw { nullptr };
     };
 
     /// Frame timing as scripts see it (elm.time).

@@ -40,6 +40,7 @@ renderSystem.SubmitFrame(frame);          // вместе с командами 
 | `BeginSceneView(camera, colorTarget, size)` | новый элемент `FrameSnapshot::sceneViews`; следующие `Draw` идут в него |
 | `Draw(mesh, transform, color)` | `FrameSnapshot::drawItems` |
 | `ReserveDraws(n)` | резервирует место |
+| `AddDebugVertices(style, vertices)` | копирует отладочные вершины одного стиля в текущий вид; тот же стиль, что у последнего набора вида, продлевает его ([[Отладочная отрисовка]]) |
 | `Overlay()` | `FrameSnapshot::overlay` (геометрия ImGui) |
 
 Ссылки по пунктам:

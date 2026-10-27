@@ -115,4 +115,37 @@ struct CollisionEvent {
     math::Vector3 normal;
 };
 
+/// What PhysicsSystem::CastRay hit.
+struct RayHit {
+    NodeId node;
+    math::Vector3 point;
+    math::Vector3 normal;
+    float distance { 0.0f };
+};
+
+/// A PhysicsSystem::CastRay call and its result, recorded for inspection (debug views).
+struct RayQuery {
+    math::Vector3 origin;
+    /// Unit length.
+    math::Vector3 direction;
+    float maxDistance { 0.0f };
+    std::optional<RayHit> hit;
+};
+
+/// What physics did since the frame began, recorded for inspection (debug views): the CastRay
+/// calls and the contacts that began, over every step of the frame. PhysicsSystem fills it.
+struct PhysicsFrameLog {
+    /// A loop casting thousands of rays, or a pile of bodies, must not grow the log without bound.
+    static constexpr size_t MaxRayQueries = 256;
+    static constexpr size_t MaxContacts = 256;
+
+    /// The first MaxRayQueries CastRay calls of the frame.
+    Vector<RayQuery> rayQueries;
+    /// Enter events of the frame's steps, the first MaxContacts of them: an exit has no contact point.
+    Vector<CollisionEvent> contacts;
+
+    /// Keeps the allocated capacity.
+    void Clear() noexcept { rayQueries.clear(); contacts.clear(); }
+};
+
 } // namespace elm

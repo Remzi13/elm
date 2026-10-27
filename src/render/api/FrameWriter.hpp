@@ -2,6 +2,8 @@
 
 #include "render/frame/FrameSnapshot.hpp"
 
+#include <span>
+
 namespace elm::render {
 
     class RenderSystem;
@@ -12,6 +14,12 @@ namespace elm::render {
     class FrameWriter {
     public:
         FrameWriter() = default;
+        /// Writes into frame, which must outlive the writer. RenderSystem hands out writers over
+        /// its frame ring; a self-test may write into a snapshot of its own.
+        explicit FrameWriter(FrameSnapshot* frame) noexcept
+            : m_frame(frame)
+        {
+        }
         FrameWriter(const FrameWriter&) = delete;
         FrameWriter& operator=(const FrameWriter&) = delete;
         FrameWriter(FrameWriter&& other) noexcept
@@ -39,7 +47,7 @@ namespace elm::render {
         void BeginSceneView(const CameraData& camera, TextureHandle colorTarget, Size size)
         {
             if (m_frame)
-                m_frame->sceneViews.push_back({ camera, colorTarget, size, m_frame->drawItems.size(), 0 });
+                m_frame->sceneViews.push_back({ camera, colorTarget, size, m_frame->drawItems.size(), 0, m_frame->debug.batches.size(), 0 });
         }
 
         /// Adds an instance to the current scene view; ignored before the first BeginSceneView.
@@ -51,6 +59,10 @@ namespace elm::render {
             ++m_frame->sceneViews.back().drawCount;
         }
 
+        /// Copies debug vertices of one style into the current scene view; ignored before the first
+        /// BeginSceneView. Vertices of the style of the view's last batch extend that batch.
+        void AddDebugVertices(DebugStyle style, std::span<const DebugVertex> vertices);
+
         void ReserveDraws(size_t count)
         {
             if (m_frame)
@@ -61,11 +73,8 @@ namespace elm::render {
         [[nodiscard]] OverlayFrame& Overlay() noexcept { return m_frame->overlay; }
 
     private:
+        /// Takes the frame back in SubmitFrame.
         friend class RenderSystem;
-        explicit FrameWriter(FrameSnapshot* frame) noexcept
-            : m_frame(frame)
-        {
-        }
 
         FrameSnapshot* m_frame { nullptr };
     };

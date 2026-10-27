@@ -485,6 +485,8 @@ void PhysicsSystem::CollectEvents() {
         event.point = contact.point;
         event.normal = contact.normal;
         m_events.push_back(event);
+        if (event.kind == CollisionEvent::Kind::Enter && m_frameLog.contacts.size() < PhysicsFrameLog::MaxContacts)
+            m_frameLog.contacts.push_back(event);
     }
 }
 
@@ -564,6 +566,14 @@ std::optional<RayHit> PhysicsSystem::CastRay(const math::Vector3& origin, const 
     if (!m_initialized || !(maxDistance > 0.0f) || unit.Length() == 0.0f)
         return std::nullopt;
 
+    std::optional<RayHit> hit = FindRayHit(origin, unit, maxDistance, ignore);
+    if (m_frameLog.rayQueries.size() < PhysicsFrameLog::MaxRayQueries)
+        m_frameLog.rayQueries.push_back({ origin, unit, maxDistance, hit });
+    return hit;
+}
+
+std::optional<RayHit> PhysicsSystem::FindRayHit(const math::Vector3& origin, const math::Vector3& unit, float maxDistance,
+    NodeId ignore) const {
     const JPH::RRayCast ray { ToJoltPosition(origin), ToJolt(unit * maxDistance) };
     JPH::RayCastResult hit;
     const RayFilter filter(ignore.Raw());

@@ -7,7 +7,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 ## Стек и команды
 - C++23, CMake ≥ 3.28. Основная платформа: Windows + MSVC (`/W4 /permissive-`), также Linux GCC/Clang.  Флаги предупреждений задаёт `target_set_warnings` в `cmake/CompileOptions.cmake`.
-- Зависимости (Diligent, GLFW, ImGui docking, ImGuizmo, Jolt, Tracy, glaze, Lua 5.4.7) подключены через FetchContent в `third_party/CMakeLists.txt`. Исходники скачиваются в `../elm_deps`, вне репозитория.  Первая конфигурация идёт долго.
+- Зависимости (Diligent, GLFW, ImGui docking, Jolt, Tracy, glaze, Lua 5.4.7) подключены через FetchContent в `third_party/CMakeLists.txt`. Исходники скачиваются в `../elm_deps`, вне репозитория.  Первая конфигурация идёт долго.
 - Конфигурация: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
 - Сборка: `cmake --build build --config Debug -j`
 - Бинарник: `build/Debug/Engine.exe` (MSVC) или `build/Engine`. Файл `.settings` ищется вверх от текущего каталога, поэтому запускать можно из корня или из `build/`.
@@ -65,6 +65,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ScriptComponent` | Lua-модуль узла и переопределённые `props` (`ScriptValue`) | `Scene` |
 | `RigidBody`, `Collider`, `BodyType`, `ColliderShape` | физические данные узла | `Scene` |
 | `CollisionEvent` | начало и конец контакта за шаг физики | `PhysicsSystem` |
+| `RayHit`, `RayQuery`, `PhysicsFrameLog` | попадание луча; вызов `CastRay` и его итог; журнал кадра `PhysicsSystem::FrameLog` (лучи и начавшиеся контакты всех шагов) (`Scene/PhysicsComponents.hpp`) | `PhysicsSystem` |
 | `SceneAsset`, `SceneAsset::Node` | сцена из файла до `Scene::Append`: узлы без id, родитель — индекс в ассете. Компоненты и ссылки на узлы — по `SceneAsset::NodeRef(index)`, модель в `ModelComponent` — `SceneAsset::ModelRef(index)` | вызывающий |
 | `SceneSnapshot` | снимок сцены и моделей: Play делает его, Stop восстанавливает | `PlayMode` |
 | `ScenePreset`, `TestScenes` | генераторы тестовых сцен | — |
@@ -76,10 +77,16 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком |
 | `ModelHandler` | хэндл модели в `ModelManager` (`graphics/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
 | `graphics::ModelManager` | владеет моделями сцены и их GPU-мешами (`render::Mesh`) |
-| `Camera`, `CameraController` | камера вида и её управление |
+| `Camera`, `CameraController`, `ViewRay` | камера вида и её управление; `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
 | `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
+| `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
+| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `EngineApp` |
+| `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
+| `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
+| `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
+| `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
 | Edit / Play, `PlayMode` | режимы редактора: в Edit сцена — это данные, в Play работают физика и скрипты сущностей. `script::PlayMode`, владелец `EngineApp` |
 
 **Рендер** (`src/render`, `elm::render`)
@@ -92,7 +99,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `render::Texture`, `render::Mesh` | RAII-владельцы ресурсов | любой |
 | `FrameWriter` → `FrameSnapshot` → `FrameRing` | запись кадра на update и передача на render (3 слота) | update → render |
 | `ViewPort` | offscreen-цель 3D-вида для UI | update |
-| `IRenderFeature` (`ScenePass`, `OverlayPass`), `RenderPipeline` | фичи, добавляющие пасы в граф | render |
+| `IRenderFeature` (`ScenePass`, `DebugDrawPass`, `OverlayPass`), `RenderPipeline` | фичи, добавляющие пасы в граф | render |
+| `DebugGeometry`, `DebugVertex`, `DebugBatch`, `DebugStyle` | отладочные линии и треугольники вида в мировых координатах, по стилям (`render/frame/DebugGeometry.hpp`) | update → render |
 | `RenderGraph`, `PassBuilder`, `PassContext`, `FrameBlackboard` | граф пасов, зависимости, барьеры | render / воркер |
 | `rhi::IRenderBackend` (`DiligentBackend`, `NullBackend`), `CommandList`, `UploadAllocator` | абстракция графического API | render |
 
@@ -100,7 +108,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 | Сущность | Что это | Модуль |
 |---|---|---|
-| `PhysicsSystem`, `RayHit` | тела Jolt для узлов с `Collider`, по `NodeId`, только update | `physics` |
+| `PhysicsSystem` | тела Jolt для узлов с `Collider`, по `NodeId`, только update | `physics` |
 | `InputSystem`, `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия | `input` |
 | `platform::Window` | главное окно GLFW | `platform` |
 | `resmgr::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene` (JSON через glaze), экспорт glTF | `resmgr` |
@@ -115,6 +123,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `Entity`, `ModelRef`, `ScriptProps` | как узлы, модели и props видны из Lua | `script/values` |
 | `lua::State`, `lua::Module`, `lua::Class`, `ApiRegistry` | своя обёртка над Lua C API и реестр API для LuaLS | `script/lua` |
 | `bindings::Register*`, `ComponentKind` | Lua API по модулям, у каждого свой контекст в `lua::State`; `ComponentKind` — компонент для Lua по `ComponentType` | `script/bindings` |
+| `elm.debug`, класс `DebugChannel` | отладочная отрисовка из Lua в каналы `Script/*`; Stop чистит их примитивы со временем (`ClearScriptDebugDraw`) | `script/bindings` |
 
 ## 2. Модули и зависимости
 
@@ -127,7 +136,7 @@ platform   → render          GLFW
 Scene      → core, math, render
 resmgr     → Scene           glaze PRIVATE
 physics    → Scene           Jolt PRIVATE
-graphics   → render, platform, resmgr (+ ImGui, ImGuizmo)
+graphics   → render, platform, resmgr (+ ImGui)
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
 Engine     (EngineApp, main.cpp) собирает всё

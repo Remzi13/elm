@@ -31,6 +31,8 @@ namespace elm::render {
         Float2,
         Float3,
         Float4,
+        /// Four 8-bit unsigned values read as float4 in [0, 1] (a packed RGBA color).
+        UNorm8x4,
     };
 
     struct VertexAttribute {
@@ -52,6 +54,12 @@ namespace elm::render {
         None,
         Back,
         Front,
+    };
+
+    /// How vertices are assembled. Lines are always 1 pixel wide.
+    enum class PrimitiveTopology : uint8_t {
+        TriangleList,
+        LineList,
     };
 
     enum class BindingType : uint8_t {
@@ -83,6 +91,7 @@ namespace elm::render {
         Vector<VertexAttribute> vertexLayout;
         TextureFormat colorFormat { TextureFormat::Unknown };
         TextureFormat depthFormat { TextureFormat::Unknown };
+        PrimitiveTopology topology { PrimitiveTopology::TriangleList };
         BlendMode blend { BlendMode::Opaque };
         CullMode cull { CullMode::None };
         bool depthTest { false };

@@ -1,6 +1,15 @@
 {
    "settings": {
       "Core/FileSystem/RootPath": ".",
+      "Render/Debug/Draw/Editor/WorldAxes": true,
+      "Render/Debug/Draw/Physics/Colliders": true,
+      "Render/Debug/Draw/Physics/Contacts": true,
+      "Render/Debug/Draw/Physics/Raycasts": true,
+      "Render/Debug/Draw/Physics/Triggers": true,
+      "Render/Debug/Draw/Script/Default": true,
+      "Render/Debug/Draw/Script/sensor": true,
+      "Render/Debug/Draw/Script/shapes": true,
+      "Render/Debug/Draw/Script/trail": true,
       "Render/culling/DepthBias": 0.009999999776482582,
       "Render/culling/DepthFalseColor": true,
       "Render/culling/EnableFrustumCulling": false,
@@ -10,7 +19,7 @@
       "Render/culling/VisualMode": 0,
       "Script/Enabled": true,
       "Script/HotReload": true,
-      "Script/MainModule": "demo.spinner",
+      "Script/MainModule": "demo.debug",
       "Script/PlayOnStart": false
    },
    "version": 1

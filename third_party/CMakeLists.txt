@@ -63,26 +63,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(DiligentEngine)
 set_property(TARGET Diligent-Imgui PROPERTY FOLDER "third party")
 
-# ImGuizmo
-FetchContent_Declare(
-    imguizmo
-    GIT_REPOSITORY https://github.com/CedricGuillemet/ImGuizmo.git
-    GIT_TAG        1.83
-    GIT_SHALLOW    TRUE
-)
-FetchContent_MakeAvailable(imguizmo)
-
-add_library(imguizmo STATIC
-    ${imguizmo_SOURCE_DIR}/ImGuizmo.cpp
-    ${imguizmo_SOURCE_DIR}/ImGuizmo.h
-)
-target_include_directories(imguizmo SYSTEM PUBLIC
-    ${imguizmo_SOURCE_DIR}
+# ImGui itself, built by Diligent: headers and library for the editor UI
+add_library(imgui_core INTERFACE)
+target_include_directories(imgui_core SYSTEM INTERFACE
     ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui
 )
-target_compile_definitions(imguizmo PRIVATE IMGUI_DEFINE_MATH_OPERATORS)
-target_link_libraries(imguizmo PUBLIC Diligent-Imgui)
-set_property(TARGET imguizmo PROPERTY FOLDER "third party")
+target_link_libraries(imgui_core INTERFACE Diligent-Imgui)
 
 # ImGui GLFW backend
 add_library(imgui_glfw STATIC

@@ -123,8 +123,8 @@ void OverlayPass::Setup(RenderGraph& graph, const FrameSnapshot& frame, const rh
                 data.viewport = &viewport;
                 data.target = builder.WriteColor(target);
                 // The UI shows the scene views: their textures must be rendered and readable first
-                for (const auto sceneColor : blackboard.sceneColors)
-                    builder.Read(sceneColor);
+                for (const auto& sceneView : blackboard.sceneViews)
+                    builder.Read(sceneView.color);
             },
             [pipeline = m_pipeline, fallbackTexture](const Data& data, PassContext& context) {
                 constexpr float clearColor[4] = { 0.11f, 0.13f, 0.16f, 1.0f };

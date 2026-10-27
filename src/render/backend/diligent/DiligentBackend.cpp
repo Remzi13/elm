@@ -367,21 +367,8 @@ public:
 
     void Execute(const rhi::cmd::DrawIndexed& command)
     {
-        if (!m_passActive || !m_pipeline || !m_pipeline->pso || !m_indexBuffer)
+        if (!m_indexBuffer || !PrepareDraw())
             return;
-
-        auto* srb = SelectBinding();
-        if (!srb)
-            return;
-        if (srb != m_boundSrb) {
-            m_context->CommitShaderResources(srb, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-            m_boundSrb = srb;
-        }
-        if (m_vertexBuffersDirty) {
-            m_context->SetVertexBuffers(0, m_vertexSlotCount, m_vertexBuffers, m_vertexOffsets,
-                Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
-            m_vertexBuffersDirty = false;
-        }
         if (m_indexBufferDirty) {
             m_context->SetIndexBuffer(m_indexBuffer, m_indexOffset, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
             m_indexBufferDirty = false;
@@ -398,10 +385,42 @@ public:
         ++m_drawCount;
     }
 
+    void Execute(const rhi::cmd::Draw& command)
+    {
+        if (command.vertexCount == 0 || command.instanceCount == 0 || !PrepareDraw())
+            return;
+        Diligent::DrawAttribs draw { command.vertexCount, Diligent::DRAW_FLAG_VERIFY_ALL };
+        draw.NumInstances = command.instanceCount;
+        draw.StartVertexLocation = command.firstVertex;
+        m_context->Draw(draw);
+        ++m_drawCount;
+    }
+
     [[nodiscard]] uint32_t GetDrawCount() const noexcept { return m_drawCount; }
 
 private:
     static constexpr uint32_t MaxVertexSlots = 4;
+
+    /// Commits the shader resources and vertex buffers a draw needs; false when it cannot draw.
+    bool PrepareDraw()
+    {
+        if (!m_passActive || !m_pipeline || !m_pipeline->pso)
+            return false;
+
+        auto* srb = SelectBinding();
+        if (!srb)
+            return false;
+        if (srb != m_boundSrb) {
+            m_context->CommitShaderResources(srb, Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+            m_boundSrb = srb;
+        }
+        if (m_vertexBuffersDirty) {
+            m_context->SetVertexBuffers(0, m_vertexSlotCount, m_vertexBuffers, m_vertexOffsets,
+                Diligent::RESOURCE_STATE_TRANSITION_MODE_TRANSITION, Diligent::SET_VERTEX_BUFFERS_FLAG_RESET);
+            m_vertexBuffersDirty = false;
+        }
+        return true;
+    }
 
     Diligent::IBuffer* Resolve(const rhi::BufferSource& source, Diligent::Uint64& offset)
     {
@@ -662,7 +681,9 @@ PipelineHandle DiligentBackend::CreatePipeline(const PipelineDesc& desc)
     Vector<Diligent::LayoutElement> layout;
     for (const auto& attribute : desc.vertexLayout) {
         const Diligent::Uint32 components = attribute.format == VertexFormat::Float2 ? 2 : attribute.format == VertexFormat::Float3 ? 3 : 4;
-        layout.push_back(Diligent::LayoutElement { attribute.location, attribute.bufferSlot, components, Diligent::VT_FLOAT32, false,
+        const bool packed = attribute.format == VertexFormat::UNorm8x4;
+        layout.push_back(Diligent::LayoutElement { attribute.location, attribute.bufferSlot, components,
+            packed ? Diligent::VT_UINT8 : Diligent::VT_FLOAT32, packed,
             attribute.perInstance ? Diligent::INPUT_ELEMENT_FREQUENCY_PER_INSTANCE : Diligent::INPUT_ELEMENT_FREQUENCY_PER_VERTEX });
     }
 
@@ -672,7 +693,8 @@ PipelineHandle DiligentBackend::CreatePipeline(const PipelineDesc& desc)
     pipeline.NumRenderTargets = 1;
     pipeline.RTVFormats[0] = getTextureFormat(desc.colorFormat);
     pipeline.DSVFormat = getTextureFormat(desc.depthFormat);
-    pipeline.PrimitiveTopology = Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    pipeline.PrimitiveTopology = desc.topology == PrimitiveTopology::LineList ? Diligent::PRIMITIVE_TOPOLOGY_LINE_LIST
+                                                                              : Diligent::PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     pipeline.RasterizerDesc.CullMode = desc.cull == CullMode::Back ? Diligent::CULL_MODE_BACK
         : desc.cull == CullMode::Front                              ? Diligent::CULL_MODE_FRONT
                                                                     : Diligent::CULL_MODE_NONE;

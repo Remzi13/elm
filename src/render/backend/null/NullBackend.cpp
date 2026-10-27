@@ -144,7 +144,7 @@ rhi::SubmitStats NullBackend::Submit(std::span<const rhi::CommandList* const> li
             continue;
         stats.commands += static_cast<uint32_t>(list->GetCommands().size());
         for (const auto& command : list->GetCommands()) {
-            if (std::holds_alternative<rhi::cmd::DrawIndexed>(command))
+            if (std::holds_alternative<rhi::cmd::DrawIndexed>(command) || std::holds_alternative<rhi::cmd::Draw>(command))
                 ++stats.drawCalls;
         }
     }

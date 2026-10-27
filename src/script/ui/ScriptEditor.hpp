@@ -2,6 +2,7 @@
 
 #include "core/FileSystem.hpp"
 
+#include "script/ui/CodeIndent.hpp"
 #include "script/ui/LuaHighlighter.hpp"
 
 #include <array>
@@ -26,7 +27,11 @@ class ModulePaths;
 /// Lua syntax coloring: ImGui's multiline text field has a single text color, so the field draws
 /// its text transparent and DrawHighlight paints the colored text, the cursor, the error line and
 /// the line numbers over it at the same positions (it reads the field's child window and scroll,
-/// imgui_internal.h: check it when ImGui is updated).
+/// imgui_internal.h: check it when ImGui is updated). The field gets its own dark background so the
+/// selection ImGui draws under the text stays visible.
+///
+/// Editing: Tab indents (four spaces, or every selected line), Ctrl+] / Ctrl+[ indent and outdent
+/// the selected lines, Enter keeps the indentation of the line above.
 class ScriptEditor {
 public:
     /// "demo/spinner.lua:12: ..." -> { "demo/spinner.lua", 12 }: the first file:line in a Lua message.
@@ -65,6 +70,8 @@ private:
         int gotoLine { 0 };
         /// The text was replaced from outside the text field (revert, a change on disk).
         bool textReplaced { false };
+        /// Tab caught by the character filter, applied to the selection in the same frame.
+        IndentEdit pendingIndent { IndentEdit::None };
         int cursorLine { 1 };
         int cursorColumn { 1 };
         /// Byte offset of the cursor, set while the text field is active.

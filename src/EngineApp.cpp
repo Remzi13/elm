@@ -10,6 +10,10 @@
 
 #include "Scene/ModelComponent.hpp"
 
+#include "graphics/debug/ColliderVisualizer.hpp"
+#include "graphics/debug/PhysicsVisualizer.hpp"
+#include "graphics/debug/WorldAxesVisualizer.hpp"
+
 #include <iostream>
 
 namespace elm {
@@ -23,6 +27,7 @@ EngineApp::EngineApp()
     , m_cameraController(m_camera)
     , m_models(m_renderSystem->Resources())
     , m_playMode(m_scene, &m_models, m_physicsSystem.get(), *m_scriptSystem)
+    , m_debugDraw(m_settings)
 {
 }
 
@@ -44,6 +49,10 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     if (auto loadedSettings = m_settings.Load(settingsPath); !loadedSettings)
         return MakeUnexpected(loadedSettings.error());
     FileSystem::ApplySettings(m_settings, settingsPath.Parent());
+    graphics::DebugDraw& debugDraw = m_debugDraw.GetDebugDraw();
+    m_debugDraw.AddVisualizer(MakeUnique<graphics::WorldAxesVisualizer>(debugDraw));
+    m_debugDraw.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_scene, debugDraw));
+    m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_physicsSystem->FrameLog(), debugDraw));
 
     m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
     // Initialize the render backend and its command queue first.
@@ -102,7 +111,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 
     // The main module starts in Run, once the initial scene is loaded
     const script::EngineContext scriptEngine { &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get(),
-        m_playMode.Requests() };
+        m_playMode.Requests(), &m_debugDraw.GetDebugDraw() };
     if (auto scriptInit = m_scriptSystem->Init(scriptEngine); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, "EngineApp", "%s", scriptInit.error().message.c_str());
     for (auto& window : m_scriptSystem->CreateEditorWindows(m_settings))
@@ -174,6 +183,10 @@ auto EngineApp::Run() -> EngineResult<void>
 
         accumulator += deltaTime;
 
+        // Before anything of this frame draws debug primitives, physics steps included
+        m_debugDraw.BeginFrame(deltaTime);
+        m_physicsSystem->ClearFrameLog();
+
         // ── 1. Process input (must be on main thread for GLFW) ────────
         {
             ELM_PROFILE_SCOPE_N("Process Input");
@@ -204,8 +217,8 @@ auto EngineApp::Run() -> EngineResult<void>
         // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
         {
             ELM_PROFILE_SCOPE_N("Build ImGui Frame");
-            m_imguiSystem->BuildFrame(*m_renderSystem, m_scene, m_models, m_camera, m_currentStats,
-                m_engineViewPort, frame);
+            m_imguiSystem->BuildFrame({ *m_renderSystem, m_scene, m_models, m_camera, m_currentStats,
+                m_engineViewPort, frame, m_debugDraw.GetDebugDraw() });
         }
 
         SubmitFrame(frame);
@@ -239,6 +252,8 @@ void EngineApp::SubmitFrame(render::FrameWriter& frame)
     m_scene.UpdateWorldTransforms();
     if (const auto* drawn = m_scene.FindComponents<ModelComponent>())
         SubmitModels(*drawn, frame);
+
+    m_debugDraw.EndFrame(frame);
 
     m_renderSystem->SubmitFrame(frame);
 }

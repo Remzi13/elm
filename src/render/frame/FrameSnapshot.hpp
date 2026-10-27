@@ -9,6 +9,7 @@
 #include "render/OverlayFrame.hpp"
 #include "render/api/Handles.hpp"
 #include "render/api/ResourceCommands.hpp"
+#include "render/frame/DebugGeometry.hpp"
 
 namespace elm::render {
 
@@ -36,6 +37,9 @@ namespace elm::render {
         /// Items of this view: FrameSnapshot::drawItems[firstDraw, firstDraw + drawCount).
         size_t firstDraw { 0 };
         size_t drawCount { 0 };
+        /// Debug batches of this view: FrameSnapshot::debug.batches[firstDebugBatch, firstDebugBatch + debugBatchCount).
+        size_t firstDebugBatch { 0 };
+        size_t debugBatchCount { 0 };
 
         [[nodiscard]] bool IsValid() const noexcept { return colorTarget.IsValid() && !size.IsEmpty(); }
     };
@@ -47,6 +51,8 @@ namespace elm::render {
         Size backbufferSize;
         Vector<SceneView> sceneViews;
         Vector<DrawItem> drawItems;
+        /// Debug primitives of all views; each view owns a range of the batches.
+        DebugGeometry debug;
         OverlayFrame overlay;
         /// Executed before anything of this frame is drawn.
         ResourceCommandList resourceCommands;
@@ -58,6 +64,7 @@ namespace elm::render {
             backbufferSize = {};
             sceneViews.clear();
             drawItems.clear();
+            debug.Clear();
             overlay.Clear();
             resourceCommands.Clear();
         }

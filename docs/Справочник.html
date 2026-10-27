@@ -1,0 +1,1200 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Справочник elm</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Layout: engine reference manual — sticky table of contents on the left, one long column of sections,
+   each with an interactive model of the subsystem it describes. Elm-leaf green on cool paper. */
+:root {
+  --bg: #f3f5f1;
+  --surface: #ffffff;
+  --sunk: #e9ede6;
+  --ink: #18201b;
+  --muted: #5a675f;
+  --line: #d5dcd3;
+  --accent: #2c7350;
+  --accent-soft: #dcebe1;
+  --update: #2b5f8f;
+  --update-soft: #dde8f2;
+  --render: #a5561a;
+  --render-soft: #f5e6d8;
+  --worker: #6b4f9a;
+  --worker-soft: #ebe4f5;
+  --danger: #b23a32;
+  --danger-soft: #f6dedb;
+  --code-bg: #eef1ec;
+  --font-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101513; --surface: #171e1a; --sunk: #1d2520; --ink: #e3ebe5; --muted: #95a59b; --line: #2a352f;
+    --accent: #62c08f; --accent-soft: #1e3a2b; --update: #78b0e0; --update-soft: #1b2c3b;
+    --render: #e59d62; --render-soft: #3a2817; --worker: #b29ae0; --worker-soft: #2b2340;
+    --danger: #ec7f76; --danger-soft: #3f1f1c; --code-bg: #1b231e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101513; --surface: #171e1a; --sunk: #1d2520; --ink: #e3ebe5; --muted: #95a59b; --line: #2a352f;
+  --accent: #62c08f; --accent-soft: #1e3a2b; --update: #78b0e0; --update-soft: #1b2c3b;
+  --render: #e59d62; --render-soft: #3a2817; --worker: #b29ae0; --worker-soft: #2b2340;
+  --danger: #ec7f76; --danger-soft: #3f1f1c; --code-bg: #1b231e; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; animation: none !important; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15.5px; line-height: 1.6; }
+code, kbd, pre { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 0.08em 0.36em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; line-height: 1.55; margin: 0; }
+pre code { background: none; padding: 0; font-size: 0.95em; overflow-wrap: normal; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.45rem; letter-spacing: -0.01em; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.eyebrow { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+
+.shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); max-width: 1320px; margin: 0 auto; }
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; height: 100vh; overflow-y: auto; padding-block: 28px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 18px; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand b { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; letter-spacing: -0.03em; color: var(--accent); }
+.toc nav { display: flex; flex-direction: column; gap: 2px; }
+.toc nav .group { font-family: var(--font-mono); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-top: 12px; padding-left: 10px; }
+.toc nav a { color: var(--ink); text-decoration: none; padding: 5px 10px; border-radius: 5px; font-size: 0.92rem; border-left: 2px solid transparent; }
+.toc nav a:hover { background: var(--sunk); }
+.toc nav a.active { border-left-color: var(--accent); background: var(--accent-soft); color: var(--ink); font-weight: 500; }
+.search { position: relative; }
+.search input { width: 100%; font: inherit; font-size: 0.9rem; padding: 8px 10px 8px 32px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); }
+.search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; stroke: var(--muted); fill: none; }
+.search kbd { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 0.7rem; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; background: var(--sunk); }
+
+main { min-width: 0; padding-block: 28px 80px; padding-left: max(16px, 40px); padding-right: max(16px, env(safe-area-inset-right, 0px), 40px); display: flex; flex-direction: column; gap: 64px; }
+section { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+section > header { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.sub { display: flex; flex-direction: column; gap: 12px; }
+
+.hero { gap: 22px; }
+.hero h1 { font-family: var(--font-display); font-weight: 700; font-size: clamp(2.2rem, 5vw, 3.4rem); letter-spacing: -0.035em; line-height: 1.02; }
+.hero h1 span { color: var(--accent); }
+.hero .lede { font-size: 1.08rem; max-width: 62ch; }
+.stack { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font-family: var(--font-mono); font-size: 0.76rem; padding: 3px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); white-space: nowrap; }
+.chip i { font-style: normal; color: var(--muted); }
+
+.cmds { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.cmd { display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; min-width: 0; }
+.cmd .row { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.cmd code { flex: 1; min-width: 0; background: none; padding: 0; font-size: 0.82rem; white-space: nowrap; overflow-x: auto; overflow-wrap: normal; }
+.cmd small { color: var(--muted); font-size: 0.82rem; }
+.copy { font: inherit; font-size: 0.74rem; border: 1px solid var(--line); background: var(--sunk); color: var(--ink); border-radius: 4px; padding: 2px 8px; cursor: pointer; flex-shrink: 0; }
+.copy:hover { border-color: var(--accent); }
+
+.callout { border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--surface); padding: 12px 16px; border-radius: 0 var(--radius) var(--radius) 0; max-width: 78ch; }
+.callout.warn { border-left-color: var(--danger); }
+
+.btn { font: inherit; font-size: 0.88rem; font-weight: 500; padding: 6px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.seg button { font: inherit; font-size: 0.86rem; padding: 6px 14px; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--bg); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; min-width: 0; }
+.split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 1100px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+/* Module graph */
+.graph-wrap { overflow-x: auto; }
+#modgraph { width: 100%; min-width: 560px; height: auto; display: block; }
+#modgraph .mod rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; transition: fill .15s, stroke .15s; }
+#modgraph .mod text { fill: var(--ink); font-family: var(--font-mono); font-size: 13px; font-weight: 500; }
+#modgraph .mod text.third { fill: var(--muted); font-size: 9.5px; font-weight: 400; }
+#modgraph .mod { cursor: pointer; }
+#modgraph .mod:hover rect, #modgraph .mod:focus-visible rect { stroke: var(--accent); }
+#modgraph .mod.sel rect { fill: var(--accent); stroke: var(--accent); }
+#modgraph .mod.sel text { fill: var(--bg); }
+#modgraph .mod.dep rect { fill: var(--accent-soft); stroke: var(--accent); }
+#modgraph .mod.user rect { fill: var(--update-soft); stroke: var(--update); }
+#modgraph .mod.faded { opacity: 0.35; }
+#modgraph .edge { stroke: var(--muted); stroke-width: 1.3; fill: none; opacity: 0.55; }
+#modgraph .edge.private { stroke-dasharray: 4 3; }
+#modgraph .edge.violation { stroke: var(--danger); stroke-dasharray: 5 3; opacity: 0.9; }
+#modgraph .edge.engine { opacity: 0; }
+#modgraph .edge.hot { stroke: var(--accent); opacity: 1; stroke-width: 2; }
+#modgraph .edge.hot-in { stroke: var(--update); opacity: 1; stroke-width: 2; }
+#modgraph .edge.violation.hot, #modgraph .edge.violation.hot-in { stroke: var(--danger); }
+#modgraph .edge.dim { opacity: 0.1; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.8rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { width: 26px; height: 8px; }
+.kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; font-size: 0.9rem; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; }
+.taglist { display: flex; flex-wrap: wrap; gap: 5px; }
+.taglist code { font-size: 0.78rem; }
+
+/* Frame */
+.ring { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.slot { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.slot .n { font-family: var(--font-display); font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.slot small { color: var(--muted); font-size: 0.8rem; }
+.slot.r { border-top: 3px solid var(--render); }
+.slot.q { border-top: 3px solid var(--muted); }
+.slot.u { border-top: 3px solid var(--update); }
+.lanes { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 720px) { .lanes { grid-template-columns: minmax(0, 1fr); } }
+.lane { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.lane h3 { display: flex; align-items: center; gap: 8px; font-size: 0.95rem; }
+.lane h3::before { content: ""; width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+.lane.update { --c: var(--update); --c-soft: var(--update-soft); }
+.lane.render { --c: var(--render); --c-soft: var(--render-soft); }
+.step { text-align: left; font: inherit; font-size: 0.88rem; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 8px; align-items: baseline; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); cursor: pointer; transition: background .15s, border-color .15s; }
+.step .idx { font-family: var(--font-mono); font-size: 0.75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.step .t { font-weight: 500; }
+.step .s { display: block; font-family: var(--font-mono); font-size: 0.74rem; color: var(--muted); overflow-wrap: anywhere; }
+.step:hover { border-color: var(--c); }
+.step.on { background: var(--c-soft); border-color: var(--c); }
+.step.picked { box-shadow: inset 3px 0 0 var(--c); }
+.step.off { opacity: 0.45; }
+.step.off .t::after { content: " · только Play"; font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+.step.partial .t::after { content: " · в Edit частично"; font-weight: 400; font-size: 0.78rem; color: var(--muted); }
+#stepDetail h3 { margin-bottom: 6px; }
+#stepDetail ul { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+
+/* Tables */
+.tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); background: var(--sunk); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+td code { font-size: 0.8rem; }
+.pill { display: inline-block; font-family: var(--font-mono); font-size: 0.72rem; padding: 1px 8px; border-radius: 999px; margin: 1px 4px 1px 0; white-space: nowrap; border: 1px solid transparent; }
+.pill.update { background: var(--update-soft); color: var(--update); border-color: var(--update); }
+.pill.render { background: var(--render-soft); color: var(--render); border-color: var(--render); }
+.pill.worker { background: var(--worker-soft); color: var(--worker); border-color: var(--worker); }
+.pill.any { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.filters button { font: inherit; font-size: 0.82rem; padding: 4px 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.filters button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+
+/* NodeId playground */
+.pg { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 900px) { .pg { grid-template-columns: minmax(0, 1fr); } }
+.slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.slotbox { font-family: var(--font-mono); font-size: 0.74rem; border: 1px solid var(--line); border-radius: 4px; padding: 4px 7px; background: var(--sunk); color: var(--muted); display: flex; flex-direction: column; align-items: center; min-width: 52px; line-height: 1.3; }
+.slotbox b { font-size: 0.86rem; color: var(--ink); font-weight: 600; }
+.slotbox.alive { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.nodes { display: flex; flex-direction: column; gap: 4px; }
+.noderow { display: grid; grid-template-columns: 18px minmax(0, 1fr) max-content max-content; gap: 10px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); cursor: pointer; font-size: 0.9rem; text-align: left; font-family: inherit; color: var(--ink); width: 100%; }
+.noderow.sel { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.noderow code { font-size: 0.76rem; }
+.noderow .raw { color: var(--muted); font-family: var(--font-mono); font-size: 0.72rem; }
+.noderow input { margin: 0; accent-color: var(--accent); }
+.refs { display: flex; flex-direction: column; gap: 4px; }
+.ref { display: flex; justify-content: space-between; gap: 10px; align-items: center; font-size: 0.86rem; padding: 6px 10px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface); flex-wrap: wrap; }
+.ref .ok { color: var(--accent); font-weight: 600; }
+.ref .bad { color: var(--danger); font-weight: 600; }
+.mode-badge { font-family: var(--font-mono); font-size: 0.74rem; padding: 2px 9px; border-radius: 999px; background: var(--sunk); border: 1px solid var(--line); }
+.mode-badge.play { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.log { font-family: var(--font-mono); font-size: 0.76rem; color: var(--muted); background: var(--code-bg); border-radius: 5px; padding: 8px 10px; max-height: 128px; overflow-y: auto; display: flex; flex-direction: column-reverse; gap: 2px; }
+
+/* Script layers */
+.layers { display: flex; flex-direction: column; gap: 4px; }
+.layer { display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: stretch; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); cursor: pointer; text-align: left; font: inherit; color: var(--ink); padding: 0; overflow: hidden; }
+.layer .lv { font-family: var(--font-display); font-weight: 600; display: grid; place-items: center; background: var(--sunk); color: var(--muted); }
+.layer .body { padding: 8px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.layer .parts { font-family: var(--font-mono); font-size: 0.78rem; overflow-wrap: anywhere; }
+.layer .what { font-size: 0.84rem; color: var(--muted); }
+.layer.sel { border-color: var(--accent); }
+.layer.sel .lv { background: var(--accent); color: var(--bg); }
+.layer.below .lv { background: var(--accent-soft); color: var(--accent); }
+
+/* Lua explorer */
+.api { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; }
+@media (max-width: 720px) { .api { grid-template-columns: minmax(0, 1fr); } }
+.api-list { display: flex; flex-direction: column; gap: 3px; }
+@media (max-width: 720px) { .api-list { flex-direction: row; flex-wrap: wrap; } }
+.api-list button { text-align: left; font-family: var(--font-mono); font-size: 0.84rem; padding: 6px 10px; border: 1px solid transparent; border-radius: 5px; background: none; color: var(--ink); cursor: pointer; }
+.api-list button:hover { background: var(--sunk); }
+.api-list button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.members { display: flex; flex-direction: column; gap: 6px; }
+.member { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.member:last-child { border-bottom: 0; }
+.member code { background: none; padding: 0; font-size: 0.84rem; font-weight: 500; }
+.member span { font-size: 0.86rem; color: var(--muted); }
+
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 10px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card h3 { font-size: 0.95rem; }
+.card p { font-size: 0.88rem; color: var(--muted); }
+
+.bodytypes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; }
+.bt { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--surface); cursor: pointer; text-align: left; font: inherit; color: var(--ink); display: flex; flex-direction: column; gap: 4px; }
+.bt[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.bt code { background: none; padding: 0; font-weight: 600; }
+.bt span { font-size: 0.84rem; color: var(--muted); }
+
+.rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 8px; }
+.rule { display: flex; gap: 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); font-size: 0.9rem; align-items: baseline; }
+.rule::before { content: "✕"; color: var(--danger); font-weight: 700; flex-shrink: 0; }
+.rule.do::before { content: "✓"; color: var(--accent); }
+
+.notes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 14px; }
+.notes-grid div { display: flex; flex-direction: column; gap: 4px; }
+.notes-grid h3 { font-size: 0.82rem; font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 500; }
+.notes-grid code { font-size: 0.78rem; background: none; padding: 0; color: var(--ink); }
+
+#glossEmpty { padding: 16px; color: var(--muted); }
+mark { background: var(--accent-soft); color: inherit; border-radius: 2px; }
+
+@media (max-width: 900px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; height: auto; flex-direction: row; align-items: center; gap: 12px; padding-block: 10px; padding-right: max(16px, env(safe-area-inset-right, 0px)); border-right: 0; border-bottom: 1px solid var(--line); background: var(--bg); overflow-x: auto; overflow-y: hidden; }
+  .toc .brand small, .toc .search, .toc nav .group { display: none; }
+  .toc nav { flex-direction: row; gap: 2px; }
+  .toc nav a { white-space: nowrap; border-left: 0; border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0; }
+  .toc nav a.active { border-bottom-color: var(--accent); }
+  main { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); gap: 48px; }
+  html { scroll-padding-top: 64px; }
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="toc">
+    <div class="brand"><b>elm</b><small class="muted">справочник движка</small></div>
+    <label class="search" for="q">
+      <svg viewBox="0 0 16 16" stroke-width="1.8"><circle cx="7" cy="7" r="5"/><path d="M11 11l3.5 3.5"/></svg>
+      <input id="q" type="search" placeholder="Найти сущность" autocomplete="off">
+      <kbd>/</kbd>
+    </label>
+    <nav id="toc">
+      <span class="group">Начало</span>
+      <a href="#overview">Обзор</a>
+      <a href="#modules">Модули</a>
+      <span class="group">Время</span>
+      <a href="#frame">Кадр</a>
+      <a href="#threads">Потоки</a>
+      <span class="group">Данные</span>
+      <a href="#scene">Сцена и NodeId</a>
+      <a href="#play">Edit и Play</a>
+      <span class="group">Системы</span>
+      <a href="#scripts">Скрипты</a>
+      <a href="#lua">Lua API</a>
+      <a href="#physics">Физика</a>
+      <a href="#render">Рендер</a>
+      <span class="group">Справка</span>
+      <a href="#glossary">Глоссарий</a>
+      <a href="#rules">Правила кода</a>
+      <a href="#notes">Заметки docs/</a>
+    </nav>
+  </aside>
+
+  <main>
+    <!-- Overview -->
+    <section id="overview" class="hero">
+      <span class="eyebrow">C++23 · 3D-движок с редактором</span>
+      <h1>elm: сцена, скрипты, физика и рендер <span>в двух потоках</span></h1>
+      <p class="lede">Update-поток собирает кадр N+1, пока render-поток рисует кадр N. Сцена хранит узлы и компоненты, системы их читают и меняют, а Lua-скрипты сущностей оживают только в режиме Play.</p>
+      <div class="stack">
+        <span class="chip"><i>рендер</i> Diligent · D3D12 / Vulkan</span>
+        <span class="chip"><i>физика</i> Jolt 5.2</span>
+        <span class="chip"><i>скрипты</i> Lua 5.4.7 как C++</span>
+        <span class="chip"><i>UI</i> ImGui docking + ImGuizmo</span>
+        <span class="chip"><i>файлы</i> glaze JSON</span>
+        <span class="chip"><i>профайлер</i> Tracy</span>
+        <span class="chip"><i>окно</i> GLFW</span>
+      </div>
+      <div class="cmds" id="cmds"></div>
+    </section>
+
+    <!-- Modules -->
+    <section id="modules">
+      <header>
+        <span class="eyebrow">src/&lt;module&gt; · engine_add_library</span>
+        <h2>Модули и зависимости</h2>
+        <p class="muted">Зависимости идут в одну сторону. Нажмите на модуль: зелёным подсветятся те, от кого он зависит, синим — те, кто зависит от него.</p>
+      </header>
+      <div class="split">
+        <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+          <div class="graph-wrap"><svg id="modgraph" viewBox="0 0 720 470" role="group" aria-label="Граф зависимостей модулей"></svg></div>
+          <div class="legend">
+            <span><svg viewBox="0 0 26 8"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.5"/></svg>PUBLIC</span>
+            <span><svg viewBox="0 0 26 8"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/></svg>PRIVATE</span>
+            <span style="color:var(--danger)"><svg viewBox="0 0 26 8"><line x1="0" y1="4" x2="26" y2="4" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"/></svg>известное нарушение, не расширять</span>
+          </div>
+        </div>
+        <div class="panel" id="modInfo" aria-live="polite"></div>
+      </div>
+      <div class="callout">Внутри <code>script</code> свои слои, а наружу видны только <code>ScriptSystem</code>, <code>EngineContext</code>, <code>PlayMode</code> и <code>RunSelfTests</code>. Подробнее в разделе <a href="#scripts">Скрипты</a>.</div>
+    </section>
+
+    <!-- Frame -->
+    <section id="frame">
+      <header>
+        <span class="eyebrow">EngineApp::Run · RenderSystem::RenderNextFrame</span>
+        <h2>Один кадр</h2>
+        <p class="muted">Шаги цикла в порядке исполнения. Включите проигрывание, чтобы увидеть, как два потока идут параллельно, а кольцо из трёх слотов сдвигается на кадр. Переключатель режима показывает, что в Edit не выполняется.</p>
+      </header>
+      <div class="toolbar">
+        <button class="btn primary" id="playFrame" type="button">▶ Проиграть кадр</button>
+        <button class="btn" id="nextStep" type="button">Шаг</button>
+        <div class="seg" role="group" aria-label="Режим редактора">
+          <button type="button" id="modeEdit" aria-pressed="false">Edit</button>
+          <button type="button" id="modePlay" aria-pressed="true">Play</button>
+        </div>
+        <span class="muted" style="font-size:.85rem">FixedUpdate: 60 Гц, накопитель времени</span>
+      </div>
+      <div class="ring" aria-label="FrameRing">
+        <div class="slot r"><small>render рисует</small><span class="n" id="ringR">N</span></div>
+        <div class="slot q"><small>ждёт в очереди</small><span class="n" id="ringQ">N+1</span></div>
+        <div class="slot u"><small>update собирает</small><span class="n" id="ringU">N+2</span></div>
+      </div>
+      <div class="split">
+        <div class="lanes">
+          <div class="lane update"><h3>Update-поток</h3><div id="laneU" style="display:flex;flex-direction:column;gap:6px"></div></div>
+          <div class="lane render"><h3>Render-поток</h3><div id="laneR" style="display:flex;flex-direction:column;gap:6px"></div></div>
+        </div>
+        <div class="panel" id="stepDetail" aria-live="polite"></div>
+      </div>
+      <p class="muted" style="font-size:.88rem"><code>BeginFrame</code> ждёт, только если все три слота заняты, то есть update ушёл вперёд на два кадра. Render забирает кадры строго по порядку, поэтому команды ресурсов выполняются все и в исходном порядке.</p>
+    </section>
+
+    <!-- Threads -->
+    <section id="threads">
+      <header>
+        <span class="eyebrow">ELM_ASSERT_THREAD(Update | Render)</span>
+        <h2>Что из какого потока</h2>
+        <p class="muted">Draw-API доступен только внутри паса: конструкторы <code>PassBuilder</code>, <code>PassContext</code> и command list'ов закрыты. В debug-сборке роли проверяет <code>ELM_ASSERT_THREAD</code>.</p>
+      </header>
+      <div class="filters" id="threadFilters" role="group" aria-label="Фильтр по потоку">
+        <button type="button" data-f="all" aria-pressed="true">Все</button>
+        <button type="button" data-f="update" aria-pressed="false">update</button>
+        <button type="button" data-f="render" aria-pressed="false">render</button>
+        <button type="button" data-f="worker" aria-pressed="false">воркер</button>
+        <button type="button" data-f="any" aria-pressed="false">любой</button>
+      </div>
+      <div class="tbl-wrap"><table><thead><tr><th>API</th><th>Поток</th><th>Примечание</th></tr></thead><tbody id="threadRows"></tbody></table></div>
+    </section>
+
+    <!-- Scene -->
+    <section id="scene">
+      <header>
+        <span class="eyebrow">src/Scene · только update-поток</span>
+        <h2>Сцена, узлы и NodeId</h2>
+        <p class="muted"><code>Scene::Node</code> — только ядро: <code>id</code>, родитель, имя, локальный трансформ. Всё остальное — компоненты в хранилищах <code>scene.Components&lt;T&gt;()</code>. Узлы лежат плоским массивом, родитель всегда раньше детей.</p>
+      </header>
+      <div class="cards">
+        <div class="card"><h3>NodeId вместо индекса</h3><p>Индекс узла сдвигается при удалении и живёт одну операцию. Дольше держат <code>NodeId</code>: 24 бита слота и 8 бит поколения.</p></div>
+        <div class="card"><h3>Запись только методами сцены</h3><p><code>AddNode</code>, <code>RemoveNode</code>, <code>SetParent</code>, <code>SetLocalTransform</code>, <code>SetWorldTransform</code>, <code>SetName</code>. Устаревший id ничего не меняет: <code>false</code>, пустой id или <code>StaleNode</code>.</p></div>
+        <div class="card"><h3>Мировые трансформы</h3><p>Производный массив <code>WorldTransforms()</code>. Один линейный проход: <code>world[i] = world[parent] * local[i]</code>.</p></div>
+        <div class="card"><h3>Компоненты</h3><p>Закрытый список <code>ComponentType</code>: <code>Script</code>, <code>RigidBody</code>, <code>Collider</code>, <code>Model</code>. Простые <code>struct</code> без логики, sparse set по <code>NodeId</code>.</p></div>
+      </div>
+
+      <div class="sub" id="nodeid">
+        <h3>Песочница NodeIdTable</h3>
+        <p class="muted" style="font-size:.92rem">Добавляйте и удаляйте узлы, запоминайте их id и смотрите, какие ссылки остаются рабочими. Нажмите Play, создайте узлы, затем Stop: сцена вернётся из снимка, а id, выданные во время Play, не оживут. Это модель поведения, а не сам код движка.</p>
+        <div class="toolbar">
+          <button class="btn" id="pgAdd" type="button">+ AddNode</button>
+          <button class="btn" id="pgRemove" type="button">RemoveNode</button>
+          <button class="btn" id="pgHold" type="button">Запомнить id</button>
+          <button class="btn" id="pgPlay" type="button">Play</button>
+          <button class="btn" id="pgReset" type="button">Сбросить</button>
+          <span class="mode-badge" id="pgMode">Edit</span>
+        </div>
+        <div class="pg">
+          <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+            <span class="eyebrow">Scene::Nodes()</span>
+            <div class="nodes" id="pgNodes"></div>
+            <span class="eyebrow">слоты NodeIdTable · поколение</span>
+            <div class="slots" id="pgSlots"></div>
+          </div>
+          <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+            <span class="eyebrow">ссылки, которые держит код · scene.Find(id)</span>
+            <div class="refs" id="pgRefs"></div>
+            <span class="eyebrow">журнал</span>
+            <div class="log" id="pgLog"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sub">
+        <h3>Добавить узел и прочитать мир</h3>
+<pre><code>const NodeId lamp = scene.AddNode({
+    .name = "Lamp",
+    .parent = room,
+    .localTransform = Matrix4x4::Translation(Vector3 { 0.0f, 2.5f, 0.0f }),
+});
+scene.Components&lt;ModelComponent&gt;().Emplace(lamp, ModelComponent { .model = lampModel, .visible = false });
+scene.UpdateWorldTransforms();
+UseWorldPosition(scene.WorldTransforms()[scene.IndexOf(lamp)]);</code></pre>
+      </div>
+      <div class="sub">
+        <h3>Как добавить компонент</h3>
+        <div class="tbl-wrap"><table><thead><tr><th>Шаг</th><th>Где</th></tr></thead><tbody>
+          <tr><td>Простой <code>struct</code> без логики со <code>static constexpr ComponentType Type</code></td><td><code>src/Scene/</code></td></tr>
+          <tr><td>Значение в <code>ComponentType</code>, <code>AllComponentTypes</code>, <code>ComponentTypeName</code></td><td><code>Scene/ComponentTypes.hpp</code></td></tr>
+          <tr><td>Запись и чтение: <code>MakeComponent</code>, <code>ReadComponents</code></td><td><code>resmgr/Serializer.cpp</code></td></tr>
+          <tr><td><code>bindings::ComponentKind</code>, строка в <code>LuaKinds</code>, раздел Inspector</td><td><code>script/bindings/</code>, <code>script/ui/</code></td></tr>
+          <tr><td>Строка в глоссарии и раздел в «Файл сцены»</td><td><code>CLAUDE.md</code>, <code>docs/scene/</code></td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="sub">
+        <h3>Файл .scene</h3>
+        <p class="muted" style="font-size:.92rem">JSON, пишется <code>formatVersion</code> 6, читаются версии 1–6. Модели лежат отдельными <code>.model</code> в <code>assets/models</code>. Родитель — индекс в <code>nodes</code>, ссылки на сущности в props — <code>{ "entity": индекс }</code>. Меняете формат: поднимите версию и сохраните чтение старых.</p>
+<pre><code>{
+   "formatVersion": 6,
+   "models": [ { "path": "../models/Cube.model" } ],
+   "nodes": [ {
+      "name": "Guard 1", "parentIndex": 0,
+      "localTransform": [[1,0,0,0],[0,1,0,0],[0,0,1,0],[14,0.5,0,1]],
+      "components": {
+         "Model":     { "modelIndex": 0, "color": [1,1,1,1], "visible": true },
+         "Collider":  { "shape": "box", "halfExtents": [0.5,0.5,0.5], "trigger": false },
+         "RigidBody": { "type": "kinematic", "mass": 1, "friction": 0.5 },
+         "Script":    { "module": "npc.guard", "props": { "speed": 2.25, "post": { "entity": 3 } } }
+      }
+   } ]
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- Play -->
+    <section id="play">
+      <header>
+        <span class="eyebrow">script::PlayMode · владелец EngineApp</span>
+        <h2>Edit и Play</h2>
+        <p class="muted">Движок стартует в Edit: сцена — это данные. Play (F5, кнопка над вьюпортом, <code>elm.engine.play()</code>) включает физику и скрипты сущностей. Переключение выполняется в начале следующего обновления, в <code>PlayMode::ApplyRequest</code>.</p>
+      </header>
+      <div class="split">
+        <div class="tbl-wrap"><table><thead><tr><th>Что</th><th>Edit</th><th>Play</th></tr></thead><tbody>
+          <tr><td>Шаг физики <code>PhysicsSystem::Step</code></td><td class="muted">нет</td><td>60 Гц</td></tr>
+          <tr><td>Скрипты сущностей</td><td class="muted">не стартуют</td><td><code>on_start</code>, <code>on_update</code>, столкновения</td></tr>
+          <tr><td>Главный модуль</td><td><code>on_start</code>, <code>on_reload</code>, <code>build_scene</code></td><td>+ <code>on_update</code>, <code>on_fixed_update</code></td></tr>
+          <tr><td>Правки в Inspector и гизмо</td><td>сохраняются</td><td>пропадают после Stop</td></tr>
+          <tr><td>Save Scene</td><td>работает</td><td class="muted">не работает</td></tr>
+          <tr><td>Состояние Lua, <code>persist</code></td><td colspan="2">Stop не трогает, откатывается только сцена</td></tr>
+        </tbody></table></div>
+        <div class="panel" style="display:flex;flex-direction:column;gap:10px">
+          <h3>Что происходит при переходах</h3>
+          <div><span class="pill any">Play</span></div>
+          <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:.92rem">
+            <li><code>SceneSnapshot</code>: узлы с их id, компоненты, список моделей.</li>
+            <li><code>main.on_play()</code>, затем на этом же кадре <code>on_start</code> у скриптов сущностей.</li>
+          </ol>
+          <div><span class="pill render">Stop</span></div>
+          <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:4px;font-size:.92rem">
+            <li><code>on_destroy</code> у скриптов сущностей, затем <code>main.on_stop()</code>.</li>
+            <li>Тела физики удаляются, на следующем Play строятся из компонентов.</li>
+            <li>Снимок возвращается вместе с id узлов. Ссылки, взятые до Play, снова рабочие. Сущности из Play остаются недействительными.</li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scripts -->
+    <section id="scripts">
+      <header>
+        <span class="eyebrow">src/script · Lua 5.4.7, своя обёртка над C API</span>
+        <h2>Скрипты на Lua</h2>
+        <p class="muted"><code>ScriptSystem</code> — только менеджер: открывает Lua-машину, собирает части и ведёт их по кадру. Работу делают части в слоях, зависимость идёт только вниз, части одного слоя друг о друге не знают. Нажмите на слой.</p>
+      </header>
+      <div class="split">
+        <div class="layers" id="layers"></div>
+        <div class="panel" id="layerInfo" aria-live="polite"></div>
+      </div>
+      <div class="callout warn">Lua собрана как C++: <code>lua_error</code> бросает исключение и разматывает C++-кадры биндингов. Подключайте только <code>script/lua/Lua.hpp</code>, никогда <code>lua.hpp</code>.</div>
+
+      <div class="sub">
+        <h3>Скрипт сущности</h3>
+        <p class="muted" style="font-size:.92rem">Модуль возвращает класс: методы и <code>props</code> по умолчанию. Каждая сущность с компонентом <code>Script</code> получает свой экземпляр <code>self</code>, класс стоит у него в <code>__index</code>.</p>
+<pre><code>-- assets/scripts/npc/guard.lua
+local Guard = { props = { speed = 2.5, view_distance = 8 } }
+
+function Guard:on_start() self.post = self.entity.position end
+function Guard:on_update(dt) --[[ ... ]] end
+return Guard
+
+-- где-то в главном модуле
+local npc = elm.scene.spawn("Guard 1", cube)
+local guard = npc:add("Script", { module = "npc.guard", props = { speed = 3 } })
+print(guard.speed, npc.script == guard)    -- 3  true</code></pre>
+      </div>
+      <div class="sub">
+        <h3>Хуки</h3>
+        <div class="seg" role="group" aria-label="Чьи хуки">
+          <button type="button" data-hooks="entity" aria-pressed="true">Скрипт сущности</button>
+          <button type="button" data-hooks="main" aria-pressed="false">Главный модуль</button>
+        </div>
+        <div class="tbl-wrap"><table><thead><tr><th>Хук</th><th>Когда</th></tr></thead><tbody id="hookRows"></tbody></table></div>
+      </div>
+      <div class="cards">
+        <div class="card"><h3>Hot reload</h3><p>Опрос 4 раза в секунду. Таблица модуля патчится на месте, экземпляры сразу выполняют новый код и сохраняют поля <code>self</code>. Упала компиляция — работает старая версия.</p></div>
+        <div class="card"><h3>Состояние между перезагрузками</h3><p>Локальные переменные модуля начинаются заново. Нужное держите в <code>elm.script.persist(key, default)</code> или переносите в <code>on_reload(previous)</code>.</p></div>
+        <div class="card"><h3>Ошибка в хуке</h3><p>Останавливает только этот экземпляр. Одинаковые ошибки разных экземпляров пишутся в лог один раз. Успешная перезагрузка снимает остановку.</p></div>
+        <div class="card"><h3>Песочница</h3><p>Нет <code>io</code>, <code>os</code>, <code>dofile</code>, <code>package.path</code>. <code>load</code> только текстом. <code>debug</code> открыт в debug-сборке.</p></div>
+      </div>
+    </section>
+
+    <!-- Lua API -->
+    <section id="lua">
+      <header>
+        <span class="eyebrow">script/bindings · assets/scripts/.meta/elm.lua</span>
+        <h2>Lua API</h2>
+        <p class="muted">Модули движка для скриптов и консоли окна Scripts. Аннотации для LuaLS генерирует <code>Engine --dump-script-api</code>. Если системы нет (инструменты, самотесты), её функции бросают ошибку «not available here».</p>
+      </header>
+      <div class="api">
+        <div class="api-list" id="apiList" role="group" aria-label="Модули Lua"></div>
+        <div class="panel" style="padding:0"><div class="members" id="apiMembers"></div></div>
+      </div>
+      <p class="muted" style="font-size:.88rem">Соглашения: векторы-столбцы, трансформ <code>T * R * S</code>, углы в радианах, Эйлер <code>(pitch, yaw, roll)</code>, индексы матрицы с 1. <code>Vector3</code> в Lua изменяемый: <code>b = a</code> — алиас, копия — <code>a:copy()</code>.</p>
+    </section>
+
+    <!-- Physics -->
+    <section id="physics">
+      <header>
+        <span class="eyebrow">src/physics · Jolt виден только в PhysicsSystem.cpp</span>
+        <h2>Физика</h2>
+        <p class="muted">Тело есть только у узла с <code>Collider</code>. <code>Collider</code> без <code>RigidBody</code> — статическое тело. <code>RigidBody</code> без <code>Collider</code> ничего не делает. Тела привязаны к <code>NodeId</code>. Выберите тип тела.</p>
+      </header>
+      <div class="bodytypes" id="bodyTypes"></div>
+      <div class="panel" id="bodyInfo" aria-live="polite"></div>
+      <div class="sub">
+        <h3>Шаг физики</h3>
+        <div class="tbl-wrap"><table><tbody>
+          <tr><td class="muted" style="width:40px">1</td><td><code>UpdateWorldTransforms</code>, тела сверяются с компонентами: лишние удаляются, новые строятся, изменённые перестраиваются с сохранением скорости.</td></tr>
+          <tr><td class="muted">2</td><td>Поза узла сравнивается с позой тела после прошлого шага: так видно, что узел передвинули.</td></tr>
+          <tr><td class="muted">3</td><td><code>JPH::PhysicsSystem::Update</code>.</td></tr>
+          <tr><td class="muted">4</td><td>Активные динамические тела пишутся в локальные трансформы своих узлов.</td></tr>
+          <tr><td class="muted">5</td><td>Контакты из <code>ContactListener</code> становятся <code>CollisionEvent</code> (<code>Enter</code>/<code>Exit</code>, <code>trigger</code>, точка и нормаль).</td></tr>
+        </tbody></table></div>
+      </div>
+<pre><code>local crate = elm.scene.spawn("Crate", elm.models.cube(1))
+crate:add("Collider")                                -- без размеров: по модели
+local body = crate:add("RigidBody", { mass = 2, friction = 0.6 })
+body.velocity = Vector3(0, 5, 0)                     -- тело есть сразу после add
+local entity, point, normal, distance = elm.physics.raycast(origin, direction, 50, self.entity)</code></pre>
+      <p class="muted" style="font-size:.88rem">Ограничения: нет интерполяции, коллизия дискретная, формы только box, sphere, capsule, не больше 8192 тел, скорости в файл сцены не сохраняются.</p>
+    </section>
+
+    <!-- Render -->
+    <section id="render">
+      <header>
+        <span class="eyebrow">src/render · rhi::IRenderBackend</span>
+        <h2>Рендер</h2>
+        <p class="muted">Update пишет команды ресурсов в <code>RenderResources</code> и данные кадра в <code>FrameWriter</code>. Снимок <code>FrameSnapshot</code> уходит render-потоку через <code>FrameRing</code>. Там фичи объявляют пасы в <code>RenderGraph</code>, граф сам упорядочивает их и ставит барьеры.</p>
+      </header>
+      <div class="graph-wrap panel"><svg id="renderFlow" viewBox="0 0 760 210" style="width:100%;min-width:620px;display:block" aria-label="Поток данных рендера"></svg></div>
+      <div class="cards">
+        <div class="card"><h3>Хэндлы ресурсов</h3><p><code>TextureHandle</code>, <code>MeshHandle</code>, <code>BufferHandle</code> создаются из любого потока и возвращаются сразу. Удалённый ресурс не проходит проверку поколения, отрисовка с ним пропускается.</p></div>
+        <div class="card"><h3>Фичи</h3><p><code>IRenderFeature</code>: <code>Init</code> создаёт шейдеры и пайплайны, <code>Setup</code> каждый кадр только объявляет пасы. Сейчас <code>ScenePass</code> и <code>OverlayPass</code>.</p></div>
+        <div class="card"><h3>Compile()</h3><p>Отсекает пасы, чей результат никто не читает, раскладывает по уровням, вставляет переходы состояний. Пасы одного уровня пишутся параллельно.</p></div>
+        <div class="card"><h3>Бэкенды</h3><p><code>DiligentBackend</code> (D3D12 / Vulkan) или <code>NullBackend</code> для headless-прогонов. Выбор: <code>-DELM_RENDER_BACKEND=Diligent|Null</code>.</p></div>
+      </div>
+<pre><code>graph.AddPass&lt;Data&gt;("MyPass",
+    [&amp;](PassBuilder&amp; builder, Data&amp; data) {          // setup: сразу, объявляет ресурсы
+        data.color = builder.WriteColor(target);
+        data.depth = builder.WriteDepth(builder.CreateTexture("MyDepth", depthDesc));
+    },
+    [pipeline = m_pipeline](const Data&amp; data, PassContext&amp; context) {   // execute: позже, возможно на воркере
+        auto&amp; cmd = context.Commands();
+    });</code></pre>
+      <div class="callout warn">Execute-лямбда вызывается после выхода из setup. Локальные переменные setup не захватывайте по ссылке: берите хэндлы по значению, а данные кадра из <code>context.Frame()</code>. RAII-ресурсы (<code>Texture</code>, <code>Mesh</code>, <code>ViewPort</code>, <code>ModelManager</code>) уничтожаются до <code>RenderSystem::Shutdown()</code>.</div>
+    </section>
+
+    <!-- Glossary -->
+    <section id="glossary">
+      <header>
+        <span class="eyebrow">CLAUDE.md · одно имя на сущность</span>
+        <h2>Глоссарий</h2>
+        <p class="muted">Каждое понятие имеет свой тип и одно имя в коде, документации и Lua. Узел не становится <code>Object</code> или <code>Actor</code>, модель не становится <code>Asset</code>. Поиск работает и из поля слева (клавиша <kbd>/</kbd>).</p>
+      </header>
+      <div class="filters" id="glossFilters" role="group" aria-label="Подсистема"></div>
+      <div class="tbl-wrap"><table><thead><tr><th>Сущность</th><th>Что это</th><th>Где</th></tr></thead><tbody id="glossRows"></tbody></table><div id="glossEmpty" hidden>Ничего не найдено. Попробуйте имя типа, например <code>NodeId</code>.</div></div>
+    </section>
+
+    <!-- Rules -->
+    <section id="rules">
+      <header>
+        <span class="eyebrow">CLAUDE.md · §1–§11</span>
+        <h2>Правила кода</h2>
+        <p class="muted">Код читаемый, предсказуемый и легко изменяемый. Если правило расходится с принятым в файле стилем, прав проект.</p>
+      </header>
+      <div class="rules" id="rulesList"></div>
+    </section>
+
+    <!-- Notes -->
+    <section id="notes">
+      <header>
+        <span class="eyebrow">docs/ · Obsidian vault, вход docs/Главная.md</span>
+        <h2>Заметки в docs/</h2>
+        <p class="muted">Перед изменением подсистемы прочитайте её заметку. Изменили поведение — обновите заметку.</p>
+      </header>
+      <div class="notes-grid" id="notesGrid"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s);
+  const el = (tag, attrs = {}, html = "") => { const e = document.createElement(tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (html) e.innerHTML = html; return e; };
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const code = s => s.replace(/`([^`]+)`/g, (_, m) => `<code>${esc(m)}</code>`);
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+  /* ---------- Commands ---------- */
+  const cmds = [
+    ["Конфигурация", "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug", "Первая идёт долго: зависимости качаются в ../elm_deps"],
+    ["Сборка", "cmake --build build --config Debug -j", "Без новых предупреждений, /W4 /permissive-"],
+    ["Тестовая сцена", "build/Debug/Engine.exe --scene 3 --instances 500", "0 Box · 1 WallAndGrid · 2 RoomsAndCorridors · 3 PhysicsSandbox"],
+    ["Самотесты", "build/Debug/Engine.exe --script-selftest", "C++-проверки и tests/*_test.lua, код выхода = число падений"],
+    ["API для LuaLS", "build/Debug/Engine.exe --dump-script-api", "Перегенерирует assets/scripts/.meta/elm.lua"],
+    ["Null-бэкенд", "cmake -S . -B build-null -DELM_RENDER_BACKEND=Null", "Ничего не рисует, считает ресурсы и draw call'ы"],
+  ];
+  const cmdsBox = $("#cmds");
+  for (const [name, line, hint] of cmds) {
+    const c = el("div", { class: "cmd" });
+    c.innerHTML = `<span class="eyebrow">${esc(name)}</span><div class="row"><code>${esc(line)}</code><button class="copy" type="button">Копировать</button></div><small>${esc(hint)}</small>`;
+    const btn = c.querySelector(".copy");
+    btn.addEventListener("click", () => {
+      const done = () => { btn.textContent = "Скопировано"; setTimeout(() => btn.textContent = "Копировать", 1400); };
+      const fallback = () => { const r = document.createRange(); r.selectNodeContents(c.querySelector("code")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); btn.textContent = "Выделено"; };
+      try { navigator.clipboard.writeText(line).then(done, fallback); } catch { fallback(); }
+    });
+    cmdsBox.append(c);
+  }
+
+  /* ---------- Module graph ---------- */
+  const W = 112, H = 40;
+  const mods = {
+    Engine:   { x: 360, y: 34,  dir: "src/EngineApp.*, main.cpp", ns: "elm", third: [], desc: "Собирает всё: владеет сценой, системами, `PlayMode` и главным циклом. Запускает render-поток.", ents: ["EngineApp", "PlayMode", "Scene"], note: "render/Главный цикл.md", thread: "update (главный поток)" },
+    graphics: { x: 120, y: 128, dir: "src/graphics", ns: "elm::graphics, elm", third: ["ImGui", "ImGuizmo"], desc: "Модели и их GPU-меши, камера, CPU-отсечение, окна редактора на ImGui.", ents: ["ModelManager", "ModelHandler", "Camera", "OcclusionCullingSystem", "ImGuiSystem", "IImGuiWindow"], note: "editor/Редактор.md", thread: "update" },
+    script:   { x: 400, y: 128, dir: "src/script", ns: "elm::script", third: ["Lua 5.4.7"], desc: "Lua-машина, главный модуль, скрипты сущностей, hot reload, консоль, `PlayMode`. Остальные модули линкуются PRIVATE, наружу видны `ScriptSystem`, `EngineContext`, `PlayMode`.", ents: ["ScriptSystem", "EngineContext", "PlayMode", "EntityScripts", "HotReload", "lua::State"], note: "script/Скрипты на Lua.md", thread: "update" },
+    input:    { x: 610, y: 128, dir: "src/input", ns: "elm", third: ["GLFW"], desc: "Ввод с приоритетами подписчиков, действия и оси.", ents: ["InputSystem", "IInputSubscriber", "InputContext", "ActionBinding", "AxisBinding"], note: null, thread: "update" },
+    resmgr:   { x: 120, y: 222, dir: "src/resmgr", ns: "elm::resmgr", third: ["glaze"], desc: "Читает и пишет `.model` и `.scene` (JSON через glaze), экспорт glTF.", ents: ["Serializer", "GltfExporter", "JsonValue"], note: "scene/Файл сцены.md", thread: "любой (SceneAsset)" },
+    physics:  { x: 300, y: 222, dir: "src/physics", ns: "elm", third: ["Jolt 5.2"], desc: "Тела Jolt для узлов с `Collider`, по `NodeId`. Jolt линкуется PRIVATE: он выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.", ents: ["PhysicsSystem", "RayHit", "CollisionEvent"], note: "physics/Физика.md", thread: "update" },
+    platform: { x: 600, y: 222, dir: "src/platform", ns: "elm::platform", third: ["GLFW"], desc: "Главное окно. Рендер получает от него только `NativeWindow` и размер.", ents: ["platform::Window"], note: "render/бэкенд/Бэкенды.md", thread: "update" },
+    Scene:    { x: 230, y: 318, dir: "src/Scene", ns: "elm", third: [], desc: "Узлы, `NodeId`, хранилища компонентов, `SceneAsset`, `SceneSnapshot`. Только update-поток, мутации проверяет `ELM_ASSERT_THREAD(Update)`.", ents: ["Scene", "NodeId", "NodeIdTable", "ComponentStores", "SceneAsset", "SceneSnapshot"], note: "scene/Сцена.md", thread: "update" },
+    render:   { x: 480, y: 318, dir: "src/render", ns: "elm::render", third: ["Diligent"], desc: "Ресурсы по хэндлам, снимок кадра, кольцо кадров, render graph, бэкенды. Типы Diligent видны только в `render/backend/diligent/`.", ents: ["RenderSystem", "RenderResources", "FrameWriter", "FrameRing", "RenderGraph", "IRenderFeature"], note: "render/Рендер.md", thread: "update + render" },
+    core:     { x: 230, y: 420, dir: "src/core", ns: "elm::core, elm", third: ["Tracy"], desc: "Ошибки `EngineResult`, хэндлы, настройки, `MessageBus`, `JobSystem`, роли потоков, файловая система, лог, аллокатор.", ents: ["EngineResult", "core::Handle", "Settings", "MessageBus", "JobSystem", "ThreadRole"], note: "core/JobSystem.md", thread: "любой" },
+    math:     { x: 480, y: 420, dir: "src/math", ns: "math (корневой)", third: [], desc: "`Vector3`, `Vector4`, `Quaternion`, `Matrix4x4`, `Size`, `AABB`, `MeshData`.", ents: ["Vector3", "Quaternion", "Matrix4x4", "AABB"], note: null, thread: "любой" },
+  };
+  const edges = [
+    ["render", "core"], ["render", "math"],
+    ["platform", "render"],
+    ["Scene", "core"], ["Scene", "math"], ["Scene", "render"],
+    ["resmgr", "Scene"],
+    ["physics", "Scene"],
+    ["graphics", "render"], ["graphics", "platform"], ["graphics", "resmgr"],
+    ["script", "core"],
+    ["script", "Scene", "private"], ["script", "physics", "private"], ["script", "graphics", "private"], ["script", "resmgr", "private"], ["script", "input", "private"],
+    ["Scene", "graphics", "violation"],
+  ];
+  for (const m of Object.keys(mods)) if (m !== "Engine") edges.push(["Engine", m, "engine"]);
+
+  const svg = $("#modgraph"), NS = "http://www.w3.org/2000/svg";
+  const mk = (t, a) => { const e = document.createElementNS(NS, t); for (const k in a) e.setAttribute(k, a[k]); return e; };
+  const defs = mk("defs", {});
+  for (const [id, color] of [["arr", "var(--muted)"], ["arrHot", "var(--accent)"], ["arrIn", "var(--update)"], ["arrBad", "var(--danger)"]]) {
+    const m = mk("marker", { id, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" });
+    const p = mk("path", { d: "M0,0 L10,5 L0,10 z" }); p.style.fill = color; m.append(p); defs.append(m);
+  }
+  svg.append(defs);
+  const clip = (x1, y1, x2, y2) => { // point where segment from center1 to center2 hits box2
+    const dx = x1 - x2, dy = y1 - y2, hw = W / 2 + 3, hh = H / 2 + 3;
+    const t = Math.min(hw / Math.abs(dx || 1e-6), hh / Math.abs(dy || 1e-6));
+    return [x2 + dx * t, y2 + dy * t];
+  };
+  const edgeEls = [];
+  const gEdges = mk("g", {}); svg.append(gEdges);
+  for (const [a, b, kind] of edges) {
+    const A = mods[a], B = mods[b];
+    let d;
+    if (kind === "violation") { // curve around to avoid overlapping Scene→render path
+      const [sx, sy] = [A.x - 30, A.y - H / 2], [ex, ey] = [B.x + 20, B.y + H / 2 + 3];
+      d = `M${sx},${sy} C${sx - 10},${sy - 40} ${ex + 10},${ey + 40} ${ex},${ey}`;
+    } else {
+      const [ex, ey] = clip(A.x, A.y, B.x, B.y), [sx, sy] = clip(B.x, B.y, A.x, A.y);
+      d = `M${sx},${sy} L${ex},${ey}`;
+    }
+    const p = mk("path", { d, class: `edge ${kind || ""}`, "marker-end": kind === "violation" ? "url(#arrBad)" : "url(#arr)" });
+    gEdges.append(p); edgeEls.push({ a, b, kind, p });
+  }
+  const modEls = {};
+  for (const [name, m] of Object.entries(mods)) {
+    const g = mk("g", { class: "mod", tabindex: 0, role: "button", "aria-label": `Модуль ${name}` });
+    g.append(mk("rect", { x: m.x - W / 2, y: m.y - H / 2, width: W, height: H, rx: 5 }));
+    const t = mk("text", { x: m.x, y: m.third.length ? m.y - 2 : m.y + 4.5, "text-anchor": "middle" }); t.textContent = name; g.append(t);
+    if (m.third.length) { const s = mk("text", { x: m.x, y: m.y + 12, "text-anchor": "middle", class: "third" }); s.textContent = m.third.join(", "); g.append(s); }
+    g.addEventListener("click", () => selectMod(name));
+    g.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectMod(name); } });
+    svg.append(g); modEls[name] = g;
+  }
+  function selectMod(name) {
+    const m = mods[name];
+    const out = edgeEls.filter(e => e.a === name), inn = edgeEls.filter(e => e.b === name);
+    const deps = new Set(out.map(e => e.b)), users = new Set(inn.map(e => e.a));
+    for (const [n, g] of Object.entries(modEls)) {
+      g.classList.toggle("sel", n === name);
+      g.classList.toggle("dep", deps.has(n));
+      g.classList.toggle("user", users.has(n) && !deps.has(n));
+      g.classList.toggle("faded", n !== name && !deps.has(n) && !users.has(n));
+    }
+    for (const e of edgeEls) {
+      const hot = e.a === name, hin = e.b === name;
+      e.p.classList.toggle("hot", hot); e.p.classList.toggle("hot-in", hin && !hot);
+      e.p.classList.toggle("dim", !hot && !hin);
+      e.p.setAttribute("marker-end", e.kind === "violation" ? "url(#arrBad)" : hot ? "url(#arrHot)" : hin ? "url(#arrIn)" : "url(#arr)");
+      if (e.kind === "engine") e.p.style.opacity = (hot || hin) ? (name === "Engine" ? 0.5 : 0) : 0;
+    }
+    const list = (arr, kindOf) => arr.length ? arr.map(e => `<code>${esc(kindOf(e))}</code>${e.kind === "private" ? ' <span class="muted">PRIVATE</span>' : e.kind === "violation" ? ' <span style="color:var(--danger)">нарушение</span>' : ""}`).join(" ") : '<span class="muted">нет</span>';
+    const outReal = out.filter(e => name === "Engine" || e.kind !== "engine");
+    const inReal = inn.filter(e => e.kind !== "engine");
+    $("#modInfo").innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div><span class="eyebrow">${esc(m.dir)}</span><h3 style="font-family:var(--font-mono);font-size:1.15rem;margin-top:2px">${esc(name)}</h3></div>
+        <p style="font-size:.93rem">${code(m.desc)}</p>
+        <dl class="kv">
+          <dt>namespace</dt><dd><code>${esc(m.ns)}</code></dd>
+          <dt>поток</dt><dd>${esc(m.thread)}</dd>
+          <dt>зависит от</dt><dd class="taglist">${name === "Engine" ? '<span class="muted">всех модулей</span>' : list(outReal, e => e.b)}</dd>
+          <dt>нужен</dt><dd class="taglist">${list(inReal, e => e.a)}${name !== "Engine" ? ' <code>Engine</code>' : ""}</dd>
+          ${m.third.length ? `<dt>сторонние</dt><dd>${m.third.map(t => `<span class="chip">${esc(t)}</span>`).join(" ")}</dd>` : ""}
+          <dt>сущности</dt><dd class="taglist">${m.ents.map(t => `<code>${esc(t)}</code>`).join(" ")}</dd>
+          ${m.note ? `<dt>заметка</dt><dd><code>docs/${esc(m.note)}</code></dd>` : ""}
+        </dl>
+        ${name === "Scene" ? '<p class="muted" style="font-size:.85rem">Заголовки Scene подключают заголовки graphics (<code>ModelHandler.hpp</code>, <code>Model.hpp</code>, <code>ModelManager.hpp</code>). Это известный цикл Scene ↔ graphics через resmgr: не расширяйте его.</p>' : ""}
+      </div>`;
+    store.set("elm.mod", name);
+  }
+  selectMod(mods[store.get("elm.mod")] ? store.get("elm.mod") : "Scene");
+
+  /* ---------- Frame stepper ---------- */
+  const steps = {
+    U: [
+      { t: "Время и ввод", s: "accumulator += dt · InputSystem::BeginFrame", d: "Считается `deltaTime`, он копится в накопителе фиксированного шага. Ввод начинает новый кадр." },
+      { t: "FixedUpdate × N", s: "PhysicsSystem::Step → ScriptSystem::FixedUpdate", mode: "partial", d: "Пока накопитель ≥ 1/60 с, выполняется фиксированный шаг.", li: ["`PhysicsSystem::Step(scene, dt)` — только в Play", "`CollisionEvent` раздаются скриптам: `on_collision_*`, `on_trigger_*`", "`main.on_fixed_update`, затем `on_fixed_update` сущностей — только в Play"] },
+      { t: "Ввод и смена режима", s: "InputSystem::Update · PlayMode::ApplyRequest", d: "Play/Stop, которые попросили скрипты (`elm.engine.play()`), окна или F5, применяются здесь, до скриптов. Поэтому их безопасно вызывать из Lua." },
+      { t: "Скрипты", s: "ScriptSystem::Update", mode: "partial", d: "Менеджер скриптов ведёт части по кадру.", li: ["`HotReload::Poll`: перезагрузка изменённых модулей вне хуков", "`main.on_update(dt)` — только в Play", "`on_start` новых экземпляров, затем `on_update` сущностей — только в Play"] },
+      { t: "Трансформы и камера", s: "Scene::UpdateWorldTransforms · CameraController::Update", d: "Скрипты двигали узлы через локальные трансформы. Мировые пересчитываются одним линейным проходом, родитель всегда раньше детей." },
+      { t: "Отсечение", s: "OcclusionCullingSystem::ExecuteCulling", d: "CPU-отсечение: frustum и программный буфер глубины. Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Флаг `visible` не меняет." },
+      { t: "BeginFrame", s: "RenderSystem::BeginFrame", d: "Берёт свободный слот `FrameRing`. Ждёт, только если render отстал на два кадра. Невалидный `FrameWriter` значит, что рендер остановлен." },
+      { t: "UI редактора", s: "ImGuiSystem::BuildFrame", d: "Окна Scene Hierarchy, Inspector, Scripts, вьюпорт с гизмо. Окна общаются через `MessageBus`, пишут в сцену её методами по `NodeId`." },
+      { t: "SubmitFrame", s: "UpdateWorldTransforms · BeginSceneView · Draw", d: "UI мог сдвинуть узлы, поэтому трансформы пересчитываются ещё раз. Обходится хранилище `ModelComponent`: видимые и не отсечённые узлы становятся draw-командами. Кадр и накопленные команды ресурсов уходят в кольцо." },
+    ],
+    R: [
+      { t: "Ждёт кадр", s: "FrameRing", d: "Render забирает кадры строго по порядку, ни один не пропускается." },
+      { t: "Команды ресурсов", s: "frame.resourceCommands → бэкенд", d: "Create/Update/Destroy из `RenderResources` выполняются в исходном порядке. `Destroy` идёт после всех кадров, отправленных до него." },
+      { t: "Окна", s: "swap chain · события UI-окон", d: "Основной swap chain подгоняется под `backbufferSize`, применяются события UI-окон: create, resize, destroy." },
+      { t: "Сортировка draw", s: "drawItems по мешу", d: "Сортировка по мешу собирает instanced-группы." },
+      { t: "Граф пасов", s: "IRenderFeature::Setup → Compile → Execute", d: "Каждая фича объявляет пасы в новом `RenderGraph`. `Compile` отсекает лишние пасы, раскладывает по уровням и ставит барьеры. Пасы одного уровня пишутся параллельно на воркерах `JobSystem`, затем `IRenderBackend::Submit`." },
+      { t: "Present", s: "доп. окна, затем основное", d: "Сначала дополнительные окна ImGui, потом основное." },
+      { t: "Возврат слота", s: "FrameRing · статистика", d: "Слот возвращается в кольцо, обновляется статистика для окна Profiler." },
+    ],
+  };
+  let playMode = store.get("elm.mode") !== "edit";
+  let frameN = 120, cursor = -1, timer = null, picked = { lane: "U", i: 0 };
+  const laneU = $("#laneU"), laneR = $("#laneR");
+  const render = () => {
+    for (const [lane, box] of [["U", laneU], ["R", laneR]]) {
+      box.innerHTML = "";
+      steps[lane].forEach((st, i) => {
+        const b = el("button", { type: "button", class: "step" });
+        b.innerHTML = `<span class="idx">${String(i + 1).padStart(2, "0")}</span><span><span class="t">${esc(st.t)}</span><span class="s">${esc(st.s)}</span></span>`;
+        if (!playMode && st.mode === "partial") b.classList.add("partial");
+        const active = cursor >= 0 && (lane === "U" ? i === cursor : i === Math.min(steps.R.length - 1, Math.floor(cursor * steps.R.length / steps.U.length)));
+        b.classList.toggle("on", active);
+        b.classList.toggle("picked", picked.lane === lane && picked.i === i);
+        b.addEventListener("click", () => { picked = { lane, i }; render(); });
+        box.append(b);
+      });
+    }
+    const st = steps[picked.lane][picked.i];
+    const thread = picked.lane === "U" ? `<span class="pill update">update · кадр ${frameN + 2}</span>` : `<span class="pill render">render · кадр ${frameN}</span>`;
+    const editNote = !playMode && st.mode === "partial" ? `<p class="muted" style="font-size:.86rem;margin-top:8px">В Edit физика не шагает, а <code>on_update</code>/<code>on_fixed_update</code> не вызываются. Hot reload и <code>on_start</code>/<code>on_reload</code> главного модуля работают.</p>` : "";
+    $("#stepDetail").innerHTML = `${thread}<h3 style="margin-top:8px">${esc(st.t)}</h3><p style="font-size:.92rem">${code(st.d)}</p>${st.li ? `<ul>${st.li.map(x => `<li style="font-size:.9rem">${code(x)}</li>`).join("")}</ul>` : ""}${editNote}`;
+    $("#ringR").textContent = frameN; $("#ringQ").textContent = frameN + 1; $("#ringU").textContent = frameN + 2;
+    $("#modeEdit").setAttribute("aria-pressed", !playMode); $("#modePlay").setAttribute("aria-pressed", playMode);
+  };
+  const advance = () => {
+    cursor++;
+    if (cursor >= steps.U.length) { cursor = -1; frameN++; stop(); render(); return false; }
+    picked = { lane: "U", i: cursor }; render(); return true;
+  };
+  const stop = () => { clearInterval(timer); timer = null; $("#playFrame").textContent = "▶ Проиграть кадр"; };
+  $("#playFrame").addEventListener("click", () => {
+    if (timer) { stop(); return; }
+    if (cursor === -1) advance();
+    $("#playFrame").textContent = "❚❚ Пауза";
+    timer = setInterval(() => { if (!advance()) stop(); }, 850);
+  });
+  $("#nextStep").addEventListener("click", () => { stop(); advance(); });
+  $("#modeEdit").addEventListener("click", () => { playMode = false; store.set("elm.mode", "edit"); render(); });
+  $("#modePlay").addEventListener("click", () => { playMode = true; store.set("elm.mode", "play"); render(); });
+  render();
+
+  /* ---------- Thread rules ---------- */
+  const rules = [
+    ["`RenderSystem::Resources()`, методы `RenderResources`, RAII `Texture`/`Mesh`", ["any"], "хэндл возвращается сразу, команды не меняют порядок"],
+    ["`RenderSystem::Init`, `Shutdown`", ["update"], "render-поток остановлен"],
+    ["`RenderSystem::BeginFrame`, `SubmitFrame`, `StopRendering`, `GetSize`", ["update"], "проверяется `ELM_ASSERT_THREAD(Update)`"],
+    ["`FrameWriter`", ["update"], "только поток, который его получил"],
+    ["`RenderSystem::RenderNextFrame`", ["render"], "проверяется `ELM_ASSERT_THREAD(Render)`"],
+    ["`RenderSystem::GetRenderStats`, `GetMemAllocated`", ["any"], ""],
+    ["`IRenderFeature::Init/Release/Setup`, `IRenderBackend::*`", ["render"], ""],
+    ["Шейдеры и пайплайны (`ShaderHandle`, `PipelineHandle`)", ["render"], "создаются в `IRenderFeature::Init`, через `RenderResources` нельзя"],
+    ["Execute-лямбда паса (`PassContext`, `CommandList`)", ["render", "worker"], "пасы одного уровня и батчи `RecordParallel`"],
+    ["Мутации `Scene`: `AddNode`, сеттеры, `UpdateWorldTransforms`, `Append`, `Clear`, `RestoreFrom`", ["update"], "внутри сцены нет блокировок"],
+    ["`SceneAsset`: чтение файла и построение", ["any"], "вставка в сцену — `Scene::Append` на update"],
+    ["`PhysicsSystem`", ["update"], "`Step` на фиксированном шаге, только в Play"],
+    ["Колбэки `ContactListener` Jolt", ["worker"], "очередь контактов под мьютексом"],
+    ["`lua::State`, `ScriptSystem`, все биндинги", ["update"], "одна `lua_State` на update-потоке"],
+    ["`core::TaskGroup::Run/Wait`, `parallelFor`", ["any"], "`Wait()` сам выполняет задачи очереди, группы можно вкладывать"],
+    ["`ImGuiSystem::BuildFrame`, окна редактора", ["update"], "UI-логика принадлежит главному потоку"],
+  ];
+  const tl = { update: "update", render: "render", worker: "воркер", any: "любой" };
+  let tf = "all";
+  const drawRules = () => {
+    $("#threadRows").innerHTML = rules.filter(r => tf === "all" || r[1].includes(tf)).map(r => `<tr><td>${code(r[0])}</td><td>${r[1].map(t => `<span class="pill ${t}">${tl[t]}</span>`).join("")}</td><td class="muted">${code(r[2])}</td></tr>`).join("");
+    for (const b of $("#threadFilters").children) b.setAttribute("aria-pressed", b.dataset.f === tf);
+  };
+  $("#threadFilters").addEventListener("click", e => { const f = e.target.closest("button")?.dataset.f; if (f) { tf = f; drawRules(); } });
+  drawRules();
+
+  /* ---------- NodeId playground ---------- */
+  const names = ["Floor", "Player", "Crate", "Guard 1", "Guard 2", "Lamp", "Door", "Zone", "Rock", "Camera Rig", "Wall", "Trap"];
+  let pg;
+  const pgInit = () => { pg = { slots: [], free: [], nodes: [], refs: [], sel: null, playing: false, snap: null, nameI: 0, log: [] }; for (let i = 0; i < 3; i++) pgAdd(true); pg.log = []; pgLog("Сцена из трёх узлов"); };
+  const idStr = (slot, gen) => `NodeId{${slot}:${gen}}`;
+  const rawStr = (slot, gen) => "0x" + (((gen << 24) | slot) >>> 0).toString(16).padStart(8, "0");
+  const pgLog = msg => { pg.log.push(msg); if (pg.log.length > 40) pg.log.shift(); };
+  const find = (slot, gen) => { const s = pg.slots[slot]; return s && s.alive && s.gen === gen; };
+  function pgAdd(silent) {
+    let slot;
+    if (pg.free.length) slot = pg.free.shift();
+    else { slot = pg.slots.length; pg.slots.push({ gen: 0, next: 1, alive: false }); }
+    const s = pg.slots[slot]; s.gen = s.next++; s.alive = true;
+    const name = names[pg.nameI++ % names.length] + (pg.nameI > names.length ? ` ${Math.ceil(pg.nameI / names.length)}` : "");
+    pg.nodes.push({ slot, gen: s.gen, name, inPlay: pg.playing });
+    pg.sel = { slot, gen: s.gen };
+    if (!silent) pgLog(`AddNode("${name}") → ${idStr(slot, s.gen)}${pg.free.length || s.gen > 1 ? "" : ""}`);
+  }
+  function pgRemove() {
+    if (!pg.sel) return;
+    const i = pg.nodes.findIndex(n => n.slot === pg.sel.slot && n.gen === pg.sel.gen);
+    if (i < 0) return;
+    const n = pg.nodes[i]; pg.nodes.splice(i, 1);
+    const s = pg.slots[n.slot]; s.alive = false;
+    if (s.next <= 255) pg.free.push(n.slot); else pgLog(`слот ${n.slot} выдал все поколения и больше не используется`);
+    pgLog(`RemoveNode(${idStr(n.slot, n.gen)}): слот ${n.slot} свободен, следующее поколение ${s.next}`);
+    pg.sel = pg.nodes.length ? { slot: pg.nodes[Math.min(i, pg.nodes.length - 1)].slot, gen: pg.nodes[Math.min(i, pg.nodes.length - 1)].gen } : null;
+  }
+  function pgHold() {
+    if (!pg.sel) return;
+    const n = pg.nodes.find(n => n.slot === pg.sel.slot && n.gen === pg.sel.gen);
+    if (!n || pg.refs.some(r => r.slot === n.slot && r.gen === n.gen)) return;
+    pg.refs.push({ slot: n.slot, gen: n.gen, name: n.name, when: pg.playing ? "в Play" : "в Edit" });
+    pgLog(`код запомнил ${idStr(n.slot, n.gen)} (${n.name})`);
+  }
+  function pgTogglePlay() {
+    if (!pg.playing) {
+      pg.snap = { nodes: pg.nodes.map(n => ({ ...n })), alive: pg.slots.map(s => ({ alive: s.alive, gen: s.gen })), free: [...pg.free] };
+      pg.playing = true; pgLog("Play: SceneSnapshot сохранил узлы с их id");
+    } else {
+      // restore nodes with their ids; slot "next" counters never go back, so Play ids stay stale
+      pg.nodes = pg.snap.nodes.map(n => ({ ...n }));
+      pg.slots.forEach((s, i) => { const a = pg.snap.alive[i]; if (a) { s.alive = a.alive; s.gen = a.gen; } else s.alive = false; });
+      pg.free = pg.slots.map((s, i) => i).filter(i => !pg.slots[i].alive && pg.slots[i].next <= 255);
+      pg.playing = false; pg.snap = null;
+      pgLog("Stop: снимок вернулся, поколения слотов не откатились");
+      if (pg.sel && !find(pg.sel.slot, pg.sel.gen)) pg.sel = pg.nodes[0] ? { slot: pg.nodes[0].slot, gen: pg.nodes[0].gen } : null;
+    }
+  }
+  const pgDraw = () => {
+    const nodesBox = $("#pgNodes");
+    nodesBox.innerHTML = pg.nodes.length ? "" : '<span class="muted">Узлов нет</span>';
+    pg.nodes.forEach((n, i) => {
+      const b = el("button", { type: "button", class: "noderow" + (pg.sel && pg.sel.slot === n.slot && pg.sel.gen === n.gen ? " sel" : "") });
+      b.innerHTML = `<span class="raw">${i}</span><span>${esc(n.name)}${n.inPlay ? ' <span class="muted" style="font-size:.78rem">· из Play</span>' : ""}</span><code>${idStr(n.slot, n.gen)}</code><span class="raw">${rawStr(n.slot, n.gen)}</span>`;
+      b.addEventListener("click", () => { pg.sel = { slot: n.slot, gen: n.gen }; pgDraw(); });
+      nodesBox.append(b);
+    });
+    $("#pgSlots").innerHTML = pg.slots.map((s, i) => `<span class="slotbox${s.alive ? " alive" : ""}" title="${s.alive ? "занят" : "свободен"}"><span>слот ${i}</span><b>${s.alive ? "g" + s.gen : "—"}</b><span>след. ${s.next}</span></span>`).join("");
+    $("#pgRefs").innerHTML = pg.refs.length ? pg.refs.map(r => {
+      const ok = find(r.slot, r.gen);
+      return `<div class="ref"><span><code>${idStr(r.slot, r.gen)}</code> ${esc(r.name)} <span class="muted" style="font-size:.78rem">· взят ${r.when}</span></span>${ok ? '<span class="ok">узел найден</span>' : '<span class="bad">nullptr · устарел</span>'}</div>`;
+    }).join("") : '<span class="muted" style="font-size:.88rem">Выберите узел и нажмите «Запомнить id». Так скрипт держит <code>local player</code>.</span>';
+    $("#pgLog").innerHTML = [...pg.log].reverse().map(l => `<span>${esc(l)}</span>`).join("");
+    $("#pgPlay").textContent = pg.playing ? "Stop" : "Play";
+    $("#pgMode").textContent = pg.playing ? "Play" : "Edit";
+    $("#pgMode").classList.toggle("play", pg.playing);
+    $("#pgRemove").disabled = !pg.sel; $("#pgHold").disabled = !pg.sel;
+    $("#pgAdd").disabled = pg.nodes.length >= 12;
+  };
+  $("#pgAdd").addEventListener("click", () => { pgAdd(); pgDraw(); });
+  $("#pgRemove").addEventListener("click", () => { pgRemove(); pgDraw(); });
+  $("#pgHold").addEventListener("click", () => { pgHold(); pgDraw(); });
+  $("#pgPlay").addEventListener("click", () => { pgTogglePlay(); pgDraw(); });
+  $("#pgReset").addEventListener("click", () => { pgInit(); pgDraw(); });
+  pgInit(); pg.sel = { slot: 1, gen: 1 }; pgHold(); pgRemove(); pgAdd(); pg.log.push("Пример: «Player» удалён, слот 1 выдан новому узлу с поколением 2"); pgDraw();
+
+  /* ---------- Script layers ---------- */
+  const layers = [
+    [5, "ScriptSystem", "жизненный цикл, сборка частей, регистрация биндингов, окна редактора", "Менеджер. Открывает `lua::State`, создаёт части, задаёт связи между частями одного слоя (колбэк после перезагрузки, порядок вызовов в кадре) и завершает всё в правильном порядке. `SelfTestAccess` — его друг для самотестов."],
+    [4, "bindings/*, ui/*", "адаптеры: Lua API и окна редактора", "Каждый файл биндингов регистрируется своей функцией (`bindings::RegisterScene(state, scene, models, entityScripts)`) и кладёт зависимости в `lua::State` под своим типом (`SetContext<T>`). Биндинги не знают `ScriptSystem`. Панели окна Scripts работают только со своими частями."],
+    [3, "MainModule, EntityScripts, ScriptDefaults, HotReload, ScriptConsole", "главный модуль, скрипты сущностей, props для Inspector, перезагрузка, консоль", "`MainModule` вызывает хуки `main.on_*`. `EntityScripts` держит экземпляры `EntityScript` и раздаёт столкновения. `HotReload` опрашивает файлы и патчит таблицы. `ScriptConsole` выполняет строки Lua в живом движке."],
+    [2, "ScriptClass", "модуль как класс скрипта", "Проверяет таблицу модуля и `props`, создаёт новый экземпляр `self = { entity, <props> }` с классом в `__index`."],
+    [1, "ModuleLoader, values/", "require и загруженные модули; Entity, ModelRef, ScriptValue ↔ Lua", "`require(\"a.b\")` ищет `assets/scripts/a/b.lua`, затем `a/b/init.lua`, только через файловую систему движка. `Entity` хранит `NodeId`, одному узлу всегда соответствует один Lua-объект."],
+    [0, "ModulePaths, lua/", "имя модуля ↔ файл; обёртка над C API", "Своя обёртка: `lua::Module`, `lua::Class<T>`, `lua::Ref`, `lua::FunctionRef::Call<R>` возвращает `EngineResult<R>`. Классы лежат в userdata по значению. Записать неизвестное поле нельзя."],
+  ];
+  let layerSel = 3;
+  const drawLayers = () => {
+    $("#layers").innerHTML = "";
+    for (const [lv, parts, what] of layers) {
+      const b = el("button", { type: "button", class: "layer" + (lv === layerSel ? " sel" : lv < layerSel ? " below" : "") });
+      b.innerHTML = `<span class="lv">${lv}</span><span class="body"><span class="parts">${esc(parts)}</span><span class="what">${esc(what)}</span></span>`;
+      b.addEventListener("click", () => { layerSel = lv; drawLayers(); });
+      $("#layers").append(b);
+    }
+    const L = layers.find(l => l[0] === layerSel);
+    $("#layerInfo").innerHTML = `<span class="eyebrow">слой ${L[0]}</span><h3 style="font-family:var(--font-mono);font-size:.98rem;margin:4px 0 8px">${esc(L[1])}</h3><p style="font-size:.92rem">${code(L[3])}</p><p class="muted" style="font-size:.85rem;margin-top:10px">${layerSel > 0 ? `Может зависеть от слоёв 0–${layerSel - 1} (подсвечены). Части своего слоя ему не видны.` : "Нижний слой, ни от кого внутри модуля не зависит."}</p>`;
+  };
+  drawLayers();
+
+  /* ---------- Hooks ---------- */
+  const hooks = {
+    entity: [
+      ["on_start(self)", "в начале следующего `Update` в Play, до первого `on_update`. В Edit скрипты сущностей не стартуют"],
+      ["on_update(self, dt)", "каждый кадр, после `on_update` главного модуля"],
+      ["on_fixed_update(self, dt)", "после шага физики, после главного модуля"],
+      ["on_destroy(self)", "`destroy()`, `remove(\"Script\")`, смена сцены, перезапуск скриптов; только после `on_start`"],
+      ["on_script_reload(self)", "после перезагрузки модуля этого скрипта"],
+      ["on_collision_enter(self, other, contact)", "тела начали касаться; `contact = { point, normal }`, нормаль от `self` к `other`"],
+      ["on_collision_exit(self, other)", "тела перестали касаться"],
+      ["on_trigger_enter / on_trigger_exit(self, other)", "одно из двух тел — триггер: вошло, вышло"],
+    ],
+    main: [
+      ["main.on_start()", "старт скриптов, после загрузки начальной сцены. Обычно вызывает `build_scene()`"],
+      ["main.on_reload(previous)", "после hot reload; в `previous` поля старой таблицы"],
+      ["main.on_update(dt)", "только Play: после input, до пересчёта трансформов и отсечения"],
+      ["main.on_fixed_update(dt)", "только Play: после шага физики"],
+      ["main.on_play()", "нажали Play: снимок сцены уже сделан"],
+      ["main.on_stop()", "нажали Stop: до того как сцена вернётся"],
+      ["main.on_shutdown()", "завершение или перезапуск Lua-машины"],
+    ],
+  };
+  const drawHooks = which => {
+    $("#hookRows").innerHTML = hooks[which].map(([h, w]) => `<tr><td style="white-space:nowrap"><code>${esc(h)}</code></td><td>${code(w)}</td></tr>`).join("");
+    document.querySelectorAll("[data-hooks]").forEach(b => b.setAttribute("aria-pressed", b.dataset.hooks === which));
+  };
+  document.querySelectorAll("[data-hooks]").forEach(b => b.addEventListener("click", () => drawHooks(b.dataset.hooks)));
+  drawHooks("entity");
+
+  /* ---------- Lua API ---------- */
+  const api = {
+    "elm.scene": [["spawn(name?, model?, parent?)", "создать сущность"], ["find(name), find_all(name), all(), count()", "поиск сущностей"], ["with(type)", "сущности с компонентом `Script`, `RigidBody` или `Collider`"], ["Entity:add/has/remove(type, init?)", "компоненты; `add` возвращает хэндл"], ["entity.position / rotation / scale", "локальный трансформ"], ["entity.world_position, parent, valid", "чтение мира и проверка"], ["entity.model / color / visible", "`ModelComponent`; запись `color`/`visible` создаёт компонент"], ["entity.script / rigidbody / collider", "хэндл компонента или `nil`"], ["entity:rotate(axis, angle)", "вокруг оси в пространстве родителя"], ["entity:destroy()", "вместе с потомками; после удаления всё, кроме `valid`, бросает ошибку"]],
+    "elm.models": [["cube(size?)", "новая модель с GPU-мешем при каждом вызове"], ["box(half), plane(x, z)", "простые формы"], ["load(path)", "`.model` или `.gltf` от `assets/`"], ["find(name)", "уже загруженная модель: `elm.models.find(n) or elm.models.cube()`"]],
+    "elm.physics": [["raycast(origin, direction, max_distance?, ignore?)", "`entity, point, normal, distance` ближайшего твёрдого тела, триггеры пропускаются"], ["gravity(), set_gravity(v)", "гравитация мира"], ["body_count()", "число тел"], ["RigidBody", "`type`, `mass`, `friction`, `restitution`, `linear_damping`, `angular_damping`, `gravity_scale`, `velocity`, `angular_velocity`, `add_force`, `add_impulse`"], ["Collider", "`shape`, `half_extents`, `radius`, `half_height`, `offset`, `trigger`"]],
+    "elm.math": [["Vector3, Vector4, Quaternion, Matrix4x4", "изменяемые значения, копия через `:copy()`"], ["lerp, clamp, radians, degrees", "функции"], ["pi", "константа"]],
+    "elm.input": [["is_down / is_pressed / is_released(key)", "клавиши"], ["is_mouse_*", "кнопки мыши"], ["mouse_position(), mouse_delta()", "курсор"], ["axis(name)", "ось из `AxisBinding`"], ["elm.input.key.W, elm.input.mouse.Left", "константы"]],
+    "elm.camera": [["position / set_position, translate", "положение"], ["forward, right", "направления"], ["yaw / pitch / set_orientation, rotate, look_at", "ориентация"], ["fov / set_fov", "угол обзора"]],
+    "elm.engine": [["load_test_scene(preset, instances?)", "тестовая сцена `ScenePreset`"], ["clear_scene()", "очистить сцену"], ["save_scene(file), load_scene(file)", "файлы относительно `assets/scenes`"], ["play(), stop(), is_playing()", "режим; переключение в начале следующего Update"]],
+    "elm.script": [["reload(module), reload_changed()", "перезагрузка модулей"], ["restart()", "новая Lua-машина на следующем кадре"], ["modules()", "загруженные модули"], ["persist(key, default)", "состояние, которое переживает hot reload"], ["memory(), engine_memory()", "память Lua и движка"]],
+    "elm.time": [["delta(), fixed_delta()", "шаг кадра и фиксированный шаг"], ["now(), frame()", "время и номер кадра"]],
+    "elm.settings": [["get(key)", "например `get(\"Script/MainModule\")`"], ["set(key, value)", "тип значения как при регистрации"]],
+    "elm.log": [["info, warn, error", "в лог движка, категория `Script`, с файлом и строкой"], ["print", "то же, что `info`"]],
+  };
+  let apiSel = "elm.scene";
+  const drawApi = () => {
+    $("#apiList").innerHTML = Object.keys(api).map(k => `<button type="button" data-k="${k}" aria-pressed="${k === apiSel}">${k}</button>`).join("");
+    $("#apiMembers").innerHTML = api[apiSel].map(([n, d]) => `<div class="member"><code>${esc(n)}</code><span>${code(d)}</span></div>`).join("");
+  };
+  $("#apiList").addEventListener("click", e => { const k = e.target.closest("button")?.dataset.k; if (k) { apiSel = k; drawApi(); } });
+  drawApi();
+
+  /* ---------- Body types ---------- */
+  const bodies = [
+    ["Collider без RigidBody", "статическое тело", "Пол и стены. Сам не двигается. Если узел передвинули скриптом или в редакторе, тело переставляется туда же."],
+    ["Static", "не двигается", "Как коллайдер без `RigidBody`: тело стоит, передвинутый узел переставляет его."],
+    ["Kinematic", "следует за узлом", "На шаге физики тело доезжает до позы узла с нужной скоростью (`MoveKinematic`) и толкает динамические тела. Его самого ничто не толкает. Двигайте через `entity.position`."],
+    ["Dynamic", "симулируется", "После шага поза пишется в узел. Передвинутый узел телепортирует тело. Держите такие тела в корне иерархии: поза пишется относительно родителя до шага. `velocity`, силы и импульсы есть только у них."],
+    ["trigger = true", "сенсор", "Сообщает о входе и выходе, не толкает. Статический триггер видит только активные динамические и кинематические тела: уснувшее внутри тело «выходит». Лучи триггеры пропускают."],
+  ];
+  let bodySel = 3;
+  const drawBodies = () => {
+    $("#bodyTypes").innerHTML = bodies.map((b, i) => `<button type="button" class="bt" data-i="${i}" aria-pressed="${i === bodySel}"><code>${esc(b[0])}</code><span>${esc(b[1])}</span></button>`).join("");
+    $("#bodyInfo").innerHTML = `<h3 style="font-family:var(--font-mono);font-size:.95rem;margin-bottom:6px">${esc(bodies[bodySel][0])}</h3><p style="font-size:.92rem">${code(bodies[bodySel][2])}</p>`;
+  };
+  $("#bodyTypes").addEventListener("click", e => { const i = e.target.closest("button")?.dataset.i; if (i != null) { bodySel = +i; drawBodies(); } });
+  drawBodies();
+
+  /* ---------- Render flow diagram ---------- */
+  (() => {
+    const s = $("#renderFlow");
+    const box = (x, y, w, h, title, sub, color) => {
+      const g = mk("g", {});
+      const r = mk("rect", { x, y, width: w, height: h, rx: 5 }); r.style.fill = "var(--surface)"; r.style.stroke = color; r.style.strokeWidth = 1.4; g.append(r);
+      const t = mk("text", { x: x + w / 2, y: y + (sub ? h / 2 - 3 : h / 2 + 4), "text-anchor": "middle" }); t.textContent = title; t.style.fill = "var(--ink)"; t.style.font = "500 12.5px var(--font-mono)"; g.append(t);
+      if (sub) { const u = mk("text", { x: x + w / 2, y: y + h / 2 + 13, "text-anchor": "middle" }); u.textContent = sub; u.style.fill = "var(--muted)"; u.style.font = "10.5px var(--font-body)"; g.append(u); }
+      s.append(g);
+    };
+    const arrow = (x1, y1, x2, y2) => { const p = mk("path", { d: `M${x1},${y1} L${x2},${y2}`, "marker-end": "url(#rfArr)" }); p.style.stroke = "var(--muted)"; p.style.strokeWidth = 1.3; p.style.fill = "none"; s.append(p); };
+    const d = mk("defs", {}); const m = mk("marker", { id: "rfArr", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto" }); const mp = mk("path", { d: "M0,0 L10,5 L0,10 z" }); mp.style.fill = "var(--muted)"; m.append(mp); d.append(m); s.append(d);
+    const label = (x, y, txt, color) => { const t = mk("text", { x, y }); t.textContent = txt; t.style.fill = color; t.style.font = "600 10px var(--font-mono)"; t.style.letterSpacing = "0.08em"; s.append(t); };
+    label(10, 16, "UPDATE", "var(--update)"); label(300, 16, "ПЕРЕДАЧА", "var(--muted)"); label(470, 16, "RENDER", "var(--render)");
+    box(10, 30, 170, 48, "RenderResources", "Create / Update / Destroy", "var(--update)");
+    box(10, 120, 170, 48, "FrameWriter", "BeginSceneView / Draw", "var(--update)");
+    box(230, 75, 120, 48, "FrameSnapshot", "кадр + команды", "var(--muted)");
+    box(380, 75, 90, 48, "FrameRing", "3 слота", "var(--muted)");
+    box(510, 30, 110, 48, "IRenderFeature", "Setup: пасы", "var(--render)");
+    box(510, 120, 110, 48, "RenderGraph", "Compile / Execute", "var(--render)");
+    box(650, 75, 100, 48, "IRenderBackend", "Submit / Present", "var(--render)");
+    arrow(180, 54, 228, 92); arrow(180, 144, 228, 108); arrow(350, 99, 378, 99);
+    arrow(470, 92, 508, 60); arrow(565, 78, 565, 118); arrow(620, 140, 648, 108);
+    const w = mk("text", { x: 565, y: 195, "text-anchor": "middle" }); w.textContent = "пасы одного уровня → воркеры JobSystem"; w.style.fill = "var(--worker)"; w.style.font = "10.5px var(--font-body)"; s.append(w);
+  })();
+
+  /* ---------- Glossary ---------- */
+  const G = [
+    ["Ядро", "EngineResult<T>, EngineError, ErrorCode", "результат операции, `std::expected<T, EngineError>`", "core/Error.hpp"],
+    ["Ядро", "core::Handle<Tag>", "типизированный хэндл: 24 бита индекса + 8 бит поколения, 0 — невалидный", "core/Handler.hpp"],
+    ["Ядро", "Settings", "настройки по ключу `Category/path`, хранятся в `.settings`", "core/Settings.hpp"],
+    ["Ядро", "MessageBus", "запросы между окнами редактора (`RegisterQuery`/`Request`)", "core/MessageBus.hpp"],
+    ["Ядро", "core::JobSystem, TaskGroup, parallelFor", "пул воркеров и группы задач", "core/JobSystem.hpp"],
+    ["Ядро", "core::ThreadRole (Update, Render)", "роль потока, проверяется `ELM_ASSERT_THREAD`", "core/Threading.hpp"],
+    ["Ядро", "FileSystem, Path, AssetPaths", "пути относительно корня (`Core/FileSystem/RootPath`)", "core/FileSystem.hpp"],
+    ["Ядро", "log::Category, log::Severity", "лог движка, макросы `LOG_MESSAGE`/`WARNING_MESSAGE`/`ERROR_MESSAGE`", "core/Log.hpp"],
+    ["Сцена", "Scene", "узлы, их мировые трансформы и компоненты; запись методами сцены по `NodeId`", "EngineApp, update"],
+    ["Сцена", "Scene::Node, узел", "ядро элемента сцены: `id`, родитель, имя, локальный трансформ. В Lua — `Entity`", "Scene"],
+    ["Сцена", "Scene::NodeDesc, Scene::SetParentResult", "с чем создаётся узел (`AddNode`); итог `SetParent`", "Scene/Scene.hpp"],
+    ["Сцена", "NodeId", "стабильная ссылка на узел. Индекс (`size_t`) живёт одну операцию", "Scene/NodeId.hpp"],
+    ["Сцена", "NodeIdTable", "выдаёт `NodeId`, знает индекс живого узла; id из Play после Stop не оживают", "Scene"],
+    ["Сцена", "IComponentStore, ComponentStore<T>", "компоненты одного типа по `NodeId` (sparse set)", "ComponentStores"],
+    ["Сцена", "ComponentStores", "по хранилищу на каждый `ComponentType`, создаются при первом обращении", "Scene, SceneAsset"],
+    ["Сцена", "ComponentType, SceneComponent", "закрытый список: `Script`, `RigidBody`, `Collider`, `Model`", "Scene/ComponentTypes.hpp"],
+    ["Сцена", "ModelComponent", "модель (`ModelHandler`), цвет, `visible` — флаг пользователя", "Scene"],
+    ["Сцена", "ScriptComponent", "Lua-модуль узла и переопределённые `props` (`ScriptValue`)", "Scene"],
+    ["Сцена", "RigidBody, Collider, BodyType, ColliderShape", "физические данные узла", "Scene/PhysicsComponents.hpp"],
+    ["Сцена", "CollisionEvent", "начало и конец контакта за шаг физики", "PhysicsSystem"],
+    ["Сцена", "SceneAsset, SceneAsset::Node", "сцена из файла до `Scene::Append`: узлы без id, ссылки `NodeRef`/`ModelRef`", "вызывающий"],
+    ["Сцена", "SceneSnapshot", "снимок сцены и моделей: Play делает, Stop восстанавливает", "PlayMode"],
+    ["Сцена", "ScenePreset, TestScenes", "генераторы тестовых сцен", "Scene/TestScenes.hpp"],
+    ["Модели и редактор", "Model, Model::Submesh, MeshDataPtr", "CPU-описание модели, геометрия неизменяема и разделяется с render", "graphics"],
+    ["Модели и редактор", "ModelHandler", "хэндл модели в `ModelManager` (историческое имя, не путать с `Handle`)", "graphics/ModelHandler.hpp"],
+    ["Модели и редактор", "graphics::ModelManager", "владеет моделями сцены и их GPU-мешами", "graphics"],
+    ["Модели и редактор", "Camera, CameraController", "камера вида и её управление", "graphics"],
+    ["Модели и редактор", "OcclusionCullingSystem, SoftwareDepthBuffer", "CPU-отсечение, результат по `NodeId` (`FindOccludee`)", "graphics/culling"],
+    ["Модели и редактор", "ImGuiSystem, IImGuiWindow, ImGuiWindowContext", "окна редактора и то, что им передаётся на кадр", "graphics/ui"],
+    ["Модели и редактор", "SelectedSceneInstance, PlayControls, OpenModelEditor", "сообщения между окнами через `MessageBus`", "ui/WindowMessages.hpp"],
+    ["Модели и редактор", "Edit / Play, PlayMode", "режимы редактора; `script::PlayMode`, владелец `EngineApp`", "script/PlayMode.hpp"],
+    ["Рендер", "RenderSystem", "фасад подсистемы рендера", "update + render"],
+    ["Рендер", "RenderResources", "создание, обновление и удаление ресурсов командами", "любой поток"],
+    ["Рендер", "TextureHandle, BufferHandle, MeshHandle, ShaderHandle, PipelineHandle, SurfaceId", "хэндлы ресурсов", "render/api/Handles.hpp"],
+    ["Рендер", "render::Texture, render::Mesh", "RAII-владельцы ресурсов", "любой поток"],
+    ["Рендер", "FrameWriter → FrameSnapshot → FrameRing", "запись кадра на update и передача на render (3 слота)", "update → render"],
+    ["Рендер", "ViewPort", "offscreen-цель 3D-вида для UI", "update"],
+    ["Рендер", "IRenderFeature (ScenePass, OverlayPass), RenderPipeline", "фичи, добавляющие пасы в граф", "render"],
+    ["Рендер", "RenderGraph, PassBuilder, PassContext, FrameBlackboard", "граф пасов, зависимости, барьеры", "render / воркер"],
+    ["Рендер", "rhi::IRenderBackend (DiligentBackend, NullBackend), CommandList, UploadAllocator", "абстракция графического API", "render"],
+    ["Системы", "PhysicsSystem, RayHit", "тела Jolt для узлов с `Collider`, по `NodeId`, только update", "physics"],
+    ["Системы", "InputSystem, IInputSubscriber, InputContext, ActionBinding, AxisBinding", "ввод с приоритетами подписчиков и действия", "input"],
+    ["Системы", "platform::Window", "главное окно GLFW", "platform"],
+    ["Системы", "resmgr::Serializer, GltfExporter, JsonValue", "`.model`/`.scene` (JSON через glaze), экспорт glTF", "resmgr"],
+    ["Скрипты", "script::ScriptSystem", "менеджер скриптов: Lua-машина, части, биндинги, порядок в кадре", "script"],
+    ["Скрипты", "EngineContext, ScriptTime, PlayRequests", "системы движка для скриптов, время кадра, запросы Play/Stop", "script"],
+    ["Скрипты", "ModulePaths, ModuleLoader, LoadedModule", "имя модуля ↔ файл; `require` и загруженные модули", "script/module"],
+    ["Скрипты", "MainModule, MainState", "главный модуль с хуками `main.on_*`", "script/module"],
+    ["Скрипты", "HotReload", "перезагрузка изменённых модулей с патчем таблицы", "script/reload"],
+    ["Скрипты", "EntityScript, EntityScripts, EntityScriptList", "экземпляр класса на узле с `ScriptComponent` и их проходы", "script/entity"],
+    ["Скрипты", "ScriptClass, ScriptDefaults", "модуль как класс скрипта; props по умолчанию для Inspector", "script/entity"],
+    ["Скрипты", "ScriptConsole", "Lua-консоль окна Scripts", "script/console"],
+    ["Скрипты", "Entity, ModelRef, ScriptProps", "как узлы, модели и props видны из Lua", "script/values"],
+    ["Скрипты", "lua::State, lua::Module, lua::Class, ApiRegistry", "своя обёртка над Lua C API и реестр API для LuaLS", "script/lua"],
+    ["Скрипты", "bindings::Register*, ComponentKind", "Lua API по модулям; компонент для Lua по `ComponentType`", "script/bindings"],
+  ];
+  const groups = ["Все", ...new Set(G.map(g => g[0]))];
+  let gGroup = "Все", gQuery = "";
+  const hl = (s, q) => { const e = esc(s); if (!q) return e; const i = e.toLowerCase().indexOf(esc(q).toLowerCase()); return i < 0 ? e : e.slice(0, i) + "<mark>" + e.slice(i, i + esc(q).length) + "</mark>" + e.slice(i + esc(q).length); };
+  const drawGloss = () => {
+    const q = gQuery.trim().toLowerCase();
+    const rows = G.filter(g => (gGroup === "Все" || g[0] === gGroup) && (!q || (g[1] + " " + g[2] + " " + g[3]).toLowerCase().includes(q)));
+    $("#glossRows").innerHTML = rows.map(g => `<tr><td style="min-width:200px"><code>${hl(g[1], gQuery.trim())}</code><div class="muted" style="font-size:.75rem;margin-top:3px">${esc(g[0])}</div></td><td>${code(g[2])}</td><td><code>${esc(g[3])}</code></td></tr>`).join("");
+    $("#glossEmpty").hidden = rows.length > 0;
+    $("#glossFilters").innerHTML = groups.map(g => `<button type="button" data-g="${g}" aria-pressed="${g === gGroup}">${g}</button>`).join("");
+  };
+  $("#glossFilters").addEventListener("click", e => { const g = e.target.closest("button")?.dataset.g; if (g) { gGroup = g; drawGloss(); } });
+  const q = $("#q");
+  q.addEventListener("input", () => { gQuery = q.value; gGroup = "Все"; drawGloss(); if (q.value) $("#glossary").scrollIntoView({ block: "start" }); });
+  document.addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q && !/input|textarea/i.test(document.activeElement.tagName)) { e.preventDefault(); q.focus(); } });
+  drawGloss();
+
+  /* ---------- Rules ---------- */
+  const R = [
+    [0, "Голые `new`/`delete`, C-style касты, `using namespace` в новых заголовках"],
+    [0, "Многострочные тела функций в `.hpp`, кроме шаблонов и inline"],
+    [0, "Синонимы существующих сущностей и понятия голыми `int`/`bool`/индексами"],
+    [0, "Типы Diligent вне `render/backend/diligent/`, Jolt вне `PhysicsSystem.cpp`, `lua.hpp` напрямую"],
+    [0, "Вызовы графического API из update-потока, исключения через render-поток"],
+    [0, "Глобальные изменяемые переменные и новые синглтоны"],
+    [0, "Функции «на все случаи» с флагами-переключателями поведения"],
+    [0, "Подавление предупреждений вместо исправления"],
+    [0, "Правка `assets/scripts/.meta/elm.lua`, `build/`, `../elm_deps/`"],
+    [1, "Контейнеры из `core/Std.hpp`: `String`, `Vector`, `UniquePtr`, `MakeUnique`"],
+    [1, "`[[nodiscard]] auto Init(...) -> EngineResult<void>`, ошибки через `MakeUnexpected`"],
+    [1, "Ссылка дольше одной операции — через хэндл: `NodeId`, `ModelHandler`, `MeshHandle`"],
+    [1, "В `///` класса: владелец, поток, поведение при невалидном хэндле"],
+    [1, "Новые API с привязкой к потоку помечены `ELM_ASSERT_THREAD(Role)`"],
+    [1, "Поля `m_camelCase`, константы `static constexpr PascalCase`, Lua — `snake_case`"],
+    [1, "Перед завершением: сборка без новых предупреждений, `--script-selftest` проходит, `docs/` обновлены"],
+  ];
+  $("#rulesList").innerHTML = R.map(([ok, t]) => `<div class="rule${ok ? " do" : ""}"><span>${code(t)}</span></div>`).join("");
+
+  /* ---------- Notes ---------- */
+  const N = {
+    "Вход": ["Главная.md"],
+    "core": ["JobSystem.md", "Роли потоков.md"],
+    "scene": ["Сцена.md", "Файл сцены.md"],
+    "script, physics, editor": ["script/Скрипты на Lua.md", "physics/Физика.md", "editor/Редактор.md"],
+    "render: основы": ["Рендер.md", "Архитектура рендера.md", "Главный цикл.md", "Правила потоков рендера.md", "Отладка рендера.md", "Ограничения рендера.md"],
+    "render/ресурсы": ["Хэндлы.md", "RenderResources.md", "Текстуры.md", "Буферы.md", "Меши и инстансинг.md", "Загрузка ресурсов в фоне.md", "Время жизни ресурсов.md"],
+    "render/кадр": ["FrameWriter.md", "FrameSnapshot.md", "FrameRing.md", "ViewPort.md", "Кадр на render-потоке.md"],
+    "render/граф": ["RenderGraph.md", "Ресурсы графа.md", "Фичи.md", "CommandList.md", "UploadAllocator.md", "Шейдеры и пайплайны.md", "Параллельная запись.md", "Пример HighlightPass.md"],
+    "render/бэкенд": ["Бэкенды.md", "Новый бэкенд.md"],
+  };
+  $("#notesGrid").innerHTML = Object.entries(N).map(([g, list]) => `<div><h3>${esc(g)}</h3>${list.map(n => `<code>${esc(n)}</code>`).join("")}</div>`).join("");
+
+  /* ---------- Scroll spy ---------- */
+  const links = [...document.querySelectorAll("#toc a")];
+  const secs = links.map(a => document.getElementById(a.getAttribute("href").slice(1))).filter(Boolean);
+  const spy = () => {
+    let cur = secs[0];
+    for (const s of secs) if (s.getBoundingClientRect().top < 140) cur = s;
+    for (const a of links) {
+      const on = a.getAttribute("href") === "#" + cur.id;
+      a.classList.toggle("active", on);
+      if (on && matchMedia("(max-width: 900px)").matches) { const nav = a.closest(".toc"); const l = a.offsetLeft - nav.clientWidth / 2 + a.clientWidth / 2; nav.scrollTo({ left: l }); }
+    }
+  };
+  let raf = 0;
+  addEventListener("scroll", () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(spy); }, { passive: true });
+  spy();
+})();
+</script>
+</body>
+</html>

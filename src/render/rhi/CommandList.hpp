@@ -104,6 +104,12 @@ namespace elm::render::rhi {
             uint32_t firstIndex { 0 };
             uint32_t baseVertex { 0 };
         };
+        /// Non-indexed draw from the bound vertex buffers; no index buffer is needed.
+        struct Draw {
+            uint32_t vertexCount { 0 };
+            uint32_t instanceCount { 1 };
+            uint32_t firstVertex { 0 };
+        };
     }
 
     using Command = std::variant<
@@ -117,7 +123,8 @@ namespace elm::render::rhi {
         cmd::BindIndexBuffer,
         cmd::BindTexture,
         cmd::SetConstants,
-        cmd::DrawIndexed>;
+        cmd::DrawIndexed,
+        cmd::Draw>;
 
     /// Backend-independent list of draw commands. A pass records into its own list (possibly on a
     /// worker thread); the backend translates the lists in submission order on the render thread.
@@ -147,6 +154,7 @@ namespace elm::render::rhi {
         {
             m_commands.emplace_back(cmd::DrawIndexed { indexCount, instanceCount, firstIndex, baseVertex });
         }
+        void Draw(uint32_t vertexCount, uint32_t instanceCount = 1, uint32_t firstVertex = 0) { m_commands.emplace_back(cmd::Draw { vertexCount, instanceCount, firstVertex }); }
 
         [[nodiscard]] const Vector<Command>& GetCommands() const noexcept { return m_commands; }
         [[nodiscard]] StringView GetName() const noexcept { return m_name; }

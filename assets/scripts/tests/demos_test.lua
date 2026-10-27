@@ -5,7 +5,7 @@ local expect = require "tests.expect"
 local tests = {}
 
 function tests.demos_load()
-    for _, name in ipairs({ "demo.spinner", "demo.npcs", "demo.physics", "coin_rush.main" }) do
+    for _, name in ipairs({ "demo.spinner", "demo.npcs", "demo.physics", "demo.debug", "coin_rush.main" }) do
         local demo = require(name)
         expect.eq(type(demo.on_start), "function", name .. ".on_start")
     end

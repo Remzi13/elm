@@ -16,10 +16,12 @@ engine_add_library(render
     api/RenderResources.hpp
     api/RenderResources.cpp
     api/FrameWriter.hpp
+    api/FrameWriter.cpp
     api/NativeWindow.hpp
     api/PipelineDesc.hpp
 
     frame/FrameSnapshot.hpp
+    frame/DebugGeometry.hpp
     frame/FrameRing.hpp
     frame/FrameRing.cpp
 
@@ -36,6 +38,8 @@ engine_add_library(render
     passes/ScenePass.cpp
     passes/OverlayPass.hpp
     passes/OverlayPass.cpp
+    passes/DebugDrawPass.hpp
+    passes/DebugDrawPass.cpp
 )
 
 target_link_libraries(render PUBLIC core math)

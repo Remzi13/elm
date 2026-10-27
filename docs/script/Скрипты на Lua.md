@@ -236,7 +236,13 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
     с кнопкой «Go to line N», а старая версия модуля продолжает работать.
   - Файл, изменённый на диске другим редактором, подхватывается сам. Если в нём есть
     несохранённые правки, редактор спрашивает, чью версию оставить.
-  - Внизу позиция курсора `Ln, Col`.
+  - Внизу позиция курсора `Ln, Col` (подсказка по клавишам — при наведении на имя файла).
+  - Отступы (`script/ui/CodeIndent.*`, отступ — четыре пробела, как в скриптах): **Tab** вставляет
+    отступ, а при выделении на несколько строк сдвигает их вправо (пустые строки не трогает);
+    **Ctrl+]** / **Ctrl+[** сдвигают выделенные строки вправо / влево; **Enter** повторяет отступ
+    строки выше. Shift+Tab не используется: ImGui по нему переводит фокус на предыдущий элемент.
+  - У поля свой тёмный фон и цвет выделения: синий фон полей темы редактора почти совпадает с
+    цветом выделения, и на нём выделенный текст было не видно.
   - Подсветка синтаксиса Lua: ключевые слова, `nil`/`true`/`false`, строки (в том числе `[[ ]]`),
     комментарии (в том числе `--[[ ]]`), числа, стандартные глобалы и `elm`, имена функций после
     `function`. Слева номера строк, текущая строка выделена. Строка ошибки подсвечивается красным,
@@ -302,6 +308,7 @@ lua::Class<Vector3>(module, "Vector3")
 | `elm.models` | `cube(size?)`, `box(half)`, `plane(x, z)`, `load(path)` (.model / .gltf от `assets/`), `find(name)`; класс `Model` |
 | `elm.camera` | `position`/`set_position`, `translate`, `forward`, `right`, `yaw`/`pitch`/`set_orientation`, `rotate`, `look_at`, `fov`/`set_fov` |
 | `elm.physics` | `raycast(origin, direction, max_distance?, ignore?)`, `gravity`/`set_gravity`, `body_count`; классы `RigidBody`, `Collider` |
+| `elm.debug` | `text(position, text)`, `line`, `arrow`, `ray(origin, direction, length)`, `point(position, size?)`, `box(center, half_extents)`, `sphere`, `capsule` (последний аргумент — `style?`), `channel(name, enabled_by_default?)`; класс `DebugChannel` ([[Отладочная отрисовка]]) |
 
 ```lua
 local Vector3 = elm.math.Vector3
@@ -329,6 +336,7 @@ e:destroy()                                   -- вместе с потомка�
 и переиспользуйте её (`elm.models.find(name) or elm.models.cube()`).
 
 Пример: `assets/scripts/demo/spinner.lua`. Чтобы запустить его, установите `Script/MainModule = demo.spinner`.
+Отладочная отрисовка из Lua — `demo.debug` ([[Отладочная отрисовка]]).
 
 ## Узлы сцены
 

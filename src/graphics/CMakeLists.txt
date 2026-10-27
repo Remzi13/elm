@@ -15,6 +15,19 @@ engine_add_library(graphics
     culling/SoftwareDepthBuffer.cpp
     culling/OcclusionCullingSystem.hpp
     culling/OcclusionCullingSystem.cpp
+    debug/DebugDraw.hpp
+    debug/DebugDraw.cpp
+    debug/DebugDrawSystem.hpp
+    debug/DebugDrawSystem.cpp
+    debug/IDebugVisualizer.hpp
+    debug/ColliderVisualizer.hpp
+    debug/ColliderVisualizer.cpp
+    debug/PhysicsVisualizer.hpp
+    debug/PhysicsVisualizer.cpp
+    debug/WorldAxesVisualizer.hpp
+    debug/WorldAxesVisualizer.cpp
+    gizmo/TransformGizmo.hpp
+    gizmo/TransformGizmo.cpp
     ui/DockSpaceView.hpp
     ui/DockSpaceView.cpp
     ui/EditorStyle.hpp
@@ -44,6 +57,6 @@ engine_add_library(graphics
     ui/ModelEditorWindow.cpp
 )
 
-target_link_libraries(graphics PUBLIC imgui_glfw imguizmo)
+target_link_libraries(graphics PUBLIC imgui_glfw imgui_core)
 target_link_libraries(graphics PUBLIC core render platform resmgr)
 target_link_libraries(graphics PRIVATE glfw)

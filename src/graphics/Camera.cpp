@@ -64,4 +64,23 @@ namespace elm {
 		return { std::cos(m_yaw), 0.0f, -std::sin(m_yaw) };
 	}
 
+	ViewRay Camera::GetRayThrough(float ndcX, float ndcY) const noexcept {
+		const Vector3 forward = GetForwardDirection();
+		const Vector3 right = GetRightDirection();
+		const Vector3 up = right.Cross(forward).Normalized();
+		// How far a unit step along right and up moves in NDC at distance 1: the projection
+		// itself gives the scale and the sign, whatever its handedness or field of view
+		const Matrix4x4 viewProjection = GetViewProjectionMatrix();
+		const auto ndcOf = [&](const Vector3& point) {
+			const Vector4 clip = viewProjection.TransformPoint(point);
+			return Vector3 { clip.x / clip.w, clip.y / clip.w, 0.0f };
+		};
+		const float ndcPerRight = ndcOf(m_position + forward + right).x;
+		const float ndcPerUp = ndcOf(m_position + forward + up).y;
+		if (ndcPerRight == 0.0f || ndcPerUp == 0.0f)
+			return { m_position, forward };
+		const Vector3 direction = forward + right * (ndcX / ndcPerRight) + up * (ndcY / ndcPerUp);
+		return { m_position, direction.Normalized() };
+	}
+
 } // namespace Engine

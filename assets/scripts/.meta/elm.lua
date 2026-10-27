@@ -43,6 +43,9 @@ elm.engine = {}
 ---@class elm.physics
 elm.physics = {}
 
+---@class elm.debug
+elm.debug = {}
+
 ---@param message string
 function elm.log.info(message) end
 
@@ -577,6 +580,53 @@ function elm.physics.set_gravity(gravity) end
 ---@return integer
 function elm.physics.body_count() end
 
+---@param position Vector3
+---@param text string
+---@param style any?
+function elm.debug.text(position, text, style) end
+
+---@param from Vector3
+---@param to Vector3
+---@param style any?
+function elm.debug.line(from, to, style) end
+
+---@param from Vector3
+---@param to Vector3
+---@param style any?
+function elm.debug.arrow(from, to, style) end
+
+---@param origin Vector3
+---@param direction Vector3
+---@param length number
+---@param style any?
+function elm.debug.ray(origin, direction, length, style) end
+
+---@param position Vector3
+---@param size number?
+---@param style any?
+function elm.debug.point(position, size, style) end
+
+---@param center Vector3
+---@param half_extents Vector3
+---@param style any?
+function elm.debug.box(center, half_extents, style) end
+
+---@param center Vector3
+---@param radius number
+---@param style any?
+function elm.debug.sphere(center, radius, style) end
+
+---@param center Vector3
+---@param radius number
+---@param half_height number
+---@param style any?
+function elm.debug.capsule(center, radius, half_height, style) end
+
+---@param name string
+---@param enabled_by_default boolean?
+---@return DebugChannel
+function elm.debug.channel(name, enabled_by_default) end
+
 ---@class Vector3
 ---@field x number
 ---@field y number
@@ -871,4 +921,10 @@ function RigidBody:add_impulse(impulse) end
 ---@field trigger boolean
 local Collider = {}
 elm.physics.Collider = Collider
+
+---@class DebugChannel
+---@field name string (read only)
+---@field enabled boolean
+local DebugChannel = {}
+elm.debug.DebugChannel = DebugChannel
 

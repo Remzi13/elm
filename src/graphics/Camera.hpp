@@ -7,6 +7,12 @@ namespace elm {
 
 	using namespace math;
 
+	/// A ray from the camera through a point of its view; direction has unit length.
+	struct ViewRay {
+		Vector3 origin;
+		Vector3 direction;
+	};
+
 	class Camera {
 	public:
 		Camera(const Vector3& position = { 0.0f, 6.0f, -22.0f },
@@ -27,6 +33,9 @@ namespace elm {
 		[[nodiscard]] Matrix4x4 GetViewMatrix() const noexcept;
 		[[nodiscard]] Matrix4x4 GetProjectionMatrix() const noexcept;
 		[[nodiscard]] Matrix4x4 GetViewProjectionMatrix() const noexcept;
+		/// The ray through a point of the view in normalized device coordinates: x to the right
+		/// and y up, both in [-1, 1].
+		[[nodiscard]] ViewRay GetRayThrough(float ndcX, float ndcY) const noexcept;
 
 		// Freeze camera for culling inspection
 		void SetFreezeCulling(bool freeze) noexcept;

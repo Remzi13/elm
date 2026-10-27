@@ -16,8 +16,6 @@ namespace {
 
     static_assert(sizeof(InstanceData) == sizeof(float) * 20, "Instance layout must match the per-instance vertex stream");
 
-    constexpr TextureFormat SceneColorFormat = TextureFormat::RGBA8_UNORM_SRGB;
-    constexpr TextureFormat SceneDepthFormat = TextureFormat::D32_FLOAT;
     constexpr uint32_t CameraConstantsSlot = 0;
 
     /// Instances per draw call and draws per command list when the scene is recorded in batches.
@@ -94,8 +92,8 @@ bool ScenePass::Init(rhi::IRenderBackend& backend)
         { 6, 1, VertexFormat::Float4, true },
         { 7, 1, VertexFormat::Float4, true }, // instance color
     };
-    desc.colorFormat = SceneColorFormat;
-    desc.depthFormat = SceneDepthFormat;
+    desc.colorFormat = SceneViewTargets::ColorFormat;
+    desc.depthFormat = SceneViewTargets::DepthFormat;
     desc.depthTest = true;
     desc.depthWrite = true;
     desc.bindings = { { "CameraConstants", ShaderStage::Vertex, BindingType::Constants, sizeof(CameraConstants) } };
@@ -122,7 +120,7 @@ void ScenePass::Setup(RenderGraph& graph, const FrameSnapshot& frame, const rhi:
 
         // The update side resizes the target through the command queue: draw at the size it actually has
         TextureDesc colorDesc;
-        if (!backend.GetTextureDesc(view.colorTarget, colorDesc) || colorDesc.format != SceneColorFormat)
+        if (!backend.GetTextureDesc(view.colorTarget, colorDesc) || colorDesc.format != SceneViewTargets::ColorFormat)
             continue;
         const String suffix = viewIndex == 0 ? String() : " " + String(std::to_string(viewIndex));
         const auto sceneColor = graph.ImportTexture("SceneColor" + suffix, view.colorTarget, colorDesc);
@@ -130,14 +128,14 @@ void ScenePass::Setup(RenderGraph& graph, const FrameSnapshot& frame, const rhi:
         TextureDesc depthDesc;
         depthDesc.width = colorDesc.width;
         depthDesc.height = colorDesc.height;
-        depthDesc.format = SceneDepthFormat;
+        depthDesc.format = SceneViewTargets::DepthFormat;
         depthDesc.bindFlags = TextureBind::DepthStencil;
 
         struct Data {
             RGTexture color;
             RGTexture depth;
         };
-        graph.AddPass<Data>("Scene" + suffix,
+        const Data& scene = graph.AddPass<Data>("Scene" + suffix,
             [&](PassBuilder& builder, Data& data) {
                 data.color = builder.WriteColor(sceneColor);
                 data.depth = builder.WriteDepth(builder.CreateTexture("SceneDepth" + suffix, depthDesc));
@@ -179,7 +177,7 @@ void ScenePass::Setup(RenderGraph& graph, const FrameSnapshot& frame, const rhi:
                 });
             });
 
-        blackboard.sceneColors.push_back(sceneColor);
+        blackboard.sceneViews.push_back({ viewIndex, sceneColor, scene.depth });
     }
 }
 

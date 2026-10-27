@@ -35,6 +35,12 @@ namespace elm::script::bindings {
     /// elm.physics, the RigidBody and Collider components.
     void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, graphics::ModelManager* models);
 
+    /// elm.debug: lines and wireframe shapes in the engine view, in the channel Script/Default or
+    /// in a channel the scripts register (elm.debug.channel).
+    void RegisterDebug(lua::State& state, graphics::DebugDraw* debugDraw);
+    /// Drops the timed debug primitives of every script channel: Play leaves none behind after Stop.
+    void ClearScriptDebugDraw(lua::State& state);
+
     /// What elm.engine reaches: the scene and its models, the entity scripts that end before the
     /// scene is replaced, and the Play/Stop requests.
     struct EngineModuleContext {

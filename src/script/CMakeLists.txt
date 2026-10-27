@@ -17,6 +17,8 @@ set(UI_SRC
     ui/ScriptEditor.cpp
     ui/LuaHighlighter.hpp
     ui/LuaHighlighter.cpp
+    ui/CodeIndent.hpp
+    ui/CodeIndent.cpp
 )
 
 set(ENTITY_SRC
@@ -44,6 +46,7 @@ set(BINDINGS_SRC
     bindings/CameraBindings.cpp
     bindings/EngineBindings.cpp
     bindings/PhysicsBindings.cpp
+    bindings/DebugBindings.cpp
 )
 
 set(LUA_SRC

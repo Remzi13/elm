@@ -22,6 +22,10 @@ namespace elm {
 		class FrameWriter;
 	}
 
+	namespace graphics {
+		class DebugDraw;
+	}
+
 	struct ImGuiWindowContext {
 		render::RenderSystem& renderSystem;
 		Scene& scene;
@@ -31,6 +35,8 @@ namespace elm {
 		render::ViewPort& viewPort;
 		/// Frame being built: windows may add their own scene views to it.
 		render::FrameWriter& frame;
+		/// Debug primitives of the engine view and their channels.
+		graphics::DebugDraw& debugDraw;
 	};
 
 	class IImGuiWindow {

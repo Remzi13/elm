@@ -2,7 +2,11 @@
 
 #include "core/Std.hpp"
 
+#include "graphics/gizmo/TransformGizmo.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
+#include "graphics/ui/WindowMessages.hpp"
+
+#include <optional>
 namespace elm  {
 
 class EngineViewportWindow final : public IImGuiWindow {
@@ -17,8 +21,13 @@ public:
     [[nodiscard]] bool IsFocused() const noexcept { return m_focused; }
 
 private:
+    /// Moves the selected node with the gizmo and draws the gizmo.
+    void UpdateGizmo(ImGuiWindowContext& context, NodeId node, const GizmoSettings& settings, const graphics::GizmoInput& input);
+
     bool m_hovered { false };
     bool m_focused { false };
+    /// Made on the first frame with a selection: it registers its debug draw channel.
+    std::optional<graphics::TransformGizmo> m_gizmo;
 };
 
 } // namespace Engine

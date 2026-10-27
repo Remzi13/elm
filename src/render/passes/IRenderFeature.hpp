@@ -12,10 +12,23 @@ namespace elm::render {
 
     struct FrameSnapshot;
 
+    /// Targets of one rendered scene view. Passes that draw over the scene write into them after ScenePass.
+    struct SceneViewTargets {
+        /// Formats of the targets: pipelines drawing into a scene view are created with them.
+        static constexpr TextureFormat ColorFormat = TextureFormat::RGBA8_UNORM_SRGB;
+        static constexpr TextureFormat DepthFormat = TextureFormat::D32_FLOAT;
+
+        /// Index into FrameSnapshot::sceneViews.
+        size_t viewIndex { 0 };
+        RGTexture color;
+        /// Scene depth of this view, valid until the end of the frame.
+        RGTexture depth;
+    };
+
     /// Graph resources features hand to each other within one frame.
     struct FrameBlackboard {
-        /// Rendered scene views, sampled by the UI.
-        Vector<RGTexture> sceneColors;
+        /// Rendered scene views; their color targets are sampled by the UI.
+        Vector<SceneViewTargets> sceneViews;
     };
 
     /// A rendering feature: owns its pipelines and adds its passes to the frame graph.

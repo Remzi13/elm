@@ -2,11 +2,51 @@
    "formatVersion": 6,
    "models": [
       {
+         "path": "../models/Plane.model"
+      },
+      {
+         "path": "../models/Box.model"
+      },
+      {
          "path": "../models/Cube.model"
+      },
+      {
+         "path": "../models/Box_1.model"
+      },
+      {
+         "path": "../models/Cube_1.model"
       }
    ],
    "nodes": [
       {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  20,
+                  0.05,
+                  20
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 20,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.28,
+                  0.31,
+                  0.28,
+                  1
+               ],
+               "modelIndex": 0,
+               "visible": true
+            }
+         },
          "localTransform": [
             [
                1,
@@ -18,7 +58,7 @@
                0,
                1,
                0,
-               3
+               0
             ],
             [
                0,
@@ -33,249 +73,55 @@
                1
             ]
          ],
-         "name": "Spinner"
+         "name": "Ground"
       },
       {
          "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.4,
+                  1.5,
+                  0.4
+               ],
+               "halfHeight": 1.1,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.4,
+               "shape": "box",
+               "trigger": false
+            },
             "Model": {
                "color": [
-                  1,
-                  0.5,
-                  1,
+                  0.45,
+                  0.45,
+                  0.55,
                   1
                ],
-               "modelIndex": 0,
+               "modelIndex": 1,
                "visible": true
             }
          },
          "localTransform": [
             [
-               0.6000000238418579,
-               0,
-               0,
-               6
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               0
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 1",
-         "parentIndex": 0
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  0.75022984,
-                  0.9328799,
-                  0.8333333,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
-               0,
-               0,
-               3
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               5.196152210235596
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 3",
-         "parentIndex": 0
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  0.50039816,
-                  0.9999998,
-                  0.75,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
-               0,
-               0,
-               3.6739402930577075E-16
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               6
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 4",
-         "parentIndex": 0
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  0.2504599,
-                  0.9332779,
-                  0.6666667,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
-               0,
-               0,
-               -3
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               5.196152210235596
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 5",
-         "parentIndex": 0
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  0.06731948,
-                  0.75057447,
-                  0.5833333,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
-               0,
-               0,
-               -5.196152210235596
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               3
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 6",
-         "parentIndex": 0
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  6.3413626E-7,
-                  0.5007963,
-                  0.5,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": false
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
+               1,
                0,
                0,
                -6
             ],
             [
                0,
-               0.6000000238418579,
+               1,
                0,
-               4.9110612869262695
+               1.5
             ],
             [
                0,
                0,
-               0.6000000238418579,
-               7.347880586115415E-16
+               1,
+               9
             ],
             [
                0,
@@ -284,82 +130,644 @@
                1
             ]
          ],
-         "name": "Spinner Cube 7",
-         "parentIndex": 0
+         "name": "Pillar 1"
       },
       {
          "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.4,
+                  1.5,
+                  0.4
+               ],
+               "halfHeight": 1.1,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.4,
+               "shape": "box",
+               "trigger": false
+            },
             "Model": {
                "color": [
-                  0.93307906,
-                  0.749885,
-                  0.9166667,
+                  0.45,
+                  0.45,
+                  0.55,
                   1
                ],
-               "modelIndex": 0,
+               "modelIndex": 1,
                "visible": true
             }
          },
          "localTransform": [
             [
-               2.9489734172821045,
+               1,
                0,
                0,
-               21.321828842163086
+               -3
             ],
             [
                0,
-               1.8263012170791626,
+               1,
                0,
-               0
+               1.5
             ],
             [
                0,
                0,
                1,
+               6
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Pillar 2"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.4,
+                  1.5,
+                  0.4
+               ],
+               "halfHeight": 1.1,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.4,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.45,
+                  0.45,
+                  0.55,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               1.5
+            ],
+            [
+               0,
+               0,
+               1,
+               9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Pillar 3"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.4,
+                  1.5,
+                  0.4
+               ],
+               "halfHeight": 1.1,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.4,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.45,
+                  0.45,
+                  0.55,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               3
+            ],
+            [
+               0,
+               1,
+               0,
+               1.5
+            ],
+            [
+               0,
+               0,
+               1,
+               6
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Pillar 4"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.4,
+                  1.5,
+                  0.4
+               ],
+               "halfHeight": 1.1,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.4,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.45,
+                  0.45,
+                  0.55,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               6
+            ],
+            [
+               0,
+               1,
+               0,
+               1.5
+            ],
+            [
+               0,
+               0,
+               1,
+               9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Pillar 5"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.5,
+                  0.5,
+                  0.5
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.5,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.6,
+                  0.42,
+                  0.25,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 2,
+               "restitution": 0,
+               "type": "dynamic"
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -2.4000000953674316
+            ],
+            [
+               0,
+               1,
+               0,
+               1.7000000476837158
+            ],
+            [
+               0,
+               0,
+               1,
+               3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Crate 1"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.5,
+                  0.5,
+                  0.5
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.5,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.6,
+                  0.42,
+                  0.25,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 2,
+               "restitution": 0,
+               "type": "dynamic"
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -0.800000011920929
+            ],
+            [
+               0,
+               1,
+               0,
+               2.9000000953674316
+            ],
+            [
+               0,
+               0,
+               1,
+               3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Crate 2"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.5,
+                  0.5,
+                  0.5
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.5,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.8521739,
+                  0.52443093,
+                  0.21489602,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 2,
+               "restitution": 0,
+               "type": "dynamic"
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -1.2116191387176514
+            ],
+            [
+               0,
+               1,
+               0,
+               4.589820861816406
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.819210052490234
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Crate 3"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.5,
+                  0.5,
+                  0.5
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.5,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.6,
+                  0.42,
+                  0.25,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 2,
+               "restitution": 0,
+               "type": "dynamic"
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               2.4000000953674316
+            ],
+            [
+               0,
+               1,
+               0,
+               5.300000190734863
+            ],
+            [
+               0,
+               0,
+               1,
+               3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Crate 4"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  1.5,
+                  0.5,
+                  1.5
+               ],
+               "halfHeight": 0.5,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.5,
+               "shape": "box",
+               "trigger": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               5
+            ],
+            [
+               0,
+               1,
+               0,
+               0.5
+            ],
+            [
+               0,
+               0,
+               1,
+               2
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Zone"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.2,
+                  0.8,
+                  0.9,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               1.2000000476837158
+            ],
+            [
+               0,
+               0,
+               1,
+               -2
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Scanner"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.25,
+                  0.25,
+                  0.25
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.25,
+               "shape": "sphere",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.95,
+                  0.55,
+                  0.2,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0.5,
+               "type": "dynamic"
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               4.300000190734863
+            ],
+            [
+               0,
+               1,
+               0,
                5
             ],
             [
                0,
                0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 2",
-         "parentIndex": 6
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  0.06652352,
-                  0.25080502,
-                  0.41666666,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
-               0,
-               0,
-               -5.196152210235596
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               -3
+               1,
+               2
             ],
             [
                0,
@@ -368,82 +776,64 @@
                1
             ]
          ],
-         "name": "Spinner Cube 8",
-         "parentIndex": 0
+         "name": "Ball"
       },
       {
          "components": {
-            "Model": {
-               "color": [
-                  0.24908105,
-                  0.06751916,
-                  0.33333334,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
-               0,
-               0,
-               -3
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               -5.196152210235596
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 9",
-         "parentIndex": 0
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  0.49880552,
-                  0.0000014268062,
+            "Collider": {
+               "halfExtents": [
                   0.25,
+                  0.25,
+                  0.25
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.25,
+               "shape": "sphere",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.95,
+                  0.55,
+                  0.2,
                   1
                ],
-               "modelIndex": 0,
+               "modelIndex": 4,
                "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0.5,
+               "type": "dynamic"
             }
          },
          "localTransform": [
             [
-               0.6000000238418579,
+               1,
                0,
                0,
-               -1.1021821408568715E-15
+               4.599999904632568
             ],
             [
                0,
-               0.6000000238418579,
+               1,
                0,
-               0
+               6
             ],
             [
                0,
                0,
-               0.6000000238418579,
-               -6
+               1,
+               2
             ],
             [
                0,
@@ -452,40 +842,64 @@
                1
             ]
          ],
-         "name": "Spinner Cube 10",
-         "parentIndex": 0
+         "name": "Ball"
       },
       {
          "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.25,
+                  0.25,
+                  0.25
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.25,
+               "shape": "sphere",
+               "trigger": false
+            },
             "Model": {
                "color": [
-                  0.74884975,
-                  0.06632522,
-                  0.16666667,
+                  0.95,
+                  0.55,
+                  0.2,
                   1
                ],
-               "modelIndex": 0,
+               "modelIndex": 4,
                "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0.5,
+               "type": "dynamic"
             }
          },
          "localTransform": [
             [
-               0.6000000238418579,
+               1,
                0,
                0,
-               3
+               4.900000095367432
             ],
             [
                0,
-               0.6000000238418579,
+               1,
                0,
-               0
+               7
             ],
             [
                0,
                0,
-               0.6000000238418579,
-               -5.196152210235596
+               1,
+               2
             ],
             [
                0,
@@ -494,50 +908,7 @@
                1
             ]
          ],
-         "name": "Spinner Cube 11",
-         "parentIndex": 0
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
-                  0.9322809,
-                  0.24873672,
-                  0.083333336,
-                  1
-               ],
-               "modelIndex": 0,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               0.6000000238418579,
-               0,
-               0,
-               5.196152210235596
-            ],
-            [
-               0,
-               0.6000000238418579,
-               0,
-               0
-            ],
-            [
-               0,
-               0,
-               0.6000000238418579,
-               -3
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "Spinner Cube 12",
-         "parentIndex": 0
+         "name": "Ball"
       }
    ]
 }

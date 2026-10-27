@@ -38,14 +38,6 @@ namespace BroadPhaseLayers {
     constexpr uint32_t NUM_LAYERS = 2;
 }
 
-/// What PhysicsSystem::CastRay hit.
-struct RayHit {
-    NodeId node;
-    math::Vector3 point;
-    math::Vector3 normal;
-    float distance { 0.0f };
-};
-
 /// Jolt Physics bodies of the scene nodes that have a Collider (with a RigidBody; without one the
 /// body is static). Step makes the bodies follow the components and the node transforms, simulates,
 /// then moves the nodes of the dynamic bodies. Bodies are keyed by NodeId: a removed node or
@@ -86,9 +78,16 @@ public:
     bool AddForce(NodeId node, const math::Vector3& force);
     bool AddImpulse(NodeId node, const math::Vector3& impulse);
 
-    /// Closest body along the ray, triggers and the body of `ignore` skipped.
+    /// Closest body along the ray, triggers and the body of `ignore` skipped. A valid call (non-zero
+    /// direction, positive maxDistance) is recorded in the frame log.
     [[nodiscard]] std::optional<RayHit> CastRay(const math::Vector3& origin, const math::Vector3& direction,
         float maxDistance, NodeId ignore = { }) const;
+
+    /// Rays and begun contacts since the last ClearFrameLog. The reference stays valid for the
+    /// life of the system, so a debug view may keep it.
+    [[nodiscard]] const PhysicsFrameLog& FrameLog() const noexcept { return m_frameLog; }
+    /// Starts the log of a new frame.
+    void ClearFrameLog() noexcept { m_frameLog.Clear(); }
 
     [[nodiscard]] math::Vector3 GetGravity() const;
     void SetGravity(const math::Vector3& gravity);
@@ -129,6 +128,9 @@ private:
     [[nodiscard]] const BodyLink* FindLink(NodeId node) const;
     /// The body of a node when it is dynamic, InvalidBody otherwise.
     [[nodiscard]] uint32_t DynamicBodyOf(NodeId node) const;
+    /// CastRay without recording; unitDirection has unit length.
+    [[nodiscard]] std::optional<RayHit> FindRayHit(const math::Vector3& origin, const math::Vector3& unitDirection,
+        float maxDistance, NodeId ignore) const;
 
     UniquePtr<JPH::PhysicsSystem> m_physicsSystem;
     UniquePtr<JPH::TempAllocatorImpl> m_tempAllocator;
@@ -142,6 +144,8 @@ private:
     /// NodeId::Raw() -> the node's body.
     UnorderedMap<uint32_t, BodyLink> m_links;
     Vector<CollisionEvent> m_events;
+    /// A log for inspection, not simulation state: the const CastRay appends to it.
+    mutable PhysicsFrameLog m_frameLog;
     /// The body limit was hit: reported once.
     bool m_reportedFull { false };
 

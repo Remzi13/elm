@@ -97,15 +97,16 @@ void HighlightPass::Setup(RenderGraph& graph, const FrameSnapshot& frame, const 
     FrameBlackboard& blackboard)
 {
     // Нечего рисовать или сцены нет: пас не добавляем вовсе
-    if (!m_pipeline || frame.highlightItems.empty() || !blackboard.sceneColor.IsValid())
+    if (!m_pipeline || frame.highlightItems.empty() || blackboard.sceneViews.empty())
         return;
+    const RGTexture sceneColor = blackboard.sceneViews.front().color;
 
     struct Data { RGTexture color; };
     graph.AddPass<Data>("Highlight",
         [&](PassBuilder& builder, Data& data) {
             // Запись в тот же текстурный ресурс, что у ScenePass: граф поставит пас после сцены,
             // а OverlayPass (Read) — после этого паса
-            data.color = builder.WriteColor(blackboard.sceneColor);
+            data.color = builder.WriteColor(sceneColor);
         },
         [pipeline = m_pipeline](const Data& data, PassContext& context) {
             const auto& frame = context.Frame();

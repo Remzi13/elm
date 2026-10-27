@@ -359,10 +359,8 @@ namespace elm {
 		m_pendingPlatformWindows.erase( m_pendingPlatformWindows.begin(), m_pendingPlatformWindows.begin() + count );
 	}
 
-	void ImGuiSystem::BuildFrame(render::RenderSystem& renderSystem, Scene& scene, graphics::ModelManager& models,
-		Camera& camera, const FrameStats& stats,
-		render::ViewPort& viewPort, render::FrameWriter& frameWriter ) {
-		auto& frame = frameWriter.Overlay();
+	void ImGuiSystem::BuildFrame( const ImGuiWindowContext& context ) {
+		auto& frame = context.frame.Overlay();
 		frame.Clear();
 		if ( !m_initialized ) return;
 		if ( m_renderer ) {
@@ -378,8 +376,8 @@ namespace elm {
 		m_dockSpace.Render( m_windows );
 		for ( const auto& window : m_windows ) {
 			if ( window && window->IsVisible() ) {
-				ImGuiWindowContext context { renderSystem, scene, models, camera, stats, viewPort, frameWriter };
-				window->Render( context );
+				ImGuiWindowContext windowContext = context;
+				window->Render( windowContext );
 			}
 		}
 		ImGui::Render();

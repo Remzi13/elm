@@ -160,6 +160,7 @@ namespace elm::script {
         m_entityScripts->DestroyAll();
         m_mainModule->CallHook("on_stop");
         m_playing = false;
+        bindings::ClearScriptDebugDraw(m_state);
         // Instances made by those calls go too: none runs in Edit mode
         m_entityScripts->Release();
     }
@@ -225,6 +226,7 @@ namespace elm::script {
         bindings::RegisterCamera(m_state, m_engine.camera);
         bindings::RegisterEngine(m_state, { m_engine.scene, m_engine.models, m_entityScripts.get(), m_engine.play });
         bindings::RegisterPhysics(m_state, m_engine.physics, m_engine.scene, m_engine.models);
+        bindings::RegisterDebug(m_state, m_engine.debugDraw);
     }
 
 } // namespace elm::script

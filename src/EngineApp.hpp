@@ -8,6 +8,7 @@
 #include "render/RenderSystem.hpp"
 #include "render/ViewPort.hpp"
 
+#include "graphics/debug/DebugDrawSystem.hpp"
 #include "graphics/FrameStats.hpp"
 #include "graphics/ui/ImGuiSystem.hpp"
 #include "graphics/CameraController.hpp"
@@ -39,7 +40,7 @@ namespace elm {
 		EngineApp(EngineApp&&) noexcept = delete;
 		EngineApp& operator=(EngineApp&&) noexcept = delete;
 
-		[[nodiscard]] auto Init(uint32_t width = 1280, uint32_t height = 720, StringView title = "C++23 3D Engine Core") -> EngineResult<void>;
+		[[nodiscard]] auto Init(uint32_t width = 1280, uint32_t height = 720, StringView title = "Elm") -> EngineResult<void>;
 
 		[[nodiscard]] auto Run() -> EngineResult<void>;
 		void Shutdown();
@@ -82,6 +83,9 @@ namespace elm {
 		FrameStats m_currentStats;
 
 		OcclusionCullingSystem m_cullingSystem;
+
+		/// Debug primitives of the engine view, collected during the frame and copied into it.
+		graphics::DebugDrawSystem m_debugDraw;
 
 		// Update and render run in parallel: the update thread builds frame N+1 while the render
 		// thread draws frame N; RenderSystem's frame ring hands snapshots over (see render/frame/FrameRing.hpp).

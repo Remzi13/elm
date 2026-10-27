@@ -49,6 +49,10 @@ namespace {
         return IM_COL32(212, 212, 212, 255);
     }
 
+    // The editor theme's frame colors are blue, close to its selection color: on them a selection
+    // would not show, so the text area and the gutter use a dark background of their own
+    const ImVec4 EditorBackground { 0.118f, 0.118f, 0.118f, 1.0f };
+    const ImVec4 SelectionColor { 0.15f, 0.31f, 0.47f, 1.0f };
     constexpr ImU32 CursorColor = IM_COL32(230, 230, 230, 255);
     constexpr ImU32 CurrentLineColor = IM_COL32(255, 255, 255, 12);
     constexpr ImU32 ErrorLineColor = IM_COL32(255, 70, 60, 60);
@@ -114,6 +118,50 @@ namespace {
             offset = next + 1;
         }
         return static_cast<int>(offset);
+    }
+
+    /// The indentation edit asked for this frame: Tab (caught by the character filter) or Ctrl+] / Ctrl+[.
+    IndentEdit RequestedIndentEdit(IndentEdit pending)
+    {
+        if (pending != IndentEdit::None)
+            return pending;
+        if (!ImGui::GetIO().KeyCtrl)
+            return IndentEdit::None;
+        if (ImGui::IsKeyPressed(ImGuiKey_RightBracket))
+            return IndentEdit::Indent;
+        if (ImGui::IsKeyPressed(ImGuiKey_LeftBracket))
+            return IndentEdit::Outdent;
+        return IndentEdit::None;
+    }
+
+    void ReplaceText(ImGuiInputTextCallbackData* data, const IndentedText& edited)
+    {
+        data->DeleteChars(0, data->BufTextLen);
+        data->InsertChars(0, edited.text.data(), edited.text.data() + edited.text.size());
+        data->SelectionStart = static_cast<int>(edited.selectionBegin);
+        data->SelectionEnd = static_cast<int>(edited.selectionEnd);
+        data->CursorPos = data->SelectionEnd;
+    }
+
+    void IndentSelection(ImGuiInputTextCallbackData* data, IndentEdit edit)
+    {
+        const StringView text(data->Buf, static_cast<size_t>(data->BufTextLen));
+        const auto begin = static_cast<size_t>((std::min)(data->SelectionStart, data->SelectionEnd));
+        const auto end = static_cast<size_t>((std::max)(data->SelectionStart, data->SelectionEnd));
+        ReplaceText(data, ApplyIndentEdit(text, begin, end, edit));
+    }
+
+    /// Right after Enter: the new line starts with the indentation of the line above.
+    void IndentNewLine(ImGuiInputTextCallbackData* data)
+    {
+        const bool enter = ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_KeypadEnter);
+        const int cursor = data->CursorPos;
+        if (!enter || cursor == 0 || data->Buf[cursor - 1] != '\n' || data->SelectionStart != data->SelectionEnd)
+            return;
+        // A copy: inserting may move the buffer the view points into
+        const String indent(LineIndent(StringView(data->Buf, static_cast<size_t>(data->BufTextLen)), static_cast<size_t>(cursor - 1)));
+        if (!indent.empty())
+            data->InsertChars(cursor, indent.data(), indent.data() + indent.size());
     }
 
 } // namespace
@@ -429,11 +477,18 @@ void ScriptEditor::DrawDocument(Document& document)
     ImGui::SameLine(0.0f, 0.0f);
 
     const ImGuiInputTextFlags flags = ImGuiInputTextFlags_AllowTabInput | ImGuiInputTextFlags_CallbackResize
-        | ImGuiInputTextFlags_CallbackAlways;
+        | ImGuiInputTextFlags_CallbackAlways | ImGuiInputTextFlags_CallbackCharFilter;
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+    ImGui::PushStyleColor(ImGuiCol_FrameBg, EditorBackground);
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, EditorBackground);
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, EditorBackground);
+    ImGui::PushStyleColor(ImGuiCol_TextSelectedBg, SelectionColor);
+    // Square corners: the gutter joins the field on the left
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 0.0f);
     ImGui::InputTextMultiline("##text", document.text.data(), document.text.capacity() + 1,
         ImVec2(-1.0f, height), flags, &ScriptEditor::TextCallback, &document);
-    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor(5);
     DrawHighlight(document, textId, gutterMin, gutterWidth);
 
     ImGui::Separator();
@@ -447,6 +502,8 @@ void ScriptEditor::DrawDocument(Document& document)
         ImGui::TextColored(OkColor, "Saved");
     ImGui::SameLine();
     ImGui::TextDisabled("| %s", document.relative.c_str());
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Ctrl+S save and reload\nTab / Ctrl+] indent, Ctrl+[ outdent\nEnter keeps the indentation");
 }
 
 void ScriptEditor::DrawHighlight(Document& document, ImGuiID textId, const ImVec2& gutterMin, float gutterWidth)
@@ -536,6 +593,7 @@ void ScriptEditor::DrawHighlight(Document& document, ImGuiID textId, const ImVec
 
     // Line numbers, right aligned in the gutter, scrolled with the text
     ImDrawList* gutter = parent->DrawList;
+    gutter->AddRectFilled(ImVec2(gutterMin.x, field->Pos.y), ImVec2(gutterMin.x + gutterWidth, field->Pos.y + field->Size.y), ImGui::GetColorU32(EditorBackground));
     gutter->PushClipRect(ImVec2(gutterMin.x, clip.Min.y), ImVec2(gutterMin.x + gutterWidth, clip.Max.y), true);
     const int totalLines = 1 + static_cast<int>(std::count(document.text.begin(), document.text.end(), '\n'));
     const float spacing = ImGui::GetStyle().ItemSpacing.x * 0.5f;
@@ -701,6 +759,18 @@ int ScriptEditor::TextCallback(ImGuiInputTextCallbackData* data)
         data->Buf = document.text.data();
         return 0;
     }
+    if (data->EventFlag == ImGuiInputTextFlags_CallbackCharFilter) {
+        // Tab does not insert a tab character: it indents the selection, later this frame
+        if (data->EventChar != '\t')
+            return 0;
+        document.pendingIndent = IndentEdit::Indent;
+        return 1;
+    }
+
+    if (const IndentEdit edit = RequestedIndentEdit(document.pendingIndent); edit != IndentEdit::None)
+        IndentSelection(data, edit);
+    document.pendingIndent = IndentEdit::None;
+    IndentNewLine(data);
 
     const StringView text(data->Buf, static_cast<size_t>(data->BufTextLen));
     if (document.gotoLine > 0) {
