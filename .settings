@@ -1,6 +1,7 @@
 {
    "settings": {
       "Core/FileSystem/RootPath": ".",
+      "Render/Debug/Draw/Editor/Gizmo": true,
       "Render/Debug/Draw/Editor/WorldAxes": true,
       "Render/Debug/Draw/Physics/Colliders": true,
       "Render/Debug/Draw/Physics/Contacts": true,
@@ -10,10 +11,10 @@
       "Render/Debug/Draw/Script/sensor": true,
       "Render/Debug/Draw/Script/shapes": true,
       "Render/Debug/Draw/Script/trail": true,
-      "Render/culling/DepthBias": 0.009999999776482582,
+      "Render/culling/DepthBias": 0.0032999999821186066,
       "Render/culling/DepthFalseColor": true,
-      "Render/culling/EnableFrustumCulling": false,
-      "Render/culling/EnableOcclusionCulling": false,
+      "Render/culling/EnableFrustumCulling": true,
+      "Render/culling/EnableOcclusionCulling": true,
       "Render/culling/Resolution/Height": 288,
       "Render/culling/Resolution/Width": 512,
       "Render/culling/VisualMode": 0,

@@ -1,7 +1,6 @@
 #include "graphics/ui/ImGuiSystem.hpp"
 #include "core/Unexpected.hpp"
 
-#include "graphics/ui/DepthPreviewWindow.hpp"
 #include "graphics/ui/EditorStyle.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ui/LogWindow.hpp"
@@ -93,10 +92,9 @@ namespace elm {
 		ApplyEditorStyle();
 
 		// Register standard engine editor windows
-		EmplaceWindow<SocLabWindow>( settings );
+		EmplaceWindow<SocLabWindow>( settings, cullingSystem );
 		EmplaceWindow<SceneHierarchyWindow>( settings );
 		EmplaceWindow<EngineViewportWindow>( settings );
-		EmplaceWindow<DepthPreviewWindow>( settings, cullingSystem );
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 		EmplaceWindow<SettingsWindow>( settings );

@@ -5,12 +5,22 @@
 #include "imgui.h"
 
 #include <algorithm>
+#include <cstdio>
 
 namespace elm {
 
 	namespace {
 		static constexpr std::array<uint32_t, 5> ResolutionWidths = { 64, 128, 256, 320, 512 };
 		static constexpr std::array<uint32_t, 5> ResolutionHeights = { 36, 72, 144, 180, 288 };
+
+		ImTextureID ToTextureId(render::TextureHandle texture)
+		{
+			if (!texture.IsValid())
+				return nullptr;
+			// Real texture views are aligned pointers, so the lowest bit marks an engine handle
+			const auto value = (static_cast<uintptr_t>(texture.Raw()) << 1) | 1;
+			return reinterpret_cast<ImTextureID>(value);
+		}
 	}
 
 	void SocLabWindow::SetResolutionIndex(int index) noexcept {
@@ -24,13 +34,11 @@ namespace elm {
 		m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::ResolutionHeightSetting, height);
 	}
 
-	void SocLabWindow::Render(ImGuiWindowContext& context) {
-		auto& scene = context.scene;
-		const auto& stats = context.stats;
+	void SocLabWindow::Render(ImGuiWindowContext& /*context*/) {
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);
-		ImGui::SetNextWindowSize(ImVec2(440.0f, 560.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(480.0f, 680.0f), ImGuiCond_FirstUseEver);
 		if (!ImGui::Begin(GetName().data(), &m_visible)) {
 			ImGui::End();
 			return;
@@ -39,8 +47,43 @@ namespace elm {
 		ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "C++23 Vulkan SOC Testbed");
 		ImGui::Separator();
 
-		if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (ImGui::CollapsingHeader("Software Depth Buffer Viewport", ImGuiTreeNodeFlags_DefaultOpen)) {
+			if (!m_cullingSystem) {
+				ImGui::TextDisabled("No Occlusion Culling System connected.");
+			} else {
+				const uint32_t depthWidth = m_cullingSystem->GetWidth();
+				const uint32_t depthHeight = m_cullingSystem->GetHeight();
+				ImGui::Text("Resolution: %ux%u", depthWidth, depthHeight);
+				ImGui::SameLine();
+				auto falseColor = m_settings.Get<bool>(Settings::Category::Render,
+					OcclusionCullingSystem::DepthFalseColorSetting);
+				if (ImGui::Checkbox("False Color (Heatmap)", &falseColor)) {
+					m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::DepthFalseColorSetting, falseColor);
+				}
 
+				const ImTextureID texture = ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandle());
+				if (texture && depthHeight > 0) {
+					const float aspect = static_cast<float>(depthWidth) / static_cast<float>(depthHeight);
+					const float width = ImGui::GetContentRegionAvail().x;
+					const float height = width / aspect;
+					const ImVec2 imagePos = ImGui::GetCursorScreenPos();
+					ImGui::Image(texture, ImVec2(width, height));
+					if (ImGui::IsItemHovered()) {
+						const ImVec2 mouse = ImGui::GetMousePos();
+						const uint32_t px = static_cast<uint32_t>(((mouse.x - imagePos.x) / width) * static_cast<float>(depthWidth));
+						const uint32_t py = static_cast<uint32_t>(((mouse.y - imagePos.y) / height) * static_cast<float>(depthHeight));
+						if (px < depthWidth && py < depthHeight) {
+							ImGui::BeginTooltip();
+							ImGui::Text("Pixel: (%u, %u)", px, py);
+							ImGui::Text("Normalized Depth: %.4f", m_cullingSystem->GetDepth(px, py));
+							ImGui::EndTooltip();
+						}
+					}
+				}
+			}
+		}
+
+		if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
 			auto enableFrustumCulling = m_settings.Get<bool>(Settings::Category::Render,
 				OcclusionCullingSystem::EnableFrustumCullingSetting);
 			if (ImGui::Checkbox("Enable Frustum Culling", &enableFrustumCulling)) {
@@ -87,20 +130,24 @@ namespace elm {
 		}
 
 		if (ImGui::CollapsingHeader("Real-Time Telemetry", ImGuiTreeNodeFlags_DefaultOpen)) {
-			//const auto& s = renderSystem.GetCullingSystem().GetStats();
-			//ImGui::Text("Total Objects:     %u", s.totalObjects);
-			//ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "Visible Rendered:  %u", s.visibleCount);
-			//ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Frustum Culled:    %u", s.frustumCulledCount);
-			//ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Occlusion Culled:  %u", s.occlusionCulledCount);
-			//ImGui::Spacing();
-			//ImGui::ProgressBar(s.cullingRatioPercent / 100.0f, ImVec2(-1, 0), "");
-			//ImGui::SameLine();
-			//ImGui::Text("Culled: %.1f%%", s.cullingRatioPercent);
-			//ImGui::Separator();
-			//ImGui::Text("CPU Rasterize Time: %.1f us (%.3f ms)", s.rasterizeTimeUs, s.rasterizeTimeUs / 1000.0f);
-			//ImGui::Text("CPU Query / Test:   %.1f us (%.3f ms)", s.queryTimeUs, s.queryTimeUs / 1000.0f);
-			//ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f), "Total Culling Time: %.1f us (%.3f ms)",
-			//	s.totalCullingTimeUs, s.totalCullingTimeUs / 1000.0f);
+			if (m_cullingSystem) {
+				const auto& s = m_cullingSystem->GetStats();
+				ImGui::Text("Total Objects:     %u", s.totalObjects);
+				ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "Visible Rendered:  %u", s.visibleCount);
+				ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Frustum Culled:    %u", s.frustumCulledCount);
+				ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Occlusion Culled:  %u", s.occlusionCulledCount);
+				ImGui::Spacing();
+				char overlay[32];
+				std::snprintf(overlay, sizeof(overlay), "Culled: %.1f%%", s.cullingRatioPercent);
+				ImGui::ProgressBar(s.cullingRatioPercent / 100.0f, ImVec2(-1.0f, 0.0f), overlay);
+				ImGui::Separator();
+				ImGui::Text("CPU Rasterize Time: %.1f us (%.3f ms)", s.rasterizeTimeUs, s.rasterizeTimeUs / 1000.0f);
+				ImGui::Text("CPU Query / Test:   %.1f us (%.3f ms)", s.queryTimeUs, s.queryTimeUs / 1000.0f);
+				ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.3f, 1.0f), "Total Culling Time: %.1f us (%.3f ms)",
+					s.totalCullingTimeUs, s.totalCullingTimeUs / 1000.0f);
+			} else {
+				ImGui::TextDisabled("No Occlusion Culling System connected.");
+			}
 		}
 
 		if (ImGui::CollapsingHeader("Camera & Controls")) {
@@ -114,4 +161,4 @@ namespace elm {
 		ImGui::End();
 	}
 
-} // namespace Engine
+} // namespace elm

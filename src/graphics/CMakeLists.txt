@@ -47,8 +47,6 @@ engine_add_library(graphics
     ui/ImGuiRenderer.cpp
     ui/ImGuiSystem.hpp
     ui/ImGuiSystem.cpp
-    ui/DepthPreviewWindow.hpp
-    ui/DepthPreviewWindow.cpp
     ui/ProfilerWindow.hpp
     ui/ProfilerWindow.cpp
     ui/SettingsWindow.hpp
