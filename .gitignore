@@ -10,5 +10,4 @@ third_party/*-subbuild/
 projects/*/Build/
 docs/.obsidian/
 docs/.trash/
-*.model
 
