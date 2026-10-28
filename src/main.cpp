@@ -164,9 +164,15 @@ int main(int argc, char** argv) {
     // --project <folder or .elmproject file>, otherwise the project opened last time, otherwise the Project Hub
     const Path projectPath = projectArgument ? *projectArgument : app.LastProject();
     const auto opened = projectPath.Empty() ? EngineResult<void> { } : app.OpenProject(projectPath);
-    if (!opened && projectArgument) {
-        std::cerr << "[Fatal Error] Failed to open the project: " << opened.error().message << std::endl;
-        return static_cast<int>(opened.error().code);
+    if (!opened) {
+        if (projectArgument) {
+            std::cerr << "[Fatal Error] Failed to open the project: " << opened.error().message << std::endl;
+            return static_cast<int>(opened.error().code);
+        }
+        if (!projectPath.Empty()) {
+            WARNING_MESSAGE(log::Category::Core, "Main", "Failed to open last project \"%s\": %s",
+                projectPath.string().c_str(), opened.error().message.c_str());
+        }
     }
     // The last project may be gone: the hub offers the others
     if (projectPath.Empty() || !opened)

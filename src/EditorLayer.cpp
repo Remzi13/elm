@@ -71,9 +71,49 @@ namespace elm {
 			m_hub->SetVisible(true);
 	}
 
+	namespace {
+
+		Path NormalizeProjectPath(const Path& file)
+		{
+			if (file.IsRelative())
+				return file;
+			const Path root = FileSystem::RootPath();
+			if (!root.Empty()) {
+				const Path relative = file.LexicallyRelative(root);
+				const std::string relStr = relative.generic_string();
+				if (!relStr.empty() && !relStr.starts_with(".."))
+					return Path(relStr.c_str());
+			}
+			return file;
+		}
+
+		Path ResolveExistingProjectPath(const Path& path)
+		{
+			if (path.Empty())
+				return path;
+			const Path resolved = FileSystem::Resolve(path);
+			if (FileSystem::Exists(resolved))
+				return path.IsRelative() ? path : NormalizeProjectPath(resolved);
+
+			// Fallback for paths from other OS / machines (e.g. C:/.../projects/Race/Race.elmproject)
+			const std::string text = path.generic_string();
+			const size_t projPos = text.find("projects/");
+			if (projPos != std::string::npos) {
+				const Path relative(text.substr(projPos).c_str());
+				if (FileSystem::Exists(FileSystem::Resolve(relative)))
+					return relative;
+			}
+			return path;
+		}
+
+	} // namespace
+
 	Path EditorLayer::LastProject() const
 	{
-		return Path(m_settings.Get<String>(Settings::Category::Core, LastProjectSetting));
+		const String text = m_settings.Get<String>(Settings::Category::Core, LastProjectSetting);
+		if (text.empty())
+			return Path { };
+		return ResolveExistingProjectPath(Path(text));
 	}
 
 	void EditorLayer::BuildFrame(const ImGuiWindowContext& context)
@@ -125,8 +165,10 @@ namespace elm {
 		size_t start = 0;
 		while (start < lines.size()) {
 			const size_t end = (std::min)(lines.find('\n', start), lines.size());
-			if (end > start)
-				projects.emplace_back(StringView(lines).substr(start, end - start));
+			if (end > start) {
+				const Path resolved = ResolveExistingProjectPath(Path(StringView(lines).substr(start, end - start)));
+				projects.emplace_back(resolved);
+			}
 			start = end + 1;
 		}
 		return projects;
@@ -134,16 +176,19 @@ namespace elm {
 
 	void EditorLayer::RememberProject(const Path& file)
 	{
-		const String text(file.generic_string().c_str());
+		const Path normalized = NormalizeProjectPath(file);
+		const String text(normalized.generic_string().c_str());
 		String lines = text;
 		size_t kept = 1;
 		for (const Path& recent : RecentProjects()) {
-			const String recentText(recent.generic_string().c_str());
+			const Path recentNorm = NormalizeProjectPath(recent);
+			const String recentText(recentNorm.generic_string().c_str());
 			if (recentText != text && kept++ < MaxRecentProjects)
 				lines += "\n" + recentText;
 		}
 		m_settings.Set(Settings::Category::Core, RecentProjectsSetting, std::move(lines));
 		m_settings.Set(Settings::Category::Core, LastProjectSetting, text);
+		(void)m_settings.Save(Settings::DefaultFilePath());
 	}
 
 } // namespace elm
