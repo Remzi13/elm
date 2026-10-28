@@ -13,7 +13,7 @@ namespace elm::script {
 
     /// A module as the class of entity scripts: a table with the methods of its instances and the
     /// defaults of their `props` (boolean, number, string, Vector3, Vector4, Entity). One Lua helper
-    /// checks the class and its props for both the instances and the Inspector.
+    /// checks the class and its props for both the instances and the editor's props.
     /// Owner: ScriptSystem, thread: update.
     class ScriptClass {
     public:

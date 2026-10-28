@@ -10,14 +10,13 @@ namespace elm::script {
 
     enum class MainState : uint8_t { Idle, Running, Faulted };
 
-    /// The main module (setting Script/MainModule): a table of hooks the engine calls,
+    /// The main module (entry.mainModule of the project): a table of hooks the engine calls,
     ///     on_start(), on_update(dt), on_fixed_update(dt), on_play(), on_stop(), on_shutdown(),
     /// and of functions the editor calls by name (build_scene). A hook that fails stops the hooks
     /// until the module is reloaded or the scripts restart.
     /// Owner: ScriptSystem, thread: update. While Idle (no module started) the calls do nothing.
     class MainModule {
     public:
-        static constexpr StringView NameSetting = "MainModule";
         /// Builds the scene ("Rebuild scene" in the Scripts window).
         static constexpr const char* BuildSceneFunction = "build_scene";
 

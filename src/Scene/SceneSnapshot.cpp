@@ -11,7 +11,8 @@ SceneSnapshot SceneSnapshot::Take(const Scene& scene, const graphics::ModelManag
     // Models share their mesh data: copies are cheap
     if (models) {
         models->ForEach([&](graphics::ModelHandler handle, const graphics::Model& model) {
-            snapshot.m_models.emplace_back(handle, model);
+            const Path* file = models->FileOf(handle);
+            snapshot.m_models.push_back({ handle, model, file ? *file : Path { } });
         });
     }
     return snapshot;
@@ -25,13 +26,13 @@ void SceneSnapshot::Restore(Scene& scene, graphics::ModelManager* models) &&
 
     UnorderedMap<graphics::ModelHandler, graphics::ModelHandler> reinserted;
     Set<graphics::ModelHandler> known;
-    for (auto& [handle, model] : m_models) {
+    for (auto& [handle, model, file] : m_models) {
         if (models->Get(handle)) {
             known.insert(handle);
             continue;
         }
-        // Removed meanwhile (a script cleared the scene): back with a new handle
-        const auto inserted = models->Insert(std::move(model));
+        // Removed meanwhile (a script cleared the scene): back with a new handle and its file
+        const auto inserted = models->Insert(std::move(model), std::move(file));
         reinserted.emplace(handle, inserted);
         known.insert(inserted);
     }

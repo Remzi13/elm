@@ -3,6 +3,9 @@
 namespace elm {
 
 	bool CameraController::OnKeyEvent(const KeyEvent& event) {
+		if (!m_enabled) {
+			return false;
+		}
 		const int key = static_cast<int>(event.key);
 		if (key >= 0 && key < static_cast<int>(m_keys.size())) {
 			// Releases always pass so a key pressed in the viewport does not stick after a focus change
@@ -27,6 +30,9 @@ namespace elm {
 	}
 
 	bool CameraController::OnMouseButtonEvent(const MouseButtonEvent& event) {
+		if (!m_enabled) {
+			return false;
+		}
 		if (event.button == MouseButton::Right || static_cast<uint8_t>(event.button) == 1) {
 			if (event.action == KeyAction::Press && m_viewportHovered) {
 				m_rightMouseDown = true;
@@ -48,7 +54,20 @@ namespace elm {
 		}
 	}
 
+	void CameraController::SetEnabled(bool enabled) noexcept {
+		m_enabled = enabled;
+		if (!m_enabled) {
+			m_keys.fill(false);
+			m_rightMouseDown = false;
+			// The first move after turning on seeds the position instead of jumping
+			m_hasMousePosition = false;
+		}
+	}
+
 	bool CameraController::OnMouseMoveEvent(const MouseMoveEvent& event) {
+		if (!m_enabled) {
+			return false;
+		}
 		if (!m_hasMousePosition) {
 			m_lastMouseX = event.x;
 			m_lastMouseY = event.y;
@@ -70,6 +89,9 @@ namespace elm {
 	}
 
 	void CameraController::Update(float deltaTime) {
+		if (!m_enabled) {
+			return;
+		}
 		const float speedMultiplier = m_keys[static_cast<size_t>(Key::LeftShift)] ? 2.5f : 1.0f;
 		const float speed = m_camera.moveSpeed * deltaTime * speedMultiplier;
 		const Vector3 forward = m_camera.GetForwardDirection();

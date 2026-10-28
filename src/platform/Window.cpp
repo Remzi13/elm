@@ -63,6 +63,12 @@ bool Window::ShouldClose() const
     return m_window ? glfwWindowShouldClose(m_window) : true;
 }
 
+void Window::SetTitle(StringView title)
+{
+    if (m_window)
+        glfwSetWindowTitle(m_window, String(title).c_str());
+}
+
 render::NativeWindow Window::GetNativeWindow() const
 {
     return GetNativeWindow(m_window);

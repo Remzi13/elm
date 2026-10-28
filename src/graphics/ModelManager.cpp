@@ -7,7 +7,7 @@ namespace elm::graphics {
     {
     }
 
-    ModelHandler ModelManager::Insert(Model model)
+    ModelHandler ModelManager::Insert(Model model, Path file)
     {
         uint32_t index;
         if (m_freeSlots.empty()) {
@@ -22,15 +22,16 @@ namespace elm::graphics {
         auto& slot = m_slots[index];
         slot.meshes = CreateMeshes(model, { });
         slot.model.emplace(std::move(model));
+        slot.file = std::move(file);
         return ModelHandler(index + 1, slot.generation);
     }
 
-    Vector<ModelHandler> ModelManager::InsertAll(Vector<Model> models)
+    Vector<ModelHandler> ModelManager::InsertAll(Vector<Model> models, std::span<const Path> files)
     {
         Vector<ModelHandler> handlers;
         handlers.reserve(models.size());
-        for (auto& model : models)
-            handlers.push_back(Insert(std::move(model)));
+        for (size_t index = 0; index < models.size(); ++index)
+            handlers.push_back(Insert(std::move(models[index]), index < files.size() ? files[index] : Path { }));
         return handlers;
     }
 
@@ -42,6 +43,21 @@ namespace elm::graphics {
         slot->meshes = CreateMeshes(model, std::move(slot->meshes));
         slot->model.emplace(std::move(model));
         return true;
+    }
+
+    bool ModelManager::SetFile(ModelHandler handler, Path file)
+    {
+        auto* slot = GetSlot(handler);
+        if (!slot)
+            return false;
+        slot->file = std::move(file);
+        return true;
+    }
+
+    const Path* ModelManager::FileOf(ModelHandler handler) const noexcept
+    {
+        const auto* slot = GetSlot(handler);
+        return slot && !slot->file.Empty() ? &slot->file : nullptr;
     }
 
     const Model* ModelManager::Get(ModelHandler handler) const noexcept
@@ -64,6 +80,7 @@ namespace elm::graphics {
 
         slot->meshes.clear();
         slot->model.reset();
+        slot->file.Clear();
         ++slot->generation;
         m_freeSlots.push_back(handler.Index() - 1);
         return true;
@@ -77,6 +94,7 @@ namespace elm::graphics {
                 continue;
             slot.meshes.clear();
             slot.model.reset();
+            slot.file.Clear();
             ++slot.generation;
             m_freeSlots.push_back(index);
         }

@@ -29,8 +29,8 @@ namespace elm::script::bindings {
     void RegisterInput(lua::State& state, InputSystem* input);
     /// elm.scene, the Entity class and the Script component.
     void RegisterScene(lua::State& state, Scene* scene, graphics::ModelManager* models, EntityScripts& entityScripts);
-    /// elm.models and the Model class.
-    void RegisterModels(lua::State& state, graphics::ModelManager* models);
+    /// elm.models and the Model class; model files are taken from the project's assets folder.
+    void RegisterModels(lua::State& state, graphics::ModelManager* models, const project::Project* project);
     void RegisterCamera(lua::State& state, Camera* camera);
     /// elm.physics, the RigidBody and Collider components.
     void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, graphics::ModelManager* models);
@@ -42,12 +42,13 @@ namespace elm::script::bindings {
     void ClearScriptDebugDraw(lua::State& state);
 
     /// What elm.engine reaches: the scene and its models, the entity scripts that end before the
-    /// scene is replaced, and the Play/Stop requests.
+    /// scene is replaced, the Play/Stop requests and the project the scene files belong to.
     struct EngineModuleContext {
         Scene* scene { nullptr };
         graphics::ModelManager* models { nullptr };
         EntityScripts* entityScripts { nullptr };
         PlayRequests play;
+        const project::Project* project { nullptr };
     };
     /// elm.engine: scene commands, the same as in the Scene Hierarchy window, and Play/Stop.
     void RegisterEngine(lua::State& state, EngineModuleContext context);

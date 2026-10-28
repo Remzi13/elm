@@ -23,8 +23,6 @@ engine_add_library(core
     Settings.cpp
     FileSystem.hpp
     FileSystem.cpp
-    AssetPaths.hpp
-    AssetPaths.cpp
 )
 
 target_include_directories(core PUBLIC

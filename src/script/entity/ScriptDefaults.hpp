@@ -8,7 +8,7 @@ namespace elm::script {
 
     class ScriptClass;
 
-    /// The defaults of the props of script classes, for the Inspector. Reading them loads the
+    /// The defaults of the props of script classes, for Scene Hierarchy (through the Scripts window). Reading them loads the
     /// module, so a result is kept until Forget: after a module reload, or when the user asks again.
     /// Owner: ScriptSystem, thread: update.
     class ScriptDefaults {

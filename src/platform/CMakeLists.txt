@@ -1,6 +1,8 @@
 engine_add_library(platform
     Window.hpp
     Window.cpp
+    Process.hpp
+    Process.cpp
 )
 
 target_link_libraries(platform PUBLIC core math render glfw)

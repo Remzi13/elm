@@ -1,13 +1,14 @@
 #include "graphics/ui/SceneHierarchyWindow.hpp"
 
-#include "core/AssetPaths.hpp"
 #include "core/FileSystem.hpp"
 #include "core/Log.hpp"
+#include "core/Unexpected.hpp"
 #include "math/Matrix.hpp"
 #include "math/Primitivs.hpp"
 #include "math/Rotation.hpp"
 #include "math/Vector.hpp"
 #include "render/RenderSystem.hpp"
+#include "resmgr/AssetImport.hpp"
 #include "resmgr/GltfExporter.hpp"
 #include "resmgr/Serializer.hpp"
 #include "Scene/ComponentTypes.hpp"
@@ -115,6 +116,36 @@ Collider FitColliderToModel(const graphics::Model* model)
     return collider;
 }
 
+const ImVec4 ScriptErrorColor { 1.0f, 0.40f, 0.36f, 1.0f };
+const ImVec4 ScriptRunningColor { 0.40f, 0.85f, 0.50f, 1.0f };
+/// Props whose value is set on this node, not taken from the script.
+const ImVec4 OverrideColor { 0.55f, 0.75f, 1.0f, 1.0f };
+
+const ScriptValue* FindOverride(const ScriptComponent& script, StringView name)
+{
+    for (const auto& [key, value] : script.props) {
+        if (key == name)
+            return &value;
+    }
+    return nullptr;
+}
+
+/// Props stay sorted by name, as they come from Lua and from scene files.
+void SetOverride(ScriptComponent& script, const String& name, ScriptValue value)
+{
+    const auto position = std::lower_bound(script.props.begin(), script.props.end(), name,
+        [](const auto& prop, const String& key) { return prop.first < key; });
+    if (position != script.props.end() && position->first == name)
+        position->second = std::move(value);
+    else
+        script.props.emplace(position, name, std::move(value));
+}
+
+void RemoveOverride(ScriptComponent& script, StringView name)
+{
+    std::erase_if(script.props, [&](const auto& prop) { return prop.first == name; });
+}
+
 bool DrawScriptValue(const char* label, ScriptValue& value, Scene& scene)
 {
     return std::visit([&]<typename V>(V& item) -> bool {
@@ -157,10 +188,24 @@ bool DrawScriptValue(const char* label, ScriptValue& value, Scene& scene)
 
 } // namespace
 
+SceneHierarchyWindow::SceneHierarchyWindow(Settings& settings, Folders folders, const Path& openedScene)
+    : IImGuiWindow(settings)
+    , m_folders(std::move(folders))
+{
+    // Never a default name like scene.scene: Save would overwrite a scene the user did not open
+    ShowSceneFile(openedScene.Empty() ? m_folders.scenes / UnusedSceneFileName() : openedScene);
+}
+
 void SceneHierarchyWindow::OnAttach()
 {
     m_querySubscriptions.push_back(RegisterQuery<SelectedSceneInstance>([this] {
         return SelectedSceneInstance { m_selectedNode };
+    }));
+    m_querySubscriptions.push_back(RegisterQuery<OpenSceneFile>([this] {
+        return OpenSceneFile { [this](const Path& file) {
+            m_requestedScene = file;
+            m_visible = true;
+        } };
     }));
     m_querySubscriptions.push_back(RegisterQuery<GizmoSettings>([this] {
         return GizmoSettings {
@@ -183,6 +228,11 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
 
     if (!m_scriptModulesLoaded)
         RefreshScriptModules();
+    if (m_requestedScene) {
+        const Path file = std::move(*m_requestedScene);
+        m_requestedScene.reset();
+        LoadSceneFile(context, file);
+    }
 
     auto& scene = context.scene;
     if (!scene.Find(m_selectedNode))
@@ -241,58 +291,52 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     ImGui::InputText("##SceneFile", m_sceneFilePath, sizeof(m_sceneFilePath));
     ImGui::SameLine();
 
-    const Path scenePath = Path(m_sceneFilePath).IsAbsolute() ? Path(m_sceneFilePath) : AssetPaths::Scenes() / m_sceneFilePath;
+    const Path scenePath = Path(m_sceneFilePath).IsAbsolute() ? Path(m_sceneFilePath) : m_folders.scenes / m_sceneFilePath;
     if (ImGui::Button("Save")) {
         if (const auto play = Request<PlayControls>(); play && play->playing) {
             m_sceneFileStatus = "Stop first: in Play mode the scene is the running game.";
         } else {
-            auto result = resmgr::Serializer::SaveScene(scene, context.models, scenePath, AssetPaths::Models());
+            auto result = SaveScene(context, scenePath);
             m_sceneFileStatus = result ? "Scene saved to " + String(scenePath.string().c_str()) + "." : result.error().message;
         }
     }
     ImGui::SameLine();
     if (ImGui::Button("Save As...")) {
-        m_sceneSaveFileDialog.SaveAs("Save Scene", ".scene", m_sceneFilePath, AssetPaths::Scenes());
+        m_sceneSaveFileDialog.SaveAs("Save Scene", ".scene", m_sceneFilePath, m_folders.scenes);
+        m_sceneSaveFileDialog.LimitTo(m_folders.assets);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Load")) {
-        auto result = resmgr::Serializer::LoadScene(scenePath);
-        if (result) {
-            scene.Clear();
-            context.models.Clear();
-            const auto handlers = context.models.InsertAll(std::move(result->models));
-            (void)scene.Append(std::move(*result), handlers);
-            m_selectedNode = scene.IdOf(0);
-            m_sceneFileStatus = "Scene loaded.";
-        } else {
-            m_sceneFileStatus = result.error().message;
-        }
-    }
+    if (ImGui::Button("Load"))
+        LoadSceneFile(context, scenePath);
     ImGui::SameLine();
     if (ImGui::Button("Open...")) {
-        m_sceneOpenFileDialog.Open("Open Scene", ".scene", AssetPaths::Scenes());
+        m_sceneOpenFileDialog.Open("Open Scene", ".scene", m_folders.scenes);
+        m_sceneOpenFileDialog.LimitTo(m_folders.assets);
     }
     ImGui::SameLine();
     if (ImGui::Button("Export glTF...")) {
-        m_gltfFileDialog.SaveAs("Export Scene to glTF", ".gltf", "scene.gltf", AssetPaths::Scenes());
+        m_gltfFileDialog.SaveAs("Export Scene to glTF", ".gltf", "scene.gltf", m_folders.scenes);
     }
     ImGui::SameLine();
     if (ImGui::Button("Import glTF...")) {
-        m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", AssetPaths::Models());
+        m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", m_folders.models);
     }
     ImGui::SameLine();
-    if (ImGui::Button("Clear")) {
+    if (ImGui::Button("New")) {
         scene.Clear();
         context.models.Clear();
         m_selectedNode = NodeId { };
-        m_sceneFileStatus = "Scene cleared.";
+        // A name no scene has yet: Save does not overwrite the scene that was open
+        const String fileName = UnusedSceneFileName();
+        std::snprintf(m_sceneFilePath, sizeof(m_sceneFilePath), "%s", fileName.c_str());
+        m_sceneFileStatus = "New scene " + fileName + ".";
     }
 
     if (const auto path = m_sceneSaveFileDialog.Draw()) {
         if (const auto play = Request<PlayControls>(); play && play->playing) {
             m_sceneFileStatus = "Stop first: in Play mode the scene is the running game.";
         } else {
-            auto result = resmgr::Serializer::SaveScene(scene, context.models, *path, AssetPaths::Models());
+            auto result = SaveScene(context, *path);
             if (result) {
                 m_sceneFileStatus = "Scene saved to " + String(path->string().c_str()) + ".";
                 std::snprintf(m_sceneFilePath, sizeof(m_sceneFilePath), "%s", path->Filename().c_str());
@@ -302,20 +346,8 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
         }
     }
 
-    if (const auto path = m_sceneOpenFileDialog.Draw()) {
-        auto result = resmgr::Serializer::LoadScene(*path);
-        if (result) {
-            scene.Clear();
-            context.models.Clear();
-            const auto handlers = context.models.InsertAll(std::move(result->models));
-            (void)scene.Append(std::move(*result), handlers);
-            m_selectedNode = scene.IdOf(0);
-            m_sceneFileStatus = "Scene loaded from " + String(path->string().c_str()) + ".";
-            std::snprintf(m_sceneFilePath, sizeof(m_sceneFilePath), "%s", path->Filename().c_str());
-        } else {
-            m_sceneFileStatus = result.error().message;
-        }
-    }
+    if (const auto path = m_sceneOpenFileDialog.Draw())
+        LoadSceneFile(context, *path);
 
     if (const auto path = m_gltfFileDialog.Draw()) {
         auto result = resmgr::GltfExporter::Export(*path, scene, context.models);
@@ -325,17 +357,18 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     // Handle deferred file dialog opens from DrawHierarchyTree popup
     if (m_deferModelOpen) {
         m_deferModelOpen = false;
-        m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+        m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
     }
     if (m_deferGltfSceneImport) {
         m_deferGltfSceneImport = false;
-        m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", AssetPaths::Models());
+        m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", m_folders.models);
     }
 
     if (const auto path = m_gltfSceneImportFileDialog.Draw()) {
-        auto result = resmgr::GltfExporter::LoadScene(*path);
+        // The original goes to the project's source folder, the models to its models folder
+        auto result = resmgr::AssetImport::ImportScene(*path, m_folders.assets);
         if (result) {
-            const auto handlers = context.models.InsertAll(std::move(result->models));
+            const auto handlers = context.models.InsertAll(std::move(result->models), result->modelFiles);
             const auto newIds = scene.Append(std::move(*result), handlers);
             if (!newIds.empty())
                 m_selectedNode = newIds.front();
@@ -346,17 +379,13 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     }
 
     if (const auto path = m_modelOpenFileDialog.Draw()) {
-        const String ext = path->Extension().string().c_str();
-        const bool isGltf = ext == ".gltf" || ext == ".glb";
-        auto modelResult = isGltf ? resmgr::GltfExporter::LoadModel(*path) : resmgr::Serializer::LoadModel(*path);
+        // A .model of the project stays its file; anything else is imported into the project
+        auto modelResult = resmgr::AssetImport::ImportModel(*path, m_folders.assets);
         if (!modelResult) {
             m_sceneFileStatus = "Failed to load model: " + modelResult.error().message;
         } else {
-            graphics::Model loadedModel = std::move(*modelResult);
-            if (loadedModel.name.empty())
-                loadedModel.name = String(path->Stem().string().c_str());
-            const String modelName = loadedModel.name;
-            const auto handle = context.models.Insert(std::move(loadedModel));
+            const String modelName = modelResult->model.name;
+            const auto handle = context.models.Insert(std::move(modelResult->model), std::move(modelResult->file));
 
             if (m_modelDialogAction == ModelDialogAction::AssignToComponent) {
                 if (auto* comp = scene.Components<ModelComponent>().Find(m_modelDialogTargetNode)) {
@@ -529,7 +558,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
         if (ImGui::MenuItem("Add Model from Disk...")) {
             m_modelDialogAction = ModelDialogAction::AddNewRootNode;
             m_modelDialogTargetNode = NodeId { };
-            m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+            m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
         }
         if (context.models.Size() > 0 && ImGui::BeginMenu("Add from Loaded Model")) {
             context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
@@ -557,7 +586,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
             ImGui::EndMenu();
         }
         if (ImGui::MenuItem("Import glTF Scene Hierarchy...")) {
-            m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", AssetPaths::Models());
+            m_gltfSceneImportFileDialog.Open("Import glTF Scene", ".gltf;.glb", m_folders.models);
         }
         ImGui::EndPopup();
     }
@@ -578,6 +607,8 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
 
     ImGui::TextDisabled("Objects: %zu", scene.NodeCount());
     ImGui::EndChild();
+    // After EndChild the tree is the last item: it is where models are dropped
+    AcceptDroppedModel(context);
 }
 
 void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t nodeIndex, const Vector<Vector<size_t>>& nodeChildren)
@@ -657,7 +688,7 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
             if (ImGui::MenuItem("Child Model from Disk...")) {
                 m_modelDialogAction = ModelDialogAction::AddNewChildNode;
                 m_modelDialogTargetNode = node.id;
-                m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+                m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
             }
             if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
                 context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
@@ -939,7 +970,7 @@ void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, graph
     if (ImGui::Button("Browse...##BrowseModelDisk", ImVec2(browseBtnWidth, 0.0f))) {
         m_modelDialogAction = ModelDialogAction::AssignToComponent;
         m_modelDialogTargetNode = nodeId;
-        m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+        m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
     }
 
     if (model) {
@@ -1093,22 +1124,34 @@ void SceneHierarchyWindow::DrawColliderComponent(Scene& scene, NodeId nodeId, co
 
 void SceneHierarchyWindow::DrawScriptComponent(Scene& scene, NodeId nodeId)
 {
-    auto* scriptStore = scene.Components<ScriptComponent>().Find(nodeId);
-    if (!scriptStore)
+    if (!scene.Components<ScriptComponent>().Find(nodeId))
         return;
+    const auto scripts = Request<ScriptInspection>();
 
     bool open = ImGui::CollapsingHeader("Script Component (Lua)", ImGuiTreeNodeFlags_DefaultOpen);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 25.0f);
     if (ImGui::SmallButton("X##RemoveScript")) {
+        // The instance ends first, as with entity:remove("Script")
+        if (scripts && scripts->endInstance)
+            scripts->endInstance(nodeId);
         scene.Components<ScriptComponent>().Remove(nodeId);
         return;
     }
-
     if (!open)
         return;
 
-    ScriptComponent& script = *scriptStore;
+    DrawScriptModule(*scene.Components<ScriptComponent>().Find(nodeId));
+    if (!scripts) {
+        ImGui::TextDisabled("The scripts are not running: the props cannot be read");
+        return;
+    }
+    DrawScriptInstance(nodeId, *scripts);
+    ImGui::Spacing();
+    DrawScriptProps(scene, nodeId, *scripts);
+}
 
+void SceneHierarchyWindow::DrawScriptModule(ScriptComponent& script)
+{
     String module = script.module;
     if (InputString("Module", module))
         script.module = module;
@@ -1134,59 +1177,97 @@ void SceneHierarchyWindow::DrawScriptComponent(Scene& scene, NodeId nodeId)
         ImGui::EndPopup();
     }
 
-    ImGui::Spacing();
-    ImGui::TextUnformatted("Script Properties:");
+}
 
-    if (script.props.empty()) {
-        ImGui::TextDisabled("No custom properties configured for this script.");
-    } else {
-        for (size_t i = 0; i < script.props.size();) {
-            auto& [name, value] = script.props[i];
-            ImGui::PushID(static_cast<int>(i));
-
-            bool erase = false;
-            if (ImGui::SmallButton("X"))
-                erase = true;
-            ImGui::SameLine();
-
-            DrawScriptValue(name.c_str(), value, scene);
-            ImGui::PopID();
-
-            if (erase) {
-                script.props.erase(script.props.begin() + static_cast<std::ptrdiff_t>(i));
-            } else {
-                ++i;
-            }
-        }
+void SceneHierarchyWindow::DrawScriptInstance(NodeId nodeId, const ScriptInspection& scripts)
+{
+    const auto play = Request<PlayControls>();
+    if (!play || !play->playing) {
+        ImGui::TextDisabled("Starts on Play");
+        return;
     }
+    const ScriptInstanceState state = scripts.instance ? scripts.instance(nodeId) : ScriptInstanceState { };
+    if (state.kind == ScriptInstanceState::Kind::Faulted) {
+        ImGui::TextColored(ScriptErrorColor, "Stopped by an error until a module reloads");
+        ImGui::PushStyleColor(ImGuiCol_Text, ScriptErrorColor);
+        ImGui::TextWrapped("%s", state.error.c_str());
+        ImGui::PopStyleColor();
+        if (ImGui::SmallButton("Reload module") && scripts.reloadModule)
+            scripts.reloadModule(state.module);
+    } else if (state.kind == ScriptInstanceState::Kind::Running) {
+        ImGui::TextColored(ScriptRunningColor, "Running");
+    } else {
+        ImGui::TextDisabled("Starting");
+    }
+}
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextDisabled("Add Property:");
-    ImGui::SetNextItemWidth(120.0f);
-    ImGui::InputText("##NewPropName", m_newPropName, sizeof(m_newPropName));
-    ImGui::SameLine();
-
-    const char* propTypes[] = { "Bool", "Int", "Float", "String", "Vector3", "Color (Vector4)", "Entity (NodeId)" };
-    ImGui::SetNextItemWidth(140.0f);
-    ImGui::Combo("##NewPropType", &m_newPropType, propTypes, IM_ARRAYSIZE(propTypes));
-    ImGui::SameLine();
-
-    if (ImGui::Button("+ Add Prop")) {
-        if (m_newPropName[0] != '\0') {
-            ScriptValue defaultVal;
-            switch (m_newPropType) {
-            case 0: defaultVal = false; break;
-            case 1: defaultVal = int64_t(0); break;
-            case 2: defaultVal = double(0.0); break;
-            case 3: defaultVal = String(""); break;
-            case 4: defaultVal = math::Vector3(0.0f, 0.0f, 0.0f); break;
-            case 5: defaultVal = math::Vector4(1.0f, 1.0f, 1.0f, 1.0f); break;
-            case 6: defaultVal = NodeId { }; break;
-            }
-            script.props.emplace_back(String(m_newPropName), std::move(defaultVal));
-            std::snprintf(m_newPropName, sizeof(m_newPropName), "prop%zu", script.props.size() + 1);
+void SceneHierarchyWindow::DrawScriptProps(Scene& scene, NodeId nodeId, const ScriptInspection& scripts)
+{
+    const String module = scene.Components<ScriptComponent>().Find(nodeId)->module;
+    const auto defaults = scripts.defaults ? scripts.defaults(module) : EngineResult<ScriptProps> { };
+    if (!defaults) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ScriptErrorColor);
+        ImGui::TextWrapped("%s", defaults.error().message.c_str());
+        ImGui::PopStyleColor();
+        if (ImGui::SmallButton("Try again") && scripts.forgetDefaults)
+            scripts.forgetDefaults();
+        return;
+    }
+    if (defaults->empty())
+        ImGui::TextDisabled("The script has no props");
+    for (const auto& [name, fallback] : *defaults) {
+        // Reading the defaults ran the module's code, which may change the scene: the component is looked up each time
+        ScriptComponent* script = scene.Components<ScriptComponent>().Find(nodeId);
+        if (!script)
+            return;
+        const ScriptValue* overridden = FindOverride(*script, name);
+        ScriptValue value = overridden ? *overridden : fallback;
+        ImGui::PushID(name.c_str());
+        if (overridden)
+            ImGui::PushStyleColor(ImGuiCol_Text, OverrideColor);
+        const bool changed = DrawScriptValue(name.c_str(), value, scene);
+        if (overridden)
+            ImGui::PopStyleColor();
+        if (changed) {
+            SetOverride(*script, name, value);
+            if (scripts.setField)
+                scripts.setField(nodeId, name, value);
         }
+        if (overridden) {
+            ImGui::SameLine();
+            if (ImGui::SmallButton("Reset")) {
+                RemoveOverride(*script, name);
+                if (scripts.setField)
+                    scripts.setField(nodeId, name, fallback);
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Take the value of the script again");
+        }
+        ImGui::PopID();
+    }
+    if (ScriptComponent* script = scene.Components<ScriptComponent>().Find(nodeId))
+        DrawUnknownProps(*script, *defaults);
+}
+
+void SceneHierarchyWindow::DrawUnknownProps(ScriptComponent& script, const ScriptProps& props)
+{
+    // Values for props the script does not have (any more): they would fail the instance
+    for (size_t index = 0; index < script.props.size();) {
+        const String name = script.props[index].first;
+        const bool known = std::any_of(props.begin(), props.end(), [&](const auto& prop) { return prop.first == name; });
+        if (known) {
+            ++index;
+            continue;
+        }
+        ImGui::PushID(name.c_str());
+        ImGui::TextColored(ScriptErrorColor, "%s: not a prop of the script", name.c_str());
+        ImGui::SameLine();
+        const bool remove = ImGui::SmallButton("Remove");
+        ImGui::PopID();
+        if (remove)
+            script.props.erase(script.props.begin() + static_cast<std::ptrdiff_t>(index));
+        else
+            ++index;
     }
 }
 
@@ -1211,7 +1292,7 @@ void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, co
             if (ImGui::MenuItem("Browse from Disk (.gltf, .glb, .model)...")) {
                 m_modelDialogAction = ModelDialogAction::AssignToComponent;
                 m_modelDialogTargetNode = nodeId;
-                m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", AssetPaths::Models());
+                m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
                 graphics::Model m;
                 m.name = "Model";
                 m.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
@@ -1379,10 +1460,69 @@ NodeId SceneHierarchyWindow::AddPrimitiveNode(Scene& scene, graphics::ModelManag
     return id;
 }
 
+void SceneHierarchyWindow::LoadSceneFile(ImGuiWindowContext& context, const Path& file)
+{
+    auto result = resmgr::Serializer::LoadScene(file, m_folders.assets);
+    if (!result) {
+        m_sceneFileStatus = result.error().message;
+        return;
+    }
+    context.scene.Clear();
+    context.models.Clear();
+    const auto handlers = context.models.InsertAll(std::move(result->models), result->modelFiles);
+    (void)context.scene.Append(std::move(*result), handlers);
+    m_selectedNode = context.scene.IdOf(0);
+    m_sceneFileStatus = "Scene loaded from " + String(file.string().c_str()) + ".";
+    ShowSceneFile(file);
+}
+
+void SceneHierarchyWindow::ShowSceneFile(const Path& file)
+{
+    const String relative(file.LexicallyNormal().LexicallyRelative(m_folders.scenes.LexicallyNormal()).generic_string().c_str());
+    const String shown = relative.empty() || relative.starts_with("..") ? String(file.string().c_str()) : relative;
+    std::snprintf(m_sceneFilePath, sizeof(m_sceneFilePath), "%s", shown.c_str());
+}
+
+void SceneHierarchyWindow::AcceptDroppedModel(ImGuiWindowContext& context)
+{
+    if (!ImGui::BeginDragDropTarget())
+        return;
+    if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(ModelFilePayload)) {
+        const Path file(StringView(static_cast<const char*>(payload->Data), static_cast<size_t>(payload->DataSize)));
+        // A model of the project stays its file, anything else is imported
+        auto imported = resmgr::AssetImport::ImportModel(file, m_folders.assets);
+        if (imported) {
+            const String name = imported->model.name;
+            const auto model = context.models.Insert(std::move(imported->model), std::move(imported->file));
+            m_selectedNode = context.scene.AddNode({ .name = name });
+            context.scene.Components<ModelComponent>().Emplace(m_selectedNode, ModelComponent { .model = model });
+            m_sceneFileStatus = "Added node \"" + name + "\".";
+        } else {
+            m_sceneFileStatus = "Failed to add the model: " + imported.error().message;
+        }
+    }
+    ImGui::EndDragDropTarget();
+}
+
+String SceneHierarchyWindow::UnusedSceneFileName() const
+{
+    String fileName = "new.scene";
+    for (size_t suffix = 1; FileSystem::Exists(m_folders.scenes / fileName); ++suffix)
+        fileName = "new_" + String(std::to_string(suffix).c_str()) + ".scene";
+    return fileName;
+}
+
+EngineResult<void> SceneHierarchyWindow::SaveScene(ImGuiWindowContext& context, const Path& path)
+{
+    if (auto newModels = resmgr::Serializer::SaveNewModels(context.scene, context.models, m_folders.assets); !newModels)
+        return MakeUnexpected(newModels.error());
+    return resmgr::Serializer::SaveScene(context.scene, context.models, m_folders.assets, path);
+}
+
 void SceneHierarchyWindow::RefreshScriptModules()
 {
     m_scriptModules.clear();
-    const Path root = AssetPaths::Scripts();
+    const Path root = m_folders.scripts;
     Vector<Path> folders { root };
     while (!folders.empty()) {
         const Path folder = std::move(folders.back());

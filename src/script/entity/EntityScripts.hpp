@@ -71,7 +71,7 @@ namespace elm::script {
         [[nodiscard]] std::span<const EntityScript> All() const noexcept { return m_scripts.All(); }
         /// A hook is running: the instances must not be released now.
         [[nodiscard]] bool IsPassRunning() const noexcept { return m_scripts.IsPassRunning(); }
-        /// Writes a prop into the node's instance, so that a change in the Inspector shows at once.
+        /// Writes a prop into the node's instance, so that a change in Scene Hierarchy shows at once.
         void SetField(NodeId node, StringView name, const ScriptValue& value);
         /// Any reload may have fixed what stopped an instance; on_script_reload for the module's instances.
         void OnModuleReloaded(StringView name);

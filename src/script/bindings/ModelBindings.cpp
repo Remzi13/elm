@@ -2,7 +2,7 @@
 
 #include "script/values/Entity.hpp"
 
-#include "core/AssetPaths.hpp"
+#include "project/Project.hpp"
 #include "math/Primitivs.hpp"
 #include "graphics/ModelManager.hpp"
 #include "resmgr/GltfExporter.hpp"
@@ -17,6 +17,7 @@ namespace elm::script::bindings {
         /// What elm.models and the Model class reach.
         struct ModelsContext {
             graphics::ModelManager* models { nullptr };
+            const project::Project* project { nullptr };
         };
 
         graphics::ModelManager& ModelsOf(lua_State* L) { return RequireSystem(L, ContextOf<ModelsContext>(L).models, "elm.models"); }
@@ -35,7 +36,10 @@ namespace elm::script::bindings {
             return models && models->Get(model.handle);
         }
 
-        ModelRef Insert(lua_State* L, graphics::Model model) { return { ModelsOf(L).Insert(std::move(model)) }; }
+        ModelRef Insert(lua_State* L, graphics::Model model, Path file = { })
+        {
+            return { ModelsOf(L).Insert(std::move(model), std::move(file)) };
+        }
 
         ModelRef MakePrimitive(lua_State* L, const char* name, MeshData mesh)
         {
@@ -54,17 +58,30 @@ namespace elm::script::bindings {
             return MakePrimitive(L, "Plane", GeometryPrimitives::CreateGroundPlane(sizeX, sizeZ));
         }
 
-        /// A .model or .gltf file; a relative path starts at the assets folder.
+        /// A .model or .gltf file of the project by its asset path, "models/crate.model". A .model keeps
+        /// its file (ModelManager::FileOf); a glTF model is new and gets a .model file when the scene is saved.
         EngineResult<ModelRef> Load(lua_State* L, StringView file)
         {
             ModelsOf(L);
-            const Path relative(file);
-            const Path path = relative.IsAbsolute() ? relative : AssetPaths::Root() / relative;
+            const auto asset = project::AssetPath::FromString(file);
+            if (!asset)
+                luaL_error(L, "'%s' is not a path in the assets folder (like \"models/crate.model\")", String(file).c_str());
+            const Path path = RequireSystem(L, ContextOf<ModelsContext>(L).project, "the project").Resolve(*asset);
             const bool gltf = path.Extension().string() == ".gltf";
             auto model = gltf ? resmgr::GltfExporter::LoadModel(path) : resmgr::Serializer::LoadModel(path);
             if (!model)
                 return MakeUnexpected(model.error());
-            return Insert(L, std::move(*model));
+            return Insert(L, std::move(*model), gltf ? Path { } : path);
+        }
+
+        /// The asset path of the model's file, nil for a model without one.
+        std::optional<String> FileOf(lua_State* L, const ModelRef& model)
+        {
+            ModelOf(L, model);
+            const Path* file = ModelsOf(L).FileOf(model.handle);
+            const auto* project = ContextOf<ModelsContext>(L).project;
+            const auto asset = file && project ? project->AssetPathOf(*file) : std::nullopt;
+            return asset ? std::optional<String>(asset->Text()) : std::nullopt;
         }
 
         std::optional<ModelRef> FindModel(lua_State* L, StringView name)
@@ -79,9 +96,9 @@ namespace elm::script::bindings {
 
     } // namespace
 
-    void RegisterModels(lua::State& state, graphics::ModelManager* models)
+    void RegisterModels(lua::State& state, graphics::ModelManager* models, const project::Project* project)
     {
-        state.SetContext(ModelsContext { models });
+        state.SetContext(ModelsContext { models, project });
         lua::Module module(state, "elm.models");
         module
             .Function<&Cube>("cube", { "size" })
@@ -94,6 +111,7 @@ namespace elm::script::bindings {
             .Property<&IsModelValid>("valid")
             .Property<[](lua_State* L, const ModelRef& model) { return ModelOf(L, model).name; }>("name")
             .Property<[](lua_State* L, const ModelRef& model) { return ModelOf(L, model).submeshes.size(); }>("submesh_count")
+            .Property<&FileOf>("file")
             .Meta<[](lua_State* L, const ModelRef& model) {
                 return IsModelValid(L, model) ? "Model(" + ModelOf(L, model).name + ")" : String("Model(removed)");
             }>("__tostring");

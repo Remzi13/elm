@@ -51,10 +51,15 @@ namespace elm::script {
         [[nodiscard]] static auto GenerateApiMeta() -> EngineResult<String>;
 
         /// Opens the Lua state and registers the engine modules for these systems, any of which may
-        /// be missing (tools, tests). scriptRoot defaults to AssetPaths::Scripts().
+        /// be missing (tools, tests). Modules are found under scriptRoot, the project's scripts folder;
+        /// without it no module file is found.
         [[nodiscard]] auto Init(const EngineContext& engine, Path scriptRoot = { }) -> EngineResult<void>;
-        /// Starts the main module (on_start). A missing main module is not an error.
-        [[nodiscard]] auto Start(const Settings& settings) -> EngineResult<void>;
+        /// Starts the main module (on_start), the entry of the project; Play does it after Reset. An empty
+        /// name or a missing module file is not an error: the scripts run without a main module.
+        [[nodiscard]] auto Start(StringView mainModule) -> EngineResult<void>;
+        /// A fresh Lua state for the same systems and scripts folder: Shutdown, then Init. Play and Stop
+        /// start from it, so the game always starts as it would in a player.
+        [[nodiscard]] auto Reset() -> EngineResult<void>;
         /// Applies a requested restart, reloads changed files (setting Script/HotReload), calls on_update.
         void Update(float deltaTime);
         /// After a physics step: the collisions of the step, then on_fixed_update.
@@ -67,15 +72,15 @@ namespace elm::script {
         /// Play -> Edit: entity scripts end (on_destroy), the main module gets on_stop. Not from inside a Lua call.
         void OnStop();
 
-        /// The Scripts window and the Inspector, wired to the parts of this system. After Init:
-        /// the Inspector takes the Play requests and physics of the engine context.
+        /// The Scripts window, wired to the parts of this system. After Init: it takes the Play requests of
+        /// the engine context and gives the other windows PlayControls and ScriptInspection.
         [[nodiscard]] Vector<UniquePtr<IImGuiWindow>> CreateEditorWindows(Settings& settings);
 
     private:
         friend struct SelfTestAccess;
 
         void RegisterBindings();
-        /// Shutdown + Init + Start now, on the update after the request.
+        /// Reset now, on the update after the request; in Play the main module starts again.
         [[nodiscard]] auto Restart() -> EngineResult<void>;
         [[nodiscard]] bool HotReloadEnabled() const;
         /// What a module reload changes for the other parts.
@@ -94,6 +99,8 @@ namespace elm::script {
 
         EngineContext m_engine;
         ScriptTime m_time;
+        /// The main module Start was given: a restart in Play starts it again.
+        String m_mainModuleName { "main" };
         /// Asked for from Lua or the Scripts window, applied at the start of the next update.
         bool m_restartRequested { false };
         /// Setting Script/Enabled as Start saw it: entity scripts run only when scripts do.

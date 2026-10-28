@@ -2,7 +2,7 @@
 
 #include "script/entity/EntityScripts.hpp"
 
-#include "core/AssetPaths.hpp"
+#include "project/Project.hpp"
 #include "graphics/ModelManager.hpp"
 #include "Scene/TestScenes.hpp"
 #include "resmgr/Serializer.hpp"
@@ -44,16 +44,25 @@ namespace elm::script::bindings {
                 models->Clear();
         }
 
-        /// A relative scene file is taken from assets/scenes.
-        Path ScenePath(StringView file)
+        const project::Project& ProjectOf(lua_State* L) { return RequireSystem(L, Context(L).project, "the project"); }
+
+        /// A scene file of the project by its asset path, "scenes/level.scene".
+        Path ScenePath(lua_State* L, StringView file)
         {
-            const Path path(file);
-            return path.IsAbsolute() ? path : AssetPaths::Scenes() / path;
+            const auto asset = project::AssetPath::FromString(file);
+            if (!asset)
+                luaL_error(L, "'%s' is not a path in the assets folder (like \"scenes/level.scene\")", String(file).c_str());
+            return ProjectOf(L).Resolve(*asset);
         }
 
+        /// The new models go to the project's models folder first: the scene references their files.
         EngineResult<void> SaveScene(lua_State* L, StringView file)
         {
-            return resmgr::Serializer::SaveScene(SceneOf(L), ModelsOf(L), ScenePath(file), AssetPaths::Models());
+            const Path path = ScenePath(L, file);
+            const Path assets = ProjectOf(L).Assets();
+            if (auto newModels = resmgr::Serializer::SaveNewModels(SceneOf(L), ModelsOf(L), assets); !newModels)
+                return MakeUnexpected(newModels.error());
+            return resmgr::Serializer::SaveScene(SceneOf(L), ModelsOf(L), assets, path);
         }
 
         /// Replaces the scene with a scene file; returns how many nodes it has.
@@ -61,13 +70,13 @@ namespace elm::script::bindings {
         {
             auto& scene = SceneOf(L);
             auto& models = ModelsOf(L);
-            auto loaded = resmgr::Serializer::LoadScene(ScenePath(file));
+            auto loaded = resmgr::Serializer::LoadScene(ScenePath(L, file), ProjectOf(L).Assets());
             if (!loaded)
                 return MakeUnexpected(loaded.error());
             EndEntityScripts(L);
             scene.Clear();
             models.Clear();
-            const auto handlers = models.InsertAll(std::move(loaded->models));
+            const auto handlers = models.InsertAll(std::move(loaded->models), loaded->modelFiles);
             (void)scene.Append(std::move(*loaded), handlers);
             return scene.NodeCount();
         }
@@ -76,7 +85,7 @@ namespace elm::script::bindings {
 
         void PlayScene(lua_State* L)
         {
-            const auto& play = Context(L).play.play;
+            const auto& play = Context(L).play.playScene;
             if (!play)
                 luaL_error(L, "elm.engine.play is not available here");
             play();

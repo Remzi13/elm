@@ -1,6 +1,5 @@
 #include "script/ScriptSystem.hpp"
 
-#include "core/AssetPaths.hpp"
 #include "core/Debug.hpp"
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
@@ -16,7 +15,6 @@
 #include "script/module/ModuleLoader.hpp"
 #include "script/module/ModulePaths.hpp"
 #include "script/reload/HotReload.hpp"
-#include "script/ui/InspectorWindow.hpp"
 #include "script/ui/ScriptWindow.hpp"
 
 #include <utility>
@@ -51,7 +49,6 @@ namespace elm::script {
     void ScriptSystem::RegisterSettings(Settings& settings)
     {
         settings.Register(Settings::Category::Script, EnabledSetting, "Run scripts", true);
-        settings.Register(Settings::Category::Script, MainModule::NameSetting, "Main module", String("main"));
         settings.Register(Settings::Category::Script, HotReload::EnabledSetting, "Reload changed scripts", true);
     }
 
@@ -62,7 +59,7 @@ namespace elm::script {
             return { };
 
         m_engine = engine;
-        m_modulePaths->SetRoot(scriptRoot.Empty() ? AssetPaths::Scripts() : std::move(scriptRoot));
+        m_modulePaths->SetRoot(std::move(scriptRoot));
         m_state.Reset();
         m_state.OpenLibraries();
         m_moduleLoader->Init();
@@ -78,14 +75,22 @@ namespace elm::script {
         return { };
     }
 
-    auto ScriptSystem::Start(const Settings& settings) -> EngineResult<void>
+    auto ScriptSystem::Start(StringView mainModule) -> EngineResult<void>
     {
         if (!m_state.IsOpen())
             return MakeUnexpected(ErrorCode::ScriptError, "ScriptSystem::Start called before Init", log::Category::Script, LogSource);
-        m_scriptsEnabled = settings.Get<bool>(Settings::Category::Script, EnabledSetting, true);
+        m_mainModuleName = String(mainModule);
+        m_scriptsEnabled = !m_engine.settings || m_engine.settings->Get<bool>(Settings::Category::Script, EnabledSetting, true);
         if (!m_scriptsEnabled)
             return { };
-        return m_mainModule->Start(settings.Get<String>(Settings::Category::Script, MainModule::NameSetting, String("main")));
+        return m_mainModule->Start(mainModule);
+    }
+
+    auto ScriptSystem::Reset() -> EngineResult<void>
+    {
+        const Path root = m_modulePaths->Root();
+        Shutdown();
+        return Init(m_engine, root);
     }
 
     void ScriptSystem::Update(float deltaTime)
@@ -176,28 +181,23 @@ namespace elm::script {
     Vector<UniquePtr<IImGuiWindow>> ScriptSystem::CreateEditorWindows(Settings& settings)
     {
         const ScriptWindowDesc scripts { m_state, *m_console, *m_modulePaths, *m_moduleLoader, *m_hotReload, *m_mainModule,
-            *m_entityScripts, [this] { m_restartRequested = true; } };
-        const InspectorWindowDesc inspector { *m_entityScripts, *m_scriptDefaults, *m_modulePaths, *m_hotReload, m_engine.play,
-            m_engine.physics };
+            *m_entityScripts, *m_scriptDefaults, [this] { m_restartRequested = true; }, m_engine.play };
         Vector<UniquePtr<IImGuiWindow>> windows;
         windows.push_back(MakeUnique<ScriptWindow>(settings, scripts));
-        windows.push_back(MakeUnique<InspectorWindow>(settings, inspector));
         return windows;
     }
 
     auto ScriptSystem::Restart() -> EngineResult<void>
     {
         m_restartRequested = false;
-        const Path root = m_modulePaths->Root();
-        Shutdown();
-        if (auto init = Init(m_engine, root); !init)
-            return init;
+        if (auto reset = Reset(); !reset)
+            return reset;
         LOG_MESSAGE(log::Category::Script, LogSource, "Scripts restarted");
-        if (m_engine.settings)
-            return Start(*m_engine.settings);
-        Settings defaults;
-        RegisterSettings(defaults);
-        return Start(defaults);
+        // In Edit the main module waits for Play. Start takes the name by view: the member it is copied into is the source
+        if (!m_playing)
+            return { };
+        const String mainModule = m_mainModuleName;
+        return Start(mainModule);
     }
 
     bool ScriptSystem::HotReloadEnabled() const
@@ -222,9 +222,10 @@ namespace elm::script {
         bindings::RegisterMath(m_state);
         bindings::RegisterInput(m_state, m_engine.input);
         bindings::RegisterScene(m_state, m_engine.scene, m_engine.models, *m_entityScripts);
-        bindings::RegisterModels(m_state, m_engine.models);
+        bindings::RegisterModels(m_state, m_engine.models, m_engine.project);
         bindings::RegisterCamera(m_state, m_engine.camera);
-        bindings::RegisterEngine(m_state, { m_engine.scene, m_engine.models, m_entityScripts.get(), m_engine.play });
+        bindings::RegisterEngine(m_state, { m_engine.scene, m_engine.models, m_entityScripts.get(), m_engine.play,
+            m_engine.project });
         bindings::RegisterPhysics(m_state, m_engine.physics, m_engine.scene, m_engine.models);
         bindings::RegisterDebug(m_state, m_engine.debugDraw);
     }

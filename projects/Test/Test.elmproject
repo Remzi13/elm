@@ -1,0 +1,8 @@
+{
+   "entry": {
+      "mainModule": "main",
+      "startupScene": "scenes/level.scene"
+   },
+   "formatVersion": 1,
+   "name": "Test"
+}

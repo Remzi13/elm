@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/FileSystem.hpp"
 #include "core/Std.hpp"
 
 #include "math/Matrix.hpp"
@@ -28,6 +29,8 @@ struct SceneAsset {
 
     Vector<Node> nodes;
     Vector<graphics::Model> models;
+    /// The .model file each model was read from, by index; shorter (an import, an old file): the rest have none.
+    Vector<Path> modelFiles;
     /// The nodes have no ids yet: components are keyed by NodeRef(node index), and so is an Entity prop
     /// of a script. The model of a ModelComponent is ModelRef(model index). Scene::Append turns them all
     /// into the ids the nodes get and the handles the models got.

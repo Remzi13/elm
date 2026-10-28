@@ -13,6 +13,8 @@ class FileDialog {
 public:
     void Open(StringView title, StringView extension, const Path& directory = { });
     void SaveAs(StringView title, StringView extension, StringView defaultFileName, const Path& directory = { });
+    /// Keeps the dialog in this folder and below it (the project's assets), until the next Open or SaveAs.
+    void LimitTo(const Path& folder);
     [[nodiscard]] auto Draw() -> std::optional<Path>;
 
 private:
@@ -22,6 +24,7 @@ private:
     };
 
     void SetStartDirectory(const Path& directory);
+    [[nodiscard]] bool IsInsideLimit(const Path& directory) const;
     void RefreshEntries();
     [[nodiscard]] static auto PathToString(const Path& path) -> String;
 
@@ -30,6 +33,8 @@ private:
     String m_error;
     std::array<char, 260> m_saveFileName { };
     Path m_directory;
+    /// LimitTo's folder, empty: the whole disk.
+    Path m_limit;
     Path m_selectedPath;
     Vector<Entry> m_entries;
     bool m_saveMode { false };

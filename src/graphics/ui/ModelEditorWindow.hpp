@@ -17,11 +17,8 @@ namespace elm {
 /// sees the result only on "Apply to Scene" or "Add to Scene".
 class ModelEditorWindow final : public IImGuiWindow {
 public:
-    explicit ModelEditorWindow(Settings& settings)
-        : IImGuiWindow(settings)
-    {
-        m_visible = false;
-    }
+    /// The project's assets folder (imports are copied into it) and its models folder (where dialogs start).
+    ModelEditorWindow(Settings& settings, Path assetsFolder, Path modelsFolder);
 
     [[nodiscard]] StringView GetName() const override { return "Model Editor"; }
     void Render(ImGuiWindowContext& context) override;
@@ -47,6 +44,8 @@ private:
         Vector<bool> selected;
         graphics::SceneImportOptions options;
         Vector<graphics::ImportedModel> results;
+        /// The files "Save Models" wrote, one per result, for the models added to the scene afterwards.
+        Vector<Path> savedFiles;
         size_t selectedResult { 0 };
         bool resultsDirty { true };
     };
@@ -58,7 +57,7 @@ private:
     void CloseDocument();
     void OpenFile(const Path& path);
     /// Single-mesh files open right away, scenes start an import session.
-    void ImportGltf(const Path& path);
+    void ImportGltf(const Path& file);
     void OpenImportedResult();
     void SaveImported(const Path& anyFileInDirectory);
     void AddImportedToScene(ImGuiWindowContext& context);
@@ -105,8 +104,12 @@ private:
     void UpdatePreview();
     /// Model shown in the preview: the selected import result or the document.
     [[nodiscard]] const graphics::Model* GetPreviewSource() const;
+    /// The file of the scene model the document was applied to: the document's file unless it has unsaved edits.
+    void RecordSceneFile(ImGuiWindowContext& context) const;
     [[nodiscard]] bool IsSceneModelAlive(const ImGuiWindowContext& context) const;
 
+    Path m_assetsFolder;
+    Path m_modelsFolder;
     // Preview resources live in their own manager, apart from the scene models
     std::optional<graphics::ModelManager> m_previewModels;
     graphics::ModelHandler m_previewModel;
@@ -150,6 +153,8 @@ private:
     Action m_deferredAction;
     bool m_openDiscardPopup { false };
     std::optional<graphics::ModelHandler> m_requestedSceneModel;
+    /// Asked for through OpenModelFile, opened in the next Render (after the unsaved-changes question).
+    std::optional<Path> m_requestedFile;
     bool m_focusRequested { false };
     String m_status;
     Vector<MessageBus::Subscription> m_querySubscriptions;

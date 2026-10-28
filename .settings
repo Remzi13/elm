@@ -1,6 +1,8 @@
 {
    "settings": {
       "Core/FileSystem/RootPath": ".",
+      "Core/Project/Last": "C:/Users/zakkh/Documents/code/elm/projects/Race/Race.elmproject",
+      "Core/Project/Recent": "C:/Users/zakkh/Documents/code/elm/projects/Race/Race.elmproject\nC:/Users/zakkh/Documents/code/elm/projects/Test/Test.elmproject\nE:/trash/elm/projects/Race/Race.elmproject\nE:/trash/elm/projects/Test/Test.elmproject\nE:/trash/elm/projects/Sandbox/Sandbox.elmproject",
       "Render/Debug/Draw/Editor/Gizmo": true,
       "Render/Debug/Draw/Editor/WorldAxes": true,
       "Render/Debug/Draw/Physics/Colliders": true,
@@ -8,19 +10,15 @@
       "Render/Debug/Draw/Physics/Raycasts": true,
       "Render/Debug/Draw/Physics/Triggers": true,
       "Render/Debug/Draw/Script/Default": true,
-      "Render/Debug/Draw/Script/sensor": true,
-      "Render/Debug/Draw/Script/shapes": true,
-      "Render/Debug/Draw/Script/trail": true,
       "Render/culling/DepthBias": 0.0032999999821186066,
       "Render/culling/DepthFalseColor": true,
-      "Render/culling/EnableFrustumCulling": true,
-      "Render/culling/EnableOcclusionCulling": true,
+      "Render/culling/EnableFrustumCulling": false,
+      "Render/culling/EnableOcclusionCulling": false,
       "Render/culling/Resolution/Height": 288,
       "Render/culling/Resolution/Width": 512,
       "Render/culling/VisualMode": 0,
       "Script/Enabled": true,
       "Script/HotReload": true,
-      "Script/MainModule": "demo.debug",
       "Script/PlayOnStart": false
    },
    "version": 1

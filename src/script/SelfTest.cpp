@@ -22,6 +22,7 @@
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/Scene.hpp"
 #include "Scene/SceneAsset.hpp"
+#include "Scene/SceneSnapshot.hpp"
 #include "Scene/ScriptComponent.hpp"
 #include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
@@ -33,7 +34,12 @@
 #include "graphics/gizmo/TransformGizmo.hpp"
 #include "input/Input.hpp"
 #include "physics/PhysicsSystem.hpp"
+#include "project/Project.hpp"
+#include "project/ProjectAssets.hpp"
 #include "render/api/FrameWriter.hpp"
+#include "resmgr/AssetImport.hpp"
+#include "resmgr/ProjectBuilder.hpp"
+#include "resmgr/ProjectTemplate.hpp"
 #include "resmgr/Serializer.hpp"
 
 #include <algorithm>
@@ -547,6 +553,23 @@ namespace elm::script {
             scene.CopyComponents(a, e);
             report.Check(scene.Components<RigidBody>().Find(e) && scene.Components<RigidBody>().Find(e)->mass == 7.0f,
                 "snapshot::copy_components");
+
+            // A model removed meanwhile comes back with a new handle and its file
+            render::RenderResources resources;
+            graphics::ModelManager models(resources);
+            graphics::Model cube("Cube");
+            cube.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            const Path cubeFile("assets/models/Cube.model");
+            const auto model = models.Insert(cube, cubeFile);
+            Scene withModel;
+            const NodeId node = withModel.AddNode({ .name = "cube" });
+            withModel.Components<ModelComponent>().Emplace(node, ModelComponent { .model = model });
+            auto snapshot = SceneSnapshot::Take(withModel, &models);
+            models.Remove(model);
+            std::move(snapshot).Restore(withModel, &models);
+            const ModelComponent* restored = withModel.Components<ModelComponent>().Find(node);
+            const Path* file = restored ? models.FileOf(restored->model) : nullptr;
+            report.Check(restored && restored->model != model && file && *file == cubeFile, "snapshot::restored_model_keeps_its_file");
         }
 
         // ── Component stores ────────────────────────────────────────────────────
@@ -707,7 +730,7 @@ namespace elm::script {
 
             // ── Main module ──
             WriteScript(mainFile, "local main = {} function main.on_start() started = (started or 0) + 1 end return main =");
-            report.Check(!system.Start(settings) && SelfTestAccess::Main(system).GetState() == MainState::Idle
+            report.Check(!system.Start("main") && SelfTestAccess::Main(system).GetState() == MainState::Idle
                     && Loaded(system, "main") && !Loaded(system, "main")->error.empty(),
                 "hot::broken_main_is_idle");
             WriteScript(mainFile,
@@ -1223,9 +1246,17 @@ namespace elm::script {
             fs::remove_all(root, error);
             fs::create_directories(root, error);
             auto pathOf = [&](const char* name) { return Path(String((root / name).generic_string().c_str())); };
+            // Model files go to the project's assets folder, root/assets
+            const project::Project project(pathOf("selftest.elmproject"), project::ProjectDesc { .name = "selftest" });
+            auto loadScene = [&](const Path& file) { return resmgr::Serializer::LoadScene(file, project.Assets()); };
 
             render::RenderResources resources;
             graphics::ModelManager models(resources);
+            auto assetPathOf = [&](graphics::ModelHandler model) {
+                const Path* file = models.FileOf(model);
+                const auto asset = file ? project.AssetPathOf(*file) : std::nullopt;
+                return asset ? asset->Text() : String { };
+            };
             Scene scene;
             const NodeId guard = Place(scene, "guard", { 1.0f, 0.0f, 2.0f });
             const NodeId target = Place(scene, "target", { 5.0f, 0.0f, 0.0f });
@@ -1254,7 +1285,11 @@ namespace elm::script {
             scene.RemoveNode(gone);
             scene.UpdateWorldTransforms();
 
-            const auto saved = resmgr::Serializer::SaveScene(scene, models, pathOf("components.scene"), pathOf(""));
+            const auto newModels = resmgr::Serializer::SaveNewModels(scene, models, project.Assets());
+            report.Check(newModels && *newModels == 1 && assetPathOf(guardModel.model) == "models/Cube.model"
+                    && fs::exists(root / "assets" / "models" / "Cube.model"),
+                "scene_file::new_models_get_files");
+            const auto saved = resmgr::Serializer::SaveScene(scene, models, project.Assets(), pathOf("components.scene"));
             report.Check(saved.has_value(), "scene_file::save_with_components", saved ? "" : saved.error().message);
             {
                 // Component floats are written in their shortest form, for people who edit the file
@@ -1265,10 +1300,11 @@ namespace elm::script {
                     "scene_file::readable_components", text.substr(text.find("\"components\"")));
                 // World transforms follow from the local ones and are not written
                 report.Check(text.find("worldTransform") == String::npos && text.find("\"Model\"") != String::npos
-                        && text.find("\"modelIndex\": 0") != String::npos && text.find("\"formatVersion\": 6") != String::npos,
+                        && text.find("\"modelIndex\": 0") != String::npos && text.find("\"formatVersion\": 7") != String::npos
+                        && text.find("\"path\": \"models/Cube.model\"") != String::npos,
                     "scene_file::model_is_a_component", text.substr(0, 400));
             }
-            auto loaded = resmgr::Serializer::LoadScene(pathOf("components.scene"));
+            auto loaded = loadScene(pathOf("components.scene"));
             report.Check(loaded.has_value(), "scene_file::load_with_components", loaded ? "" : loaded.error().message);
             if (!loaded)
                 return;
@@ -1276,8 +1312,21 @@ namespace elm::script {
             // Into a scene that has a node already: the loaded nodes get other ids than they had
             Scene restored;
             (void)Place(restored, "existing", { });
-            const auto handlers = models.InsertAll(std::move(loaded->models));
+            const auto handlers = models.InsertAll(std::move(loaded->models), loaded->modelFiles);
             const Vector<NodeId> ids = restored.Append(std::move(*loaded), handlers);
+            const auto savedAgain = resmgr::Serializer::SaveNewModels(restored, models, project.Assets());
+            report.Check(savedAgain && *savedAgain == 0 && assetPathOf(handlers.front()) == "models/Cube.model",
+                "scene_file::loaded_models_keep_their_files");
+            {
+                // Another new model of the same name does not overwrite the file
+                Scene other;
+                const NodeId node = other.AddNode({ .name = "other" });
+                const auto otherModel = models.Insert(cubeModel);
+                other.Components<ModelComponent>().Emplace(node, ModelComponent { .model = otherModel });
+                report.Check(resmgr::Serializer::SaveNewModels(other, models, project.Assets()).has_value()
+                        && assetPathOf(otherModel) == "models/Cube_1.model",
+                    "scene_file::new_model_file_does_not_overwrite");
+            }
             if (ids.size() != 3) {
                 report.Check(false, "scene_file::nodes_round_trip", std::to_string(ids.size()));
                 return;
@@ -1324,24 +1373,30 @@ namespace elm::script {
                 WriteScript(root / name, text.c_str());
                 return pathOf(name);
             };
-            const auto old = resmgr::Serializer::LoadScene(writeScene("old.scene", 4, ""));
+            const auto old = loadScene(writeScene("old.scene", 4, ""));
             report.Check(old && old->nodes.size() == 1 && !old->components.FindComponents<ScriptComponent>()
                     && !old->components.FindComponents<Collider>() && !old->components.FindComponents<ModelComponent>(),
                 "scene_file::version_4_still_loads");
-            // Before version 6 the model, color and visible were fields of the node; the model file is the one saved above
-            const String legacyText = "{ \"formatVersion\": 5, \"models\": [ { \"path\": \"Cube.model\" } ], \"nodes\": [ { \"name\": \"a\", "
+            // Before version 6 the model, color and visible were fields of the node; the model file is the one saved
+            // above, before version 7 relative to the scene file
+            const String legacyText = "{ \"formatVersion\": 5, \"models\": [ { \"path\": \"assets/models/Cube.model\" } ], \"nodes\": [ { \"name\": \"a\", "
                 "\"localTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], \"worldTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], "
                 "\"visible\": false, \"color\": [0,0,1,1], \"modelIndex\": 0 } ] }";
             WriteScript(root / "legacy.scene", legacyText.c_str());
-            const auto legacy = resmgr::Serializer::LoadScene(pathOf("legacy.scene"));
+            const auto legacy = loadScene(pathOf("legacy.scene"));
             const auto* legacyModels = legacy ? legacy->components.FindComponents<ModelComponent>() : nullptr;
             const ModelComponent* legacyModel = legacyModels ? legacyModels->Find(SceneAsset::NodeRef(0)) : nullptr;
             report.Check(legacyModel && legacyModel->model == SceneAsset::ModelRef(0) && legacyModel->color.z == 1.0f
                     && !legacyModel->visible && legacy->models.size() == 1,
                 "scene_file::version_5_node_model_becomes_a_component", legacy ? "" : legacy.error().message);
-            report.Check(!resmgr::Serializer::LoadScene(writeScene("model.scene", 6, R"(, "components": { "Model": { "modelIndex": 0 } })")),
+            report.Check(legacy && project.AssetPathOf(legacy->modelFiles.front()) == project::AssetPath::FromString("models/Cube.model"),
+                "scene_file::old_model_path_becomes_an_asset_path");
+            const String outsideText = "{ \"formatVersion\": 7, \"models\": [ { \"path\": \"../Cube.model\" } ], \"nodes\": [] }";
+            WriteScript(root / "outside.scene", outsideText.c_str());
+            report.Check(!loadScene(pathOf("outside.scene")), "scene_file::model_outside_assets_is_an_error");
+            report.Check(!loadScene(writeScene("model.scene", 6, R"(, "components": { "Model": { "modelIndex": 0 } })")),
                 "scene_file::missing_model_is_an_error");
-            const auto defaults = resmgr::Serializer::LoadScene(
+            const auto defaults = loadScene(
                 writeScene("defaults.scene", 5, R"(, "components": { "RigidBody": { "mass": 4 }, "Collider": { "shape": "sphere" } })"));
             const auto* loadedBodies = defaults ? defaults->components.FindComponents<RigidBody>() : nullptr;
             const auto* loadedColliders = defaults ? defaults->components.FindComponents<Collider>() : nullptr;
@@ -1350,15 +1405,15 @@ namespace elm::script {
             report.Check(loadedBody && loadedBody->mass == 4.0f && loadedBody->type == BodyType::Dynamic
                     && loadedCollider && loadedCollider->shape == ColliderShape::Sphere && loadedCollider->radius == 0.5f,
                 "scene_file::missing_fields_take_defaults");
-            report.Check(!resmgr::Serializer::LoadScene(writeScene("unknown.scene", 5, R"(, "components": { "Rigidbody": { } })")),
+            report.Check(!loadScene(writeScene("unknown.scene", 5, R"(, "components": { "Rigidbody": { } })")),
                 "scene_file::unknown_component_is_an_error");
-            report.Check(!resmgr::Serializer::LoadScene(
+            report.Check(!loadScene(
                              writeScene("prop.scene", 5, R"(, "components": { "Script": { "module": "m", "props": { "x": [1, 2] } } })")),
                 "scene_file::bad_prop_is_an_error");
-            report.Check(!resmgr::Serializer::LoadScene(
+            report.Check(!loadScene(
                              writeScene("reference.scene", 5, R"(, "components": { "Script": { "module": "m", "props": { "x": { "entity": 7 } } } })")),
                 "scene_file::entity_prop_out_of_range_is_an_error");
-            report.Check(!resmgr::Serializer::LoadScene(writeScene("type.scene", 5, R"(, "components": { "RigidBody": { "type": "floating" } })")),
+            report.Check(!loadScene(writeScene("type.scene", 5, R"(, "components": { "RigidBody": { "type": "floating" } })")),
                 "scene_file::bad_body_type_is_an_error");
 
             // Through Lua: after save_scene and load_scene the scripts start again with their props
@@ -1375,7 +1430,8 @@ namespace elm::script {
             ScriptSystem::RegisterSettings(settings);
             Scene live;
             ScriptSystem system;
-            if (!system.Init({ &live, &models, nullptr, nullptr, &settings, &physics }, Path(String(root.generic_string().c_str())))) {
+            if (!system.Init({ &live, &models, nullptr, nullptr, &settings, &physics, { }, nullptr, &project },
+                    Path(String(root.generic_string().c_str())))) {
                 report.Check(false, "scene_file::script_init");
                 return;
             }
@@ -1386,9 +1442,17 @@ namespace elm::script {
                 "local a = elm.scene.spawn('a') a:add('Script', { module = 'mover', props = { speed = 7, target = b } }) "
                 "a:add('Collider', { shape = 'sphere', radius = 0.5 }) a:add('RigidBody', { mass = 5 })");
             system.Update(Step);
-            const String file(String((root / "lua.scene").generic_string().c_str()));
+            // An asset path: the file is root/assets/scenes/lua.scene
+            const String file("scenes/lua.scene");
             const String saveAndLoad = "elm.engine.save_scene('" + file + "') return elm.engine.load_scene('" + file + "')";
             report.Check(Evaluate(system, saveAndLoad.c_str()) == "2", "scene_file::lua_save_and_load", Evaluate(system, "return seen"));
+            report.Check(fs::exists(root / "assets" / "scenes" / "lua.scene")
+                    && Evaluate(system, "local ok, e = pcall(elm.engine.load_scene, 'C:/lua.scene') "
+                                        "return ok, e:find('not a path in the assets folder', 1, true) ~= nil") == "false	true",
+                "scene_file::lua_scene_is_an_asset_path");
+            report.Check(Evaluate(system, "local m = elm.models.load('models/Cube.model') return m.file, elm.models.cube().file")
+                    == "models/Cube.model	nil",
+                "scene_file::lua_model_keeps_its_file");
             system.Update(Step);
             physics.Step(live, Step);
             const String restarted = Evaluate(system, "local a = elm.scene.find('a') return started, seen, a.rigidbody.mass, a.collider.shape");
@@ -1400,6 +1464,204 @@ namespace elm::script {
         }
 
         // ── Play mode ───────────────────────────────────────────────────────────
+
+        /// Imports into a project: the Sandbox glTF sample (village.gltf with village.bin) into a fresh assets folder.
+        void RunAssetImportTests(Report& report, const Path& scriptRoot)
+        {
+            namespace fs = std::filesystem;
+            using resmgr::AssetImport;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_asset_import_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root / "assets", error);
+            fs::create_directories(root / "outside", error);
+            auto pathOf = [&](const char* relative) { return Path(String((root / relative).generic_string().c_str())); };
+            const Path assets = pathOf("assets");
+            const Path village = scriptRoot.Parent() / "test" / "village" / "village.gltf";
+
+            const auto copied = AssetImport::CopyIntoProject(village, assets);
+            report.Check(copied && *copied == pathOf("assets/source/village/village.gltf")
+                    && fs::exists(root / "assets" / "source" / "village" / "village.bin"),
+                "import::gltf_is_copied_with_its_buffers", copied ? "" : copied.error().message);
+            const auto again = AssetImport::CopyIntoProject(village, assets);
+            report.Check(again && *again == pathOf("assets/source/village_1/village.gltf"), "import::second_copy_does_not_overwrite");
+            const auto inside = copied ? AssetImport::CopyIntoProject(*copied, assets) : copied;
+            report.Check(inside && copied && *inside == *copied && !fs::exists(root / "assets" / "source" / "village_2"),
+                "import::file_in_the_project_stays");
+            WriteScript(root / "outside" / "escape.gltf", R"({ "buffers": [ { "uri": "../secret.bin" } ] })");
+            report.Check(!AssetImport::CopyIntoProject(pathOf("outside/escape.gltf"), assets), "import::reference_outside_its_folder_is_an_error");
+
+            const auto scene = AssetImport::ImportScene(village, assets);
+            bool modelsWritten = scene && !scene->models.empty() && scene->modelFiles.size() == scene->models.size();
+            for (size_t index = 0; modelsWritten && index < scene->modelFiles.size(); ++index) {
+                const auto asset = project::AssetPath::Of(scene->modelFiles[index], assets);
+                modelsWritten = asset && asset->Text().starts_with("models/") && FileSystem::Exists(scene->modelFiles[index]);
+            }
+            report.Check(modelsWritten, "import::scene_models_are_written", scene ? "" : scene.error().message);
+
+            const auto model = AssetImport::ImportModel(village, assets);
+            const auto modelAsset = model ? project::AssetPath::Of(model->file, assets) : std::nullopt;
+            report.Check(model && model->model.name == "village" && modelAsset && modelAsset->Text().starts_with("models/village")
+                    && FileSystem::Exists(model->file),
+                "import::gltf_model_is_written");
+            const auto same = model ? AssetImport::ImportModel(model->file, assets) : model;
+            report.Check(same && model && same->file == model->file, "import::project_model_stays_its_file");
+            fs::remove_all(root, error);
+        }
+
+        void RunProjectTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_project_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root / "Game", error);
+            auto pathOf = [&](const fs::path& relative) { return Path(String((root / relative).generic_string().c_str())); };
+
+            const Path file = pathOf("Game/Game.elmproject");
+            report.Check(project::Project::FindFile(pathOf("Game")) == file && project::Project::FindFile(pathOf("Game/")) == file
+                    && project::Project::FindFile(file) == file,
+                "project::find_file_names_the_folder");
+
+            WriteScript(root / "Game" / "Game.elmproject",
+                R"({ "formatVersion": 1, "name": "Game", "entry": { "startupScene": "scenes/level.scene", "mainModule": "game.main" } })");
+            const auto loaded = resmgr::Serializer::LoadProject(file);
+            report.Check(loaded && loaded->Name() == "Game" && loaded->Desc().entry.mainModule == "game.main" && loaded->File() == file
+                    && loaded->Desc().entry.startupScene == project::AssetPath::FromString("scenes/level.scene"),
+                "project::load_reads_the_entry");
+            report.Check(loaded && loaded->Root() == pathOf("Game") && loaded->Scripts() == pathOf("Game/assets/scripts"),
+                "project::folders_are_under_the_root");
+
+            using project::AssetPath;
+            const auto crate = AssetPath::FromString("models\\props/crate.model");
+            report.Check(crate && crate->Text() == "models/props/crate.model" && loaded
+                    && loaded->Resolve(*crate) == pathOf("Game/assets/models/props/crate.model"),
+                "project::asset_path_resolves_under_assets");
+            report.Check(!AssetPath::FromString("") && !AssetPath::FromString("/models/a.model") && !AssetPath::FromString("C:/a.model")
+                    && !AssetPath::FromString("models/../../a.model") && !AssetPath::FromString("models//a.model")
+                    && !AssetPath::FromString("./a.model") && !AssetPath::FromString("models/"),
+                "project::asset_path_stays_in_the_folder");
+            report.Check(loaded && loaded->AssetPathOf(pathOf("Game/assets/scenes/../models/a.model")) == AssetPath::FromString("models/a.model")
+                    && !loaded->AssetPathOf(pathOf("Game/other/a.model")) && !loaded->AssetPathOf(Path("a.model")),
+                "project::asset_path_of_a_file");
+
+            WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game", "entry": { "startupScene": "scenes/a.scene" } })");
+            const auto sceneOnly = resmgr::Serializer::LoadProject(file);
+            report.Check(sceneOnly && sceneOnly->Desc().entry.startupScene && sceneOnly->Desc().entry.mainModule.empty(),
+                "project::entry_without_main_module");
+            WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game" })");
+            report.Check(!resmgr::Serializer::LoadProject(file), "project::entry_is_required");
+            WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game", "entry": { } })");
+            report.Check(!resmgr::Serializer::LoadProject(file), "project::entry_needs_a_scene_or_a_module");
+            WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game", "entry": { "startupScene": "../a.scene" } })");
+            report.Check(!resmgr::Serializer::LoadProject(file), "project::startup_scene_is_an_asset_path");
+
+            WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1 })");
+            report.Check(!resmgr::Serializer::LoadProject(file), "project::name_is_required");
+            WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 2, "name": "Game" })");
+            report.Check(!resmgr::Serializer::LoadProject(file), "project::unknown_version_is_an_error");
+            report.Check(!resmgr::Serializer::LoadProject(pathOf("Missing/Missing.elmproject")), "project::missing_file_is_an_error");
+        }
+
+        /// The files of an assets folder, a project file written back, a project made from the template.
+        void RunProjectFilesTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            using project::AssetType;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_project_files_selftest";
+            fs::remove_all(root, error);
+            auto pathOf = [&](const char* relative) { return Path(String((root / relative).generic_string().c_str())); };
+
+            report.Check(project::AssetTypeOf(Path("a/level.scene")) == AssetType::Scene && project::AssetTypeOf(Path("b.MODEL")) == AssetType::Model
+                    && project::AssetTypeOf(Path("c.lua")) == AssetType::Script && project::AssetTypeOf(Path("d.glb")) == AssetType::SourceModel
+                    && project::AssetTypeOf(Path("e.png")) == AssetType::Texture && project::AssetTypeOf(Path("f.txt")) == AssetType::Other,
+                "project::asset_type_by_extension");
+
+            for (const char* file : { "assets/scenes/level.scene", "assets/models/crate.model", "assets/scripts/main.lua",
+                     "assets/scripts/npc/guard.lua", "assets/scripts/pkg/init.lua", "assets/scripts/.meta/elm.lua" }) {
+                fs::create_directories((root / file).parent_path(), error);
+                WriteScript(root / file, "-- test");
+            }
+            const project::ProjectAssets assets(pathOf("assets"));
+            const auto& top = assets.Root().children;
+            report.Check(top.size() == 3 && top[0].name == "models" && top[0].folder && top[1].name == "scenes" && top[2].name == "scripts"
+                    && top[2].children.size() == 3 && top[2].children[0].folder && top[2].children.back().name == "main.lua",
+                "project::assets_tree_folders_first_without_hidden");
+            const auto scenes = assets.FilesOf(AssetType::Scene);
+            const auto modules = assets.ScriptModules();
+            report.Check(scenes.size() == 1 && scenes[0].Text() == "scenes/level.scene"
+                    && modules == Vector<String> { "main", "npc.guard", "pkg" },
+                "project::assets_files_and_modules");
+
+            project::Project saved(pathOf("Game/Game.elmproject"), project::ProjectDesc { .name = "Game", .entry = { .mainModule = "main" } });
+            saved.SetEntry({ .startupScene = project::AssetPath::FromString("scenes/level.scene"), .mainModule = "game.main" });
+            const bool written = resmgr::Serializer::SaveProject(saved).has_value();
+            const auto readBack = resmgr::Serializer::LoadProject(saved.File());
+            report.Check(written && readBack && readBack->Name() == "Game" && readBack->Desc().entry.mainModule == "game.main"
+                    && readBack->Desc().entry.startupScene == project::AssetPath::FromString("scenes/level.scene"),
+                "project::save_and_load_round_trip");
+
+            report.Check(resmgr::ProjectTemplate::IsValidName("My_Game-2") && !resmgr::ProjectTemplate::IsValidName("")
+                    && !resmgr::ProjectTemplate::IsValidName("a/b") && !resmgr::ProjectTemplate::IsValidName("my game"),
+                "project::template_names");
+            const auto created = resmgr::ProjectTemplate::Create(pathOf("new"), "Fresh", "-- api");
+            const auto opened = created ? resmgr::Serializer::LoadProject(*created) : std::unexpected(created.error());
+            report.Check(opened && opened->Name() == "Fresh" && opened->Desc().entry.mainModule == "main"
+                    && fs::exists(root / "new" / "Fresh" / "assets" / "scripts" / "main.lua")
+                    && fs::exists(root / "new" / "Fresh" / "assets" / "scripts" / ".meta" / "elm.lua")
+                    && fs::is_directory(root / "new" / "Fresh" / "assets" / "scenes"),
+                "project::template_creates_a_project", created ? "" : created.error().message);
+            report.Check(!resmgr::ProjectTemplate::Create(pathOf("new"), "Fresh", "-- api"), "project::template_does_not_overwrite");
+
+            // A build of the new project, with a stand-in program and library
+            fs::create_directories(root / "bin", error);
+            fs::create_directories(root / "shaders", error);
+            WriteScript(root / "bin" / "Engine.exe", "program");
+            WriteScript(root / "bin" / "helper.dll", "library");
+            WriteScript(root / "shaders" / "mesh.vert.hlsl", "shader");
+            fs::create_directories(root / "new" / "Fresh" / "assets" / "source" / "raw", error);
+            WriteScript(root / "new" / "Fresh" / "assets" / "source" / "raw" / "original.gltf", "{}");
+            const resmgr::BuildDesc buildDesc { pathOf("bin/Engine.exe"), pathOf("shaders") };
+            const auto game = opened ? resmgr::ProjectBuilder::Build(*opened, buildDesc) : std::unexpected(opened.error());
+            const fs::path built = root / "new" / "Fresh" / "Build" / "Fresh";
+            report.Check(game && fs::exists(built / "Fresh.exe") && fs::exists(built / "helper.dll") && fs::exists(built / "shaders" / "mesh.vert.hlsl")
+                    && fs::exists(built / "Fresh.elmproject") && fs::exists(built / "assets" / "scripts" / "main.lua")
+                    && fs::exists(built / ".settings") && !fs::exists(built / "assets" / "source") && !fs::exists(built / "assets" / "scripts" / ".meta"),
+                "project::build_makes_the_game_folder", game ? "" : game.error().message);
+            report.Check(opened && resmgr::ProjectBuilder::Build(*opened, buildDesc).has_value(), "project::build_replaces_its_own_build");
+            fs::remove(built / resmgr::ProjectBuilder::BuildMarkFile, error);
+            report.Check(opened && !resmgr::ProjectBuilder::Build(*opened, buildDesc) && fs::exists(built / "Fresh.exe"),
+                "project::build_leaves_other_folders_alone");
+            fs::remove_all(root, error);
+        }
+
+        /// Opening another project restarts the scripts on its scripts folder: its modules are found, the old ones are not.
+        void RunProjectSwitchTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_project_switch_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root / "first", error);
+            fs::create_directories(root / "second", error);
+            WriteScript(root / "first" / "only_first.lua", "return { name = 'first' }");
+            WriteScript(root / "second" / "only_second.lua", "return { name = 'second' }");
+
+            Settings settings;
+            ScriptSystem::RegisterSettings(settings);
+            ScriptSystem system;
+            auto initOn = [&](const char* folder) {
+                return system.Init({ .settings = &settings }, Path(String((root / folder).generic_string().c_str()))).has_value();
+            };
+            report.Check(initOn("first") && Evaluate(system, "return require('only_first').name") == "first",
+                "project::scripts_of_the_first_project");
+            system.Shutdown();
+            report.Check(initOn("second") && Evaluate(system, "return require('only_second').name") == "second"
+                    && Evaluate(system, "return (pcall(require, 'only_first'))") == "false",
+                "project::scripts_of_the_second_project");
+            system.Shutdown();
+        }
 
         void RunPlayModeTests(Report& report)
         {
@@ -1416,7 +1678,7 @@ namespace elm::script {
                 "return Mover\n");
             WriteScript(root / "main.lua",
                 "local main = {}\n"
-                "function main.on_start() log = {} end\n"
+                "function main.on_start() log = { 'main start' } end\n"
                 "function main.on_update(dt) ticks = (ticks or 0) + 1 end\n"
                 "function main.on_play() log[#log + 1] = 'play' end\n"
                 "function main.on_stop() log[#log + 1] = 'stop' stopped_spawn = elm.scene.spawn('z') stopped_spawn:add('Script', 'mover') end\n"
@@ -1437,8 +1699,20 @@ namespace elm::script {
             Scene scene;
             ScriptSystem system;
             PlayMode playMode(scene, &models, &physics, system);
+            // As EngineApp gives it: Play Scene plays the edited scene, Play Project a start scene of one node
+            bool hasStartScene = false;
+            playMode.SetStartSource([&](PlayTarget target) -> std::optional<PlayStart> {
+                PlayStart start { .mainModule = "main" };
+                if (target == PlayTarget::Project) {
+                    if (!hasStartScene)
+                        return std::nullopt;
+                    start.scene.emplace();
+                    start.scene->nodes.push_back(SceneAsset::Node { .name = "level" });
+                }
+                return start;
+            });
             const EngineContext engine { &scene, &models, nullptr, nullptr, &settings, &physics, playMode.Requests() };
-            if (!system.Init(engine, Path(String(root.generic_string().c_str()))) || !system.Start(settings)) {
+            if (!system.Init(engine, Path(String(root.generic_string().c_str())))) {
                 report.Check(false, "play::script_init");
                 return;
             }
@@ -1467,10 +1741,11 @@ namespace elm::script {
             const ModelComponent* hiddenB = nodeModels.Find(nodeB);
             report.Check(bareB && hiddenB && !hiddenB->model && !hiddenB->visible && eval("return b.visible, b.model") == "false\tnil",
                 "play::visible_without_a_model");
-            (void)SelfTestAccess::Console(system).Execute("b.visible = true");
+            (void)SelfTestAccess::Console(system).Execute("b.visible = true edit_marker = 1");
             for (int count = 0; count < 3; ++count)
                 frame();
-            report.Check(!playMode.IsPlaying() && eval("return #log, ticks, a.position.x") == "0\tnil\t0.0", "play::edit_mode_stands_still");
+            // The main module waits for Play: no log, no ticks
+            report.Check(!playMode.IsPlaying() && eval("return log, ticks, a.position.x") == "nil\tnil\t0.0", "play::edit_mode_stands_still");
 
             const auto defaults = SelfTestAccess::Defaults(system).Get("mover");
             report.Check(defaults && defaults->size() == 1 && (*defaults)[0].first == "step" && std::get_if<int64_t>(&(*defaults)[0].second)
@@ -1490,14 +1765,18 @@ namespace elm::script {
 
             report.Check(eval("elm.engine.play() return elm.engine.is_playing()") == "false", "play::request_waits_for_the_update");
             frame();
-            report.Check(eval("return elm.engine.is_playing(), log[1], log[2], ticks, a.position.x") == "true\tplay\tstart a\t1\t1.0",
+            // Entities are found by name from here on: every Play and Stop gives the scripts a fresh Lua state
+            report.Check(eval("return elm.engine.is_playing(), log[1], log[2], log[3], ticks, elm.scene.find('a').position.x")
+                    == "true\tmain start\tplay\tstart a\t1\t1.0",
                 "play::play_starts_everything");
+            report.Check(eval("return edit_marker, a") == "nil\tnil", "play::play_starts_a_fresh_lua_state");
             SelfTestAccess::Entities(system).SetField(nodeA, "step", ScriptValue(int64_t { 5 }));
             frame();
-            report.Check(eval("return a.position.x") == "6.0", "play::inspector_writes_the_instance");
+            report.Check(eval("return elm.scene.find('a').position.x") == "6.0", "play::inspector_writes_the_instance");
 
             // What the game does meanwhile goes away on Stop
-            (void)SelfTestAccess::Console(system).Execute("b:destroy() c = elm.scene.spawn('c') a.color = elm.math.Vector4(1, 0, 0, 1) a:remove('Collider')");
+            (void)SelfTestAccess::Console(system).Execute("local a = elm.scene.find('a') elm.scene.find('b'):destroy() "
+                "elm.scene.spawn('c') a.color = elm.math.Vector4(1, 0, 0, 1) a:remove('Collider') play_marker = 1");
             graphics::Model extraModel("Extra");
             extraModel.AddSubmesh(GeometryPrimitives::CreateCube(2.0f));
             const auto extra = models.Insert(extraModel);
@@ -1505,27 +1784,78 @@ namespace elm::script {
             frame();
             (void)SelfTestAccess::Console(system).Execute("elm.engine.stop()");
             frame();
-            report.Check(eval("return log[#log - 1], log[#log], a.valid, a.position.x, b.valid, c.valid, a:has('Collider'), a.color.y")
-                    == "destroy a\tstop\ttrue\t0.0\ttrue\tfalse\ttrue\t1.0",
-                "play::stop_brings_the_scene_back", eval("return log[#log - 1], log[#log], a.valid, a.position.x, b.valid, c.valid"));
+            report.Check(eval("local a = elm.scene.find('a') return a.position.x, elm.scene.find('b') ~= nil, elm.scene.find('c'), "
+                              "a:has('Collider'), a.color.y")
+                    == "0.0\ttrue\tnil\ttrue\t1.0",
+                "play::stop_brings_the_scene_back");
             // Stop replaced the stores: the one taken before Play is gone
             const auto* restoredModels = scene.FindComponents<ModelComponent>();
             const ModelComponent* restoredA = restoredModels ? restoredModels->Find(nodeA) : nullptr;
             report.Check(restoredA && models.Get(restoredA->model) && !models.Get(extra) && physics.GetNumBodies() == 0
                     && SelfTestAccess::Entities(system).All().empty(),
                 "play::stop_restores_models_and_clears_runtime");
-            report.Check(eval("return stopped_spawn.valid") == "false", "play::scripts_made_in_on_stop_go_too");
+            report.Check(eval("return elm.scene.find('z'), play_marker, log") == "nil\tnil\tnil", "play::stop_drops_the_game_lua_state");
 
-            const String ticksBefore = eval("return ticks");
             frame();
-            report.Check(eval("return ticks, a.position.x") == ticksBefore + "\t0.0", "play::edit_mode_again");
-            playMode.Play();
+            report.Check(eval("return ticks, elm.scene.find('a').position.x") == "nil\t0.0", "play::edit_mode_again");
+            playMode.Play({ .mainModule = "main" });
             frame();
-            report.Check(eval("return log[#log], a.position.x") == "start a\t1.0", "play::play_again_with_the_same_entities");
+            report.Check(eval("return log[1], log[#log], elm.scene.find('a').position.x") == "main start\tstart a\t1.0",
+                "play::play_again_starts_main_again");
             playMode.Stop();
+
+            // Play Project: the start scene replaces the edited one, Stop brings the edited one back
+            playMode.RequestPlay(PlayTarget::Project);
+            frame();
+            report.Check(!playMode.IsPlaying(), "play::project_without_a_start_does_not_play");
+            hasStartScene = true;
+            playMode.RequestPlay(PlayTarget::Project);
+            frame();
+            report.Check(playMode.IsPlaying() && scene.NodeCount() == 1 && scene.Nodes()[0].name == "level"
+                    && eval("return elm.scene.find('a'), log[1]") == "nil\tmain start",
+                "play::project_plays_the_start_scene");
+            playMode.RequestStop();
+            frame();
+            report.Check(!playMode.IsPlaying() && scene.NodeCount() == 2 && scene.IndexOf(nodeA) == 0 && scene.Find(nodeA)->name == "a",
+                "play::stop_brings_the_edited_scene_back");
 
             system.Shutdown();
             physics.Shutdown();
+            fs::remove_all(root, error);
+        }
+
+        /// The order of the hooks when Play ends, on one Lua state: the entity scripts, then the main module.
+        void RunStopOrderTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_stop_order_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root, error);
+            WriteScript(root / "mover.lua",
+                "local Mover = {}\n"
+                "function Mover:on_destroy() log[#log + 1] = 'destroy ' .. self.entity.name end\n"
+                "return Mover\n");
+            WriteScript(root / "main.lua",
+                "local main = {}\n"
+                "function main.on_start() log = {} end\n"
+                "function main.on_stop() log[#log + 1] = 'stop' end\n"
+                "return main\n");
+            Settings settings;
+            ScriptSystem::RegisterSettings(settings);
+            Scene scene;
+            ScriptSystem system;
+            if (!system.Init({ .scene = &scene, .settings = &settings }, Path(String(root.generic_string().c_str())))
+                || !system.Start("main")) {
+                report.Check(false, "play::stop_order_init");
+                return;
+            }
+            system.OnPlay();
+            (void)SelfTestAccess::Console(system).Execute("elm.scene.spawn('a'):add('Script', 'mover')");
+            system.Update(1.0f / 60.0f);
+            system.OnStop();
+            report.Check(Evaluate(system, "return table.concat(log, ',')") == "destroy a,stop", "play::stop_ends_entities_then_main");
+            system.Shutdown();
             fs::remove_all(root, error);
         }
 
@@ -2069,7 +2399,12 @@ line]] .. [==[a]]b]==])",
         RunPhysicsTests(report);
         RunPhysicsScriptTests(report);
         RunSceneFileTests(report);
+        RunAssetImportTests(report, scriptRoot);
+        RunProjectTests(report);
+        RunProjectFilesTests(report);
+        RunProjectSwitchTests(report);
         RunPlayModeTests(report);
+        RunStopOrderTests(report);
         RunFrameDebugTests(report);
         RunDebugDrawTests(report);
         RunDebugLabelTests(report);

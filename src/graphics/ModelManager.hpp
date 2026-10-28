@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Debug.hpp"
+#include "core/FileSystem.hpp"
 #include "graphics/Model.hpp"
 #include "render/api/RenderResources.hpp"
 
@@ -9,8 +10,9 @@
 
 namespace elm::graphics {
 
-    /// Owns the models of a scene together with their GPU meshes. Every mesh of a model is created
-    /// when the model is inserted and released when it is removed, replaced or the manager dies.
+    /// Owns the models of a scene together with their GPU meshes and the files they are kept in. Every mesh
+    /// of a model is created when the model is inserted and released when it is removed, replaced or the
+    /// manager dies. A model without a file exists only in memory (a primitive, an import).
     class ModelManager {
     public:
         explicit ModelManager(render::RenderResources& resources);
@@ -20,13 +22,19 @@ namespace elm::graphics {
         ModelManager(ModelManager&&) noexcept = default;
         ModelManager& operator=(ModelManager&&) noexcept = default;
 
-        [[nodiscard]] ModelHandler Insert(Model model);
-        /// Inserts every model; the handles come in the same order (a SceneAsset's models for Scene::Append).
-        [[nodiscard]] Vector<ModelHandler> InsertAll(Vector<Model> models);
+        /// file: the .model file the model was read from, empty for a model that exists only in memory.
+        [[nodiscard]] ModelHandler Insert(Model model, Path file = { });
+        /// Inserts every model with the file of the same index (files may be shorter); the handles come in
+        /// the same order (a SceneAsset's models and modelFiles for Scene::Append).
+        [[nodiscard]] Vector<ModelHandler> InsertAll(Vector<Model> models, std::span<const Path> files = { });
 
-        /// Replaces the model behind a live handle. Meshes whose geometry is shared with
+        /// Replaces the model behind a live handle, its file stays. Meshes whose geometry is shared with
         /// the previous version are kept, the rest are created anew.
         bool Replace(ModelHandler handler, Model model);
+        /// Sets the file of a live model; an empty path: the model no longer matches a file (edited in memory).
+        bool SetFile(ModelHandler handler, Path file);
+        /// The file of a model, nullptr for a stale handle or a model without a file.
+        [[nodiscard]] const Path* FileOf(ModelHandler handler) const noexcept;
         [[nodiscard]] const Model* Get(ModelHandler handler) const noexcept;
         
         /// GPU meshes of a model, one per submesh in the same order.
@@ -62,6 +70,7 @@ namespace elm::graphics {
         struct Slot {
             std::optional<Model> model;
             Vector<render::Mesh> meshes;
+            Path file;
             uint8_t generation { 0 };
         };
 

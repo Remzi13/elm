@@ -3,6 +3,8 @@
 #include "core/Std.hpp"
 
 #include "resmgr/JsonValue.hpp"
+
+#include "project/Project.hpp"
 #include "resmgr/SerializationError.hpp"
 
 #include "Scene/ComponentTypes.hpp"
@@ -10,6 +12,7 @@
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/ScriptComponent.hpp"
 
+#include <algorithm>
 #include <cctype>
 #include <charconv>
 #include <cmath>
@@ -972,6 +975,83 @@ namespace elm::resmgr {
             return model;
         }
 
+        /// The models of the scene's Model components, each once, in the order of the nodes.
+        auto UsedModels(const Scene& scene, const graphics::ModelManager& models) -> Vector<graphics::ModelHandler>
+        {
+            Vector<graphics::ModelHandler> used;
+            const auto* modelComponents = scene.FindComponents<ModelComponent>();
+            for (const auto& node : scene.Nodes()) {
+                const ModelComponent* component = modelComponents ? modelComponents->Find(node.id) : nullptr;
+                if (component && models.Get(component->model)
+                    && std::find(used.begin(), used.end(), component->model) == used.end())
+                    used.push_back(component->model);
+            }
+            return used;
+        }
+
+        /// models/<stem>.model, with a number added while such a file exists.
+        auto UnusedModelFile(const String& stem, const Path& assetsFolder) -> EngineResult<project::AssetPath>
+        {
+            const String folder = String(project::Project::ModelsFolder) + "/";
+            String text = folder + stem + ".model";
+            for (size_t suffix = 1; FileSystem::Exists(assetsFolder / text); ++suffix)
+                text = folder + stem + "_" + std::to_string(suffix).c_str() + ".model";
+            auto file = project::AssetPath::FromString(text);
+            if (!file)
+                return UnexpectedSerializationError("Cannot make a model file name of " + stem, "Serializer");
+            return *file;
+        }
+
+        /// The file of a model a scene references: from version 7 by its asset path, before relative to the scene file.
+        auto ModelFileOf(StringView reference, uint32_t formatVersion, const Path& sceneFile, const Path& assetsFolder)
+            -> EngineResult<Path>
+        {
+            if (formatVersion >= 7) {
+                const auto asset = project::AssetPath::FromString(reference);
+                if (!asset)
+                    return UnexpectedSerializationError("Scene model path is not in the assets folder: " + String(reference), "Serializer");
+                return asset->In(assetsFolder);
+            }
+            const Path relative(reference);
+            if (relative.Empty() || relative.IsAbsolute())
+                return UnexpectedSerializationError("Scene model path must be a non-empty relative path", "Serializer");
+            return sceneFile.Parent() / relative;
+        }
+
+        auto ReadProjectString(const JsonValue& value, StringView description) -> EngineResult<String>
+        {
+            if (value.GetKind() != JsonValue::Kind::String)
+                return UnexpectedSerializationError("Project field must be a string: " + String(description), "Serializer");
+            auto text = value.AsString();
+            if (!text || text->empty())
+                return UnexpectedSerializationError("Project field must not be empty: " + String(description), "Serializer");
+            return *text;
+        }
+
+        auto DeserializeProjectEntry(const JsonValue& entry) -> EngineResult<project::ProjectEntry>
+        {
+            project::ProjectEntry result;
+            if (!entry.IsObject())
+                return UnexpectedSerializationError("Project field must be an object: entry", "Serializer");
+            if (const auto startupScene = entry.Find("startupScene")) {
+                auto text = ReadProjectString(*startupScene, "entry.startupScene");
+                if (!text)
+                    return UnexpectedSerializationError(text.error());
+                result.startupScene = project::AssetPath::FromString(*text);
+                if (!result.startupScene)
+                    return UnexpectedSerializationError("entry.startupScene is not a path in the assets folder: " + *text, "Serializer");
+            }
+            if (const auto mainModule = entry.Find("mainModule")) {
+                auto name = ReadProjectString(*mainModule, "entry.mainModule");
+                if (!name)
+                    return UnexpectedSerializationError(name.error());
+                result.mainModule = std::move(*name);
+            }
+            if (!result.startupScene && result.mainModule.empty())
+                return UnexpectedSerializationError("Project entry needs startupScene or mainModule", "Serializer");
+            return result;
+        }
+
     }
 
     auto Serializer::SaveModel(const graphics::Model& model, const Path& path) -> EngineResult<void>
@@ -1006,48 +1086,57 @@ namespace elm::resmgr {
         return DeserializeModel(document);
     }
 
-    auto Serializer::SaveScene(const Scene& scene, const graphics::ModelManager& models, const Path& path,
-        const Path& modelDirectory) -> EngineResult<void>
+    auto Serializer::SaveNewModel(const graphics::Model& model, const Path& assetsFolder) -> EngineResult<Path>
+    {
+        const auto asset = UnusedModelFile(MakeModelFileStem(model.name, 0), assetsFolder);
+        if (!asset)
+            return UnexpectedSerializationError(asset.error());
+        Path file = asset->In(assetsFolder);
+        if (auto written = SaveModel(model, file); !written)
+            return UnexpectedSerializationError(written.error());
+        return file;
+    }
+
+    auto Serializer::SaveNewModels(const Scene& scene, graphics::ModelManager& models, const Path& assetsFolder)
+        -> EngineResult<size_t>
+    {
+        size_t saved = 0;
+        for (const graphics::ModelHandler handler : UsedModels(scene, models)) {
+            // A file outside of the assets folder (a model from elsewhere, an old scene) is copied in
+            if (const Path* file = models.FileOf(handler); file && project::AssetPath::Of(*file, assetsFolder))
+                continue;
+            auto file = SaveNewModel(*models.Get(handler), assetsFolder);
+            if (!file)
+                return UnexpectedSerializationError(file.error());
+            models.SetFile(handler, std::move(*file));
+            ++saved;
+        }
+        return saved;
+    }
+
+    auto Serializer::SaveScene(const Scene& scene, const graphics::ModelManager& models, const Path& assetsFolder,
+        const Path& path) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
-        // 6: model, color and visible are the Model component, world transforms are not written
-        auto result = SetField(document, "formatVersion", JsonValue(6.0));
+        // 7: models are referenced by their asset paths (6: model, color and visible are the Model component)
+        auto result = SetField(document, "formatVersion", JsonValue(7.0));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
         JsonValue serializedModels{ JsonValue::Type::Array };
         ModelIndices modelIndices;
-        Set<String> modelFileNames;
-        const auto sceneDirectory = path.Parent().Empty() ? Path(".") : path.Parent();
-        const auto* modelComponents = scene.FindComponents<ModelComponent>();
-        // In scene order, so the models are numbered as the nodes go
-        for (const auto& node : scene.Nodes()) {
-            const ModelComponent* component = modelComponents ? modelComponents->Find(node.id) : nullptr;
-            const auto* model = component ? models.Get(component->model) : nullptr;
-            if (!model || modelIndices.contains(component->model))
-                continue;
-            const auto baseStem = MakeModelFileStem(
-                StringView(model->name.data(), model->name.size()), modelIndices.size());
-            String fileStem = baseStem;
-            size_t suffix = 1;
-            while (!modelFileNames.insert(fileStem).second)
-                fileStem = baseStem + "_" + std::to_string(suffix++).c_str();
-            const auto modelPath = modelDirectory / StringView(fileStem + ".model");
-
-            auto writeModel = SaveModel(*model, modelPath);
-            if (!writeModel)
-                return UnexpectedSerializationError(writeModel.error());
-
-            const auto relativeModelPath = modelPath.LexicallyRelative(sceneDirectory).generic_string();
-            if (relativeModelPath.empty())
-                return UnexpectedSerializationError(
-                    "Model directory cannot be referenced relative to the scene: " + modelPath.string(), "Serializer");
+        for (const graphics::ModelHandler handler : UsedModels(scene, models)) {
+            const Path* file = models.FileOf(handler);
+            const auto asset = file ? project::AssetPath::Of(*file, assetsFolder) : std::nullopt;
+            if (!asset)
+                return UnexpectedSerializationError("Model \"" + models.Get(handler)->name
+                    + "\" has no file in the assets folder: SaveNewModels writes the new models first", "Serializer");
             JsonValue modelReference{ JsonValue::Type::Object };
-            result = SetField(modelReference, "path", JsonValue(relativeModelPath));
+            result = SetField(modelReference, "path", JsonValue(StringView(asset->Text())));
             if (!result)
                 return UnexpectedSerializationError(result.error());
 
-            modelIndices.emplace(component->model, modelIndices.size());
+            modelIndices.emplace(handler, modelIndices.size());
             result = AddToArray(serializedModels, std::move(modelReference));
             if (!result)
                 return UnexpectedSerializationError(result.error());
@@ -1078,7 +1167,7 @@ namespace elm::resmgr {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::LoadScene(const Path& path) -> EngineResult<SceneAsset>
+    auto Serializer::LoadScene(const Path& path, const Path& assetsFolder) -> EngineResult<SceneAsset>
     {
         auto json = ReadFile(path);
         if (!json)
@@ -1096,7 +1185,7 @@ namespace elm::resmgr {
         auto formatVersion = ReadUnsigned<uint32_t>(*versionField, "formatVersion");
         if (!formatVersion)
             return UnexpectedSerializationError(formatVersion.error());
-        if (*formatVersion < 1 || *formatVersion > 6)
+        if (*formatVersion < 1 || *formatVersion > 7)
             return UnexpectedSerializationError("Unsupported scene file version", "Serializer");
 
         SceneAsset loaded;
@@ -1127,14 +1216,15 @@ namespace elm::resmgr {
                 auto modelPathText = modelPathField->AsString();
                 if (!modelPathText)
                     return UnexpectedSerializationError(modelPathText.error());
-                const Path relativeModelPath(*modelPathText);
-                if (relativeModelPath.Empty() || relativeModelPath.IsAbsolute())
-                    return UnexpectedSerializationError("Scene model path must be a non-empty relative path", "Serializer");
+                auto modelFile = ModelFileOf(*modelPathText, *formatVersion, path, assetsFolder);
+                if (!modelFile)
+                    return UnexpectedSerializationError(modelFile.error());
 
-                auto model = LoadModel(path.Parent() / relativeModelPath);
+                auto model = LoadModel(*modelFile);
                 if (!model)
                     return UnexpectedSerializationError(model.error());
                 loaded.models.push_back(std::move(*model));
+                loaded.modelFiles.push_back(std::move(*modelFile));
             }
 
             const SceneFileCounts counts { .nodeCount = *nodeCount, .modelCount = *modelCount };
@@ -1367,6 +1457,65 @@ namespace elm::resmgr {
         }
 
         return loaded;
+    }
+
+    auto Serializer::LoadProject(const Path& path) -> EngineResult<project::Project>
+    {
+        auto json = ReadFile(path);
+        if (!json)
+            return UnexpectedSerializationError(json.error());
+        JsonValue document;
+        if (auto parsed = document.Parse(*json); !parsed)
+            return UnexpectedSerializationError(parsed.error());
+        if (!document.IsObject())
+            return UnexpectedSerializationError("Project document root must be an object", "Serializer");
+
+        auto versionField = GetField(document, "formatVersion");
+        if (!versionField)
+            return UnexpectedSerializationError(versionField.error());
+        auto version = ReadUnsigned<uint32_t>(*versionField, "project.formatVersion");
+        if (!version || *version != 1)
+            return UnexpectedSerializationError("Unsupported project file version", "Serializer");
+
+        project::ProjectDesc desc;
+        auto name = ReadProjectString(document["name"], "name");
+        if (!name)
+            return UnexpectedSerializationError(name.error());
+        desc.name = std::move(*name);
+        auto entry = GetField(document, "entry");
+        if (!entry)
+            return UnexpectedSerializationError("Project has no entry: set entry.startupScene or entry.mainModule", "Serializer");
+        auto readEntry = DeserializeProjectEntry(*entry);
+        if (!readEntry)
+            return UnexpectedSerializationError(readEntry.error());
+        desc.entry = std::move(*readEntry);
+        return project::Project(path, std::move(desc));
+    }
+
+    auto Serializer::SaveProject(const project::Project& project) -> EngineResult<void>
+    {
+        const project::ProjectDesc& desc = project.Desc();
+        JsonValue entry { JsonValue::Type::Object };
+        if (desc.entry.startupScene) {
+            if (auto result = SetField(entry, "startupScene", JsonValue(StringView(desc.entry.startupScene->Text()))); !result)
+                return UnexpectedSerializationError(result.error());
+        }
+        if (!desc.entry.mainModule.empty()) {
+            if (auto result = SetField(entry, "mainModule", JsonValue(StringView(desc.entry.mainModule))); !result)
+                return UnexpectedSerializationError(result.error());
+        }
+        JsonValue document { JsonValue::Type::Object };
+        auto result = SetField(document, "formatVersion", JsonValue(1.0));
+        if (result)
+            result = SetField(document, "name", JsonValue(StringView(desc.name)));
+        if (result)
+            result = SetField(document, "entry", std::move(entry));
+        if (!result)
+            return UnexpectedSerializationError(result.error());
+        auto json = document.ToString();
+        if (!json)
+            return UnexpectedSerializationError(json.error());
+        return WriteFile(project.File(), *json);
     }
 
     auto Serializer::WriteFile(const Path& path, StringView contents) -> EngineResult<void>

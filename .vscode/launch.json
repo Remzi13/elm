@@ -6,7 +6,7 @@
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/Engine",
-            "args": [],
+            "args": ["--project", "projects/Sandbox"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

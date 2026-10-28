@@ -11,8 +11,6 @@ set(UI_SRC
     ui/ModulesPanel.cpp
     ui/ApiPanel.hpp
     ui/ApiPanel.cpp
-    ui/InspectorWindow.hpp
-    ui/InspectorWindow.cpp
     ui/ScriptEditor.hpp
     ui/ScriptEditor.cpp
     ui/LuaHighlighter.hpp
@@ -126,4 +124,4 @@ source_group("Values" FILES
 
 target_link_libraries(script PUBLIC core lua)
 # The engine systems the bindings expose
-target_link_libraries(script PRIVATE math input Scene graphics resmgr physics)
+target_link_libraries(script PRIVATE math input Scene graphics resmgr physics project)

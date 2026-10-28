@@ -13,10 +13,15 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 - Конфигурация: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
 - Сборка: `cmake --build build --config Debug -j`
 - Бинарник: `build/Debug/Engine.exe` (MSVC) или `build/Engine`. Файл `.settings` ищется вверх от текущего каталога, поэтому запускать можно из корня или из `build/`.
+- Редактор работает только с проектом (`docs/project/Проекты.md`): `Engine --project projects/Sandbox`.
+  `--scene N` заменяет стартовую сцену проекта тестовой.
+  Без `--project` открывается последний проект (настройка `Core/Project/Last`), без него — окно Project Hub. Пример и тестовый проект — `projects/Sandbox`.
+- Плеер, игра без редактора: `Engine --project projects/Sandbox --player` (сразу Play Project, Stop завершает программу).
+- Сборка игры: `Engine --build projects/Sandbox` → `projects/Sandbox/Build/Sandbox/Sandbox.exe`, она без аргументов играет свой проект.
 - Запуск с тестовой сценой: `Engine --scene <0..3> [--instances N]` (`ScenePreset`).
 - Тесты: `Engine --script-selftest`. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все
-  `assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
-- Lua API для LuaLS: `Engine --dump-script-api` перегенерирует `assets/scripts/.meta/elm.lua`. Это сгенерированный файл, руками его не правь.
+  `projects/Sandbox/assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
+- Lua API для LuaLS: `Engine --dump-script-api` перегенерирует `projects/Sandbox/assets/scripts/.meta/elm.lua`. Это сгенерированный файл, руками его не правь.
 - `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
   отступ табом или 4 пробелами, как уже в файле. Посторонние строки не переформатируй.
 - Перед завершением задачи: сборка без новых предупреждений, `--script-selftest` проходит.
@@ -53,7 +58,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `MessageBus` | запросы между окнами редактора (`RegisterQuery`/`Request`) | `core/MessageBus.hpp` |
 | `core::JobSystem`, `TaskGroup`, `parallelFor` | пул воркеров и группы задач | `core/JobSystem.hpp` |
 | `core::ThreadRole` (`Update`, `Render`) | роль потока, проверяется `ELM_ASSERT_THREAD` | `core/Threading.hpp` |
-| `FileSystem`, `Path`, `AssetPaths` | пути относительно корня (`Core/FileSystem/RootPath`) | `core/FileSystem.hpp` |
+| `FileSystem`, `Path` | пути относительно корня движка (`Core/FileSystem/RootPath`): шейдеры, `resources/` редактора. Пути игры — у `Project` | `core/FileSystem.hpp` |
 | `log::Category`, `log::Severity` | лог движка, макросы `LOG_MESSAGE`/`WARNING_MESSAGE`/`ERROR_MESSAGE` | `core/Log.hpp` |
 
 **Сцена** (`src/Scene`, `elm`)
@@ -81,20 +86,21 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 | Сущность | Что это |
 |---|---|
-| `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком |
+| `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком. О файлах и проекте модель не знает |
 | `ModelHandler` | хэндл модели в `ModelManager` (`graphics/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
-| `graphics::ModelManager` | владеет моделями сцены и их GPU-мешами (`render::Mesh`) |
+| `graphics::ModelManager` | владеет моделями сцены, их GPU-мешами (`render::Mesh`) и путями их файлов (`FileOf`, пусто у модели только в памяти) |
 | `Camera`, `CameraController`, `ViewRay` | камера вида и её управление; `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
-| `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
+| `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
+| `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
 | `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `EngineApp` |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
 | `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
-| Edit / Play, `PlayMode` | режимы редактора: в Edit сцена — это данные, в Play работают физика и скрипты сущностей. `script::PlayMode`, владелец `EngineApp` |
+| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget` | режимы редактора: в Edit сцена — это данные, в Play работают физика, скрипты сущностей и главный модуль, каждый Play со свежей Lua-машиной. `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). `script::PlayMode`, владелец `EngineApp` |
 
 **Рендер** (`src/render`, `elm::render`)
 
@@ -118,14 +124,24 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `PhysicsSystem` | тела Jolt для узлов с `Collider`, по `NodeId`, только update | `physics` |
 | `InputSystem`, `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия | `input` |
 | `platform::Window` | главное окно GLFW | `platform` |
-| `resmgr::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene` (JSON через glaze), экспорт glTF | `resmgr` |
+| `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
+| `EngineApp`, `AppMode`, `EditorLayer`, `EditorRequests` | движок и цикл кадра; режим запуска (редактор или плеер); всё редакторское поверх движка и его запросы к движку | `Engine` |
+| `resmgr::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resmgr` |
+| `resmgr::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resmgr` |
+| `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `EngineApp`, update | `project` |
+| `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |
+| `ProjectMenu`, `ProjectMenuDesc` | меню Project редактора; открытый проект для него, недавние проекты, запрос `open` (применяется в начале update) | `graphics/ui` |
+| `project::AssetType`, `ProjectAssets`, `AssetEntry` | тип файла ассета по расширению; дерево папки `assets` для окон | `project` |
+| `resmgr::ProjectTemplate` | новый проект на диске: `.elmproject`, папки ассетов, `main.lua`, настройка LuaLS | `resmgr` |
+| `resmgr::ProjectBuilder`, `BuildDesc` | сборка игры в `Build/<Имя>/`: программа, шейдеры, проект без `source/`, `.settings` | `resmgr` |
+| `editor::ProjectWindow`, `ProjectSettingsPanel`, `ProjectHubWindow` | окна редактора, которым нужен проект: Project (вкладки Assets и Settings — точка входа), старт без проекта | `editor` |
 | `script::ScriptSystem` | менеджер скриптов: Lua-машина, сборка частей и биндингов, порядок в кадре, Shutdown. Части внутренние для модуля | `script` |
 | `EngineContext`, `ScriptTime`, `PlayRequests` | системы движка для скриптов, время кадра, запросы Play/Stop | `script` |
 | `ModulePaths`, `ModuleLoader`, `LoadedModule` | имя модуля ↔ файл; `require` и загруженные модули | `script/module` |
-| главный модуль (`MainModule`, `MainState`) | модуль с хуками `main.on_*` | `script/module` |
+| главный модуль (`MainModule`, `MainState`) | модуль с хуками `main.on_*`, задаётся `entry.mainModule` проекта | `script/module` |
 | `HotReload` | перезагрузка изменённых модулей с патчем таблицы | `script/reload` |
 | скрипт сущности (`EntityScript`, `EntityScripts`, `EntityScriptList`) | экземпляр класса на узле с `ScriptComponent` и их проходы | `script/entity` |
-| `ScriptClass`, `ScriptDefaults` | модуль как класс скрипта; props по умолчанию для Inspector | `script/entity` |
+| `ScriptClass`, `ScriptDefaults` | модуль как класс скрипта; props по умолчанию для Scene Hierarchy | `script/entity` |
 | `ScriptConsole` | Lua-консоль окна Scripts | `script/console` |
 | `Entity`, `ModelRef`, `ScriptProps` | как узлы, модели и props видны из Lua | `script/values` |
 | `lua::State`, `lua::Module`, `lua::Class`, `ApiRegistry` | своя обёртка над Lua C API и реестр API для LuaLS | `script/lua` |
@@ -141,11 +157,13 @@ core, math                   основа, ни от кого не завися�
 render     → core, math      Diligent только PRIVATE
 platform   → render          GLFW
 Scene      → core, math, render
-resmgr     → Scene           glaze PRIVATE
+project    → core
+resmgr     → Scene           project, glaze PRIVATE
 physics    → Scene           Jolt PRIVATE
-graphics   → render, platform, resmgr (+ ImGui)
+graphics   → render, platform, resmgr (+ ImGui)   о project не знает
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
+editor     → graphics, project   окна редактора, которым нужен проект
 Engine     (EngineApp, main.cpp) собирает всё
 ```
 
@@ -286,11 +304,11 @@ Engine     (EngineApp, main.cpp) собирает всё
 
 ## 10. Тесты
 - Тесты — это `Engine --script-selftest`. GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
-- Lua-тест: файл `assets/scripts/tests/<область>_test.lua` возвращает таблицу `tests` с функциями,
+- Lua-тест: файл `projects/Sandbox/assets/scripts/tests/<область>_test.lua` возвращает таблицу `tests` с функциями,
   проверки через `require "tests.expect"` (`expect.eq`, `expect.near`, `expect.error`), фикстуры
   в `tests/fixtures/`. Имя теста описывает сценарий: `tests.vector3_construction`.
 - C++-проверки биндингов и тестовый модуль `elm_test` лежат в `script/SelfTest.cpp`.
-- Изменил биндинги или Lua API: добавь тест и перегенерируй `assets/scripts/.meta/elm.lua`.
+- Изменил биндинги или Lua API: добавь тест и перегенерируй `projects/Sandbox/assets/scripts/.meta/elm.lua`.
 - Для рендера, culling и UI автотестов нет. Проверяй запуском (`Engine --scene N`) и прямо пиши,
   что проверено вручную, а что нет.
 - Исправление бага: сначала тест, который его воспроизводит, если это достижимо через self-test.
@@ -315,4 +333,4 @@ Engine     (EngineApp, main.cpp) собирает всё
 - Глобальные изменяемые переменные и новые синглтоны.
 - Функции и классы «на все случаи» с флагами-переключателями поведения.
 - Подавление предупреждений компилятора вместо исправления.
-- Правка сгенерированных и сторонних файлов: `assets/scripts/.meta/elm.lua`, `build/`, `../elm_deps/`.
+- Правка сгенерированных и сторонних файлов: `projects/Sandbox/assets/scripts/.meta/elm.lua`, `build/`, `../elm_deps/`.

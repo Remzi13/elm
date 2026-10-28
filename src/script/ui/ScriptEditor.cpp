@@ -60,7 +60,14 @@ namespace {
     constexpr ImU32 CurrentLineNumberColor = IM_COL32(200, 200, 200, 255);
     constexpr ImU32 ErrorLineNumberColor = IM_COL32(255, 100, 90, 255);
 
-    constexpr const char* NewModuleTemplate = "local M = {}\n"
+    /// A new file is an entity script: a Script component in Scene Hierarchy names it, its props show there
+    constexpr const char* NewModuleTemplate = "local M = { props = { } }\n"
+                                              "\n"
+                                              "function M:on_start()\n"
+                                              "end\n"
+                                              "\n"
+                                              "function M:on_update(dt)\n"
+                                              "end\n"
                                               "\n"
                                               "return M\n";
 

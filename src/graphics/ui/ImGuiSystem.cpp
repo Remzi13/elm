@@ -4,8 +4,6 @@
 #include "graphics/ui/EditorStyle.hpp"
 #include "graphics/ui/EngineViewportWindow.hpp"
 #include "graphics/ui/LogWindow.hpp"
-#include "graphics/ui/ModelEditorWindow.hpp"
-#include "graphics/ui/SceneHierarchyWindow.hpp"
 #include "graphics/ui/SocLabWindow.hpp"
 #include "graphics/ui/ProfilerWindow.hpp"
 #include "graphics/ui/SettingsWindow.hpp"
@@ -59,6 +57,26 @@ namespace elm {
 		}
 	}
 
+	void ImGuiSystem::AddProjectWindow( UniquePtr<IImGuiWindow> window ) {
+		if ( !window ) return;
+		m_projectWindows.push_back( window.get() );
+		AddWindow( std::move( window ) );
+	}
+
+	void ImGuiSystem::CloseProjectWindows() {
+		for ( const IImGuiWindow* window : m_projectWindows ) {
+			m_savedVisibility[String( window->GetName() )] = window->IsVisible();
+		}
+		std::erase_if( m_windows, [this]( const UniquePtr<IImGuiWindow>& window ) {
+			return std::ranges::find( m_projectWindows, window.get() ) != m_projectWindows.end();
+		} );
+		m_projectWindows.clear();
+	}
+
+	void ImGuiSystem::SetProjectMenu( ProjectMenuDesc project ) {
+		m_projectMenu.SetProject( std::move( project ) );
+	}
+
 	//ImTextureID ImGuiSystem::ToTextureId( render::TextureHandle texture ) {
 	//	if ( !texture.IsValid() ) return nullptr;
 	//	// Real texture views are aligned pointers, so the lowest bit marks an engine handle
@@ -92,13 +110,12 @@ namespace elm {
 		ApplyEditorStyle();
 
 		// Register standard engine editor windows
+		// Scene Hierarchy, Model Editor and the script windows belong to the project: EngineApp adds them
 		EmplaceWindow<SocLabWindow>( settings, cullingSystem );
-		EmplaceWindow<SceneHierarchyWindow>( settings );
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 		EmplaceWindow<SettingsWindow>( settings );
-		EmplaceWindow<ModelEditorWindow>( settings );
 
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem.Resources() );
 		if ( !m_renderer->IsInitialized() ) {
@@ -371,7 +388,7 @@ namespace elm {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		m_dockSpace.Render( m_windows );
+		m_dockSpace.Render( m_windows, m_projectMenu );
 		for ( const auto& window : m_windows ) {
 			if ( window && window->IsVisible() ) {
 				ImGuiWindowContext windowContext = context;
@@ -522,7 +539,8 @@ namespace elm {
 		m_rendererInitialized = false;
 		m_pendingViewportEvents.clear();
 		m_platformDestroyWindow = nullptr;
-		m_windows.clear();		
+		m_projectWindows.clear();
+		m_windows.clear();
 		m_initialized = false;
 	}
 

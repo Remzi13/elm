@@ -20,8 +20,14 @@ public:
 private:
     SceneSnapshot() = default;
 
+    struct SavedModel {
+        graphics::ModelHandler handle;
+        graphics::Model model;
+        Path file;
+    };
+
     Scene m_scene;
-    Vector<std::pair<graphics::ModelHandler, graphics::Model>> m_models;
+    Vector<SavedModel> m_models;
 };
 
 } // namespace elm

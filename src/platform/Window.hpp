@@ -24,6 +24,8 @@ namespace elm::platform {
         void Destroy();
 
         [[nodiscard]] bool ShouldClose() const;
+        /// The caption of the window (the player shows the game's name).
+        void SetTitle(StringView title);
         [[nodiscard]] GLFWwindow* GetHandle() const noexcept { return m_window; }
         /// OS handles for the renderer's presentation surface.
         [[nodiscard]] render::NativeWindow GetNativeWindow() const;

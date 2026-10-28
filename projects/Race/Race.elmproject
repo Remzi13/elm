@@ -1,0 +1,8 @@
+{
+   "entry": {
+      "mainModule": "main",
+      "startupScene": "scenes/level1.scene"
+   },
+   "formatVersion": 1,
+   "name": "Race"
+}

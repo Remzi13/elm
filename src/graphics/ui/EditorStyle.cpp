@@ -1,6 +1,6 @@
 #include "graphics/ui/EditorStyle.hpp"
 
-#include "core/AssetPaths.hpp"
+#include "core/FileSystem.hpp"
 
 #include "imgui.h"
 
@@ -9,6 +9,8 @@ namespace elm {
 	namespace {
 
 		constexpr float FontSize = 16.0f;
+		/// Editor data of the engine, not of a project.
+		constexpr StringView FontFile = "resources/fonts/Roboto-Medium.ttf";
 
 		constexpr ImVec4 Rgba(float r, float g, float b, float a = 1.0f) {
 			return ImVec4(r, g, b, a);
@@ -18,7 +20,7 @@ namespace elm {
 
 	void LoadEditorFonts() {
 		auto& io = ImGui::GetIO();
-		const Path fontPath = AssetPaths::Root() / "fonts" / "Roboto-Medium.ttf";
+		const Path fontPath = FileSystem::Resolve(FontFile);
 		if (FileSystem::Exists(fontPath)) {
 			ImFontConfig config;
 			config.OversampleH = 3;

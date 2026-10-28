@@ -13,6 +13,9 @@ namespace elm {
         class DebugDraw;
         class ModelManager;
     }
+    namespace project {
+        class Project;
+    }
 }
 
 namespace elm::script {
@@ -21,7 +24,10 @@ namespace elm::script {
     /// requests: the mode changes at the start of the next update. Empty where the engine has no
     /// Play mode (tools, tests).
     struct PlayRequests {
-        std::function<void()> play;
+        /// Play as the game starts: the project's startup scene and main module.
+        std::function<void()> playProject;
+        /// Play the edited scene with the project's main module.
+        std::function<void()> playScene;
         std::function<void()> stop;
         std::function<bool()> isPlaying;
     };
@@ -38,6 +44,8 @@ namespace elm::script {
         PlayRequests play;
         /// Debug drawing of the engine view (elm.debug).
         graphics::DebugDraw* debugDraw { nullptr };
+        /// The open project: the folders scene and model files are taken from.
+        const project::Project* project { nullptr };
     };
 
     /// Frame timing as scripts see it (elm.time).

@@ -17,6 +17,9 @@ namespace elm {
 		// Input is accepted only while the scene viewport is hovered (mouse) or focused (keyboard)
 		void SetViewportState(bool hovered, bool focused) noexcept;
 
+		// Off in Play: the camera belongs to the game. Turning off drops held keys and the right button
+		void SetEnabled(bool enabled) noexcept;
+
 		// IInputSubscriber interface
 		bool OnKeyEvent(const KeyEvent& event) override;
 		bool OnMouseButtonEvent(const MouseButtonEvent& event) override;
@@ -25,6 +28,7 @@ namespace elm {
 	private:
 		Camera& m_camera;
 		std::array<bool, 512> m_keys{};
+		bool m_enabled{ true };
 		bool m_rightMouseDown{ false };
 		bool m_viewportHovered{ false };
 		bool m_viewportFocused{ false };

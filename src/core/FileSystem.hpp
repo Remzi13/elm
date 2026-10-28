@@ -52,6 +52,8 @@ public:
     [[nodiscard]] Path Stem() const;
     [[nodiscard]] Path Extension() const;
     [[nodiscard]] Path LexicallyRelative(const Path& base) const;
+    /// "a/./b/../c" -> "a/c", without looking at the disk.
+    [[nodiscard]] Path LexicallyNormal() const;
 
     [[nodiscard]] std::string string() const;
     [[nodiscard]] std::string u8string() const;
@@ -99,6 +101,12 @@ public:
     /// Modification time in file clock ticks: only for comparing two readings of the same file.
     [[nodiscard]] static int64_t LastWriteTime(const Path& path, std::error_code& error);
     static bool CreateDirectories(const Path& path, std::error_code& error);
+    /// Copies a file, creating the folders of the target; an existing target is not overwritten (an error).
+    static bool Copy(const Path& from, const Path& to, std::error_code& error);
+    /// Removes a file or a folder with everything in it.
+    static bool RemoveAll(const Path& path, std::error_code& error);
+    /// The folder relative paths of the process start from (a built game works in its own folder).
+    static bool SetCurrentPath(const Path& path, std::error_code& error);
     [[nodiscard]] static std::ifstream OpenForReading(
         const Path& path, std::ios::openmode mode = std::ios::in);
     [[nodiscard]] static std::ofstream OpenForWriting(

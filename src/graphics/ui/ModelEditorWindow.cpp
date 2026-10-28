@@ -1,9 +1,9 @@
 #include "graphics/ui/ModelEditorWindow.hpp"
 
-#include "core/AssetPaths.hpp"
 #include "graphics/ui/WindowMessages.hpp"
 #include "render/RenderSystem.hpp"
 #include "render/api/FrameWriter.hpp"
+#include "resmgr/AssetImport.hpp"
 #include "resmgr/GltfExporter.hpp"
 #include "resmgr/Serializer.hpp"
 #include "Scene/ModelComponent.hpp"
@@ -147,8 +147,23 @@ namespace {
 // Window
 // ─────────────────────────────────────────────────────────────────────────────
 
+ModelEditorWindow::ModelEditorWindow(Settings& settings, Path assetsFolder, Path modelsFolder)
+    : IImGuiWindow(settings)
+    , m_assetsFolder(std::move(assetsFolder))
+    , m_modelsFolder(std::move(modelsFolder))
+{
+    m_visible = false;
+}
+
 void ModelEditorWindow::OnAttach()
 {
+    m_querySubscriptions.push_back(RegisterQuery<OpenModelFile>([this] {
+        return OpenModelFile { [this](const Path& file) {
+            m_requestedFile = file;
+            m_visible = true;
+            m_focusRequested = true;
+        } };
+    }));
     m_querySubscriptions.push_back(RegisterQuery<OpenModelEditor>([this] {
         return OpenModelEditor { [this](graphics::ModelHandler handler) {
             if (handler)
@@ -198,6 +213,11 @@ void ModelEditorWindow::Render(ImGuiWindowContext& context)
         const auto handler = *m_requestedSceneModel;
         m_requestedSceneModel.reset();
         RunDiscarding([this, handler](ImGuiWindowContext& ctx) { OpenFromScene(ctx, handler); });
+    }
+    if (m_requestedFile) {
+        const Path file = std::move(*m_requestedFile);
+        m_requestedFile.reset();
+        RunDiscarding([this, file](ImGuiWindowContext&) { OpenFile(file); });
     }
 
     DrawMenuBar(context);
@@ -284,17 +304,23 @@ void ModelEditorWindow::OpenFile(const Path& path)
     SetDocument(std::move(*model), path, {}, "Opened " + String(path.string().c_str()) + ".");
 }
 
-void ModelEditorWindow::ImportGltf(const Path& path)
+void ModelEditorWindow::ImportGltf(const Path& file)
 {
-    auto asset = resmgr::GltfExporter::LoadScene(path);
+    // The import works on the project's copy: the original stays in the source folder for a later import
+    const auto path = resmgr::AssetImport::CopyIntoProject(file, m_assetsFolder);
+    if (!path) {
+        m_status = path.error().message;
+        return;
+    }
+    auto asset = resmgr::GltfExporter::LoadScene(*path);
     if (!asset) {
         m_status = asset.error().message;
         return;
     }
 
     ImportSession session;
-    session.path = path;
-    session.options.name = String(path.Stem().c_str());
+    session.path = *path;
+    session.options.name = String(path->Stem().c_str());
     session.selected.assign(asset->nodes.size(), true);
     session.asset = std::move(*asset);
     // A glTF node gets a Model component for its mesh only
@@ -338,6 +364,7 @@ void ModelEditorWindow::SaveImported(const Path& anyFileInDirectory)
     const Path directory = anyFileInDirectory.Parent();
     Set<String> fileNames;
     size_t saved = 0;
+    m_import->savedFiles.clear();
     for (const auto& imported : m_import->results) {
         const String baseName = MakeFileName(imported.model.name);
         const String stem = baseName.substr(0, baseName.size() - StringView(".model").size());
@@ -350,6 +377,8 @@ void ModelEditorWindow::SaveImported(const Path& anyFileInDirectory)
             m_status = result.error().message;
             return;
         }
+        // Added to the scene afterwards, the model references this file instead of being written again
+        m_import->savedFiles.push_back(directory / fileName);
         ++saved;
     }
     m_status = "Saved " + ToString(saved) + " models to " + String(directory.string().c_str()) + ".";
@@ -364,8 +393,10 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
     // Every model goes to the scene once; the glTF nodes using them keep their hierarchy
     Vector<graphics::ModelHandler> nodeModels(sourceNodes.size());
     Vector<graphics::ModelHandler> originModels;
-    for (const auto& imported : session.results) {
-        const auto handler = context.models.Insert(imported.model);
+    for (size_t resultIndex = 0; resultIndex < session.results.size(); ++resultIndex) {
+        const auto& imported = session.results[resultIndex];
+        const auto handler = context.models.Insert(imported.model,
+            resultIndex < session.savedFiles.size() ? session.savedFiles[resultIndex] : Path { });
         for (const size_t nodeIndex : imported.instanceNodes) {
             if (nodeIndex < sourceNodes.size())
                 nodeModels[nodeIndex] = handler;
@@ -426,7 +457,10 @@ void ModelEditorWindow::OpenFromScene(ImGuiWindowContext& context, graphics::Mod
         return;
     }
     // A copy shares the geometry with the scene model, editing creates new geometry
-    SetDocument(*model, {}, handler, "Editing a scene model: Apply to Scene updates every node that uses it.");
+    // Save writes the model's own file
+    const Path* file = context.models.FileOf(handler);
+    const Path filePath = file ? *file : Path { };
+    SetDocument(*model, filePath, handler, "Editing a scene model: Apply to Scene updates every node that uses it.");
 }
 
 void ModelEditorWindow::Append(const Path& path, bool gltf)
@@ -475,6 +509,7 @@ void ModelEditorWindow::ApplyToScene(ImGuiWindowContext& context)
         m_status = "The scene model no longer exists, use Add to Scene.";
         return;
     }
+    RecordSceneFile(context);
     if (m_filePath.Empty())
         m_dirty = false;
     m_status = "Applied to the scene model.";
@@ -489,6 +524,7 @@ void ModelEditorWindow::AddToScene(ImGuiWindowContext& context)
 
     const String name = m_model->name.empty() ? String("Model") : m_model->name;
     m_sceneModel = context.models.Insert(*m_model);
+    RecordSceneFile(context);
     const NodeId node = context.scene.AddNode({ .name = name, .localTransform = Matrix4x4::Translation(position) });
     context.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = m_sceneModel });
     m_status = "Added \"" + name + "\" to the scene, Apply to Scene now updates it.";
@@ -665,7 +701,8 @@ void ModelEditorWindow::OpenFileDialog(DialogAction action)
     m_dialogAction = action;
     switch (action) {
     case DialogAction::Open:
-        m_fileDialog.Open("Open Engine Model", ".model", AssetPaths::Models());
+        m_fileDialog.Open("Open Engine Model", ".model", m_modelsFolder);
+        m_fileDialog.LimitTo(m_assetsFolder);
         break;
     case DialogAction::Import:
         m_fileDialog.Open("Import glTF Model", ".gltf");
@@ -674,17 +711,19 @@ void ModelEditorWindow::OpenFileDialog(DialogAction action)
         m_fileDialog.Open("Append Submeshes from glTF", ".gltf");
         break;
     case DialogAction::AppendModel:
-        m_fileDialog.Open("Append Submeshes from Model", ".model", AssetPaths::Models());
+        m_fileDialog.Open("Append Submeshes from Model", ".model", m_modelsFolder);
         break;
     case DialogAction::SaveImported:
         m_fileDialog.SaveAs("Save Models (choose the folder)", ".model",
             m_import && !m_import->results.empty() ? MakeFileName(m_import->results.front().model.name) : String("model.model"),
-            AssetPaths::Models());
+            m_modelsFolder);
+        m_fileDialog.LimitTo(m_assetsFolder);
         break;
     case DialogAction::SaveAs:
         m_fileDialog.SaveAs("Save Engine Model", ".model",
             m_filePath.Empty() ? MakeFileName(m_model->name) : String(m_filePath.Filename().c_str()),
-            m_filePath.Empty() ? AssetPaths::Models() : m_filePath.Parent());
+            m_filePath.Empty() ? m_modelsFolder : m_filePath.Parent());
+        m_fileDialog.LimitTo(m_assetsFolder);
         break;
     }
 }
@@ -1038,6 +1077,7 @@ void ModelEditorWindow::DrawImport(ImGuiWindowContext& context)
 
     if (session.resultsDirty) {
         session.results = graphics::BuildSceneImport(session.asset, session.selected, options);
+        session.savedFiles.clear();
         session.resultsDirty = false;
         session.selectedResult = (std::min)(session.selectedResult, session.results.empty() ? size_t { 0 } : session.results.size() - 1);
         m_previewDirty = true;
@@ -1211,6 +1251,12 @@ void ModelEditorWindow::DrawPreview(ImGuiWindowContext& context)
     m_previewModels->ForEachSubmesh(m_previewModel, [&](const graphics::Model::Submesh& submesh, render::MeshHandle mesh) {
         frame.Draw(mesh, Matrix4x4::Identity(), submesh.color);
     });
+}
+
+void ModelEditorWindow::RecordSceneFile(ImGuiWindowContext& context) const
+{
+    // Unsaved edits are not what the file holds: the scene model is then a new one, written with the scene
+    context.models.SetFile(m_sceneModel, m_dirty ? Path { } : m_filePath);
 }
 
 const graphics::Model* ModelEditorWindow::GetPreviewSource() const

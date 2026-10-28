@@ -23,6 +23,30 @@ namespace elm {
 		}
 
 		constexpr const char* DebugChannelsPopup = "DebugChannels";
+		const ImVec4 PlayingColor { 1.0f, 0.62f, 0.25f, 1.0f };
+
+		/// Play Project and Play Scene in Edit mode, Stop in Play mode. F5 plays the project, Shift+F5 the
+		/// edited scene, either stops.
+		void DrawPlayControls(const PlayControls& play) {
+			const ImGuiIO& io = ImGui::GetIO();
+			// Ctrl+F5 is Run Standalone of the Project menu
+			const bool f5 = !io.WantTextInput && !io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F5, false);
+			// The buttons come first: they are drawn whether a key was pressed or not
+			if (play.playing) {
+				if ((ImGui::Button("Stop") || f5) && play.stop)
+					play.stop();
+				ImGui::SameLine();
+				ImGui::TextColored(PlayingColor, "Playing: changes are undone on Stop (F5)");
+				return;
+			}
+			if ((ImGui::Button("Play Project") || (f5 && !io.KeyShift)) && play.playProject)
+				play.playProject();
+			ImGui::SameLine();
+			if ((ImGui::Button("Play Scene") || (f5 && io.KeyShift)) && play.playScene)
+				play.playScene();
+			ImGui::SameLine();
+			ImGui::TextDisabled("Edit mode (F5 project, Shift+F5 scene)");
+		}
 
 		/// Checkbox per debug draw channel, grouped by the part of the name before the first '/'.
 		void DrawDebugChannelsPopup(graphics::DebugDraw& debugDraw) {
@@ -103,16 +127,9 @@ namespace elm {
 		}
 		m_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
-		// Edit / Play mode, provided by the Inspector of the scripts; F5 switches too
+		// Edit / Play mode, provided by the Scripts window
 		if (const auto play = Request<PlayControls>()) {
-			if (ImGui::Button(play->playing ? "Stop" : "Play")
-				|| (!ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_F5, false)))
-				play->toggle();
-			ImGui::SameLine();
-			if (play->playing)
-				ImGui::TextColored(ImVec4(1.0f, 0.62f, 0.25f, 1.0f), "Playing: changes are undone on Stop (F5)");
-			else
-				ImGui::TextDisabled("Edit mode (F5 plays)");
+			DrawPlayControls(*play);
 			ImGui::SameLine();
 		}
 		if (ImGui::Button("Debug"))

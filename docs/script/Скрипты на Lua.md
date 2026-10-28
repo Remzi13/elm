@@ -24,7 +24,7 @@ Lua собирается **как C++**. Поэтому `lua_error` бросае
 |---|---|---|
 | 5 | `ScriptSystem` (`script/ScriptSystem.*`) | жизненный цикл, сборка частей, регистрация биндингов, окна редактора |
 | 4 | `bindings/*`, `ui/*` | адаптеры: Lua API и окна редактора. Каждый файл биндингов и каждая панель зависят только от того, что показывают |
-| 3 | `MainModule`, `EntityScripts` (+ `EntityScriptList`), `ScriptDefaults`, `HotReload`, `ScriptConsole` | главный модуль, скрипты сущностей, props для Inspector, перезагрузка, консоль |
+| 3 | `MainModule`, `EntityScripts` (+ `EntityScriptList`), `ScriptDefaults`, `HotReload`, `ScriptConsole` | главный модуль, скрипты сущностей, props для Scene Hierarchy, перезагрузка, консоль |
 | 2 | `ScriptClass` (`entity/`) | модуль как класс скрипта: проверка таблицы и props, новый экземпляр |
 | 1 | `ModuleLoader` (`module/`), `values/` | `require` и список загруженных модулей; `Entity`, `ModelRef`, `ScriptValue` ↔ Lua |
 | 0 | `ModulePaths` (`module/`), `lua/` | имя модуля ↔ файл; обёртка над C API |
@@ -42,14 +42,14 @@ Lua собирается **как C++**. Поэтому `lua_error` бросае
 
 - Одна `lua_State`, живёт на update-потоке (`ELM_ASSERT_THREAD(Update)`).
 - Память идёт через аллокатор движка и видна в `memory::getStatistic()`.
-- `require("a.b")` ищет `assets/scripts/a/b.lua`, затем `a/b/init.lua`. Поиск идёт только
+- `require("a.b")` ищет `assets/scripts/a/b.lua` открытого [[Проекты|проекта]], затем `a/b/init.lua`. Поиск идёт только
   через файловую систему движка: `package.path`, нативных модулей, `dofile` и `loadfile` нет.
 - Нет `io` и `os`. `load` принимает только текст: байткод не проверяется Lua и может уронить VM.
   Библиотека `debug` открыта только в debug-сборке.
 - `print` и `elm.log.info/warn/error` пишут в лог движка (категория `Script`) с файлом и строкой.
 
-Главный модуль задаётся настройкой `Script/MainModule` (по умолчанию `main`). Он возвращает
-таблицу с хуками:
+Главный модуль задаётся точкой входа проекта, `"entry": { "mainModule": ... }` в `.elmproject`
+([[Проекты#Точка входа и запуск]]); его может и не быть. Он возвращает таблицу с хуками:
 
 ```lua
 local main = {}
@@ -58,18 +58,19 @@ function main.on_update(dt) end        -- Play: после input, до пере�
 function main.on_fixed_update(dt) end  -- Play: после шага физики
 function main.on_play() end            -- нажали Play: снимок сцены уже сделан
 function main.on_stop() end            -- нажали Stop: до того как сцена вернётся
-function main.on_shutdown() end
+function main.on_shutdown() end        -- Lua-машина игры закрывается: Stop, смена проекта, выход
 return main
 ```
 
-Главный модуль стартует в начале `EngineApp::Run`, после того как загружена начальная сцена
-(`--scene`). Движок начинает в режиме Edit ([[Редактор]]): там вызываются только `on_start`,
-`on_reload` и `build_scene`, а `on_update` и `on_fixed_update` — только в Play.
+Главный модуль работает только в Play ([[Редактор#Edit и Play]]). Каждый Play начинается со свежей
+Lua-машины, как в плеере: стартовая сцена проекта (для Play Project), затем `on_start`, `on_play`, а
+дальше каждый кадр `on_update` и `on_fixed_update`. Stop вызывает `on_stop` и закрывает эту Lua-машину,
+так что глобальные переменные и `persist` не переживают Play. В Edit главного модуля нет.
 
 ### main.lua — точка входа
 
 `assets/scripts/main.lua` описывает сцену функцией `main.build_scene()`. Её вызывают `on_start`
-и `on_reload`, поэтому каждое сохранение файла собирает сцену заново по новому коду.
+и `on_reload`, поэтому в Play каждое сохранение файла собирает сцену заново по новому коду.
 Кнопка «Rebuild scene» в окне Scripts и команда `/scene` в его консоли вызывают
 `build_scene()` без перезагрузки модуля (`MainModule::CallFunction`).
 
@@ -140,7 +141,7 @@ for _, e in ipairs(elm.scene.with("Script")) do print(e.script) end
   кадре. Созданные внутри `on_start`/`on_update` других скриптов стартуют в следующем.
 - Настройка `Script/Enabled = false` выключает и скрипты сущностей.
 
-Пример: `assets/scripts/demo/npcs.lua` (`Script/MainModule = demo.npcs`) спавнит стражей
+Пример: `assets/scripts/demo/npcs.lua` (`entry.mainModule = demo.npcs`) спавнит стражей
 `assets/scripts/npc/guard.lua`. Они патрулируют у своих постов и гонятся за кубом игрока, которого
 двигают стрелки. Стражи и игрок — кинематические тела, они расталкивают ящики, а ящик между
 стражем и игроком прячет игрока (луч в `Guard:can_see`).
@@ -179,7 +180,7 @@ zone:add("Script", "gameplay.launch_pad")     -- on_trigger_enter(self, other)
   normal, distance` ближайшего твёрдого тела (триггеры пропускаются) или ничего. `ignore` — сущность,
   из которой выходит луч. Ещё есть `gravity()`, `set_gravity(v)`, `body_count()`.
 
-Пример: `assets/scripts/demo/physics.lua` (`Script/MainModule = demo.physics`): пирамида ящиков,
+Пример: `assets/scripts/demo/physics.lua` (`entry.mainModule = demo.physics`): пирамида ящиков,
 батут-триггер `gameplay/launch_pad.lua`, Space бросает камни `gameplay/projectile.lua`, которые
 вспыхивают в `on_collision_enter`.
 
@@ -259,7 +260,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 
 | Модуль | Что даёт |
 |---|---|
-| `elm.engine` | `load_test_scene(preset, instances?)`, `clear_scene()`, `save_scene(file)`, `load_scene(file)` (файлы относительно `assets/scenes`); `play()`, `stop()`, `is_playing()` ([[Редактор]]) |
+| `elm.engine` | `load_test_scene(preset, instances?)`, `clear_scene()`, `save_scene(file)`, `load_scene(file)` (путь ассета от папки `assets` проекта, `"scenes/level.scene"`; новые модели сцены записываются в `models/`); `play()`, `stop()`, `is_playing()` ([[Редактор]]) |
 | `elm.script` | `reload(module)`, `reload_changed()`, `restart()`, `modules()`, `persist(key, default)`, `memory()`, `engine_memory()` |
 
 ## Обёртка
@@ -301,11 +302,11 @@ lua::Class<Vector3>(module, "Vector3")
 |---|---|
 | `elm.log` | `info`, `warn`, `error` (и `print`) |
 | `elm.time` | `delta()`, `fixed_delta()`, `now()`, `frame()` |
-| `elm.settings` | `get("Script/MainModule")`, `set(key, value)`: тип значения как при регистрации |
+| `elm.settings` | `get("Script/HotReload")`, `set(key, value)`: тип значения как при регистрации |
 | `elm.math` | `Vector3`, `Vector4`, `Quaternion`, `Matrix4x4`, `lerp`, `clamp`, `radians`, `degrees`, `pi` |
 | `elm.input` | `is_down/is_pressed/is_released(key)`, `is_mouse_*`, `mouse_position()`, `mouse_delta()`, `axis(name)`; константы `elm.input.key.W`, `elm.input.mouse.Left` |
 | `elm.scene` | `spawn(name?, model?, parent?)`, `find`, `find_all`, `all`, `count`, `with(type)`; класс `Entity` (`add/remove/has(type)` для `Script`, `RigidBody`, `Collider`; `script`, `rigidbody`, `collider`) |
-| `elm.models` | `cube(size?)`, `box(half)`, `plane(x, z)`, `load(path)` (.model / .gltf от `assets/`), `find(name)`; класс `Model` |
+| `elm.models` | `cube(size?)`, `box(half)`, `plane(x, z)`, `load(path)` (.model / .gltf, путь ассета `"models/crate.model"`), `find(name)`; класс `Model` (`name`, `submesh_count`, `file` — путь файла модели или nil) |
 | `elm.camera` | `position`/`set_position`, `translate`, `forward`, `right`, `yaw`/`pitch`/`set_orientation`, `rotate`, `look_at`, `fov`/`set_fov` |
 | `elm.physics` | `raycast(origin, direction, max_distance?, ignore?)`, `gravity`/`set_gravity`, `body_count`; классы `RigidBody`, `Collider` |
 | `elm.debug` | `text(position, text)`, `line`, `arrow`, `ray(origin, direction, length)`, `point(position, size?)`, `box(center, half_extents)`, `sphere`, `capsule` (последний аргумент — `style?`), `channel(name, enabled_by_default?)`; класс `DebugChannel` ([[Отладочная отрисовка]]) |
@@ -335,7 +336,7 @@ e:destroy()                                   -- вместе с потомка�
 Каждый вызов `elm.models.cube()` создаёт новую модель с GPU-мешем. Создайте модель один раз
 и переиспользуйте её (`elm.models.find(name) or elm.models.cube()`).
 
-Пример: `assets/scripts/demo/spinner.lua`. Чтобы запустить его, установите `Script/MainModule = demo.spinner`.
+Пример: `assets/scripts/demo/spinner.lua`. Чтобы запустить его, установите `entry.mainModule = demo.spinner` в `Sandbox.elmproject`.
 Отладочная отрисовка из Lua — `demo.debug` ([[Отладочная отрисовка]]).
 
 ## Узлы сцены
@@ -353,8 +354,8 @@ e:destroy()                                   -- вместе с потомка�
 ## Инструменты
 
 ```bash
-Engine --script-selftest      # C++-проверки и assets/scripts/tests/*_test.lua, код выхода = число провалов
-Engine --dump-script-api      # assets/scripts/.meta/elm.lua: аннотации для LuaLS
+Engine --script-selftest      # C++-проверки и tests/*_test.lua проекта Sandbox, код выхода = число провалов
+Engine --dump-script-api      # .meta/elm.lua в скриптах Sandbox: аннотации для LuaLS
 ```
 
 `assets/scripts/.luarc.json` подключает `.meta` к языковому серверу Lua в редакторе.

@@ -1,0 +1,140 @@
+{
+   "formatVersion": 7,
+   "models": [
+      {
+         "path": "models/Ground Plane.model"
+      },
+      {
+         "path": "models/Cube.model"
+      }
+   ],
+   "nodes": [
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  5,
+                  0.05,
+                  5
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.4,
+                  0.5,
+                  0.4,
+                  1
+               ],
+               "modelIndex": 0,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Ground Plane"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.5,
+                  0.5,
+                  0.5
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.5,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.7,
+                  0.75,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "dynamic"
+            },
+            "Script": {
+               "module": "car",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               0.20000000298023224,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               0.20000000298023224,
+               0,
+               0.1395883560180664
+            ],
+            [
+               0,
+               0,
+               0.20000000298023224,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Car"
+      }
+   ]
+}

@@ -20,6 +20,7 @@ void FileDialog::Open(StringView title, StringView extension, const Path& direct
     m_saveMode = false;
     m_saveFileName.fill('\0');
     m_selectedPath.Clear();
+    m_limit.Clear();
     SetStartDirectory(directory);
     ImGui::OpenPopup(m_title.c_str());
 }
@@ -30,10 +31,26 @@ void FileDialog::SaveAs(StringView title, StringView extension, StringView defau
     m_extension = String(extension);
     m_saveMode = true;
     m_selectedPath.Clear();
+    m_limit.Clear();
     std::snprintf(m_saveFileName.data(), m_saveFileName.size(), "%.*s",
         static_cast<int>(defaultFileName.size()), defaultFileName.data());
     SetStartDirectory(directory);
     ImGui::OpenPopup(m_title.c_str());
+}
+
+void FileDialog::LimitTo(const Path& folder)
+{
+    m_limit = folder.LexicallyNormal();
+    if (!IsInsideLimit(m_directory))
+        SetStartDirectory(m_limit);
+}
+
+bool FileDialog::IsInsideLimit(const Path& directory) const
+{
+    if (m_limit.Empty())
+        return true;
+    const String relative(directory.LexicallyNormal().LexicallyRelative(m_limit).generic_string().c_str());
+    return !relative.empty() && !relative.starts_with("..");
 }
 
 void FileDialog::SetStartDirectory(const Path& directory)
@@ -137,7 +154,7 @@ auto FileDialog::Draw() -> std::optional<Path>
 
     ImGui::TextWrapped("%s", PathToString(m_directory).c_str());
     const auto parent = m_directory.Parent();
-    if (parent != m_directory && ImGui::Button("..")) {
+    if (parent != m_directory && IsInsideLimit(parent) && ImGui::Button("..")) {
         m_directory = parent;
         m_selectedPath.Clear();
         RefreshEntries();

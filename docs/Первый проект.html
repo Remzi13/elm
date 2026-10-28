@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Первый проект elm</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Layout: a step-by-step tutorial. Steps on the left with progress, one step at a time in the middle,
+   the project folder as it is after the step on the right. Same palette and fonts as Справочник.html. */
+:root {
+  --bg: #f3f5f1; --surface: #ffffff; --sunk: #e9ede6; --ink: #18201b; --muted: #5a675f; --line: #d5dcd3;
+  --accent: #2c7350; --accent-soft: #dcebe1; --update: #2b5f8f; --update-soft: #dde8f2;
+  --render: #a5561a; --render-soft: #f5e6d8; --danger: #b23a32; --danger-soft: #f6dedb; --code-bg: #eef1ec;
+  --font-display: "Unbounded", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Golos Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --radius: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101513; --surface: #171e1a; --sunk: #1d2520; --ink: #e3ebe5; --muted: #95a59b; --line: #2a352f;
+    --accent: #62c08f; --accent-soft: #1e3a2b; --update: #78b0e0; --update-soft: #1b2c3b;
+    --render: #e59d62; --render-soft: #3a2817; --danger: #ec7f76; --danger-soft: #3f1f1c; --code-bg: #1b231e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #101513; --surface: #171e1a; --sunk: #1d2520; --ink: #e3ebe5; --muted: #95a59b; --line: #2a352f;
+  --accent: #62c08f; --accent-soft: #1e3a2b; --update: #78b0e0; --update-soft: #1b2c3b;
+  --render: #e59d62; --render-soft: #3a2817; --danger: #ec7f76; --danger-soft: #3f1f1c; --code-bg: #1b231e; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15.5px; line-height: 1.6; }
+code, kbd, pre { font-family: var(--font-mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 0.08em 0.36em; border-radius: 4px; overflow-wrap: anywhere; }
+kbd { display: inline-block; padding: 0.05em 0.45em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; background: var(--surface); font-size: 0.8em; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; overflow-x: auto; line-height: 1.55; margin: 0; }
+pre code { background: none; padding: 0; font-size: 0.95em; overflow-wrap: normal; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 1.9rem; letter-spacing: -0.02em; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 1.4rem; letter-spacing: -0.01em; }
+h3 { font-size: 1.02rem; font-weight: 600; }
+p { margin: 0; max-width: 70ch; }
+.muted { color: var(--muted); }
+.eyebrow { font-family: var(--font-mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+
+/* ── Shell ── */
+.shell { display: grid; grid-template-columns: 260px minmax(0, 1fr) 300px; max-width: 1420px; margin: 0 auto; min-height: 100vh; }
+.steps { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px 16px 28px max(16px, env(safe-area-inset-left, 0px)); border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 18px; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand b { font-family: var(--font-display); font-size: 1.6rem; font-weight: 700; letter-spacing: -0.03em; color: var(--accent); }
+.progress { display: flex; flex-direction: column; gap: 6px; }
+.progress-bar { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+.progress-bar span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.25s ease; }
+.step-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; counter-reset: step; }
+.step-list button { all: unset; box-sizing: border-box; width: 100%; display: grid; grid-template-columns: 26px 1fr; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 0.92rem; border-left: 2px solid transparent; }
+.step-list button:hover { background: var(--sunk); }
+.step-list button[aria-current="step"] { background: var(--accent-soft); border-left-color: var(--accent); font-weight: 500; }
+.step-list .num { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.72rem; border: 1px solid var(--line); background: var(--surface); color: var(--muted); }
+.step-list li.done .num { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.step-list li.done .num::after { content: "✓"; }
+.step-list li.done .num span { display: none; }
+.side-tools { margin-top: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { font: inherit; font-size: 0.86rem; padding: 7px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.btn:hover { background: var(--sunk); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+/* ── Main column ── */
+main { padding: 36px clamp(16px, 4vw, 48px) 64px; display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.hero { display: flex; flex-direction: column; gap: 10px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.goal { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin-top: 6px; }
+.goal div { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; font-size: 0.88rem; }
+.goal b { display: block; font-family: var(--font-mono); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--accent); margin-bottom: 2px; }
+section.step { display: none; flex-direction: column; gap: 18px; animation: appear 0.2s ease; }
+section.step.active { display: flex; }
+@keyframes appear { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.step-head { display: flex; flex-direction: column; gap: 6px; }
+ol.do { margin: 0; padding-left: 0; list-style: none; counter-reset: do; display: flex; flex-direction: column; gap: 12px; }
+ol.do > li { counter-increment: do; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+ol.do > li::before { content: counter(do); width: 24px; height: 24px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; margin-top: 1px; }
+ol.do > li > div { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.path { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 0.84rem; }
+.path span { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 1px 7px; font-family: var(--font-mono); font-size: 0.82em; }
+.path span.win { background: var(--update-soft); border-color: transparent; color: var(--update); font-weight: 600; }
+.path i { font-style: normal; color: var(--muted); }
+.note { border-left: 3px solid var(--update); background: var(--update-soft); padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.92rem; }
+.warn { border-left: 3px solid var(--render); background: var(--render-soft); padding: 10px 14px; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.92rem; }
+details { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+details > summary { cursor: pointer; padding: 10px 14px; font-weight: 500; font-size: 0.93rem; list-style: none; display: flex; align-items: center; gap: 8px; }
+details > summary::before { content: "▸"; color: var(--muted); transition: transform 0.15s; }
+details[open] > summary::before { transform: rotate(90deg); }
+details > div { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 8px; font-size: 0.92rem; }
+.code { position: relative; }
+.code .copy { position: absolute; top: 8px; right: 8px; font: inherit; font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.code .copy:hover { color: var(--ink); }
+.code .label { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; }
+.check { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: var(--radius); cursor: pointer; user-select: none; font-size: 0.93rem; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.check.done { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.nav { display: flex; justify-content: space-between; gap: 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+.tok-k { color: var(--update); font-weight: 600; } .tok-s { color: var(--accent); } .tok-c { color: var(--muted); font-style: italic; } .tok-n { color: var(--render); }
+
+/* ── Window map (step 2) ── */
+.winmap { display: grid; grid-template-columns: 1.1fr 2fr 1.2fr; grid-template-rows: 1fr 1fr 0.9fr; gap: 6px; aspect-ratio: 16 / 8; min-height: 260px; }
+.winmap button { all: unset; box-sizing: border-box; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); padding: 8px 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.winmap button small { font-weight: 400; color: var(--muted); font-size: 0.74rem; }
+.winmap button:hover, .winmap button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.wm-project { grid-column: 1; grid-row: 1 / 3; } .wm-viewport { grid-column: 2; grid-row: 1 / 3; } .wm-hierarchy { grid-column: 3; grid-row: 1 / 4; }
+.wm-scripts { grid-column: 1 / 3; grid-row: 3; }
+.winmap-info { min-height: 3.2em; padding: 10px 14px; border-radius: var(--radius); background: var(--sunk); font-size: 0.92rem; }
+
+/* ── Folder tree (right) ── */
+.tree-panel { position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto; padding: 28px max(16px, env(safe-area-inset-right, 0px)) 28px 16px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 12px; }
+.tree { font-family: var(--font-mono); font-size: 0.8rem; line-height: 1.75; }
+.tree .row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.tree .row button { all: unset; cursor: pointer; border-radius: 3px; padding: 0 4px; }
+.tree .row button:hover { background: var(--sunk); }
+.tree .row.folder > span { color: var(--muted); }
+.tree .row .ind { display: inline-block; width: 14px; flex: none; }
+.tree .new { font-family: var(--font-body); font-size: 0.66rem; background: var(--accent); color: var(--surface); border-radius: 3px; padding: 0 5px; line-height: 1.5; }
+.tree .row.fresh button, .tree .row.fresh > span:last-of-type { color: var(--accent); font-weight: 600; }
+.preview { display: none; flex-direction: column; gap: 6px; }
+.preview.open { display: flex; }
+.preview pre { font-size: 0.86em; max-height: 340px; }
+.preview-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+
+@media (max-width: 1180px) {
+  .shell { grid-template-columns: 240px minmax(0, 1fr); }
+  .tree-panel { position: static; height: auto; grid-column: 2; border-left: 0; border-top: 1px solid var(--line); padding: 20px clamp(16px, 4vw, 48px) 48px; }
+}
+@media (max-width: 760px) {
+  .shell { grid-template-columns: minmax(0, 1fr); }
+  .steps { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--line); padding-inline: 16px; }
+  .step-list { flex-direction: row; overflow-x: auto; gap: 4px; padding-bottom: 4px; }
+  .step-list button { grid-template-columns: 22px; width: auto; }
+  .step-list .label { display: none; }
+  .tree-panel { grid-column: 1; padding-inline: 16px; }
+  main { padding-inline: 16px; }
+  .winmap { aspect-ratio: auto; grid-template-columns: 1fr 1fr; grid-template-rows: none; }
+  .winmap button { grid-column: auto !important; grid-row: auto !important; min-height: 64px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<aside class="steps" aria-label="Шаги">
+  <div class="brand"><b>elm</b><span class="muted">первый проект</span></div>
+  <div class="progress">
+    <div class="progress-bar" aria-hidden="true"><span id="progress-fill"></span></div>
+    <span class="muted" style="font-size:0.82rem" id="progress-text">0 из 10 шагов</span>
+  </div>
+  <ol class="step-list" id="step-list"></ol>
+  <div class="side-tools">
+    <button class="btn" id="theme-toggle" type="button">Тема</button>
+    <button class="btn" id="reset" type="button">Сбросить отметки</button>
+  </div>
+</aside>
+
+<main>
+  <header class="hero">
+    <span class="eyebrow">Учебник · от пустой папки до готовой игры</span>
+    <h1>Первый проект: вертушка</h1>
+    <p class="muted">За десять шагов вы создадите проект, соберёте сцену из пола и куба, импортируете модель,
+      напишете скрипт, который крутит куб, запустите игру в редакторе и отдельным окном и соберёте её
+      в папку с <code>.exe</code>. Справа видно, что лежит в папке проекта после каждого шага; файлы можно открыть.</p>
+    <div class="goal">
+      <div><b>Проект</b>MyGame</div>
+      <div><b>Сцена</b>scenes/level.scene</div>
+      <div><b>Скрипт</b>spinner.lua</div>
+      <div><b>Итог</b>Build/MyGame/MyGame.exe</div>
+    </div>
+  </header>
+
+  <!-- 0 -->
+  <section class="step" data-title="Подготовка">
+    <div class="step-head"><span class="eyebrow">Шаг 1</span><h2>Подготовка: собрать и запустить редактор</h2></div>
+    <p>Редактор и игра — одна программа, <code>Engine.exe</code>. Соберите её один раз; первая конфигурация
+      долго качает зависимости в <code>../elm_deps</code>.</p>
+    <ol class="do">
+      <li><div><span>Сконфигурируйте и соберите движок из корня репозитория:</span>
+        <div class="code"><pre><code>cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+cmake --build build --config Debug -j</code></pre></div></div></li>
+      <li><div><span>Запустите редактор без аргументов:</span>
+        <div class="code"><pre><code>build/Debug/Engine.exe</code></pre></div>
+        <p class="muted">Без <code>--project</code> редактор открывает проект, с которым работал в прошлый раз. Если такого нет, он покажет окно <b>Project Hub</b> — оно и нужно.</p></div></li>
+    </ol>
+    <details><summary>Что важно знать о запуске</summary><div>
+      <p>Файл <code>.settings</code> ищется вверх от текущей папки, поэтому запускать можно из корня или из <code>build/</code>.
+        В нём хранятся настройки редактора: недавние проекты, каналы отладочной отрисовки, корень движка.</p>
+      <p>Открыть конкретный проект сразу: <code>Engine.exe --project projects/MyGame</code>. Проверить движок без окна: <code>Engine.exe --script-selftest</code>.</p>
+    </div></details>
+  </section>
+
+  <!-- 1 -->
+  <section class="step" data-title="Создать проект">
+    <div class="step-head"><span class="eyebrow">Шаг 2</span><h2>Создать пустой проект</h2></div>
+    <p>Проект — это папка с именем игры. В ней файл <code>MyGame.elmproject</code> (имя и точка входа)
+      и папка <code>assets</code> со всем, что игра загружает.</p>
+    <ol class="do">
+      <li><div><span>Откройте Project Hub, если он ещё не открыт:</span>
+        <span class="path"><span class="win">меню Project</span><i>→</i><span>Project Hub...</span></span></div></li>
+      <li><div><span>В разделе <b>Create</b> введите имя и оставьте папку по умолчанию:</span>
+        <span class="path"><span>Name: MyGame</span><span>Location: …/projects</span><span>Create Project</span></span>
+        <p class="muted">Имя — буквы, цифры, <code>_</code> и <code>-</code>: это ещё и имя папки, и имя будущего <code>.exe</code>.</p></div></li>
+      <li><div><span>Проект откроется сам: заголовок меню Project покажет <b>MyGame</b>, появятся окна проекта.</span></div></li>
+    </ol>
+    <details><summary>Что создаёт шаблон</summary><div>
+      <p><code>MyGame.elmproject</code> с главным модулем <code>main</code>, пустые <code>scenes/</code> и <code>models/</code>,
+        <code>scripts/main.lua</code> и настройку подсказок для редактора кода: <code>.luarc.json</code> и <code>.meta/elm.lua</code>
+        с описанием всего Lua API движка. Откройте <code>scripts</code> в VS Code с расширением Lua — появятся подсказки по <code>elm.*</code>.</p>
+      <p>Существующую папку шаблон не перезаписывает: имя должно быть новым.</p>
+    </div></details>
+  </section>
+
+  <!-- 2 -->
+  <section class="step" data-title="Окна редактора">
+    <div class="step-head"><span class="eyebrow">Шаг 3</span><h2>Окна редактора</h2></div>
+    <p>Окна можно таскать и стыковать; скрытые включаются в меню <b>Windows</b>. Нажмите на окно на схеме, чтобы узнать, зачем оно.</p>
+    <div class="winmap" id="winmap">
+      <button class="wm-project" data-info="<b>Project</b> — вкладка Assets: папка assets деревом. Поиск, фильтр по типу, двойной клик открывает сцену, модель или скрипт. Правая кнопка: New Folder, Set as Startup Scene. Модели отсюда перетаскиваются в Scene Hierarchy.">Project<small>файлы проекта</small></button>
+      <button class="wm-viewport" data-info="<b>Engine Viewport</b> — вид сцены. Над ним кнопки Play Project / Play Scene и Debug (каналы отладочной отрисовки). Правая кнопка мыши — вращение камеры, WASD/QE — полёт. Выбранный узел двигается гизмо.">Engine Viewport<small>вид сцены, Play</small></button>
+      <button class="wm-hierarchy" data-info="<b>Scene Hierarchy</b> — дерево узлов сцены, справа компоненты выбранного узла: трансформ, модель, Script с props, RigidBody, Collider. Сверху поле Scene File и кнопки Save, Save As..., Load, Open..., Import glTF..., New. Кнопка + Add Object... добавляет узлы и примитивы.">Scene Hierarchy<small>узлы сцены, Save</small></button>
+      <button class="wm-scripts" data-info="<b>Scripts</b> — вкладки Console (Lua-консоль), Editor (редактор скриптов, New file, Ctrl+S сохраняет и перезагружает модуль), Modules и API. Ещё есть скрытое окно Model Editor.">Scripts<small>консоль, редактор Lua</small></button>
+    </div>
+    <div class="winmap-info" id="winmap-info" aria-live="polite">Выберите окно на схеме.</div>
+    <div class="note">Расположение окон хранится в <code>imgui.ini</code> и остаётся при смене проекта.</div>
+  </section>
+
+  <!-- 3 -->
+  <section class="step" data-title="Сцена">
+    <div class="step-head"><span class="eyebrow">Шаг 4</span><h2>Сцена: пол и куб</h2></div>
+    <ol class="do">
+      <li><div><span>Начните новую сцену и назовите её:</span>
+        <span class="path"><span class="win">Scene Hierarchy</span><i>→</i><span>New</span><i>→</i><span>Scene File: level.scene</span></span>
+        <p class="muted">New очищает сцену и даёт ей свободное имя (<code>new.scene</code>), чтобы Save случайно не перезаписал другую сцену. Имя в поле — относительно <code>assets/scenes</code>.</p></div></li>
+      <li><div><span>Добавьте пол и куб:</span>
+        <span class="path"><span>+ Add Object...</span><i>→</i><span>3D Primitives</span><i>→</i><span>Ground Plane</span></span>
+        <span class="path"><span>+ Add Object...</span><i>→</i><span>3D Primitives</span><i>→</i><span>Cube</span></span></div></li>
+      <li><div><span>Выберите <b>Cube</b> и поднимите его над полом: в деталях узла <b>Position</b> = <code>0, 0.5, 0</code> (или тащите стрелку гизмо во вьюпорте).</span></div></li>
+      <li><div><span>Сохраните сцену кнопкой <b>Save</b>.</span>
+        <p class="muted">Вместе со сценой в <code>assets/models/</code> записываются модели, у которых ещё нет файла: <code>Cube.model</code> и <code>Ground Plane.model</code>. Сама сцена ссылается на них путями.</p></div></li>
+      <li><div><span>Сделайте её стартовой — с неё начнётся игра:</span>
+        <span class="path"><span class="win">Project</span><i>→</i><span>scenes/level.scene</span><i>→</i><span>правая кнопка</span><i>→</i><span>Set as Startup Scene</span></span>
+        <p class="muted">Нет <code>level.scene</code> в дереве — нажмите Refresh. Можно и на вкладке <b>Settings</b> окна Project: Startup scene → Save.</p></div></li>
+    </ol>
+    <details><summary>Как выглядит файл сцены</summary><div>
+      <p>Сцена — JSON версии 7. Модели перечислены путями от папки <code>assets</code>, узлы ссылаются на них индексом. Откройте <code>level.scene</code> справа.</p>
+    </div></details>
+  </section>
+
+  <!-- 4 -->
+  <section class="step" data-title="Модель">
+    <div class="step-head"><span class="eyebrow">Шаг 5</span><h2>Модель из glTF</h2></div>
+    <p>Файлы извне попадают в проект только через импорт: оригинал копируется в <code>assets/source/</code>, а модели записываются
+      в <code>assets/models/</code> в формате движка <code>.model</code>.</p>
+    <ol class="do">
+      <li><div><span>Импортируйте сцену glTF (подойдёт пример из Sandbox: <code>projects/Sandbox/assets/test/village/village.gltf</code>):</span>
+        <span class="path"><span class="win">Scene Hierarchy</span><i>→</i><span>Import glTF...</span><i>→</i><span>village.gltf</span></span>
+        <p class="muted">Узлы glTF появятся в иерархии с моделями. В проекте: <code>source/village/village.gltf</code> вместе с <code>village.bin</code> и новые <code>.model</code>.</p></div></li>
+      <li><div><span>Или одна модель целиком:</span>
+        <span class="path"><span>+ Add Object...</span><i>→</i><span>Model from Disk (.gltf, .glb, .model)...</span></span></div></li>
+      <li><div><span>Модели проекта можно перетаскивать: возьмите <code>.model</code> в окне <b>Project</b> и бросьте в дерево <b>Scene Hierarchy</b> — получится новый узел.</span></div></li>
+      <li><div><span>Сохраните сцену (<b>Save</b>).</span></div></li>
+    </ol>
+    <details><summary>Правка модели</summary><div>
+      <p>Двойной клик по <code>.model</code> в окне Project открывает её в <b>Model Editor</b> (сабмеши, цвета, трансформ геометрии).
+        Apply to Scene заменяет модель в сцене; с несохранёнными правками она станет новой моделью и запишется со сценой отдельным файлом — сохраните её (Save), чтобы сцена ссылалась на её файл.</p>
+    </div></details>
+    <div class="note">Повторный импорт того же файла не перезаписывает старый: оригинал ляжет в <code>source/village_1/</code>, модели — с номером в имени.</div>
+  </section>
+
+  <!-- 5 -->
+  <section class="step" data-title="Скрипт">
+    <div class="step-head"><span class="eyebrow">Шаг 6</span><h2>Скрипт, который крутит куб</h2></div>
+    <p>Скрипт сущности — Lua-класс. Его экземпляр живёт на узле с компонентом <b>Script</b>; поля <code>props</code> видны и правятся в Scene Hierarchy.</p>
+    <ol class="do">
+      <li><div><span>Создайте файл:</span>
+        <span class="path"><span class="win">Scripts</span><i>→</i><span>Editor</span><i>→</i><span>folder/name.lua: spinner</span><i>→</i><span>New file</span></span>
+        <p class="muted">Откроется шаблон с <code>props</code>, <code>on_start</code> и <code>on_update</code>.</p></div></li>
+      <li><div><span>Замените текст и сохраните <kbd>Ctrl</kbd>+<kbd>S</kbd>:</span>
+        <div class="code"><div class="label">assets/scripts/spinner.lua</div><pre><code id="spinner-code"></code></pre></div></div></li>
+      <li><div><span>Повесьте скрипт на куб:</span>
+        <span class="path"><span class="win">Scene Hierarchy</span><i>→</i><span>Cube</span><i>→</i><span>+ Add Component</span><i>→</i><span>Script Component (Lua)</span><i>→</i><span>spinner</span></span>
+        <p class="muted">В Scene Hierarchy, в разделе Script Component, появится prop <b>speed</b> со значением <code>1.5</code> из скрипта. Изменённый prop подсвечен синим и сохраняется в сцене для этого узла; Reset вернёт значение из скрипта.</p></div></li>
+      <li><div><span>Сохраните сцену (<b>Save</b>).</span></div></li>
+    </ol>
+    <details><summary>Почему куб пока не крутится</summary><div>
+      <p>В режиме Edit сцена — это данные: физика, скрипты сущностей и главный модуль стоят. Всё запустится по Play (шаг 8).</p>
+    </div></details>
+  </section>
+
+  <!-- 6 -->
+  <section class="step" data-title="Главный модуль">
+    <div class="step-head"><span class="eyebrow">Шаг 7</span><h2>Главный модуль: камера</h2></div>
+    <p>Точка входа проекта — стартовая сцена и главный модуль (<code>entry</code> в <code>MyGame.elmproject</code>). Главный модуль
+      работает только в Play: с ним стартует игра. Поставим камеру так, чтобы куб было видно.</p>
+    <ol class="do">
+      <li><div><span>Откройте <code>main.lua</code>: двойной клик в окне Project по <code>scripts/main.lua</code>.</span></div></li>
+      <li><div><span>Замените текст и сохраните <kbd>Ctrl</kbd>+<kbd>S</kbd>:</span>
+        <div class="code"><div class="label">assets/scripts/main.lua</div><pre><code id="main-code"></code></pre></div></div></li>
+      <li><div><span>Проверьте точку входа: окно <b>Project</b> → вкладка <b>Settings</b>. Startup scene — <code>scenes/level.scene</code>, Main module — <code>main</code>.</span></div></li>
+    </ol>
+    <details><summary>Хуки главного модуля</summary><div>
+      <p><code>on_start</code> — начало игры (после загрузки стартовой сцены), <code>on_play</code> — сразу за ним, <code>on_update(dt)</code> и
+        <code>on_fixed_update(dt)</code> — каждый кадр и шаг физики, <code>on_stop</code> — при Stop, <code>on_shutdown</code> — когда Lua-машина игры закрывается.</p>
+      <p>Главного модуля может и не быть, как и стартовой сцены, — но хотя бы что-то одно в <code>entry</code> должно быть.</p>
+    </div></details>
+  </section>
+
+  <!-- 7 -->
+  <section class="step" data-title="Play">
+    <div class="step-head"><span class="eyebrow">Шаг 8</span><h2>Запуск в редакторе</h2></div>
+    <ol class="do">
+      <li><div><span>Нажмите <b>Play Project</b> над вьюпортом или <kbd>F5</kbd>.</span>
+        <p class="muted">Игра стартует как у игрока: свежая Lua-машина, стартовая сцена с диска, <code>main.on_start</code>. Куб крутится, <kbd>Space</kbd> меняет направление.</p></div></li>
+      <li><div><span>Пока игра идёт, поменяйте <code>speed</code> в <code>spinner.lua</code> и сохраните <kbd>Ctrl</kbd>+<kbd>S</kbd> — модуль перезагрузится на ходу. Или поменяйте prop <b>speed</b> в Scene Hierarchy.</span></div></li>
+      <li><div><span>Остановите: <b>Stop</b> или снова <kbd>F5</kbd>. Сцена вернётся к тому виду, что была до Play; правки в Play пропадут.</span></div></li>
+    </ol>
+    <div class="note"><b>Play Scene</b> (<kbd>Shift</kbd>+<kbd>F5</kbd>) играет сцену, открытую в редакторе, из памяти — удобно проверить уровень, не начиная игру сначала.
+      <b>Play Project</b> читает стартовую сцену с диска: не забудьте её сохранить.</div>
+    <details><summary>Что живёт между Play</summary><div>
+      <p>Ничего из Lua: каждый Play и Stop дают свежую Lua-машину, глобальные переменные и <code>persist</code> не переживают Play. Сцена после Stop восстанавливается из снимка вместе с id узлов.</p>
+    </div></details>
+  </section>
+
+  <!-- 8 -->
+  <section class="step" data-title="Run Standalone">
+    <div class="step-head"><span class="eyebrow">Шаг 9</span><h2>Игра отдельным окном</h2></div>
+    <ol class="do">
+      <li><div><span>Запустите плеер:</span>
+        <span class="path"><span class="win">меню Project</span><i>→</i><span>Run Standalone</span><i>или</i><span>Ctrl+F5</span></span>
+        <p class="muted">Откроется отдельное окно «MyGame» без интерфейса редактора: игра на весь экран, сразу Play Project. Она идёт по сохранённым файлам.</p></div></li>
+      <li><div><span>То же из командной строки:</span>
+        <div class="code"><pre><code>build/Debug/Engine.exe --project projects/MyGame --player</code></pre></div></div></li>
+    </ol>
+    <div class="warn">В плеере нет режима Edit: <code>elm.engine.stop()</code> из скрипта завершает программу. Свободной камеры редактора тоже нет — камерой управляют скрипты.</div>
+  </section>
+
+  <!-- 9 -->
+  <section class="step" data-title="Сборка">
+    <div class="step-head"><span class="eyebrow">Шаг 10</span><h2>Сборка готовой игры</h2></div>
+    <ol class="do">
+      <li><div><span>Соберите игру:</span>
+        <span class="path"><span class="win">меню Project</span><i>→</i><span>Build Game</span></span>
+        <p class="muted">Путь к сборке появится в окне Log. Без редактора то же самое делает команда:</p>
+        <div class="code"><pre><code>build/Debug/Engine.exe --build projects/MyGame</code></pre></div></div></li>
+      <li><div><span>Запустите <code>projects/MyGame/Build/MyGame/MyGame.exe</code> — двойным кликом, без аргументов.</span>
+        <p class="muted">Программа находит рядом с собой <code>MyGame.elmproject</code>, переходит в свою папку и играет проект. Папку можно скопировать на другой компьютер целиком.</p></div></li>
+    </ol>
+    <details><summary>Что попадает в сборку</summary><div>
+      <p><code>MyGame.exe</code> (копия движка) и библиотеки рядом, <code>shaders/</code>, <code>MyGame.elmproject</code>, <code>assets/</code> без <code>source/</code> и скрытых файлов (<code>.meta</code>, <code>.luarc.json</code>),
+        <code>.settings</code> с корнем движка в папке игры и метка <code>.elmbuild</code>. Следующая сборка заменяет только папку с такой меткой.</p>
+      <p>Папки <code>projects/*/Build/</code> не попадают в git.</p>
+    </div></details>
+    <div class="note"><b>Готово.</b> Дальше: заметки <code>docs/project/Проекты.md</code> (проекты, импорт, плеер, сборка), <code>docs/script/Скрипты на Lua.md</code> (Lua API, скрипты сущностей),
+      <code>docs/editor/Редактор.md</code> (окна, Edit и Play) и интерактивный <a href="Справочник.html">Справочник</a>.</div>
+  </section>
+
+  <label class="check" id="check"><input type="checkbox" id="check-box"><span id="check-text">Шаг сделан</span></label>
+  <div class="nav">
+    <button class="btn" id="prev" type="button">← Назад</button>
+    <button class="btn primary" id="next" type="button">Дальше →</button>
+  </div>
+</main>
+
+<aside class="tree-panel" aria-label="Папка проекта">
+  <span class="eyebrow">projects/MyGame после шага</span>
+  <div class="tree" id="tree"></div>
+  <div class="preview" id="preview">
+    <div class="preview-head"><b id="preview-name" style="font-family:var(--font-mono);font-size:0.82rem"></b><button class="btn" id="preview-close" type="button">Закрыть</button></div>
+    <div class="code"><pre><code id="preview-code"></code></pre></div>
+  </div>
+  <p class="muted" style="font-size:0.82rem">Файлы со ссылкой можно открыть. <span class="tree-legend"><span class="new" style="font-family:var(--font-body);font-size:0.66rem;background:var(--accent);color:var(--surface);border-radius:3px;padding:0 5px">новое</span> — появилось на этом шаге.</span></p>
+</aside>
+
+</div>
+
+<script>
+(() => {
+  // ── Files the tutorial produces; text is shown when a file is clicked ──
+  const FILES = {
+    project: `{
+   "formatVersion": 1,
+   "name": "MyGame",
+   "entry": { "mainModule": "main" }
+}`,
+    projectEntry: `{
+   "formatVersion": 1,
+   "name": "MyGame",
+   "entry": { "startupScene": "scenes/level.scene", "mainModule": "main" }
+}`,
+    mainTemplate: `-- The main module of the game (entry.mainModule): it runs in Play only, from a fresh Lua state.
+local main = {}
+
+function main.on_start()
+end
+
+function main.on_update(dt)
+end
+
+return main`,
+    main: `-- Главный модуль: работает только в Play, с ним стартует игра
+local Vector3 = elm.math.Vector3
+
+local main = {}
+
+function main.on_start()
+    -- Камера сзади и сверху, смотрит на куб
+    elm.camera.set_position(Vector3(0, 3, -6))
+    elm.camera.look_at(Vector3(0, 0.5, 0))
+end
+
+return main`,
+    spinner: `-- Крутит свою сущность вокруг вертикальной оси; Space меняет направление
+local Vector3, Quaternion = elm.math.Vector3, elm.math.Quaternion
+local input = elm.input
+
+local Spinner = { props = { speed = 1.5 } }  -- радиан в секунду, правится в Scene Hierarchy
+
+function Spinner:on_start()
+    self.angle = 0
+    self.direction = 1
+end
+
+function Spinner:on_update(dt)
+    if input.is_pressed(input.key.Space) then
+        self.direction = -self.direction
+    end
+    self.angle = self.angle + self.speed * self.direction * dt
+    self.entity.rotation = Quaternion.from_axis_angle(Vector3(0, 1, 0), self.angle)
+end
+
+return Spinner`,
+    sceneFirst: `{
+   "formatVersion": 7,
+   "models": [
+      { "path": "models/Ground Plane.model" },
+      { "path": "models/Cube.model" }
+   ],
+   "nodes": [
+      { "name": "Ground Plane", "localTransform": [...],
+        "components": { "Model": { "modelIndex": 0, "color": [...], "visible": true } } },
+      { "name": "Cube", "localTransform": [... 0, 0.5, 0, 1],
+        "components": { "Model": { "modelIndex": 1, "color": [...], "visible": true } } }
+   ]
+}`,
+    sceneScript: `{
+   "formatVersion": 7,
+   "models": [
+      { "path": "models/Ground Plane.model" },
+      { "path": "models/Cube.model" },
+      { "path": "models/House.model" },
+      ...
+   ],
+   "nodes": [
+      ...
+      { "name": "Cube", "localTransform": [... 0, 0.5, 0, 1],
+        "components": {
+          "Model": { "modelIndex": 1, "color": [...], "visible": true },
+          "Script": { "module": "spinner", "props": { } }
+        } }
+   ]
+}`,
+    settings: `{
+   "settings": {
+      "Core/FileSystem/RootPath": "."
+   },
+   "version": 1
+}`,
+    luarc: `{
+    "runtime.version": "Lua 5.4",
+    "runtime.builtin": { "io": "disable", "os": "disable" },
+    "workspace.library": [ ".meta" ]
+}`,
+    model: `{
+   "formatVersion": 2,
+   "name": "...",
+   "submeshes": [ ... ]   // вершины, индексы, цвет
+}`,
+  };
+
+  // ── The project folder after each step: [path, file key or null, first step it appears in] ──
+  const TREE = [
+    ["MyGame.elmproject", (s) => (s >= 3 ? "projectEntry" : "project"), 1],
+    ["assets/", null, 1],
+    ["assets/models/", null, 1],
+    ["assets/models/Cube.model", () => "model", 3],
+    ["assets/models/Ground Plane.model", () => "model", 3],
+    ["assets/models/House.model …", () => "model", 4],
+    ["assets/scenes/", null, 1],
+    ["assets/scenes/level.scene", (s) => (s >= 5 ? "sceneScript" : "sceneFirst"), 3],
+    ["assets/scripts/", null, 1],
+    ["assets/scripts/.luarc.json", () => "luarc", 1],
+    ["assets/scripts/.meta/", null, 1],
+    ["assets/scripts/.meta/elm.lua", null, 1],
+    ["assets/scripts/main.lua", (s) => (s >= 6 ? "main" : "mainTemplate"), 1],
+    ["assets/scripts/spinner.lua", () => "spinner", 5],
+    ["assets/source/", null, 4],
+    ["assets/source/village/", null, 4],
+    ["assets/source/village/village.gltf", null, 4],
+    ["assets/source/village/village.bin", null, 4],
+    ["Build/", null, 9],
+    ["Build/MyGame/", null, 9],
+    ["Build/MyGame/MyGame.exe", null, 9],
+    ["Build/MyGame/MyGame.elmproject", () => "projectEntry", 9],
+    ["Build/MyGame/.settings", () => "settings", 9],
+    ["Build/MyGame/shaders/ …", null, 9],
+    ["Build/MyGame/assets/ (без source/ и .meta)", null, 9],
+  ];
+
+  const steps = Array.from(document.querySelectorAll("section.step"));
+  const list = document.getElementById("step-list");
+  const STORE_KEY = "elm-first-project";
+  let state = { current: 0, done: [] };
+
+  function load() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (saved && Array.isArray(saved.done)) state = { current: Math.min(saved.current | 0, steps.length - 1), done: saved.done };
+    } catch (e) { /* a private window: the page works without storage */ }
+  }
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { }
+  }
+
+  // Code blocks: simple Lua coloring, copy buttons
+  function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+  function highlightLua(text) {
+    return escapeHtml(text).split("\n").map((line) => {
+      const comment = line.indexOf("--");
+      let code = comment >= 0 ? line.slice(0, comment) : line;
+      const tail = comment >= 0 ? `<span class="tok-c">${line.slice(comment)}</span>` : "";
+      code = code
+        .replace(/("[^"]*")/g, '<span class="tok-s">$1</span>')
+        .replace(/\b(local|function|end|return|if|then|else|for|in|do|not|and|or|nil|true|false)\b/g, '<span class="tok-k">$1</span>')
+        .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="tok-n">$1</span>');
+      return code + tail;
+    }).join("\n");
+  }
+  function setCode(element, text, isLua) {
+    element.dataset.raw = text;
+    element.innerHTML = isLua ? highlightLua(text) : escapeHtml(text);
+  }
+  setCode(document.getElementById("spinner-code"), FILES.spinner, true);
+  setCode(document.getElementById("main-code"), FILES.main, true);
+  document.querySelectorAll(".code pre code").forEach((code) => {
+    if (!code.dataset.raw) code.dataset.raw = code.textContent;
+    const button = document.createElement("button");
+    button.className = "copy";
+    button.type = "button";
+    button.textContent = "Копировать";
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(code.dataset.raw);
+        button.textContent = "Скопировано";
+      } catch (e) {
+        button.textContent = "Не вышло";
+      }
+      setTimeout(() => { button.textContent = "Копировать"; }, 1500);
+    });
+    code.closest(".code").appendChild(button);
+  });
+
+  // Step list
+  steps.forEach((section, index) => {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.innerHTML = `<span class="num"><span>${index + 1}</span></span><span class="label">${section.dataset.title}</span>`;
+    button.addEventListener("click", () => show(index));
+    item.appendChild(button);
+    list.appendChild(item);
+  });
+
+  // Folder tree of the current step
+  const tree = document.getElementById("tree");
+  const preview = document.getElementById("preview");
+  function renderTree(step) {
+    tree.innerHTML = "";
+    for (const [path, file, from] of TREE) {
+      if (step < from) continue;
+      const parts = path.replace(/\/$/, "").split("/");
+      const folder = path.endsWith("/");
+      const row = document.createElement("div");
+      row.className = "row" + (folder ? " folder" : "") + (from === step ? " fresh" : "");
+      for (let i = 0; i < parts.length - 1; ++i) row.insertAdjacentHTML("beforeend", '<span class="ind"></span>');
+      const name = parts[parts.length - 1] + (folder ? "/" : "");
+      const key = file ? file(step) : null;
+      if (key) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = name;
+        button.addEventListener("click", () => openPreview(path, key));
+        row.appendChild(button);
+      } else {
+        const label = document.createElement("span");
+        label.textContent = name;
+        row.appendChild(label);
+      }
+      if (from === step) row.insertAdjacentHTML("beforeend", '<span class="new">новое</span>');
+      tree.appendChild(row);
+    }
+    if (!tree.childElementCount)
+      tree.innerHTML = '<span class="muted" style="font-family:var(--font-body)">Проекта ещё нет: он появится на шаге 2.</span>';
+  }
+  function openPreview(path, key) {
+    document.getElementById("preview-name").textContent = path;
+    const lua = path.endsWith(".lua");
+    setCode(document.getElementById("preview-code"), FILES[key], lua);
+    preview.classList.add("open");
+  }
+  document.getElementById("preview-close").addEventListener("click", () => preview.classList.remove("open"));
+
+  // Window map
+  const info = document.getElementById("winmap-info");
+  document.querySelectorAll("#winmap button").forEach((button) => {
+    button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => {
+      document.querySelectorAll("#winmap button").forEach((other) => other.setAttribute("aria-pressed", "false"));
+      button.setAttribute("aria-pressed", "true");
+      info.innerHTML = button.dataset.info;
+    });
+  });
+
+  // Navigation and progress
+  const check = document.getElementById("check");
+  const checkBox = document.getElementById("check-box");
+  function updateProgress() {
+    const count = state.done.length;
+    document.getElementById("progress-fill").style.width = `${(count / steps.length) * 100}%`;
+    document.getElementById("progress-text").textContent = `${count} из ${steps.length} шагов`;
+    list.querySelectorAll("li").forEach((item, index) => item.classList.toggle("done", state.done.includes(index)));
+    const done = state.done.includes(state.current);
+    checkBox.checked = done;
+    check.classList.toggle("done", done);
+  }
+  function show(index) {
+    state.current = Math.max(0, Math.min(steps.length - 1, index));
+    steps.forEach((section, i) => section.classList.toggle("active", i === state.current));
+    list.querySelectorAll("button").forEach((button, i) => {
+      if (i === state.current) button.setAttribute("aria-current", "step");
+      else button.removeAttribute("aria-current");
+    });
+    document.getElementById("prev").disabled = state.current === 0;
+    const next = document.getElementById("next");
+    next.textContent = state.current === steps.length - 1 ? "Готово ✓" : "Дальше →";
+    renderTree(state.current);
+    preview.classList.remove("open");
+    updateProgress();
+    save();
+  }
+  checkBox.addEventListener("change", () => {
+    state.done = state.done.filter((index) => index !== state.current);
+    if (checkBox.checked) state.done.push(state.current);
+    updateProgress();
+    save();
+  });
+  document.getElementById("prev").addEventListener("click", () => { show(state.current - 1); window.scrollTo({ top: 0 }); });
+  document.getElementById("next").addEventListener("click", () => {
+    if (!state.done.includes(state.current)) state.done.push(state.current);
+    show(state.current + 1);
+    window.scrollTo({ top: 0 });
+  });
+  document.getElementById("reset").addEventListener("click", () => { state.done = []; show(0); });
+  document.addEventListener("keydown", (event) => {
+    if (event.target.closest("input, textarea")) return;
+    if (event.key === "ArrowRight") show(state.current + 1);
+    if (event.key === "ArrowLeft") show(state.current - 1);
+  });
+
+  // Theme: the system's until the reader picks one
+  const root = document.documentElement;
+  try { const theme = localStorage.getItem(STORE_KEY + "-theme"); if (theme) root.dataset.theme = theme; } catch (e) { }
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem(STORE_KEY + "-theme", root.dataset.theme); } catch (e) { }
+  });
+
+  load();
+  show(state.current);
+})();
+</script>
+</body>
+</html>

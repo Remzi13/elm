@@ -1,10 +1,12 @@
 #include "graphics/ui/DockSpaceView.hpp"
 
+#include "graphics/ui/ProjectMenu.hpp"
+
 #include "imgui.h"
 
 namespace elm {
 
-	void DockSpaceView::Render(std::span<const UniquePtr<IImGuiWindow>> windows) {
+	void DockSpaceView::Render(std::span<const UniquePtr<IImGuiWindow>> windows, ProjectMenu& projectMenu) {
 		const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
 		ImGui::SetNextWindowPos(mainViewport->WorkPos);
 		ImGui::SetNextWindowSize(mainViewport->WorkSize);
@@ -22,6 +24,7 @@ namespace elm {
 		ImGui::PopStyleVar(3);
 
 		if (ImGui::BeginMenuBar()) {
+			projectMenu.DrawMenu();
 			if (ImGui::BeginMenu("Windows")) {
 				if (ImGui::MenuItem("Show All")) {
 					for (const auto& window : windows) {
@@ -45,6 +48,8 @@ namespace elm {
 			}
 			ImGui::EndMenuBar();
 		}
+		// Outside of the menu bar: the menu closes when an item is clicked
+		projectMenu.DrawPopups();
 
 		ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 		ImGui::End();

@@ -47,11 +47,13 @@ add_subdirectory(src/math)
 add_subdirectory(src/input)
 add_subdirectory(src/render)
 add_subdirectory(src/Scene)
+add_subdirectory(src/project)
 add_subdirectory(src/resmgr)
 add_subdirectory(src/graphics)
 add_subdirectory(src/physics)
 add_subdirectory(src/platform)
 add_subdirectory(src/script)
+add_subdirectory(src/editor)
 
 # ------------------------------------------------------------------------------
 # Application target
@@ -59,6 +61,8 @@ add_subdirectory(src/script)
 add_executable(Engine
     src/EngineApp.hpp
     src/EngineApp.cpp
+    src/EditorLayer.hpp
+    src/EditorLayer.cpp
     src/main.cpp
 )
 
@@ -69,7 +73,7 @@ else()
     target_compile_definitions(Engine PUBLIC PLATFORM_LINUX=1)
 endif()
 target_set_warnings(Engine)
-target_link_libraries(Engine PRIVATE core math input graphics physics resmgr Scene script)
+target_link_libraries(Engine PRIVATE core math input graphics physics platform resmgr Scene project script editor)
 
 set_target_properties(Engine PROPERTIES
     CXX_STANDARD 23

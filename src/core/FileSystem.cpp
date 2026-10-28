@@ -191,6 +191,11 @@ namespace elm {
         return ToPath(ToFilesystemPath(*this).lexically_relative(ToFilesystemPath(base)));
     }
 
+    auto Path::LexicallyNormal() const -> Path
+    {
+        return ToPath(ToFilesystemPath(*this).lexically_normal());
+    }
+
     auto Path::string() const -> std::string
     {
         return std::string(m_path.begin(), m_path.end());
@@ -347,6 +352,27 @@ namespace elm {
     auto FileSystem::CreateDirectories(const Path& path, std::error_code& error) -> bool
     {
         return fs::create_directories(ToFilesystemPath(path), error);
+    }
+
+    auto FileSystem::Copy(const Path& from, const Path& to, std::error_code& error) -> bool
+    {
+        const fs::path target = ToFilesystemPath(to);
+        fs::create_directories(target.parent_path(), error);
+        if (error)
+            return false;
+        return fs::copy_file(ToFilesystemPath(from), target, fs::copy_options::none, error);
+    }
+
+    auto FileSystem::RemoveAll(const Path& path, std::error_code& error) -> bool
+    {
+        fs::remove_all(ToFilesystemPath(path), error);
+        return !error;
+    }
+
+    auto FileSystem::SetCurrentPath(const Path& path, std::error_code& error) -> bool
+    {
+        fs::current_path(ToFilesystemPath(path), error);
+        return !error;
     }
 
     auto FileSystem::OpenForReading(const Path& path, std::ios::openmode mode) -> std::ifstream

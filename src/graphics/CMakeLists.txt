@@ -10,6 +10,8 @@ engine_add_library(graphics
     ModelManager.hpp
     ModelImport.hpp
     ModelImport.cpp
+    GameView.hpp
+    GameView.cpp
 
     culling/SoftwareDepthBuffer.hpp
     culling/SoftwareDepthBuffer.cpp
@@ -53,6 +55,8 @@ engine_add_library(graphics
     ui/SettingsWindow.cpp
     ui/ModelEditorWindow.hpp
     ui/ModelEditorWindow.cpp
+    ui/ProjectMenu.hpp
+    ui/ProjectMenu.cpp
 )
 
 target_link_libraries(graphics PUBLIC imgui_glfw imgui_core)

@@ -12,6 +12,7 @@
 #include "graphics/ui/ImGuiRenderer.hpp"
 #include "graphics/ui/DockSpaceView.hpp"
 #include "graphics/ui/IImGuiWindow.hpp"
+#include "graphics/ui/ProjectMenu.hpp"
 
 
 #include <atomic>
@@ -57,6 +58,12 @@ namespace elm {
 
 		// Window management
 		void AddWindow(UniquePtr<IImGuiWindow> window);
+		/// A window bound to the open project: CloseProjectWindows destroys it.
+		void AddProjectWindow(UniquePtr<IImGuiWindow> window);
+		/// Destroys the project windows; the windows of the next project open as these were.
+		void CloseProjectWindows();
+		/// The open project the Project menu shows and how it asks the engine for another one.
+		void SetProjectMenu(ProjectMenuDesc project);
 		template <typename T, typename... Args>
 		[[nodiscard]] T& EmplaceWindow(Settings& settings, Args&&... args) {
 			static_assert(std::is_base_of_v<IImGuiWindow, T>);
@@ -124,8 +131,11 @@ namespace elm {
 		String m_iniFilePath;
 
 		DockSpaceView m_dockSpace;
+		ProjectMenu m_projectMenu;
 		MessageBus m_windowMessageBus;
 		Vector<UniquePtr<IImGuiWindow>> m_windows;
+		// The windows of m_windows that CloseProjectWindows destroys
+		Vector<const IImGuiWindow*> m_projectWindows;
 		// Visibility read from imgui.ini, also for windows added after the load
 		UnorderedMap<String, bool> m_savedVisibility;
 		// Last restored (not maximized, not minimized) placement of the main window
