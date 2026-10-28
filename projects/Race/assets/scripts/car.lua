@@ -1,6 +1,7 @@
 local Vector3 = elm.math.Vector3
 local input = elm.input
 local key = elm.input.key
+local camera = elm.camera
 
 local Car = {
     props = {
@@ -12,6 +13,10 @@ local Car = {
         turn_rate = 2.2, -- radians per second at full speed
         grip = 8, -- how fast sideways sliding dies out; lower drifts more
         ground_ray = 0.8, -- from the centre down; a bit longer than half the height
+        camera_distance = 3, -- units behind the car
+        camera_height = 1.2, -- units above the car
+        camera_look_height = 0.3, -- height above the car to look at
+        camera_smoothness = 8, -- how fast the camera follows (higher = stiffer, 0 = instant)
     },
 }
 
@@ -39,6 +44,7 @@ function Car:on_start()
     self.body = self.entity.rigidbody
     self.spawn_position = self.entity.position
     self.spawn_rotation = self.entity.rotation
+    self:update_camera(0, true)
 end
 
 -- Presses are read per frame: a frame may have no fixed step or two of them
@@ -46,6 +52,7 @@ function Car:on_update(dt)
     if input.is_pressed(key.R) then
         self:respawn()
     end
+    self:update_camera(dt, false)
 end
 
 function Car:on_fixed_update(dt)
@@ -106,6 +113,32 @@ function Car:respawn()
     self.entity.rotation = self.spawn_rotation
     self.body.velocity = Vector3.zero()
     self.body.angular_velocity = Vector3.zero()
+    self:update_camera(0, true)
+end
+
+--- Smoothly or instantly positions the third-person camera behind the car.
+function Car:update_camera(dt, snap)
+    local car_pos = self.entity.world_position
+    local forward = self.entity.rotation:rotate(Vector3.forward())
+    local heading = Vector3(forward.x, 0, forward.z)
+    if heading.length > 0.001 then
+        heading = heading:normalized()
+    else
+        heading = Vector3.forward()
+    end
+
+    local desired_pos = car_pos - heading * self.camera_distance + Vector3(0, self.camera_height, 0)
+    local target_look = car_pos + Vector3(0, self.camera_look_height, 0)
+
+    if snap or (self.camera_smoothness or 0) <= 0 then
+        camera.set_position(desired_pos)
+    else
+        local current_pos = camera.position()
+        local t = elm.math.clamp(1.0 - math.exp(-self.camera_smoothness * dt), 0, 1)
+        camera.set_position(current_pos:lerp(desired_pos, t))
+    end
+
+    camera.look_at(target_look)
 end
 
 return Car

@@ -105,7 +105,9 @@
             },
             "Script": {
                "module": "car",
-               "props": {}
+               "props": {
+                  "acceleration": 8
+               }
             }
          },
          "localTransform": [
