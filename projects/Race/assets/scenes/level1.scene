@@ -2,7 +2,13 @@
    "formatVersion": 7,
    "models": [
       {
-         "path": "models/Ground Plane.model"
+         "path": "models/Ground.model"
+      },
+      {
+         "path": "models/Track Road.model"
+      },
+      {
+         "path": "models/Track Walls.model"
       },
       {
          "path": "models/Cube.model"
@@ -13,9 +19,9 @@
          "components": {
             "Collider": {
                "halfExtents": [
-                  5,
+                  70,
                   0.05,
-                  5
+                  70
                ],
                "halfHeight": 0,
                "offset": [
@@ -23,15 +29,15 @@
                   0,
                   0
                ],
-               "radius": 5,
+               "radius": 70,
                "shape": "box",
                "trigger": false
             },
             "Model": {
                "color": [
-                  0.4,
-                  0.5,
-                  0.4,
+                  0.22,
+                  0.32,
+                  0.18,
                   1
                ],
                "modelIndex": 0,
@@ -64,7 +70,89 @@
                1
             ]
          ],
-         "name": "Ground Plane"
+         "name": "Ground"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0.002
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Track Road"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Track Walls"
       },
       {
          "components": {
@@ -86,12 +174,12 @@
             },
             "Model": {
                "color": [
-                  0.7,
-                  0.75,
-                  0.8,
+                  0.85,
+                  0.12,
+                  0.12,
                   1
                ],
-               "modelIndex": 1,
+               "modelIndex": 3,
                "visible": true
             },
             "RigidBody": {
@@ -106,27 +194,27 @@
             "Script": {
                "module": "car",
                "props": {
-                  "acceleration": 8
+                  "acceleration": 18
                }
             }
          },
          "localTransform": [
             [
-               0.20000000298023224,
+               0.2,
                0,
-               0,
-               0
+               0.0,
+               62
             ],
             [
                0,
-               0.20000000298023224,
+               0.2,
                0,
-               0.1395883560180664
+               0.14
             ],
             [
+               -0.0,
                0,
-               0,
-               0.20000000298023224,
+               0.2,
                0
             ],
             [
@@ -137,6 +225,2826 @@
             ]
          ],
          "name": "Car"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.7704
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.7704,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.98308438,
+               0,
+               -0.18315323,
+               59.1481
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.18315323,
+               0,
+               0.98308438,
+               5.3778
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_0"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.4538
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.4538,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.98305207,
+               0,
+               -0.18332654,
+               62.7218
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.18332654,
+               0,
+               0.98305207,
+               6.0495
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_0"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.7052
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.7052,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.84493686,
+               0,
+               -0.53486606,
+               55.2551
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.53486606,
+               0,
+               0.84493686,
+               15.3227
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_10"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.4167
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.4167,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.84489219,
+               0,
+               -0.53493663,
+               58.3216
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.53493663,
+               0,
+               0.84489219,
+               17.267
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_10"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.8504
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.8504,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.58429527,
+               0,
+               -0.81154115,
+               47.8597
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.81154115,
+               0,
+               0.58429527,
+               23.1328
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_20"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.5179
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.5179,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.58488943,
+               0,
+               -0.81111303,
+               50.0062
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.81111303,
+               0,
+               0.58488943,
+               26.0717
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_20"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.3099
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.3099,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.29692858,
+               0,
+               -0.95489969,
+               37.6165
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.95489969,
+               0,
+               0.29692858,
+               28.1604
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_30"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.8135
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.8135,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.29777066,
+               0,
+               -0.95463744,
+               38.7448
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.95463744,
+               0,
+               0.29777066,
+               31.648
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_30"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.7774
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.7774,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.08601374,
+               0,
+               -0.99629395,
+               25.4242
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99629395,
+               0,
+               0.08601374,
+               30.502
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_40"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  7.0741
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 7.0741,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.08644727,
+               0,
+               -0.99625643,
+               25.7779
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99625643,
+               0,
+               0.08644727,
+               34.1731
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_40"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.8736
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.8736,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.02234988,
+               0,
+               -0.99975021,
+               12.3989
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99975021,
+               0,
+               -0.02234988,
+               30.9123
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_50"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.987
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.987,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.02222344,
+               0,
+               -0.99975303,
+               12.3438
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99975303,
+               0,
+               -0.02222344,
+               34.6101
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_50"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.448
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.448,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.04302933,
+               0,
+               -0.99907381,
+               -0.3154
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99907381,
+               0,
+               -0.04302933,
+               30.5008
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_60"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.4174
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.4174,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.04305797,
+               0,
+               -0.99907258,
+               -0.4533
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99907258,
+               0,
+               -0.04305797,
+               34.1981
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_60"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.586
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.586,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               3.644e-05,
+               0,
+               -1.0,
+               -11.7437
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               1.0,
+               0,
+               3.644e-05,
+               30.2365
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_70"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.4668
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.4668,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -3.728e-05,
+               0,
+               -1.0,
+               -11.7318
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               1.0,
+               0,
+               -3.728e-05,
+               33.9345
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_70"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  4.4507
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 4.4507,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.06424052,
+               0,
+               -0.99793444,
+               -21.1719
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99793444,
+               0,
+               0.06424052,
+               30.5033
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_80"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  4.3612
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 4.3612,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.06434225,
+               0,
+               -0.99792789,
+               -20.9514
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99792789,
+               0,
+               0.06434225,
+               34.1956
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_80"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.1053
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.1053,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.05184584,
+               0,
+               -0.9986551,
+               -28.1155
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.9986551,
+               0,
+               0.05184584,
+               30.9154
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_90"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.3431
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.3431,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.04931918,
+               0,
+               -0.99878307,
+               -28.0435
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.99878307,
+               0,
+               0.04931918,
+               34.607
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_90"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  1.6607
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 1.6607,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.26701074,
+               0,
+               -0.96369355,
+               -32.2283
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.96369355,
+               0,
+               -0.26701074,
+               30.6975
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_100"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  2.823
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 2.823,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.30893097,
+               0,
+               -0.95108446,
+               -33.4825
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.95108446,
+               0,
+               -0.30893097,
+               33.9777
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_100"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  1.8498
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 1.8498,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.89006984,
+               0,
+               -0.45582418,
+               -34.2461
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.45582418,
+               0,
+               -0.89006984,
+               28.9547
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_110"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  2.9932
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 2.9932,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.87054262,
+               0,
+               -0.49209303,
+               -37.2074
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.49209303,
+               0,
+               -0.87054262,
+               30.8537
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_110"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.5914
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.5914,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99165325,
+               0,
+               -0.12893342,
+               -35.3769
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.12893342,
+               0,
+               -0.99165325,
+               24.3114
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_120"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.9478
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.9478,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99127935,
+               0,
+               -0.1317773,
+               -39.0134
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.1317773,
+               0,
+               -0.99127935,
+               24.8932
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_120"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.1237
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.1237,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99953648,
+               0,
+               -0.03044375,
+               -35.9481
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.03044375,
+               0,
+               -0.99953648,
+               16.226
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_130"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.2158
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.2158,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99953261,
+               0,
+               -0.03057057,
+               -39.6444
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.03057057,
+               0,
+               -0.99953261,
+               16.3636
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_130"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.0024
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.0024,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99998836,
+               0,
+               -0.00482492,
+               -36.1225
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.00482492,
+               0,
+               -0.99998836,
+               5.7023
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_140"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.0251
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.0251,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99998834,
+               0,
+               -0.00482974,
+               -39.8223
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               0.00482974,
+               0,
+               -0.99998834,
+               5.7251
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_140"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.0024
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.0024,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99998836,
+               0,
+               0.00482492,
+               -36.1225
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.00482492,
+               0,
+               -0.99998836,
+               -5.7023
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_150"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.0251
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.0251,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99998834,
+               0,
+               0.00482974,
+               -39.8223
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.00482974,
+               0,
+               -0.99998834,
+               -5.7251
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_150"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.1237
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.1237,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99953648,
+               0,
+               0.03044375,
+               -35.9481
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.03044375,
+               0,
+               -0.99953648,
+               -16.226
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_160"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.2158
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.2158,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99953261,
+               0,
+               0.03057057,
+               -39.6444
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.03057057,
+               0,
+               -0.99953261,
+               -16.3636
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_160"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.5914
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.5914,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99165325,
+               0,
+               0.12893342,
+               -35.3769
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.12893342,
+               0,
+               -0.99165325,
+               -24.3114
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_170"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.9478
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.9478,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.99127935,
+               0,
+               0.1317773,
+               -39.0134
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.1317773,
+               0,
+               -0.99127935,
+               -24.8932
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_170"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  1.8498
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 1.8498,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.89006984,
+               0,
+               0.45582418,
+               -34.2461
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.45582418,
+               0,
+               -0.89006984,
+               -28.9547
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_180"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  2.9932
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 2.9932,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.87054262,
+               0,
+               0.49209303,
+               -37.2074
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.49209303,
+               0,
+               -0.87054262,
+               -30.8537
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_180"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  1.6607
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 1.6607,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.26701074,
+               0,
+               0.96369355,
+               -32.2283
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.96369355,
+               0,
+               -0.26701074,
+               -30.6975
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_190"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  2.823
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 2.823,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.30893097,
+               0,
+               0.95108446,
+               -33.4825
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.95108446,
+               0,
+               -0.30893097,
+               -33.9777
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_190"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.1053
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.1053,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.05184584,
+               0,
+               0.9986551,
+               -28.1155
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.9986551,
+               0,
+               0.05184584,
+               -30.9154
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_200"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  3.3431
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 3.3431,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.04931918,
+               0,
+               0.99878307,
+               -28.0435
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99878307,
+               0,
+               0.04931918,
+               -34.607
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_200"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  4.4507
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 4.4507,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.06424052,
+               0,
+               0.99793444,
+               -21.1719
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99793444,
+               0,
+               0.06424052,
+               -30.5033
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_210"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  4.3612
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 4.3612,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.06434225,
+               0,
+               0.99792789,
+               -20.9514
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99792789,
+               0,
+               0.06434225,
+               -34.1956
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_210"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.586
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.586,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               3.644e-05,
+               0,
+               1.0,
+               -11.7437
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -1.0,
+               0,
+               3.644e-05,
+               -30.2365
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_220"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.4668
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.4668,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -3.728e-05,
+               0,
+               1.0,
+               -11.7318
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -1.0,
+               0,
+               -3.728e-05,
+               -33.9345
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_220"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.448
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.448,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.04302933,
+               0,
+               0.99907381,
+               -0.3154
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99907381,
+               0,
+               -0.04302933,
+               -30.5008
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_230"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.4174
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.4174,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.04305797,
+               0,
+               0.99907258,
+               -0.4533
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99907258,
+               0,
+               -0.04305797,
+               -34.1981
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_230"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.8736
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.8736,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.02234988,
+               0,
+               0.99975021,
+               12.3989
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99975021,
+               0,
+               -0.02234988,
+               -30.9123
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_240"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.987
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.987,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               -0.02222344,
+               0,
+               0.99975303,
+               12.3438
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99975303,
+               0,
+               -0.02222344,
+               -34.6101
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_240"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.7774
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.7774,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.08601374,
+               0,
+               0.99629395,
+               25.4242
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99629395,
+               0,
+               0.08601374,
+               -30.502
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_250"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  7.0741
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 7.0741,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.08644727,
+               0,
+               0.99625643,
+               25.7779
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.99625643,
+               0,
+               0.08644727,
+               -34.1731
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_250"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.3099
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.3099,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.29692858,
+               0,
+               0.95489969,
+               37.6165
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.95489969,
+               0,
+               0.29692858,
+               -28.1604
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_260"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.8135
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.8135,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.29777066,
+               0,
+               0.95463744,
+               38.7448
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.95463744,
+               0,
+               0.29777066,
+               -31.648
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_260"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.8504
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.8504,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.58429527,
+               0,
+               0.81154115,
+               47.8597
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.81154115,
+               0,
+               0.58429527,
+               -23.1328
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_270"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.5179
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.5179,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.58488943,
+               0,
+               0.81111303,
+               50.0062
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.81111303,
+               0,
+               0.58488943,
+               -26.0717
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_270"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.7052
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.7052,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.84493686,
+               0,
+               0.53486606,
+               55.2551
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.53486606,
+               0,
+               0.84493686,
+               -15.3227
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_280"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.4167
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.4167,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.84489219,
+               0,
+               0.53493663,
+               58.3216
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.53493663,
+               0,
+               0.84489219,
+               -17.267
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_280"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  5.7704
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 5.7704,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.98308438,
+               0,
+               0.18315323,
+               59.1481
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.18315323,
+               0,
+               0.98308438,
+               -5.3778
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_L_290"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.15,
+                  0.275,
+                  6.4538
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 6.4538,
+               "shape": "box",
+               "trigger": false
+            }
+         },
+         "localTransform": [
+            [
+               0.98305207,
+               0,
+               0.18332654,
+               62.7218
+            ],
+            [
+               0,
+               1,
+               0,
+               0.175
+            ],
+            [
+               -0.18332654,
+               0,
+               0.98305207,
+               -6.0495
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Wall_R_290"
       }
    ]
 }
