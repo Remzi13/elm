@@ -4,7 +4,8 @@
 * убрать std::cout и std::err
 * убрать scenePreset and test scenes 
 
-# Render 
+# Render
+* добавить поддержку источников света
 * отказатся от diligent. (dx12/vulkan)
 
 # Performance 

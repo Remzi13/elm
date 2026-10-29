@@ -113,7 +113,6 @@ bool Scene::SetWorldTransform(NodeId node, const math::Matrix4x4& transform)
     if (nodeIndex == NoNode)
         return false;
 
-    // The parent's world transform has to be current to place the node under it
     UpdateWorldTransforms();
     Node& target = m_nodes[nodeIndex];
     const size_t parentIndex = IndexOf(target.parent);
@@ -127,7 +126,6 @@ bool Scene::SetWorldTransform(NodeId node, const math::Matrix4x4& transform)
     }
     m_worldTransforms[nodeIndex] = transform;
 
-    // Children follow
     m_transformsDirty = true;
     UpdateWorldTransforms();
     return true;
@@ -150,7 +148,6 @@ void Scene::UpdateWorldTransforms()
         return;
     m_transformsDirty = false;
 
-    // Parents come first: the parent of a node is done by the time the pass reaches it
     for (size_t nodeIndex = 0; nodeIndex < m_nodes.size(); ++nodeIndex) {
         const Node& node = m_nodes[nodeIndex];
         const size_t parentIndex = IndexOf(node.parent);

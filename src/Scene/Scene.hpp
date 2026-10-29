@@ -45,20 +45,13 @@ public:
     [[nodiscard]] NodeId AddNode(const String& name, const math::Matrix4x4& localTransform = math::Matrix4x4::Identity(), NodeId parent = { });    
     bool RemoveNode(NodeId node);
 
-    /// Reparents and keeps the world transform; an empty parent makes the node a root. A parent that comes
-    /// later in the scene takes the node and its descendants after it.
-    [[nodiscard]] SetParentResult SetParent(NodeId node, NodeId parent);
-    /// Sets the transform relative to the parent, world transforms follow on UpdateWorldTransforms().
-    bool SetLocalTransform(NodeId node, const math::Matrix4x4& transform);
-    /// Places the node in the world, its children follow. False also for a parent with a singular transform.
+    [[nodiscard]] SetParentResult SetParent(NodeId node, NodeId parent);    
+    bool SetLocalTransform(NodeId node, const math::Matrix4x4& transform);    
     [[nodiscard]] bool SetWorldTransform(NodeId node, const math::Matrix4x4& transform);
     bool SetName(NodeId node, String name);
-    /// Recomputes world transforms after SetLocalTransform calls in one pass over the nodes.
+
     void UpdateWorldTransforms();
 
-    /// Appends the nodes of an asset with their components; models[i] is the scene's handle of the asset's
-    /// model i. A parent that comes after its child in the asset goes in before it. Returns the id of
-    /// every asset node, in the asset's order.
     [[nodiscard]] Vector<NodeId> Append(SceneAsset&& asset, std::span<const graphics::ModelHandler> models);
     void Clear();
     void ReserveNodes(size_t capacity);

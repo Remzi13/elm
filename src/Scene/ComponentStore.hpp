@@ -12,8 +12,6 @@
 
 namespace elm {
 
-/// A component store without its type: what the scene needs to keep it in step with its nodes,
-/// and what code that knows a type only by name (script bindings) can ask.
 class IComponentStore {
 public:
     virtual ~IComponentStore() = default;
@@ -21,24 +19,17 @@ public:
     [[nodiscard]] virtual std::span<const NodeId> Ids() const noexcept = 0;
     virtual bool Remove(NodeId id) = 0;
     virtual void Clear() = 0;
-    /// A copy with the same components (Scene::Clone); nullptr for a type that cannot be copied.
+
     [[nodiscard]] virtual UniquePtr<IComponentStore> Clone() const = 0;
-    /// Gives node `to` a copy of the component of `from`, if it has one (duplicating a node).
     virtual void Copy(NodeId from, NodeId to) = 0;
-    /// An empty store of the same type.
-    [[nodiscard]] virtual UniquePtr<IComponentStore> MakeEmpty() const = 0;
-    /// Moves the components of source, a store of the same type, to the nodes remap gives for their
-    /// keys and empties it; a component whose key remaps to an invalid id is dropped.
+    
+    [[nodiscard]] virtual UniquePtr<IComponentStore> MakeEmpty() const = 0;    
     virtual void TakeFrom(IComponentStore& source, const std::function<NodeId(NodeId)>& remap) = 0;
 };
 
-/// Components of one type keyed by NodeId (sparse set): add, find and remove in O(1),
-/// iteration over dense arrays. A removal moves the last component into the hole, so it
-/// changes the order of components and invalidates pointers to them; NodeIds stay valid.
 template <typename T>
 class ComponentStore final : public IComponentStore {
 public:
-    /// Adds the component of a node, or replaces the one it has (in place: the order stays).
     template <typename... Args>
     T& Emplace(NodeId id, Args&&... args)
     {
@@ -49,8 +40,7 @@ public:
             if (m_ids[dense] == id) {
                 m_components[dense] = T(std::forward<Args>(args)...);
                 return m_components[dense];
-            }
-            // An older node of this slot went away without the store hearing of it
+            }            
             RemoveAt(dense);
         }
         if (slot >= m_sparse.size())
@@ -124,8 +114,7 @@ public:
 
     [[nodiscard]] size_t Size() const noexcept { return m_ids.size(); }
     [[nodiscard]] bool Empty() const noexcept { return m_ids.empty(); }
-
-    /// Node of every component, in the order of Components().
+    
     [[nodiscard]] std::span<const NodeId> Ids() const noexcept override { return m_ids; }
     [[nodiscard]] std::span<T> Components() noexcept { return m_components; }
     [[nodiscard]] std::span<const T> Components() const noexcept { return m_components; }
@@ -138,7 +127,7 @@ private:
         if (!id || id.Index() >= m_sparse.size())
             return None;
         const uint32_t dense = m_sparse[id.Index()];
-        // The slot may hold the component of an older node with the same index
+
         return dense != None && m_ids[dense] == id ? dense : None;
     }
 
@@ -155,7 +144,6 @@ private:
         m_ids.pop_back();
     }
 
-    /// Node id index -> position in m_ids and m_components, None for no component.
     Vector<uint32_t> m_sparse;
     Vector<NodeId> m_ids;
     Vector<T> m_components;
