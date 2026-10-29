@@ -2,7 +2,7 @@
    "settings": {
       "Core/FileSystem/RootPath": ".",
       "Core/Project/Last": "projects/Race/Race.elmproject",
-      "Core/Project/Recent": "projects/Race/Race.elmproject\nprojects/Sandbox/Sandbox.elmproject\nprojects/Test/Test.elmproject\nprojects/Test/Test.elmproject",
+      "Core/Project/Recent": "projects/Race/Race.elmproject\nprojects/Test/Test.elmproject\nprojects/Sandbox/Sandbox.elmproject",
       "Render/Debug/Draw/Editor/Gizmo": true,
       "Render/Debug/Draw/Editor/WorldAxes": true,
       "Render/Debug/Draw/Physics/Colliders": true,

@@ -116,6 +116,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     //},
     //    static_cast<int32_t>(InputPriority::UI), "ImGuiKeyboardFilter");
 
+    // TODO - why it is here ?
     // Register default AAA Action & Axis Mappings (Unreal Engine Enhanced Input style)
     m_inputSystem->AddAxisMapping("MoveForward", Key::W, 1.0f);
     m_inputSystem->AddAxisMapping("MoveForward", Key::S, -1.0f);

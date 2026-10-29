@@ -398,11 +398,7 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
                 }
             } else if (m_modelDialogAction == ModelDialogAction::AddNewRootNode || m_modelDialogAction == ModelDialogAction::AddNewChildNode) {
                 const NodeId parentId = (m_modelDialogAction == ModelDialogAction::AddNewChildNode) ? m_modelDialogTargetNode : NodeId { };
-                const NodeId newNode = scene.AddNode(Scene::NodeDesc {
-                    .name = modelName,
-                    .parent = parentId,
-                    .localTransform = math::Matrix4x4::Identity(),
-                });
+                const NodeId newNode = scene.AddNode(modelName,math::Matrix4x4::Identity(), parentId);
                 scene.Components<ModelComponent>().Emplace(newNode, ModelComponent {
                     .model = handle,
                     .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -450,7 +446,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
                 String label = FormatModelLabel(&m, handle);
                 if (ImGui::MenuItem(label.c_str())) {
                     String name = m.name.empty() ? "Model" : m.name;
-                    const NodeId id = scene.AddNode({ .name = name, .parent = NodeId { }, .localTransform = math::Matrix4x4::Identity() });
+                    const NodeId id = scene.AddNode(name, math::Matrix4x4::Identity() );
                     scene.Components<ModelComponent>().Emplace(id, ModelComponent {
                         .model = handle,
                         .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -493,7 +489,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
                     String label = FormatModelLabel(&m, handle);
                     if (ImGui::MenuItem(label.c_str())) {
                         String name = m.name.empty() ? "Model" : m.name;
-                        const NodeId id = scene.AddNode({ .name = name, .parent = m_selectedNode, .localTransform = math::Matrix4x4::Identity() });
+                        const NodeId id = scene.AddNode(name, math::Matrix4x4::Identity(), m_selectedNode);
                         scene.Components<ModelComponent>().Emplace(id, ModelComponent {
                             .model = handle,
                             .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -565,7 +561,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
                 String label = FormatModelLabel(&m, handle);
                 if (ImGui::MenuItem(label.c_str())) {
                     String name = m.name.empty() ? "Model" : m.name;
-                    const NodeId id = scene.AddNode({ .name = name, .parent = NodeId { }, .localTransform = math::Matrix4x4::Identity() });
+                    const NodeId id = scene.AddNode(name, math::Matrix4x4::Identity());
                     scene.Components<ModelComponent>().Emplace(id, ModelComponent {
                         .model = handle,
                         .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -695,7 +691,7 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
                     String modelItemLabel = FormatModelLabel(&m, handle);
                     if (ImGui::MenuItem(modelItemLabel.c_str())) {
                         String name = m.name.empty() ? "Model" : m.name;
-                        const NodeId id = scene.AddNode({ .name = name, .parent = node.id, .localTransform = math::Matrix4x4::Identity() });
+                        const NodeId id = scene.AddNode(name, math::Matrix4x4::Identity(), node.id);
                         scene.Components<ModelComponent>().Emplace(id, ModelComponent {
                             .model = handle,
                             .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -1402,14 +1398,10 @@ NodeId SceneHierarchyWindow::DuplicateNode(Scene& scene, NodeId sourceId)
     const Scene::Node* source = scene.Find(sourceId);
     if (!source)
         return { };
-
-    Scene::NodeDesc copy {
-        .name = source->name + " Copy",
-        .parent = source->parent,
-        .localTransform = source->localTransform,
-    };
-    copy.localTransform(0, 3) += 1.0f;
-    const NodeId newId = scene.AddNode(std::move(copy));
+        
+    auto transform = source->localTransform;
+    transform(0, 3) += 1.0f;
+    const NodeId newId = scene.AddNode(source->name + " Copy", transform, source->parent);
     scene.CopyComponents(sourceId, newId);
     m_sceneFileStatus = "Duplicated node.";
     return newId;
@@ -1418,11 +1410,7 @@ NodeId SceneHierarchyWindow::DuplicateNode(Scene& scene, NodeId sourceId)
 NodeId SceneHierarchyWindow::AddPrimitiveNode(Scene& scene, graphics::ModelManager& models, NodeId parentId, const char* name, int primitiveType)
 {
     if (primitiveType == 0) {
-        return scene.AddNode(Scene::NodeDesc {
-            .name = name,
-            .parent = parentId,
-            .localTransform = math::Matrix4x4::Identity(),
-        });
+        return scene.AddNode(name, math::Matrix4x4::Identity(), parentId);
     }
 
     graphics::Model model;
@@ -1445,11 +1433,7 @@ NodeId SceneHierarchyWindow::AddPrimitiveNode(Scene& scene, graphics::ModelManag
     }
 
     const auto handle = models.Insert(std::move(model));
-    const NodeId id = scene.AddNode(Scene::NodeDesc {
-        .name = name,
-        .parent = parentId,
-        .localTransform = math::Matrix4x4::Translation(pos),
-    });
+    const NodeId id = scene.AddNode(name, math::Matrix4x4::Translation(pos),  parentId);
 
     scene.Components<ModelComponent>().Emplace(id, ModelComponent {
         .model = handle,
@@ -1494,7 +1478,7 @@ void SceneHierarchyWindow::AcceptDroppedModel(ImGuiWindowContext& context)
         if (imported) {
             const String name = imported->model.name;
             const auto model = context.models.Insert(std::move(imported->model), std::move(imported->file));
-            m_selectedNode = context.scene.AddNode({ .name = name });
+            m_selectedNode = context.scene.AddNode(name);
             context.scene.Components<ModelComponent>().Emplace(m_selectedNode, ModelComponent { .model = model });
             m_sceneFileStatus = "Added node \"" + name + "\".";
         } else {

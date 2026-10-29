@@ -24,7 +24,7 @@ namespace {
     void AddNode(Scene& scene, const graphics::ModelHandler& model, const Matrix4x4& transform,
         const Vector4& color = { 0.8f, 0.8f, 0.8f, 1.0f })
     {
-        const NodeId node = scene.AddNode({ .localTransform = transform });
+        const NodeId node = scene.AddNode("", transform );
         scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = model, .color = color });
     }
 

@@ -28,37 +28,23 @@ class Scene {
 public:
     static constexpr size_t NoNode = NodeIdTable::NoIndex;
 
-    /// The core of a node; what it shows, how it moves and what it runs are its components.
     struct Node {
         NodeId id;
-        /// Empty for a root.
         NodeId parent;
         String name;
         math::Matrix4x4 localTransform;
     };
 
-    /// What a new node starts with.
-    struct NodeDesc {
-        String name;
-        /// Empty for a root.
-        NodeId parent;
-        math::Matrix4x4 localTransform { math::Matrix4x4::Identity() };
-    };
-
     enum class SetParentResult : uint8_t {
         Done,
-        /// The node or the parent is not in the scene.
         StaleNode,
-        /// The parent is the node itself or one of its descendants.
         Cycle,
-        /// The parent's world transform cannot be inverted.
         SingularParent,
     };
 
-    /// Its world transform follows from the parent's; an empty id for a parent that is not in the scene.
-    [[nodiscard]] NodeId AddNode(NodeDesc desc);
-    /// Removes a node, its children move to its parent and keep their world transforms.
+    [[nodiscard]] NodeId AddNode(const String& name, const math::Matrix4x4& localTransform = math::Matrix4x4::Identity(), NodeId parent = { });    
     bool RemoveNode(NodeId node);
+
     /// Reparents and keeps the world transform; an empty parent makes the node a root. A parent that comes
     /// later in the scene takes the node and its descendants after it.
     [[nodiscard]] SetParentResult SetParent(NodeId node, NodeId parent);

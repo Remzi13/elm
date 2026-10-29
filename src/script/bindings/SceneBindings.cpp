@@ -416,7 +416,7 @@ namespace elm::script::bindings {
             if (model && !ModelsOf(L).Get(model->handle))
                 luaL_error(L, "the model was removed");
             const NodeId parentNode = parent ? AliveId(L, *parent) : NodeId { };
-            const NodeId node = scene.AddNode({ .name = name.value_or(String("Entity")), .parent = parentNode });
+            const NodeId node = scene.AddNode(name.value_or(String("Entity")), math::Matrix4x4::Identity(), parentNode);
             if (model)
                 scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = model->handle });
             return { node };

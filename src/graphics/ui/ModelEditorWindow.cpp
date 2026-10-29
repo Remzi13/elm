@@ -416,12 +416,12 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
 
     // One root for the whole import: the set moves as a whole, each model stays a node of its own
     const auto rootName = String(session.path.Stem().c_str());
-    const NodeId root = scene.AddNode({ .name = rootName });
+    const NodeId root = scene.AddNode( rootName );
     auto& sceneModels = scene.Components<ModelComponent>();
 
     size_t created = 0;
     for (const auto handler : originModels) {
-        const NodeId node = scene.AddNode({ .name = context.models.Get(handler)->name, .parent = root });
+        const NodeId node = scene.AddNode(context.models.Get(handler)->name, math::Matrix4x4::Identity(), root);
         sceneModels.Emplace(node, ModelComponent { .model = handler });
         ++created;
     }
@@ -435,11 +435,7 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
         const NodeId parent = source.parentIndex < nodeIndex && sceneNodes[source.parentIndex]
             ? sceneNodes[source.parentIndex]
             : root;
-        sceneNodes[nodeIndex] = scene.AddNode({
-            .name = source.name.empty() ? "Node " + ToString(nodeIndex) : source.name,
-            .parent = parent,
-            .localTransform = source.localTransform,
-        });
+        sceneNodes[nodeIndex] = scene.AddNode(source.name.empty() ? "Node " + ToString(nodeIndex) : source.name, source.localTransform, parent);
         if (nodeModels[nodeIndex])
             sceneModels.Emplace(sceneNodes[nodeIndex], ImportedNodeModel(session.asset, nodeIndex, nodeModels[nodeIndex]));
         ++created;
@@ -525,7 +521,7 @@ void ModelEditorWindow::AddToScene(ImGuiWindowContext& context)
     const String name = m_model->name.empty() ? String("Model") : m_model->name;
     m_sceneModel = context.models.Insert(*m_model);
     RecordSceneFile(context);
-    const NodeId node = context.scene.AddNode({ .name = name, .localTransform = Matrix4x4::Translation(position) });
+    const NodeId node = context.scene.AddNode( name, Matrix4x4::Translation(position) );
     context.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = m_sceneModel });
     m_status = "Added \"" + name + "\" to the scene, Apply to Scene now updates it.";
 }

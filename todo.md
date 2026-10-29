@@ -1,18 +1,11 @@
-* нужна система ассертов
-* перейти не RenderFrame, избавиться от передачи настроек в рендер 
-```cpp
-  struct RenderObject
-  {
-      MeshId mesh;
-      Matrix4x4 transform;
-      Vector4 color;
-  };
+# Main
+* разделить EngineApp на Editor и Engine. 
+* selftest вынести в отдельне приложение 
+* убрать std::cout и std::err
+* убрать scenePreset and test scenes 
 
-  struct RenderFrame
-  {
-      Camera camera;
-      Vector<RenderObject> objects;
-  };
-```
- * отделить RenderPipliene
- * доделать ситему логирования 
+# Render 
+* отказатся от diligent. (dx12/vulkan)
+
+# Performance 
+* проблема с загрузкой моделей и сцен текстовый формат очень долго грузится

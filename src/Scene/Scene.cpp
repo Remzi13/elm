@@ -37,16 +37,15 @@ namespace {
 
 } // namespace
 
-NodeId Scene::AddNode(NodeDesc desc)
+NodeId Scene::AddNode(const String& name, const math::Matrix4x4& localTransform, NodeId parent)
 {
     ELM_ASSERT_THREAD(Update);
-    const size_t parentIndex = desc.parent ? IndexOf(desc.parent) : NoNode;
-    if (desc.parent && parentIndex == NoNode)
+    const size_t parentIndex = parent ? IndexOf(parent) : NoNode;
+    if (parent && parentIndex == NoNode)
         return { };
 
-    // The parent's world transform is current unless a change is pending, then the node follows it too
-    const math::Matrix4x4 world = parentIndex == NoNode ? desc.localTransform : m_worldTransforms[parentIndex] * desc.localTransform;
-    return PushNode({ .parent = desc.parent, .name = std::move(desc.name), .localTransform = desc.localTransform }, world);
+    const math::Matrix4x4 world = parentIndex == NoNode ? localTransform : m_worldTransforms[parentIndex] * localTransform;
+    return PushNode({ .parent = parent, .name = name, .localTransform = localTransform }, world);
 }
 
 bool Scene::RemoveNode(NodeId node)
@@ -163,13 +162,14 @@ void Scene::UpdateWorldTransforms()
 Vector<NodeId> Scene::Append(SceneAsset&& asset, std::span<const graphics::ModelHandler> models)
 {
     ELM_ASSERT_THREAD(Update);
+
     Vector<NodeId> ids(asset.nodes.size());
     ReserveNodes(m_nodes.size() + asset.nodes.size());
-    // Parents go in first, so every node takes its world transform from a parent that is already in
+    
     for (const size_t assetIndex : ParentsFirst(asset)) {
         SceneAsset::Node& source = asset.nodes[assetIndex];
         const NodeId parent = source.parentIndex < ids.size() ? ids[source.parentIndex] : NodeId { };
-        ids[assetIndex] = AddNode({ .name = std::move(source.name), .parent = parent, .localTransform = source.localTransform });
+        ids[assetIndex] = AddNode(source.name, source.localTransform,  parent );
     }
     AppendComponents(asset, ids, models);
     return ids;
