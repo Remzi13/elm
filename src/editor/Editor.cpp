@@ -44,10 +44,11 @@ namespace elm {
 	Editor::Editor()
 		: m_scene(m_resources.GetModels())
 		, m_graphics(m_settings, m_scene, m_resources.GetModels())
-		, m_playMode(m_scene, &m_physics, m_scripts)
 		, m_debugDraw(m_settings)
+		, m_scripts({ .scene = &m_scene, .physics = &m_physics, .resources = &m_resources, .input = &m_platform.GetInput(),
+			  .camera = &m_graphics.GetViewCamera(), .settings = &m_settings, .debugDraw = &m_debugDraw.GetDebugDraw() })
 		, m_cameraController(m_graphics.GetViewCamera())
-		, m_editMode(m_playMode, m_scene, m_scripts)
+		, m_editMode(m_scene, m_scripts)
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -83,7 +84,7 @@ namespace elm {
 			m_platform.Shutdown();
 			return physicsInit;
 		}
-		m_playMode.SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
+		m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
 		m_initialized = true;
 		m_platform.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 		if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), m_settings, "Engine Debug UI", &m_graphics.GetCulling()); !init)
@@ -98,7 +99,7 @@ namespace elm {
 		AddVisualizers();
 		// The editor starts in Edit mode: physics and scripts wait for Play
 		if (m_settings.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting, false))
-			m_playMode.RequestPlay(script::PlayTarget::Project);
+			m_scripts.GetPlayMode().RequestPlay(script::PlayTarget::Project);
 		return { };
 	}
 
@@ -123,7 +124,7 @@ namespace elm {
 		// Before Simulate, which culls from the camera. The viewport state comes from the previous UI
 		// frame, the keys from the input the last Simulate dispatched
 		m_cameraController.SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
-		m_cameraController.SetEnabled(!m_playMode.IsPlaying());
+		m_cameraController.SetEnabled(!m_scripts.GetPlayMode().IsPlaying());
 		m_cameraController.Update(deltaTime);
 		Simulate(deltaTime);
 		// The SocLab window shows the culling depth buffer; the game never makes the texture
@@ -138,7 +139,7 @@ namespace elm {
 			ELM_PROFILE_SCOPE_N("FixedUpdate Physics Step");
 			// Edit mode: the scene stands still
 			std::span<const CollisionEvent> collisions;
-			if (m_playMode.IsPlaying()) {
+			if (m_scripts.GetPlayMode().IsPlaying()) {
 				m_physics.Step(m_scene.EditScene(), FrameClock::FixedStep);
 				collisions = m_physics.CollisionEvents();
 			}
@@ -207,11 +208,8 @@ namespace elm {
 	void Editor::StartProject(project::Project project)
 	{
 		m_resources.Open(std::move(project));
-		const project::Project& opened = *m_resources.GetProject();
-		const script::EngineContext context { &m_scene.EditScene(), &m_resources.GetModels(), &m_platform.GetInput(),
-			&m_graphics.GetViewCamera(), &m_settings, &m_physics, m_playMode.Requests(), &m_debugDraw.GetDebugDraw(), &opened };
 		// In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
-		if (auto scriptInit = m_scripts.Init(context, opened.Scripts()); !scriptInit)
+		if (auto scriptInit = m_scripts.Init(m_resources.GetProject()->Scripts()); !scriptInit)
 			ERROR_MESSAGE(log::Category::Script, LogSource, "%s", scriptInit.error().message.c_str());
 	}
 
@@ -219,8 +217,7 @@ namespace elm {
 	{
 		if (!m_resources.GetProject())
 			return;
-		if (m_playMode.IsPlaying())
-			m_playMode.Stop();
+		m_scripts.GetPlayMode().Stop();
 		// on_shutdown still sees the scene
 		m_scripts.Shutdown();
 		m_physics.Clear();

@@ -18,7 +18,6 @@
 #include "Scene/SceneSystem.hpp"
 #include "Scene/TestScenes.hpp"
 
-#include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
 
 #include "editor/EditMode.hpp"
@@ -127,13 +126,12 @@ namespace elm {
 		resource::ResourceSystem m_resources;
 		SceneSystem m_scene;
 		PhysicsSystem m_physics;
-		script::ScriptSystem m_scripts;
 		graphics::GraphicsSystem m_graphics;
-		/// Edit or Play: physics steps and entity scripts run only in Play.
-		script::PlayMode m_playMode;
-		FrameClock m_clock;
 		/// The engine view's debug drawing: the gizmo, the visualizers, elm.debug of the scripts.
 		graphics::DebugDrawing m_debugDraw;
+		/// With Play and Stop (its PlayMode): physics steps and entity scripts run only in Play.
+		script::ScriptSystem m_scripts;
+		FrameClock m_clock;
 		/// The fly camera of the engine view in Edit; off in Play, where the camera is the game's.
 		CameraController m_cameraController;
 		/// Edit and Play around PlayMode: the snapshot of the edited scene.

@@ -15,8 +15,8 @@ namespace elm {
 
 	} // namespace
 
-	EditMode::EditMode(script::PlayMode& play, SceneSystem& scene, script::ScriptSystem& scripts)
-		: m_play(play)
+	EditMode::EditMode(SceneSystem& scene, script::ScriptSystem& scripts)
+		: m_play(scripts.GetPlayMode())
 		, m_scene(scene)
 		, m_scripts(scripts)
 	{

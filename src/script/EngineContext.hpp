@@ -8,6 +8,7 @@ namespace elm {
     class Input;
     class PhysicsSystem;
     class Scene;
+    class SceneSystem;
     class Settings;
     class ModelCatalog;
     namespace graphics {
@@ -16,13 +17,15 @@ namespace elm {
     namespace project {
         class Project;
     }
+    namespace resource {
+        class ResourceSystem;
+    }
 }
 
 namespace elm::script {
 
     /// Edit/Play switches for the scripts and the editor windows, given by PlayMode. They are
-    /// requests: the mode changes at the start of the next update. Empty where the engine has no
-    /// Play mode (tools, tests).
+    /// requests: the program applies them at the start of its next frame.
     struct PlayRequests {
         /// Play as the game starts: the project's startup scene and main module.
         std::function<void()> playProject;
@@ -32,8 +35,23 @@ namespace elm::script {
         std::function<bool()> isPlaying;
     };
 
-    /// Engine systems the scripts work with. Any of them may be missing (tools, tests):
-    /// the bindings that need it raise a Lua error then.
+    /// The systems a ScriptSystem works with, given at construction: they outlive it. Any of them may be
+    /// missing (tools, tests): the bindings that need it raise a Lua error then, without the scene a Play
+    /// keeps no scene of its own.
+    struct ScriptDeps {
+        SceneSystem* scene { nullptr };
+        PhysicsSystem* physics { nullptr };
+        /// The models and the open project (its folders): the project opened when ScriptSystem::Init runs.
+        resource::ResourceSystem* resources { nullptr };
+        Input* input { nullptr };
+        Camera* camera { nullptr };
+        Settings* settings { nullptr };
+        /// Debug drawing of the engine view (elm.debug).
+        graphics::DebugDraw* debugDraw { nullptr };
+    };
+
+    /// What the bindings work with, made by ScriptSystem::Init from its ScriptDeps and its PlayMode.
+    /// Any of them may be missing: the bindings that need it raise a Lua error then.
     struct EngineContext {
         Scene* scene { nullptr };
         ModelCatalog* models { nullptr };

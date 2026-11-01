@@ -17,7 +17,6 @@
 #include "Scene/SceneSystem.hpp"
 #include "Scene/TestScenes.hpp"
 
-#include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
 
 namespace elm {
@@ -60,20 +59,20 @@ namespace elm {
         /// The fixed physics steps with the scripts, the frame's input and scripts, culling.
         void Simulate(float deltaTime);
         void Draw();
-        /// The physics visualizers (channels Physics/* in .settings) and elm.debug of the scripts.
-        void AddDebugDraw();
+        /// The physics visualizers (channels Physics/* in .settings).
+        void AddVisualizers();
 
         Settings m_settings;
         platform::PlatformSystem m_platform;
         resource::ResourceSystem m_resources;
         SceneSystem m_scene;
         PhysicsSystem m_physics;
-        script::ScriptSystem m_scripts;
         graphics::GraphicsSystem m_graphics;
-        script::PlayMode m_playMode;
-        FrameClock m_clock;
         /// Only in a build with ELM_DEBUG_DRAW; without it elm.debug draws nothing.
         UniquePtr<graphics::DebugDrawing> m_debugDraw;
+        /// With Play and Stop (its PlayMode).
+        script::ScriptSystem m_scripts;
+        FrameClock m_clock;
         bool m_initialized { false };
     };
 

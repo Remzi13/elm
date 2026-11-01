@@ -24,12 +24,25 @@ namespace elm {
 
         constexpr const char* LogSource = "Game";
 
+        /// Debug drawing for elm.debug and the visualizers, in a build with ELM_DEBUG_DRAW.
+        UniquePtr<graphics::DebugDrawing> MakeDebugDrawing([[maybe_unused]] Settings& settings)
+        {
+#if defined(ELM_DEBUG_DRAW)
+            return MakeUnique<graphics::DebugDrawing>(settings);
+#else
+            return nullptr;
+#endif
+        }
+
     } // namespace
 
     Game::Game()
         : m_scene(m_resources.GetModels())
         , m_graphics(m_settings, m_scene, m_resources.GetModels())
-        , m_playMode(m_scene, &m_physics, m_scripts)
+        , m_debugDraw(MakeDebugDrawing(m_settings))
+        , m_scripts({ .scene = &m_scene, .physics = &m_physics, .resources = &m_resources, .input = &m_platform.GetInput(),
+              .camera = &m_graphics.GetViewCamera(), .settings = &m_settings,
+              .debugDraw = m_debugDraw ? &m_debugDraw->GetDebugDraw() : nullptr })
     {
     }
 
@@ -60,17 +73,16 @@ namespace elm {
             return physicsInit;
         }
 #if defined(ELM_DEBUG_DRAW)
-        AddDebugDraw();
+        AddVisualizers();
 #endif
-        m_playMode.SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
+        m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
         m_initialized = true;
         return { };
     }
 
 #if defined(ELM_DEBUG_DRAW)
-    void Game::AddDebugDraw()
+    void Game::AddVisualizers()
     {
-        m_debugDraw = MakeUnique<graphics::DebugDrawing>(m_settings);
         graphics::DebugDraw& debugDraw = m_debugDraw->GetDebugDraw();
         m_debugDraw->AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_scene.GetScene(), debugDraw));
         m_debugDraw->AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_physics.FrameLog(), debugDraw));
@@ -84,11 +96,7 @@ namespace elm {
             return MakeUnexpected(read.error());
         m_platform.GetWindow().SetTitle(read->Name());
         m_resources.Open(std::move(*read));
-        const project::Project& project = *m_resources.GetProject();
-        const script::EngineContext context { &m_scene.EditScene(), &m_resources.GetModels(), &m_platform.GetInput(),
-            &m_graphics.GetViewCamera(), &m_settings, &m_physics, m_playMode.Requests(),
-            m_debugDraw ? &m_debugDraw->GetDebugDraw() : nullptr, &project };
-        return m_scripts.Init(context, project.Scripts());
+        return m_scripts.Init(m_resources.GetProject()->Scripts());
     }
 
     void Game::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
@@ -98,7 +106,7 @@ namespace elm {
 
     void Game::Run()
     {
-        m_playMode.RequestPlay(script::PlayTarget::Project);
+        m_scripts.GetPlayMode().RequestPlay(script::PlayTarget::Project);
         m_clock.Start();
         while (RunFrame()) {
         }
@@ -107,9 +115,10 @@ namespace elm {
     bool Game::RunFrame()
     {
         // No Edit mode to go back to: Stop (on_stop still runs) or a Play that could not start ends the game
-        const bool stopRequested = m_playMode.GetRequest() == script::PlayMode::Request::Stop;
-        m_playMode.ApplyRequest();
-        if (stopRequested || !m_playMode.IsPlaying())
+        script::PlayMode& play = m_scripts.GetPlayMode();
+        const bool stopRequested = play.GetRequest() == script::PlayMode::Request::Stop;
+        play.ApplyRequest();
+        if (stopRequested || !play.IsPlaying())
             return false;
 
         ELM_PROFILE_FRAME();
@@ -164,7 +173,6 @@ namespace elm {
         m_physics.Shutdown();
         m_scene.Clear();
         m_resources.Close();
-        m_debugDraw.reset();
         m_graphics.Shutdown();
         m_platform.Shutdown();
         core::JobSystem::Get().Shutdown();

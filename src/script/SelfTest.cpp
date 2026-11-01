@@ -673,8 +673,8 @@ namespace elm::script {
 
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            ScriptSystem system;
-            if (!system.Init({ nullptr, nullptr, nullptr, nullptr, &settings }, Path(root.generic_string().c_str()))) {
+            ScriptSystem system({ .settings = &settings });
+            if (!system.Init(Path(root.generic_string().c_str()))) {
                 report.Check(false, "hot::init");
                 return;
             }
@@ -835,9 +835,11 @@ namespace elm::script {
 
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            Scene scene;
-            ScriptSystem system;
-            if (!system.Init({ &scene, nullptr, nullptr, nullptr, &settings }, Path(root.generic_string().c_str()))) {
+            ModelCatalog models;
+            SceneSystem sceneSystem(models);
+            Scene& scene = sceneSystem.EditScene();
+            ScriptSystem system({ .scene = &sceneSystem, .settings = &settings });
+            if (!system.Init(Path(root.generic_string().c_str()))) {
                 report.Check(false, "entity::init");
                 return;
             }
@@ -1125,9 +1127,11 @@ namespace elm::script {
             }
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            Scene scene;
-            ScriptSystem system;
-            if (!system.Init({ &scene, nullptr, nullptr, nullptr, &settings, &physics }, Path(root.generic_string().c_str()))) {
+            ModelCatalog models;
+            SceneSystem sceneSystem(models);
+            Scene& scene = sceneSystem.EditScene();
+            ScriptSystem system({ .scene = &sceneSystem, .physics = &physics, .settings = &settings });
+            if (!system.Init(Path(root.generic_string().c_str()))) {
                 report.Check(false, "physics_lua::init");
                 return;
             }
@@ -1412,10 +1416,13 @@ namespace elm::script {
             }
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            Scene live;
-            ScriptSystem system;
-            if (!system.Init({ &live, &models, nullptr, nullptr, &settings, &physics, { }, nullptr, &project },
-                    Path(String(root.generic_string().c_str())))) {
+            // The scripts load models into a catalog of their own, the project's
+            resource::ResourceSystem resources;
+            resources.Open(project);
+            SceneSystem liveScene(resources.GetModels());
+            Scene& live = liveScene.EditScene();
+            ScriptSystem system({ .scene = &liveScene, .physics = &physics, .resources = &resources, .settings = &settings });
+            if (!system.Init(Path(String(root.generic_string().c_str())))) {
                 report.Check(false, "scene_file::script_init");
                 return;
             }
@@ -1639,9 +1646,9 @@ namespace elm::script {
 
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            ScriptSystem system;
+            ScriptSystem system({ .settings = &settings });
             auto initOn = [&](const char* folder) {
-                return system.Init({ .settings = &settings }, Path(String((root / folder).generic_string().c_str()))).has_value();
+                return system.Init(Path(String((root / folder).generic_string().c_str()))).has_value();
             };
             report.Check(initOn("first") && Evaluate(system, "return require('only_first').name") == "first",
                 "project::scripts_of_the_first_project");
@@ -1673,7 +1680,8 @@ namespace elm::script {
                 "function main.on_stop() log[#log + 1] = 'stop' stopped_spawn = elm.scene.spawn('z') stopped_spawn:add('Script', 'mover') end\n"
                 "return main\n");
 
-            ModelCatalog models;
+            resource::ResourceSystem resources;
+            ModelCatalog& models = resources.GetModels();
             Model cubeModel("Cube");
             cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
             const auto cube = models.Insert(cubeModel);
@@ -1686,9 +1694,9 @@ namespace elm::script {
             ScriptSystem::RegisterSettings(settings);
             SceneSystem sceneSystem(models);
             Scene& scene = sceneSystem.EditScene();
-            ScriptSystem system;
-            PlayMode playMode(sceneSystem, &physics, system);
-            // As Engine gives it: Play Scene plays the edited scene, Play Project a start scene of one node
+            ScriptSystem system({ .scene = &sceneSystem, .physics = &physics, .resources = &resources, .settings = &settings });
+            PlayMode& playMode = system.GetPlayMode();
+            // As the programs give it: Play Scene plays the edited scene, Play Project a start scene of one node
             bool hasStartScene = false;
             playMode.SetStartSource([&](PlayTarget target) -> std::optional<PlayStart> {
                 PlayStart start { .mainModule = "main" };
@@ -1700,14 +1708,13 @@ namespace elm::script {
                 }
                 return start;
             });
-            const EngineContext engine { &scene, &models, nullptr, nullptr, &settings, &physics, playMode.Requests() };
-            if (!system.Init(engine, Path(String(root.generic_string().c_str())))) {
+            if (!system.Init(Path(String(root.generic_string().c_str())))) {
                 report.Check(false, "play::script_init");
                 return;
             }
             auto eval = [&](const char* code) { return Evaluate(system, code); };
             constexpr float Step = 1.0f / 60.0f;
-            // As Engine: physics steps in Play only, requests apply before the update
+            // As the programs: physics steps in Play only, requests apply before the update
             auto frame = [&] {
                 std::span<const CollisionEvent> collisions;
                 if (playMode.IsPlaying()) {
@@ -1828,9 +1835,10 @@ namespace elm::script {
                 "return main\n");
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            Scene scene;
-            ScriptSystem system;
-            if (!system.Init({ .scene = &scene, .settings = &settings }, Path(String(root.generic_string().c_str())))
+            ModelCatalog models;
+            SceneSystem sceneSystem(models);
+            ScriptSystem system({ .scene = &sceneSystem, .settings = &settings });
+            if (!system.Init(Path(String(root.generic_string().c_str())))
                 || !system.Start("main")) {
                 report.Check(false, "play::stop_order_init");
                 return;
@@ -2164,10 +2172,8 @@ namespace elm::script {
         {
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            ScriptSystem system;
-            EngineContext engine;
-            engine.settings = &settings;
-            if (auto init = system.Init(engine); !init) {
+            ScriptSystem system({ .settings = &settings });
+            if (auto init = system.Init(); !init) {
                 report.Check(false, "debug_bindings::init_without_debug_draw", init.error().message);
                 return;
             }
@@ -2521,16 +2527,16 @@ namespace elm::script {
         RunDebugWithoutDrawingTests(report);
         {
             // Engine systems the bindings can reach without a window; models need the renderer
-            Scene scene;
+            ModelCatalog models;
+            SceneSystem sceneSystem(models);
             Input input;
             Camera camera;
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
             graphics::DebugDraw debugDraw(settings);
 
-            ScriptSystem system;
-            const EngineContext engine { .scene = &scene, .input = &input, .camera = &camera, .settings = &settings, .debugDraw = &debugDraw };
-            if (auto init = system.Init(engine, scriptRoot); !init) {
+            ScriptSystem system({ .scene = &sceneSystem, .input = &input, .camera = &camera, .settings = &settings, .debugDraw = &debugDraw });
+            if (auto init = system.Init(scriptRoot); !init) {
                 std::cout << "[FAIL] init: " << init.error().message << "\n";
                 return 1;
             }

@@ -17,7 +17,7 @@ namespace elm::script {
 
     } // namespace
 
-    PlayMode::PlayMode(SceneSystem& scene, PhysicsSystem* physics, ScriptSystem& scripts) noexcept
+    PlayMode::PlayMode(SceneSystem* scene, PhysicsSystem* physics, ScriptSystem& scripts) noexcept
         : m_scene(scene)
         , m_physics(physics)
         , m_scripts(scripts)
@@ -44,7 +44,7 @@ namespace elm::script {
         // As a player starts the game: a fresh Lua state, the start scene, then the main module
         if (auto reset = m_scripts.Reset(); !reset)
             ERROR_MESSAGE(log::Category::Script, LogSource, "%s", reset.error().message.c_str());
-        if (start.scene)
+        if (start.scene && m_scene)
             ReplaceScene(std::move(*start.scene));
         m_playing = true;
         // A broken main module is reported, the scene still plays
@@ -57,8 +57,8 @@ namespace elm::script {
     void PlayMode::ReplaceScene(SceneAsset asset)
     {
         // Models of the scene before stay: the editor puts its nodes back after Stop
-        m_scene.Clear();
-        (void)m_scene.Append(std::move(asset));
+        m_scene->Clear();
+        (void)m_scene->Append(std::move(asset));
     }
 
     void PlayMode::Stop()

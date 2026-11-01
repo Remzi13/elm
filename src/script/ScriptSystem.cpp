@@ -6,6 +6,11 @@
 #include "core/Settings.hpp"
 #include "core/Unexpected.hpp"
 
+#include "resource/ResourceSystem.hpp"
+
+#include "Scene/SceneSystem.hpp"
+
+#include "script/PlayMode.hpp"
 #include "script/bindings/Bindings.hpp"
 #include "script/console/ScriptConsole.hpp"
 #include "script/entity/EntityScripts.hpp"
@@ -26,7 +31,7 @@ namespace elm::script {
 
     } // namespace
 
-    ScriptSystem::ScriptSystem()
+    ScriptSystem::ScriptSystem(const ScriptDeps& deps)
         : m_modulePaths(MakeUnique<ModulePaths>())
         , m_moduleLoader(MakeUnique<ModuleLoader>(m_state, *m_modulePaths))
         , m_mainModule(MakeUnique<MainModule>(m_state, *m_moduleLoader))
@@ -35,6 +40,8 @@ namespace elm::script {
         , m_scriptDefaults(MakeUnique<ScriptDefaults>(*m_scriptClass))
         , m_entityScripts(MakeUnique<EntityScripts>(m_state, *m_scriptClass))
         , m_console(MakeUnique<ScriptConsole>(m_state))
+        , m_deps(deps)
+        , m_playMode(MakeUnique<PlayMode>(deps.scene, deps.physics, *this))
     {
         // Init opens the Lua state
         m_state.Close();
@@ -51,13 +58,13 @@ namespace elm::script {
         settings.Register(Settings::Category::Script, HotReloadSetting, "Reload changed scripts", true);
     }
 
-    auto ScriptSystem::Init(const EngineContext& engine, Path scriptRoot) -> EngineResult<void>
+    auto ScriptSystem::Init(Path scriptRoot) -> EngineResult<void>
     {
         ELM_ASSERT_THREAD(Update);
         if (m_state.IsOpen())
             return { };
 
-        m_engine = engine;
+        m_engine = MakeEngineContext();
         m_modulePaths->SetRoot(std::move(scriptRoot));
         m_state.Reset();
         m_state.OpenLibraries();
@@ -89,7 +96,7 @@ namespace elm::script {
     {
         const Path root = m_modulePaths->Root();
         Shutdown();
-        return Init(m_engine, root);
+        return Init(root);
     }
 
     void ScriptSystem::Update(float deltaTime)
@@ -171,8 +178,8 @@ namespace elm::script {
 
     auto ScriptSystem::GenerateApiMeta() -> EngineResult<String>
     {
-        ScriptSystem scripts;
-        if (auto init = scripts.Init({ }); !init)
+        ScriptSystem scripts({ });
+        if (auto init = scripts.Init(); !init)
             return MakeUnexpected(init.error());
         return scripts.m_state.Api().GenerateLuaMeta();
     }
@@ -188,6 +195,21 @@ namespace elm::script {
             return { };
         const String mainModule = m_mainModuleName;
         return Start(mainModule);
+    }
+
+    EngineContext ScriptSystem::MakeEngineContext()
+    {
+        EngineContext context;
+        context.scene = m_deps.scene ? &m_deps.scene->EditScene() : nullptr;
+        context.models = m_deps.resources ? &m_deps.resources->GetModels() : nullptr;
+        context.input = m_deps.input;
+        context.camera = m_deps.camera;
+        context.settings = m_deps.settings;
+        context.physics = m_deps.physics;
+        context.play = m_playMode->Requests();
+        context.debugDraw = m_deps.debugDraw;
+        context.project = m_deps.resources ? m_deps.resources->GetProject() : nullptr;
+        return context;
     }
 
     bool ScriptSystem::HotReloadEnabled() const

@@ -20,6 +20,7 @@ namespace elm::script {
     class MainModule;
     class ModuleLoader;
     class ModulePaths;
+    class PlayMode;
     class ScriptClass;
     class ScriptConsole;
     class ScriptDefaults;
@@ -30,8 +31,10 @@ namespace elm::script {
     ///  - ModulePaths, ModuleLoader: where modules live, require;
     ///  - HotReload: reloading changed modules; MainModule: the hooks of the main module;
     ///  - ScriptClass, EntityScripts, ScriptDefaults: the scripts of scene nodes;
-    ///  - ScriptConsole: the Lua console; bindings/: the engine API for Lua.
-    /// The parts live as long as the system, the Lua state is opened again on a restart.
+    ///  - ScriptConsole: the Lua console; bindings/: the engine API for Lua;
+    ///  - PlayMode: whether the game runs, Play and Stop.
+    /// The parts live as long as the system, the Lua state is opened again on a restart. The systems of
+    /// ScriptDeps come at construction and outlive it.
     /// Owner: the program (Game, Editor), thread: update.
     class ScriptSystem {
     public:
@@ -39,7 +42,7 @@ namespace elm::script {
         /// Reloads changed module files every update (HotReload). The game turns it off unless its .settings has it.
         static constexpr StringView HotReloadSetting = "HotReload";
 
-        ScriptSystem();
+        explicit ScriptSystem(const ScriptDeps& deps);
         ~ScriptSystem();
 
         ScriptSystem(const ScriptSystem&) = delete;
@@ -51,10 +54,10 @@ namespace elm::script {
         /// The LuaLS definitions (---@meta) of everything the bindings register.
         [[nodiscard]] static auto GenerateApiMeta() -> EngineResult<String>;
 
-        /// Opens the Lua state and registers the engine modules for these systems, any of which may
-        /// be missing (tools, tests). Modules are found under scriptRoot, the project's scripts folder;
-        /// without it no module file is found.
-        [[nodiscard]] auto Init(const EngineContext& engine, Path scriptRoot = { }) -> EngineResult<void>;
+        /// Opens the Lua state and registers the engine modules for the systems of ScriptDeps and the project
+        /// open now. Modules are found under scriptRoot, the project's scripts folder; without it no module
+        /// file is found.
+        [[nodiscard]] auto Init(Path scriptRoot = { }) -> EngineResult<void>;
         /// Starts the main module (on_start), the entry of the project; Play does it after Reset. An empty
         /// name or a missing module file is not an error: the scripts run without a main module.
         [[nodiscard]] auto Start(StringView mainModule) -> EngineResult<void>;
@@ -67,6 +70,8 @@ namespace elm::script {
         void FixedUpdate(float fixedDeltaTime, std::span<const CollisionEvent> collisions = { });
         void Shutdown();
         [[nodiscard]] bool IsInitialized() const noexcept { return m_state.IsOpen(); }
+        /// Play and Stop of the scripts with the scene and physics; the program applies its requests.
+        [[nodiscard]] PlayMode& GetPlayMode() noexcept { return *m_playMode; }
 
         /// Edit -> Play (PlayMode calls it): the main module gets on_play, entity scripts start on the next update.
         void OnPlay();
@@ -78,6 +83,8 @@ namespace elm::script {
         /// The Scripts window of the editor (editor/script) shows the parts of this system (CreateEditorWindows).
         friend struct EditorWindowsAccess;
 
+        /// The systems of ScriptDeps as the bindings see them, the project open now.
+        [[nodiscard]] EngineContext MakeEngineContext();
         void RegisterBindings();
         /// Reset now, on the update after the request; in Play the main module starts again.
         [[nodiscard]] auto Restart() -> EngineResult<void>;
@@ -96,6 +103,9 @@ namespace elm::script {
         UniquePtr<EntityScripts> m_entityScripts;
         UniquePtr<ScriptConsole> m_console;
 
+        ScriptDeps m_deps;
+        UniquePtr<PlayMode> m_playMode;
+        /// Made by Init: what the bindings see.
         EngineContext m_engine;
         ScriptTime m_time;
         /// The main module Start was given: a restart in Play starts it again.

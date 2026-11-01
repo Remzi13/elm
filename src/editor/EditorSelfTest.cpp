@@ -15,6 +15,8 @@
 
 #include "physics/PhysicsSystem.hpp"
 
+#include "resource/ResourceSystem.hpp"
+
 
 #include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
@@ -163,7 +165,8 @@ line]] .. [==[a]]b]==])",
                 "function Mover:on_update(dt) self.entity.position = self.entity.position + elm.math.Vector3(1, 0, 0) end\n"
                 "return Mover\n";
 
-            ModelCatalog models;
+            resource::ResourceSystem resources;
+            ModelCatalog& models = resources.GetModels();
             Model cubeModel("Cube");
             cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
             const auto cube = models.Insert(cubeModel);
@@ -176,8 +179,8 @@ line]] .. [==[a]]b]==])",
             ScriptSystem::RegisterSettings(settings);
             SceneSystem sceneSystem(models);
             Scene& scene = sceneSystem.EditScene();
-            ScriptSystem scripts;
-            PlayMode play(sceneSystem, &physics, scripts);
+            ScriptSystem scripts({ .scene = &sceneSystem, .physics = &physics, .resources = &resources, .settings = &settings });
+            PlayMode& play = scripts.GetPlayMode();
             bool hasStartScene = false;
             play.SetStartSource([&](PlayTarget target) -> std::optional<PlayStart> {
                 PlayStart start;
@@ -191,12 +194,11 @@ line]] .. [==[a]]b]==])",
                 }
                 return start;
             });
-            const EngineContext engine { .scene = &scene, .models = &models, .settings = &settings, .physics = &physics, .play = play.Requests() };
-            if (!scripts.Init(engine, Path(String(root.generic_string().c_str())))) {
+            if (!scripts.Init(Path(String(root.generic_string().c_str())))) {
                 report.Check(false, "edit::script_init");
                 return;
             }
-            EditMode editMode(play, sceneSystem, scripts);
+            EditMode editMode(sceneSystem, scripts);
 
             const NodeId a = scene.AddNode("a");
             const NodeId b = scene.AddNode("b");

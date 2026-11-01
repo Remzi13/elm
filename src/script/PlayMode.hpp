@@ -38,13 +38,14 @@ namespace elm::script {
     /// bodies; the scene stays as the game left it. What comes after Stop is the program's: the editor brings
     /// the edited scene back (EditMode), the game ends. It lives next to the scripts because it coordinates
     /// them with the scene and physics and the self-tests cover it there.
-    /// Owner: the program (Game, Editor), thread: update. Requests from Lua and the UI wait for the program: it looks at
+    /// Owner: ScriptSystem (GetPlayMode), thread: update. Requests from Lua and the UI wait for the program: it looks at
     /// GetRequest and applies it (ApplyRequest) before the frame's fixed steps.
     class PlayMode {
     public:
         static constexpr StringView PlayOnStartSetting = "PlayOnStart";
 
-        PlayMode(SceneSystem& scene, PhysicsSystem* physics, ScriptSystem& scripts) noexcept;
+        /// Without the scene a Play keeps the scene as it is, without physics a Stop clears no bodies.
+        PlayMode(SceneSystem* scene, PhysicsSystem* physics, ScriptSystem& scripts) noexcept;
         ~PlayMode();
 
         PlayMode(const PlayMode&) = delete;
@@ -76,7 +77,7 @@ namespace elm::script {
         /// The start scene in place of the edited one: the snapshot keeps the edited one.
         void ReplaceScene(SceneAsset asset);
 
-        SceneSystem& m_scene;
+        SceneSystem* m_scene { nullptr };
         PhysicsSystem* m_physics { nullptr };
         ScriptSystem& m_scripts;
         Request m_request { Request::None };

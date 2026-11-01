@@ -90,7 +90,7 @@ elm — 3D-движок с редактором на C++23: собственны
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
 | `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
-| Edit / Play, `PlayMode` | режимы редактора: в Edit сцена — это данные, в Play работают физика и скрипты сущностей. `script::PlayMode`, владелец — программа (`Game`, `Editor`) |
+| Edit / Play, `PlayMode` | режимы редактора: в Edit сцена — это данные, в Play работают физика и скрипты сущностей. `script::PlayMode`, владелец `ScriptSystem` (`GetPlayMode`) |
 
 **Рендер** (`src/render`, `elm::render`)
 
@@ -116,8 +116,8 @@ elm — 3D-движок с редактором на C++23: собственны
 | `platform::PlatformSystem` | связь с ОС: главное окно и его ввод (`Input`), оси по умолчанию для скриптов; `PollEvents`, `DispatchInput` | `platform` |
 | `platform::Window` | главное окно GLFW; часть `PlatformSystem` | `platform` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene` (JSON через glaze), экспорт glTF | `resource` |
-| `script::ScriptSystem` | менеджер скриптов: Lua-машина, сборка частей и биндингов, порядок в кадре, Shutdown. Части внутренние для модуля | `script` |
-| `EngineContext`, `ScriptTime`, `PlayRequests` | системы движка для скриптов, время кадра, запросы Play/Stop | `script` |
+| `script::ScriptSystem` | система скриптов: Lua-машина, сборка частей и биндингов, порядок в кадре, Shutdown, Play и Stop (`PlayMode`, `GetPlayMode`). Системы движка получает в конструкторе (`ScriptDeps`). Части внутренние для модуля | `script` |
+| `ScriptDeps`, `EngineContext`, `ScriptTime`, `PlayRequests` | системы движка для `ScriptSystem` (конструктор, любая может отсутствовать); что из них видят биндинги (собирает `Init`, с открытым проектом); время кадра; запросы Play/Stop | `script` |
 | `ModulePaths`, `ModuleLoader`, `LoadedModule` | имя модуля ↔ файл; `require` и загруженные модули | `script/module` |
 | главный модуль (`MainModule`, `MainState`) | модуль с хуками `main.on_*` | `script/module` |
 | `HotReload` | перезагрузка изменённых модулей с патчем таблицы | `script/reload` |
@@ -155,7 +155,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (ко�
 Внутри `script` действуют слои (`docs/script/Скрипты на Lua.md`): зависимость только вниз, части
 одного слоя друг о друге не знают, связи между ними задаёт `ScriptSystem`. Внутренние части модуля
 (`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`) не подключаются вне `src/script/`:
-снаружи видны `ScriptSystem`, `EngineContext`, `PlayMode` и `RunSelfTests`. Исключение — окно Scripts редактора
+снаружи видны `ScriptSystem`, `ScriptDeps`, `EngineContext`, `PlayMode` и `RunSelfTests`. Исключение — окно Scripts редактора
 (`editor/script/`): оно показывает части `ScriptSystem` и подключает их заголовки, а сами части получает через
 `EditorWindowsAccess` (`CreateEditorWindows`).
 

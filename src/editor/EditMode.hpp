@@ -13,13 +13,13 @@ namespace elm {
 	}
 
 	/// Edit mode of the editor (docs/editor/Редактор.md): until Play the scene is data. It applies the
-	/// Play/Stop requests of the windows and scripts around the engine's PlayMode: before a Play it keeps a
+	/// Play/Stop requests of the windows and scripts around the PlayMode of the scripts: before a Play it keeps a
 	/// snapshot of the edited scene, after Stop it brings it back with its node ids and gives Edit a fresh
 	/// Lua state. The parts are the engine's and outlive it.
 	/// Owner: Editor, thread: update, before the frame's fixed steps.
 	class EditMode {
 	public:
-		EditMode(script::PlayMode& play, SceneSystem& scene, script::ScriptSystem& scripts);
+		EditMode(SceneSystem& scene, script::ScriptSystem& scripts);
 		~EditMode();
 
 		EditMode(const EditMode&) = delete;
