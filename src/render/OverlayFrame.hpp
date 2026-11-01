@@ -3,6 +3,7 @@
 #include "core/Std.hpp"
 
 #include "render/api/Handles.hpp"
+#include "render/api/NativeWindow.hpp"
 
 namespace elm::render {
 
@@ -15,8 +16,7 @@ struct OverlaySurfaceEvent {
 
     Type type { Type::Create };
     uint32_t id { 0 };
-    void* nativeHandle { nullptr };
-    void* nativeDisplay { nullptr };
+    NativeWindow window;
     uint32_t width { 1 };
     uint32_t height { 1 };
 };

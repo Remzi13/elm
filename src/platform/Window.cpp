@@ -81,12 +81,15 @@ render::NativeWindow Window::GetNativeWindow(GLFWwindow* window)
         return native;
 #if defined(ELM_PLATFORM_WINDOWS)
     native.handle = glfwGetWin32Window(window);
+    native.system = render::WindowSystem::Win32;
 #else
     if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
         native.display = glfwGetWaylandDisplay();
         native.handle = glfwGetWaylandWindow(window);
+        native.system = render::WindowSystem::Wayland;
     } else {
         native.display = glfwGetX11Display();
+        native.system = render::WindowSystem::X11;
         native.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(glfwGetX11Window(window)));
     }
 #endif

@@ -1,6 +1,6 @@
 # elm: правила работы с кодом
 
-elm — 3D-движок с редактором на C++23: рендер через Diligent (D3D12 на Windows, Vulkan на Linux),
+elm — 3D-движок с редактором на C++23: рендер через свой Vulkan-бэкенд на Linux и Diligent (D3D12) на Windows,
 физика Jolt, скрипты на Lua 5.4, UI редактора на ImGui. Документация на русском лежит в `docs/`
 (Obsidian vault, вход `docs/Главная.md`). Прежде чем менять подсистему, прочитай её заметку.
 
@@ -9,7 +9,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 ## Стек и команды
 - C++23, CMake ≥ 3.28. Основная платформа: Windows + MSVC (`/W4 /permissive-`), также Linux GCC/Clang. Флаги предупреждений задаёт `target_set_warnings` в `cmake/CompileOptions.cmake`.
-- Зависимости (Diligent, GLFW, ImGui docking, Jolt, Tracy, glaze, Lua 5.4.7) подключены через FetchContent в `third_party/CMakeLists.txt`. Исходники качиваются в `../elm_deps`, вне репозитория. Первая конфигурация идёт долго.
+- Зависимости (GLFW, ImGui docking, Jolt, Tracy, glaze, Lua 5.4.7, DXC, на Windows ещё Diligent) подключены через FetchContent в `third_party/CMakeLists.txt`. DXC — зафиксированный релиз Microsoft, он собирает `shaders/*.hlsl` в `shaders/spirv/*.spv` (`cmake/Shaders.cmake`); свой компилятор задаётся через `-DELM_DXC_EXECUTABLE=...`. На Linux нужны заголовки и загрузчик Vulkan 1.3+ (`libvulkan-dev`). Исходники качиваются в `../elm_deps`, вне репозитория. Первая конфигурация идёт долго.
 - Конфигурация: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
 - Сборка: `cmake --build build --config Debug -j`
 - Бинарник: `build/Debug/Engine.exe` (MSVC) или `build/Engine`. Файл `.settings` ищется вверх от текущего каталога, поэтому запускать можно из корня или из `build/`.
@@ -115,7 +115,9 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `IRenderFeature` (`ScenePass`, `DebugDrawPass`, `OverlayPass`), `RenderPipeline` | фичи, добавляющие пасы в граф | render |
 | `DebugGeometry`, `DebugVertex`, `DebugBatch`, `DebugStyle` | отладочные линии и треугольники вида в мировых координатах, по стилям (`render/frame/DebugGeometry.hpp`) | update → render |
 | `RenderGraph`, `PassBuilder`, `PassContext`, `FrameBlackboard` | граф пасов, зависимости, барьеры | render / воркер |
-| `rhi::IRenderBackend` (`DiligentBackend`, `NullBackend`), `CommandList`, `UploadAllocator` | абстракция графического API | render |
+| `rhi::IRenderBackend` (`VulkanBackend`, `DiligentBackend`, `NullBackend`), `CommandList`, `UploadAllocator` | абстракция графического API; бэкенд выбирается по платформе | render |
+| `NativeWindow`, `WindowSystem` | окно, в которое рисует поверхность: хэндлы ОС и их оконная система (Win32, X11, Wayland) | любой |
+| `vulkan::VulkanDevice`, `VulkanSwapChain`, `VulkanFrame`, `VulkanBuffer`, `VulkanImage`, `VulkanPipeline`, `SpirvShader` | внутренности Vulkan-бэкенда (`render/backend/vulkan/`): устройство, поверхность, кадр в полёте, RAII-ресурсы, пайплайн на push-дескрипторах, SPIR-V шейдера | render |
 
 **Остальные системы**
 
@@ -154,7 +156,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 ```
 core, math                   основа, ни от кого не зависят (core: Tracy)
-render     → core, math      Diligent только PRIVATE
+render     → core, math      Vulkan / Diligent только PRIVATE
 platform   → render          GLFW
 Scene      → core, math, render
 project    → core
@@ -185,7 +187,8 @@ Engine     (EngineApp, main.cpp) собирает всё
   графический API, а пишет команды в `RenderResources` и данные в `FrameWriter`. Draw-API доступен
   только внутри паса. Таблица допустимых вызовов: `docs/render/Правила потоков рендера.md`.
   Новые API с привязкой к потоку помечай `ELM_ASSERT_THREAD(Update)` / `ELM_ASSERT_THREAD(Render)`.
-- **Diligent** виден только в `render/backend/diligent/`. Выше `rhi::IRenderBackend` его типов нет.
+- **Vulkan** виден только в `render/backend/vulkan/` (Xlib и Wayland — только в `VulkanSurface.cpp`),
+  **Diligent** — только в `render/backend/diligent/`. Выше `rhi::IRenderBackend` их типов нет.
 - **Jolt** виден только в `physics/PhysicsSystem.cpp`. Линковка PRIVATE обязательна: Jolt
   выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.
 - **Lua** подключается только через `script/lua/Lua.hpp`, не через `lua.hpp`. Lua собрана как C++,
@@ -328,7 +331,7 @@ Engine     (EngineApp, main.cpp) собирает всё
 - Голые `new`/`delete`, C-style касты, `using namespace` в новых заголовках.
 - Многострочные тела функций в `.hpp`, кроме шаблонов и inline-функций.
 - Синонимы для существующих сущностей и понятия, закодированные голыми `int`/`bool`/индексами.
-- Типы Diligent вне `render/backend/diligent/`, заголовки Jolt вне `PhysicsSystem.cpp`, `lua.hpp` напрямую.
+- Типы Vulkan вне `render/backend/vulkan/`, типы Diligent вне `render/backend/diligent/`, заголовки Jolt вне `PhysicsSystem.cpp`, `lua.hpp` напрямую.
 - Вызовы графического API из update-потока, исключения через render-поток.
 - Глобальные изменяемые переменные и новые синглтоны.
 - Функции и классы «на все случаи» с флагами-переключателями поведения.

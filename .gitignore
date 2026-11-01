@@ -11,3 +11,4 @@ projects/*/Build/
 docs/.obsidian/
 docs/.trash/
 
+shaders/spirv/

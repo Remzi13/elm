@@ -43,48 +43,58 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(glfw)
 
 # ------------------------------------------------------------------------------
-# Diligent Engine
+# Dear ImGui (docking branch): editor UI
 # ------------------------------------------------------------------------------
-set(DILIGENT_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
-set(DILIGENT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-set(DILIGENT_NO_FORMAT_VALIDATION ON CACHE BOOL "" FORCE)
-set(DILIGENT_NO_RENDER_STATE_PACKAGER ON CACHE BOOL "" FORCE)
-
 FetchContent_Declare(
-    DiligentEngine
-    GIT_REPOSITORY https://github.com/DiligentGraphics/DiligentEngine.git
-    GIT_TAG        v2.5.6
-    PATCH_COMMAND  git -C <SOURCE_DIR>/DiligentTools/ThirdParty/imgui fetch --depth 1 origin refs/tags/v1.89.7-docking
-                   COMMAND git -C <SOURCE_DIR>/DiligentTools/ThirdParty/imgui checkout --detach FETCH_HEAD
-                   COMMAND ${CMAKE_COMMAND}
-                       -DDILIGENT_TOOLS_CMAKE=<SOURCE_DIR>/DiligentTools/CMakeLists.txt
-                       -P ${CMAKE_SOURCE_DIR}/cmake/DisableDiligentRenderStateNotation.cmake
+    imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG        v1.89.7-docking
+    GIT_SHALLOW    TRUE
 )
-FetchContent_MakeAvailable(DiligentEngine)
-set_property(TARGET Diligent-Imgui PROPERTY FOLDER "third party")
+FetchContent_MakeAvailable(imgui)
 
-# ImGui itself, built by Diligent: headers and library for the editor UI
-add_library(imgui_core INTERFACE)
-target_include_directories(imgui_core SYSTEM INTERFACE
-    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui
+# Declared before Diligent: its Diligent-Imgui links an existing "imgui" target instead of building a copy
+add_library(imgui STATIC
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
 )
-target_link_libraries(imgui_core INTERFACE Diligent-Imgui)
+target_include_directories(imgui SYSTEM PUBLIC ${imgui_SOURCE_DIR})
+set_property(TARGET imgui PROPERTY FOLDER "third party")
+
+add_library(imgui_core INTERFACE)
+target_link_libraries(imgui_core INTERFACE imgui)
 
 # ImGui GLFW backend
 add_library(imgui_glfw STATIC
-    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui/backends/imgui_impl_glfw.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
 )
-
-target_include_directories(imgui_glfw PRIVATE
-    ${glfw_SOURCE_DIR}/include
-    ${diligentengine_SOURCE_DIR}/DiligentCore
-    ${diligentengine_SOURCE_DIR}/DiligentTools
-    ${diligentengine_SOURCE_DIR}/DiligentTools/ThirdParty/imgui
-    ${diligentengine_SOURCE_DIR}/DiligentTools/Imgui/interface
-)
-
-target_link_libraries(imgui_glfw PRIVATE glfw Diligent-Imgui)
+target_link_libraries(imgui_glfw PRIVATE glfw imgui)
 set_property(TARGET imgui_glfw PROPERTY FOLDER "third party")
+
+# ------------------------------------------------------------------------------
+# Diligent Engine: render backend on Windows (D3D12). Linux uses the Vulkan backend.
+# ------------------------------------------------------------------------------
+if(WIN32)
+    set(DILIGENT_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+    set(DILIGENT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(DILIGENT_NO_FORMAT_VALIDATION ON CACHE BOOL "" FORCE)
+    set(DILIGENT_NO_RENDER_STATE_PACKAGER ON CACHE BOOL "" FORCE)
+
+    FetchContent_Declare(
+        DiligentEngine
+        GIT_REPOSITORY https://github.com/DiligentGraphics/DiligentEngine.git
+        GIT_TAG        v2.5.6
+        PATCH_COMMAND  ${CMAKE_COMMAND}
+                           -DDILIGENT_TOOLS_CMAKE=<SOURCE_DIR>/DiligentTools/CMakeLists.txt
+                           -P ${CMAKE_SOURCE_DIR}/cmake/DisableDiligentRenderStateNotation.cmake
+    )
+    FetchContent_MakeAvailable(DiligentEngine)
+    set_property(TARGET Diligent-Imgui PROPERTY FOLDER "third party")
+    set_dependency_folder("${diligentengine_SOURCE_DIR}")
+endif()
 
 # ------------------------------------------------------------------------------
 # Jolt Physics Engine
@@ -145,7 +155,6 @@ endif()
 
 
 set_dependency_folder("${glfw_SOURCE_DIR}")
-set_dependency_folder("${diligentengine_SOURCE_DIR}")
 set_dependency_folder("${JoltPhysics_SOURCE_DIR}")
 
 # Expose dependency source directories to the engine modules.
@@ -174,3 +183,36 @@ set_source_files_properties(${lua_sources} PROPERTIES LANGUAGE CXX)
 target_include_directories(lua SYSTEM PUBLIC ${lua_SOURCE_DIR}/src)
 target_compile_definitions(lua PUBLIC $<$<CONFIG:Debug>:LUA_USE_APICHECK>)
 set_property(TARGET lua PROPERTY FOLDER "third party")
+
+# ------------------------------------------------------------------------------
+# DirectX Shader Compiler: a build tool, compiles shaders/*.hlsl (cmake/Shaders.cmake).
+# A pinned Microsoft release, so every machine gets the same SPIR-V; ELM_DXC_EXECUTABLE
+# replaces it with an own DXC and skips the download.
+# ------------------------------------------------------------------------------
+set(ELM_DXC_RELEASE_URL https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.8.2505)
+if(NOT ELM_DXC_EXECUTABLE)
+    if(WIN32)
+        FetchContent_Declare(
+            dxc
+            URL      ${ELM_DXC_RELEASE_URL}/dxc_2025_05_24.zip
+            URL_HASH SHA256=81380f3eca156d902d6404fd6df9f4b0886f576ff3e18b2cc10d3075ffc9d119
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            SOURCE_SUBDIR  no-cmake-project
+        )
+        set(dxc_relative_path bin/x64/dxc.exe)
+    elseif(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        FetchContent_Declare(
+            dxc
+            URL      ${ELM_DXC_RELEASE_URL}/linux_dxc_2025_05_24.x86_64.tar.gz
+            URL_HASH SHA256=b99655f65215287825fcdd49102b17e2a1608eff79ffaf9457514c2676892aa5
+            DOWNLOAD_EXTRACT_TIMESTAMP TRUE
+            SOURCE_SUBDIR  no-cmake-project
+        )
+        set(dxc_relative_path bin/dxc)
+    else()
+        message(FATAL_ERROR "No DXC release for ${CMAKE_HOST_SYSTEM_PROCESSOR}: set ELM_DXC_EXECUTABLE")
+    endif()
+    # The archive has no CMake project: SOURCE_SUBDIR points nowhere, so it is only unpacked
+    FetchContent_MakeAvailable(dxc)
+    set(ELM_DXC_FETCHED_EXECUTABLE ${dxc_SOURCE_DIR}/${dxc_relative_path} PARENT_SCOPE)
+endif()

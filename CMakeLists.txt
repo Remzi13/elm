@@ -9,6 +9,7 @@ option(ELM_LOG_TO_CONSOLE "Duplicate log messages to the system console" OFF)
 
 # Include custom compile options
 include(cmake/CompileOptions.cmake)
+include(cmake/Shaders.cmake)
 
 # Enable FetchContent for dependencies
 include(FetchContent)

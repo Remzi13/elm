@@ -179,9 +179,7 @@ namespace elm {
 		event.type = render::OverlaySurfaceEvent::Type::Create;
 		event.id = viewport->ID;
 		getFramebufferSize( window, event.width, event.height );
-		const auto native = platform::Window::GetNativeWindow( window );
-		event.nativeHandle = native.handle;
-		event.nativeDisplay = native.display;
+		event.window = platform::Window::GetNativeWindow( window );
 		system->m_pendingViewportEvents.push_back( event );
 	}
 
