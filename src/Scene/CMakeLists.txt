@@ -18,6 +18,8 @@ engine_add_library(Scene
     ModelComponent.hpp
     SceneSnapshot.hpp
     SceneSnapshot.cpp
+    SceneSystem.hpp
+    SceneSystem.cpp
 )
 
 target_link_libraries(Scene PUBLIC core math render model)

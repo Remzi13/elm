@@ -2,7 +2,7 @@
 
 #include "core/Log.hpp"
 
-#include "Scene/SceneSnapshot.hpp"
+#include "Scene/SceneSystem.hpp"
 
 #include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
@@ -15,10 +15,9 @@ namespace elm {
 
 	} // namespace
 
-	EditMode::EditMode(script::PlayMode& play, Scene& scene, ModelCatalog& models, script::ScriptSystem& scripts)
+	EditMode::EditMode(script::PlayMode& play, SceneSystem& scene, script::ScriptSystem& scripts)
 		: m_play(play)
 		, m_scene(scene)
-		, m_models(models)
 		, m_scripts(scripts)
 	{
 	}
@@ -46,7 +45,7 @@ namespace elm {
 			m_play.ApplyRequest();
 			return;
 		}
-		m_snapshot = MakeUnique<SceneSnapshot>(SceneSnapshot::Take(m_scene, &m_models));
+		m_snapshot = MakeUnique<SceneSnapshot>(m_scene.TakeSnapshot());
 		m_play.ApplyRequest();
 		// No start for the target (the startup scene could not be read): nothing changed
 		if (!m_play.IsPlaying())
@@ -65,7 +64,7 @@ namespace elm {
 	{
 		if (!m_snapshot)
 			return;
-		std::move(*m_snapshot).Restore(m_scene, &m_models);
+		m_scene.Restore(std::move(*m_snapshot));
 		m_snapshot.reset();
 		// The game's Lua state goes with it: Edit gets a fresh one, without the main module
 		if (auto reset = m_scripts.Reset(); !reset)

@@ -9,6 +9,10 @@
 #include <functional>
 #include <optional>
 
+namespace elm {
+    class SceneSystem;
+}
+
 namespace elm::script {
 
     class ScriptSystem;
@@ -40,7 +44,7 @@ namespace elm::script {
     public:
         static constexpr StringView PlayOnStartSetting = "PlayOnStart";
 
-        PlayMode(Scene& scene, ModelCatalog* models, PhysicsSystem* physics, ScriptSystem& scripts) noexcept;
+        PlayMode(SceneSystem& scene, PhysicsSystem* physics, ScriptSystem& scripts) noexcept;
         ~PlayMode();
 
         PlayMode(const PlayMode&) = delete;
@@ -72,8 +76,7 @@ namespace elm::script {
         /// The start scene in place of the edited one: the snapshot keeps the edited one.
         void ReplaceScene(SceneAsset asset);
 
-        Scene& m_scene;
-        ModelCatalog* m_models { nullptr };
+        SceneSystem& m_scene;
         PhysicsSystem* m_physics { nullptr };
         ScriptSystem& m_scripts;
         Request m_request { Request::None };

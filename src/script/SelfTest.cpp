@@ -22,6 +22,7 @@
 #include "Scene/Scene.hpp"
 #include "Scene/SceneAsset.hpp"
 #include "Scene/SceneSnapshot.hpp"
+#include "Scene/SceneSystem.hpp"
 #include "Scene/ScriptComponent.hpp"
 #include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
@@ -1683,9 +1684,10 @@ namespace elm::script {
             }
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            Scene scene;
+            SceneSystem sceneSystem(models);
+            Scene& scene = sceneSystem.EditScene();
             ScriptSystem system;
-            PlayMode playMode(scene, &models, &physics, system);
+            PlayMode playMode(sceneSystem, &physics, system);
             // As Engine gives it: Play Scene plays the edited scene, Play Project a start scene of one node
             bool hasStartScene = false;
             playMode.SetStartSource([&](PlayTarget target) -> std::optional<PlayStart> {
@@ -2272,6 +2274,26 @@ namespace elm::script {
             return String { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
         }
 
+        /// A scene put in brings its models into the catalog; clearing the scene leaves them to the resources.
+        void RunSceneSystemTests(Report& report)
+        {
+            ModelCatalog models;
+            SceneSystem scenes(models);
+            SceneAsset asset;
+            asset.models.push_back(Model("Cube"));
+            SceneAsset::Node box;
+            box.name = "box";
+            asset.nodes.push_back(std::move(box));
+            asset.components.Components<ModelComponent>().Emplace(SceneAsset::NodeRef(0), ModelComponent { .model = SceneAsset::ModelRef(0) });
+            const auto ids = scenes.Append(std::move(asset));
+            const auto* drawnModels = scenes.GetScene().FindComponents<ModelComponent>();
+            const ModelComponent* drawn = ids.size() == 1 && drawnModels ? drawnModels->Find(ids[0]) : nullptr;
+            report.Check(drawn && models.Get(drawn->model) && models.Get(drawn->model)->name == "Cube", "scene_system::append_brings_models");
+            const ModelHandler model = drawn ? drawn->model : ModelHandler { };
+            scenes.Clear();
+            report.Check(scenes.GetScene().NodeCount() == 0 && models.Get(model), "scene_system::clear_keeps_models");
+        }
+
         /// The open project and its models live and go together; reading a project opens nothing.
         void RunResourceSystemTests(Report& report)
         {
@@ -2492,6 +2514,7 @@ namespace elm::script {
         RunDebugDrawSystemTests(report);
         RunTransformGizmoTests(report);
         RunLogFileTests(report);
+        RunSceneSystemTests(report);
         RunResourceSystemTests(report);
         RunModelMeshesTests(report);
         RunLateSettingsTests(report);

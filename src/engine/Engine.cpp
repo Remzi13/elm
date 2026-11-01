@@ -32,7 +32,8 @@ Engine::Engine()
     , m_inputSystem(MakeUnique<InputSystem>())
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
     , m_meshes(m_renderSystem->Resources())
-    , m_playMode(m_scene, &m_resources.GetModels(), m_physicsSystem.get(), *m_scriptSystem)
+    , m_scene(m_resources.GetModels())
+    , m_playMode(m_scene, m_physicsSystem.get(), *m_scriptSystem)
 {
 }
 
@@ -165,7 +166,7 @@ void Engine::StopRendering()
 
 void Engine::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
 {
-    TestScenes::BuildScene(preset, instanceCount, m_scene, m_resources.GetModels());
+    TestScenes::BuildScene(preset, instanceCount, m_scene.EditScene(), m_resources.GetModels());
 }
 
 void Engine::CloseProject()
@@ -186,7 +187,7 @@ void Engine::OpenProject(project::Project project)
     m_resources.Open(std::move(project));
     const project::Project& opened = *m_resources.GetProject();
 
-    const script::EngineContext scriptEngine { &m_scene, &m_resources.GetModels(), m_inputSystem.get(), &m_camera, &m_settings,
+    const script::EngineContext scriptEngine { &m_scene.EditScene(), &m_resources.GetModels(), m_inputSystem.get(), &m_camera, &m_settings,
         m_physicsSystem.get(), m_playMode.Requests(), m_scriptDebugDraw, &opened };
     // In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
     if (auto scriptInit = m_scriptSystem->Init(scriptEngine, opened.Scripts()); !scriptInit)
@@ -220,9 +221,9 @@ void Engine::DrawScene(render::FrameWriter& frame)
     frame.BeginSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
 
     // The UI may have moved nodes since the update
-    m_scene.UpdateWorldTransforms();
+    m_scene.UpdateTransforms();
     m_meshes.Sync(m_resources.GetModels());
-    if (const auto* drawn = m_scene.FindComponents<ModelComponent>())
+    if (const auto* drawn = m_scene.GetScene().FindComponents<ModelComponent>())
         SubmitModels(*drawn, frame);
 
 }
@@ -237,14 +238,14 @@ void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::F
 {
     const auto ids = drawn.Ids();
     const auto components = drawn.Components();
-    const auto worldTransforms = m_scene.WorldTransforms();
+    const auto worldTransforms = m_scene.GetScene().WorldTransforms();
     size_t drawCount = 0;
     for (const auto& component : components)
         drawCount += m_meshes.GetMeshes(component.model).size();
     frame.ReserveDraws(drawCount);
     for (size_t index = 0; index < components.size(); ++index) {
         const ModelComponent& component = components[index];
-        const size_t nodeIndex = m_scene.IndexOf(ids[index]);
+        const size_t nodeIndex = m_scene.GetScene().IndexOf(ids[index]);
         if (!component.visible || nodeIndex == Scene::NoNode)
             continue;
         // A node culling did not see yet (added by the UI, a scene just loaded) is drawn
@@ -270,7 +271,7 @@ void Engine::FixedUpdate(float fixedDeltaTime)
     // Edit mode: the scene stands still
     std::span<const CollisionEvent> collisions;
     if (m_physicsSystem && m_playMode.IsPlaying()) {
-        m_physicsSystem->Step(m_scene, fixedDeltaTime);
+        m_physicsSystem->Step(m_scene.EditScene(), fixedDeltaTime);
         collisions = m_physicsSystem->CollisionEvents();
     }
     m_scriptSystem->FixedUpdate(fixedDeltaTime, collisions);
@@ -295,10 +296,10 @@ void Engine::Update(float deltaTime)
 
     m_scriptSystem->Update(deltaTime);
     // Scripts move nodes through local transforms
-    m_scene.UpdateWorldTransforms();
+    m_scene.UpdateTransforms();
 
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
-    m_cullingSystem.ExecuteCulling(m_scene, m_resources.GetModels(), cullingVP, m_settings);
+    m_cullingSystem.ExecuteCulling(m_scene.GetScene(), m_resources.GetModels(), cullingVP, m_settings);
 
     if (m_physicsSystem) {
         m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();

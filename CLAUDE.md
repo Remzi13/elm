@@ -71,7 +71,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 | Сущность | Что это | Владелец / поток |
 |---|---|---|
-| `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `Engine`, update |
+| `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `SceneSystem`, update |
+| `SceneSystem` | сцена программы: `Scene`, мировые трансформы (`UpdateTransforms`), сцена из файла (`Append`, модели — в каталог ресурсов), снимок (`TakeSnapshot`/`Restore`), `Clear`. Модели держит каталог `ResourceSystem`, сама система знает его по ссылке | программа (`Engine`), update |
 | `Scene::Node`, «узел» | ядро элемента сцены: `id`, родитель (`NodeId`), имя, локальный трансформ. Остальное — компоненты. В Lua это `Entity` («сущность») | `Scene` |
 | `Scene::NodeDesc`, `Scene::SetParentResult` | с чем создаётся новый узел (`AddNode`); итог `SetParent` | — |
 | `NodeId` | стабильная ссылка на узел (`Scene/NodeId.hpp`). Индекс узла (`size_t`) нестабилен, живёт в пределах одной операции | — |
@@ -85,7 +86,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `CollisionEvent` | начало и конец контакта за шаг физики | `PhysicsSystem` |
 | `RayHit`, `RayQuery`, `PhysicsFrameLog` | попадание луча; вызов `CastRay` и его итог; журнал кадра `PhysicsSystem::FrameLog` (лучи и начавшиеся контакты всех шагов) (`Scene/PhysicsComponents.hpp`) | `PhysicsSystem` |
 | `SceneAsset`, `SceneAsset::Node` | сцена из файла до `Scene::Append`: узлы без id, родитель — индекс в ассете. Компоненты и ссылки на узлы — по `SceneAsset::NodeRef(index)`, модель в `ModelComponent` — `SceneAsset::ModelRef(index)` | вызывающий |
-| `SceneSnapshot` | снимок сцены и моделей: редактор делает его перед Play и возвращает после Stop | `EditMode` |
+| `SceneSnapshot` | снимок сцены и моделей: редактор делает его перед Play и возвращает после Stop (`SceneSystem::TakeSnapshot`/`Restore`) | `EditMode` |
 | `ScenePreset`, `TestScenes` | генераторы тестовых сцен | — |
 
 **Модели и редактор** (`src/model` и `src/graphics`, `elm` и `elm::graphics`)
@@ -136,9 +137,10 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
 | `Engine`, `EngineDesc` | движок: системы игры и открытый проект; шаги кадра (`BeginFrame`, `Simulate`, `BeginRenderFrame`, `DrawScene`, `SubmitFrame`) вызывает программа, своего цикла и обратных вызовов нет; окно и `DebugDraw*` для скриптов | `engine` |
 | `Editor` | программа-редактор: владеет `Engine` и ведёт его кадр; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
+| `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resource` |
-| `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `Engine`, update | `project` |
+| `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `ResourceSystem`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |
 | `ProjectMenu`, `ProjectMenuDesc` | меню Project редактора; открытый проект для него, недавние проекты, запрос `open` (применяется в начале update) | `editor/ui` |
 | `project::AssetType`, `ProjectAssets`, `AssetEntry` | тип файла ассета по расширению; дерево папки `assets` для окон | `project` |

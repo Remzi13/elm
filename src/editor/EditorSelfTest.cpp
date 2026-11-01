@@ -10,6 +10,7 @@
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/Scene.hpp"
+#include "Scene/SceneSystem.hpp"
 #include "Scene/ScriptComponent.hpp"
 
 #include "physics/PhysicsSystem.hpp"
@@ -173,9 +174,10 @@ line]] .. [==[a]]b]==])",
             }
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
-            Scene scene;
+            SceneSystem sceneSystem(models);
+            Scene& scene = sceneSystem.EditScene();
             ScriptSystem scripts;
-            PlayMode play(scene, &models, &physics, scripts);
+            PlayMode play(sceneSystem, &physics, scripts);
             bool hasStartScene = false;
             play.SetStartSource([&](PlayTarget target) -> std::optional<PlayStart> {
                 PlayStart start;
@@ -194,7 +196,7 @@ line]] .. [==[a]]b]==])",
                 report.Check(false, "edit::script_init");
                 return;
             }
-            EditMode editMode(play, scene, models, scripts);
+            EditMode editMode(play, sceneSystem, scripts);
 
             const NodeId a = scene.AddNode("a");
             const NodeId b = scene.AddNode("b");

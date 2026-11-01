@@ -40,7 +40,7 @@ namespace elm {
 		: m_settings(m_engine.GetSettings())
 		, m_debugDraw(m_settings)
 		, m_cameraController(m_engine.GetCamera())
-		, m_editMode(m_engine.GetPlayMode(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetScripts())
+		, m_editMode(m_engine.GetPlayMode(), m_engine.GetSceneSystem(), m_engine.GetScripts())
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -360,8 +360,7 @@ namespace elm {
 		auto scene = m_engine.GetResources().LoadStartupScene();
 		if (!scene)
 			return { };
-		const auto handlers = m_engine.GetResources().GetModels().InsertAll(std::move(scene->models), scene->modelFiles);
-		(void)m_engine.GetScene().Append(std::move(*scene), handlers);
+		(void)m_engine.GetSceneSystem().Append(std::move(*scene));
 		return project.Resolve(*project.Desc().entry.startupScene);
 	}
 

@@ -14,6 +14,7 @@
 #include "resource/ResourceSystem.hpp"
 #include "graphics/ModelMeshes.hpp"
 
+#include "Scene/SceneSystem.hpp"
 #include "Scene/TestScenes.hpp"
 
 #include "physics/PhysicsSystem.hpp"
@@ -108,7 +109,8 @@ namespace elm {
 		[[nodiscard]] platform::Window& GetWindow() noexcept { return m_window; }
 		[[nodiscard]] render::RenderSystem& GetRenderSystem() noexcept { return *m_renderSystem; }
 		[[nodiscard]] render::ViewPort& GetViewPort() noexcept { return m_engineViewPort; }
-		[[nodiscard]] Scene& GetScene() noexcept { return m_scene; }
+		[[nodiscard]] Scene& GetScene() noexcept { return m_scene.EditScene(); }
+		[[nodiscard]] SceneSystem& GetSceneSystem() noexcept { return m_scene; }
 		[[nodiscard]] resource::ResourceSystem& GetResources() noexcept { return m_resources; }
 		[[nodiscard]] Camera& GetCamera() noexcept { return m_camera; }
 		[[nodiscard]] OcclusionCullingSystem& GetCulling() noexcept { return m_cullingSystem; }
@@ -139,9 +141,9 @@ namespace elm {
 		UniquePtr<script::ScriptSystem> m_scriptSystem;
 
 		Camera m_camera;
-		Scene m_scene;
-		/// The open project and its models.
+		/// The open project and its models; before the scene, which keeps its models there.
 		resource::ResourceSystem m_resources;
+		SceneSystem m_scene;
 		/// GPU meshes of the resources' models, synced before the scene is drawn.
 		graphics::ModelMeshes m_meshes;
 		Settings m_settings;
