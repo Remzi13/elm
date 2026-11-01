@@ -1,7 +1,7 @@
 #include "editor/ui/ModelEditorWindow.hpp"
 
 #include "editor/ui/WindowMessages.hpp"
-#include "render/RenderSystem.hpp"
+#include "render/Render.hpp"
 #include "render/api/FrameWriter.hpp"
 #include "resource/AssetImport.hpp"
 #include "resource/GltfExporter.hpp"
@@ -180,9 +180,9 @@ void ModelEditorWindow::Render(ImGuiWindowContext& context)
         return;
 
     if (!m_previewMeshes)
-        m_previewMeshes.emplace(context.renderSystem.Resources());
+        m_previewMeshes.emplace(context.renderer.Resources());
     if (!m_viewPort.IsValid())
-        m_viewPort = render::ViewPort(context.renderSystem.Resources(), Size(512, 512));
+        m_viewPort = render::ViewPort(context.renderer.Resources(), Size(512, 512));
 
     // A widget interaction ends when nothing is active anymore: the next edit is a new undo step
     m_editInProgress = m_editInProgress && ImGui::IsAnyItemActive();

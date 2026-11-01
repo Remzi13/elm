@@ -17,7 +17,7 @@ namespace elm {
 	struct FrameStats;
 
 	namespace render {
-		class RenderSystem;
+		class Render;
 		class ViewPort;
 		class FrameWriter;
 	}
@@ -27,7 +27,7 @@ namespace elm {
 	}
 
 	struct ImGuiWindowContext {
-		render::RenderSystem& renderSystem;
+		render::Render& renderer;
 		Scene& scene;
         ModelCatalog& models;
 		Camera& camera;

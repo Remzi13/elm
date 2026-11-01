@@ -7,7 +7,7 @@
 #include "engine/Engine.hpp"
 
 #include "graphics/GameView.hpp"
-#include "graphics/debug/DebugDrawSystem.hpp"
+#include "graphics/debug/DebugDrawing.hpp"
 #if defined(ELM_DEBUG_DRAW)
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
@@ -73,11 +73,11 @@ namespace {
 
     /// The debug drawing of a build with ELM_DEBUG_DRAW, with the editor's physics visualizers (channels
     /// Physics/Colliders, Triggers, Raycasts, Contacts, on and off in .settings); none without it.
-    elm::UniquePtr<elm::graphics::DebugDrawSystem> MakeDebugDraw([[maybe_unused]] elm::Engine& engine)
+    elm::UniquePtr<elm::graphics::DebugDrawing> MakeDebugDraw([[maybe_unused]] elm::Engine& engine)
     {
 #if defined(ELM_DEBUG_DRAW)
         using namespace elm::graphics;
-        auto debugDraw = elm::MakeUnique<DebugDrawSystem>(engine.GetSettings());
+        auto debugDraw = elm::MakeUnique<DebugDrawing>(engine.GetSettings());
         debugDraw->AddVisualizer(elm::MakeUnique<ColliderVisualizer>(engine.GetScene(), debugDraw->GetDebugDraw()));
         debugDraw->AddVisualizer(elm::MakeUnique<PhysicsVisualizer>(engine.GetPhysics().FrameLog(), debugDraw->GetDebugDraw()));
         return debugDraw;
@@ -87,7 +87,7 @@ namespace {
     }
 
     /// The game: Play Project, the scene in the whole window, until the window closes or the scripts stop it.
-    void RunGame(elm::Engine& engine, elm::graphics::DebugDrawSystem* debugDraw)
+    void RunGame(elm::Engine& engine, elm::graphics::DebugDrawing* debugDraw)
     {
         elm::script::PlayMode& play = engine.GetPlayMode();
         play.RequestPlay(elm::script::PlayTarget::Project);

@@ -20,7 +20,7 @@ namespace elm::render::rhi {
         uint32_t commands { 0 };
     };
 
-    /// Graphics API abstraction. Everything above this interface (passes, graph, RenderSystem) is
+    /// Graphics API abstraction. Everything above this interface (passes, graph, Render) is
     /// backend independent; a backend is selected at build time (ELM_RENDER_BACKEND) by createRenderBackend().
     ///
     /// All methods are called on the render thread, Init/Shutdown while it is stopped.

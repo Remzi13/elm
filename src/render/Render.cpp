@@ -1,4 +1,4 @@
-#include "render/RenderSystem.hpp"
+#include "render/Render.hpp"
 
 #include "core/Debug.hpp"
 #include "core/JobSystem.hpp"
@@ -11,14 +11,14 @@
 
 namespace elm::render {
 
-RenderSystem::RenderSystem() = default;
+Render::Render() = default;
 
-RenderSystem::~RenderSystem()
+Render::~Render()
 {
     Shutdown();
 }
 
-auto RenderSystem::Init(const NativeWindow& window, Size surfaceSize) -> EngineResult<void>
+auto Render::Init(const NativeWindow& window, Size surfaceSize) -> EngineResult<void>
 {
     if (m_initialized) {
         return { };
@@ -32,15 +32,15 @@ auto RenderSystem::Init(const NativeWindow& window, Size surfaceSize) -> EngineR
     }
 
     if (!m_pipeline.Init(*m_backend))
-        ERROR_MESSAGE(log::Category::Render, "RenderSystem", "Render pipeline initialized with errors, some passes are disabled");
+        ERROR_MESSAGE(log::Category::Render, "Render", "Render pipeline initialized with errors, some passes are disabled");
 
     m_frames.Reopen();
     m_initialized = true;
-    LOG_MESSAGE(log::Category::Render, "RenderSystem", "Render system initialized (%s backend).", String(m_backend->GetName()).c_str());
+    LOG_MESSAGE(log::Category::Render, "Render", "Render system initialized (%s backend).", String(m_backend->GetName()).c_str());
     return { };
 }
 
-FrameWriter RenderSystem::BeginFrame()
+FrameWriter Render::BeginFrame()
 {
     ELM_ASSERT_THREAD(Update);
     if (!m_initialized)
@@ -48,7 +48,7 @@ FrameWriter RenderSystem::BeginFrame()
     return FrameWriter(m_frames.AcquireWrite());
 }
 
-void RenderSystem::SubmitFrame(FrameWriter& writer)
+void Render::SubmitFrame(FrameWriter& writer)
 {
     ELM_ASSERT_THREAD(Update);
     auto* frame = std::exchange(writer.m_frame, nullptr);
@@ -64,12 +64,12 @@ void RenderSystem::SubmitFrame(FrameWriter& writer)
     m_frames.Publish(frame);
 }
 
-void RenderSystem::StopRendering()
+void Render::StopRendering()
 {
     m_frames.Close();
 }
 
-bool RenderSystem::RenderNextFrame(RenderedFrameInfo& info)
+bool Render::RenderNextFrame(RenderedFrameInfo& info)
 {
     ELM_ASSERT_THREAD(Render);
     info = {};
@@ -82,7 +82,7 @@ bool RenderSystem::RenderNextFrame(RenderedFrameInfo& info)
     return true;
 }
 
-uint64_t RenderSystem::ApplySurfaceEvents(const OverlayFrame& overlay)
+uint64_t Render::ApplySurfaceEvents(const OverlayFrame& overlay)
 {
     uint64_t released = 0;
     for (const auto& event : overlay.surfaceEvents) {
@@ -102,7 +102,7 @@ uint64_t RenderSystem::ApplySurfaceEvents(const OverlayFrame& overlay)
     return released;
 }
 
-void RenderSystem::ExecuteFrame(FrameSnapshot& frame, RenderedFrameInfo& info)
+void Render::ExecuteFrame(FrameSnapshot& frame, RenderedFrameInfo& info)
 {
     ELM_PROFILE_SCOPE_N("Render Frame");
     info.frameIndex = frame.frameIndex;
@@ -149,7 +149,7 @@ void RenderSystem::ExecuteFrame(FrameSnapshot& frame, RenderedFrameInfo& info)
     }
 }
 
-void RenderSystem::Shutdown()
+void Render::Shutdown()
 {
     if (!m_initialized)
         return;
@@ -167,16 +167,16 @@ void RenderSystem::Shutdown()
     m_backend.reset();
 
     m_initialized = false;
-    LOG_MESSAGE(log::Category::Render, "RenderSystem", "Shutdown completed.");
+    LOG_MESSAGE(log::Category::Render, "Render", "Shutdown completed.");
 }
 
-RenderStats RenderSystem::GetRenderStats() const
+RenderStats Render::GetRenderStats() const
 {
     std::lock_guard lock(m_statsMutex);
     return m_stats;
 }
 
-size_t RenderSystem::GetMemAllocated() const
+size_t Render::GetMemAllocated() const
 {
     return m_backend ? m_backend->GetAllocatedMemory() : 0;
 }

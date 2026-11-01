@@ -63,7 +63,7 @@ namespace elm {
 		if (auto engineInit = m_engine.Init(desc); !engineInit)
 			return engineInit;
 		m_engine.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
-		if (auto init = m_imgui->Init(m_engine.GetWindow(), m_engine.GetRenderSystem(), m_settings, "Engine Debug UI", &m_engine.GetCulling()); !init)
+		if (auto init = m_imgui->Init(m_engine.GetWindow(), m_engine.GetRender(), m_settings, "Engine Debug UI", &m_engine.GetCulling()); !init)
 			return init;
 		m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(m_settings, editor::ProjectHubDesc {
 			.recent = [this] { return RecentProjects(); },
@@ -221,7 +221,7 @@ namespace elm {
 	{
 		// UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
 		ELM_PROFILE_SCOPE_N("Build Overlay");
-		m_imgui->BuildFrame({ m_engine.GetRenderSystem(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetCamera(),
+		m_imgui->BuildFrame({ m_engine.GetRender(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetCamera(),
 			m_engine.GetFrameStats(), m_engine.GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
 	}
 

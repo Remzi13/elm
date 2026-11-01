@@ -14,7 +14,7 @@ render::RenderResources& resources = renderSystem.Resources();
 
 1. `Create*()` сразу выделяет [[Хэндлы|хэндл]] и записывает команду.
 2. `Update*()`, `Resize*()` и `Destroy*()` тоже только записывают команды.
-3. `RenderSystem::SubmitFrame` забирает все накопленные команды в [[FrameSnapshot]].
+3. `Render::SubmitFrame` забирает все накопленные команды в [[FrameSnapshot]].
 4. Render-поток выполняет команды до отрисовки этого кадра ([[Кадр на render-потоке]]).
 
 Команды сохраняют порядок, в том числе между потоками: важен порядок захвата внутреннего

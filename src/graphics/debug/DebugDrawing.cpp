@@ -1,26 +1,26 @@
-#include "graphics/debug/DebugDrawSystem.hpp"
+#include "graphics/debug/DebugDrawing.hpp"
 
 #include "core/Debug.hpp"
 
 namespace elm::graphics {
 
-DebugDrawSystem::DebugDrawSystem(Settings& settings)
+DebugDrawing::DebugDrawing(Settings& settings)
     : m_debugDraw(settings)
 {
 }
 
-void DebugDrawSystem::AddVisualizer(UniquePtr<IDebugVisualizer> visualizer)
+void DebugDrawing::AddVisualizer(UniquePtr<IDebugVisualizer> visualizer)
 {
     ELM_ASSERT(visualizer && "a visualizer is required");
     m_visualizers.push_back(std::move(visualizer));
 }
 
-void DebugDrawSystem::BeginFrame(float deltaSeconds)
+void DebugDrawing::BeginFrame(float deltaSeconds)
 {
     m_debugDraw.BeginFrame(deltaSeconds);
 }
 
-void DebugDrawSystem::EndFrame(render::FrameWriter& frame)
+void DebugDrawing::EndFrame(render::FrameWriter& frame)
 {
     ELM_ASSERT_THREAD(Update);
     for (const auto& visualizer : m_visualizers)

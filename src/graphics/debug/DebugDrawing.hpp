@@ -15,14 +15,14 @@ namespace elm::graphics {
     /// (systems, scripts, editor windows) and the visualizers drawn into it once the scene is final.
     /// Owned by the owner of the view (for the engine viewport the program: Editor, elm built with
     /// ELM_DEBUG_DRAW); update thread only.
-    class DebugDrawSystem {
+    class DebugDrawing {
     public:
-        explicit DebugDrawSystem(Settings& settings);
+        explicit DebugDrawing(Settings& settings);
 
-        DebugDrawSystem(const DebugDrawSystem&) = delete;
-        DebugDrawSystem& operator=(const DebugDrawSystem&) = delete;
-        DebugDrawSystem(DebugDrawSystem&&) = delete;
-        DebugDrawSystem& operator=(DebugDrawSystem&&) = delete;
+        DebugDrawing(const DebugDrawing&) = delete;
+        DebugDrawing& operator=(const DebugDrawing&) = delete;
+        DebugDrawing(DebugDrawing&&) = delete;
+        DebugDrawing& operator=(DebugDrawing&&) = delete;
 
         /// What the sources draw into; valid for the life of the system.
         [[nodiscard]] DebugDraw& GetDebugDraw() noexcept { return m_debugDraw; }

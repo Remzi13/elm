@@ -4,7 +4,7 @@
 #include "core/MessageBus.hpp"
 #include "core/Settings.hpp"
 
-#include "render/RenderSystem.hpp"
+#include "render/Render.hpp"
 #include "render/api/FrameWriter.hpp"
 
 #include "platform/Window.hpp"
@@ -29,11 +29,11 @@ struct ImGuiTextBuffer;
 namespace elm {
 
 	class SocLabWindow;
-	class OcclusionCullingSystem;
+	class OcclusionCulling;
 
 	// Threading:
 	//  - main thread: Init, BuildFrame, Shutdown (render thread must be stopped), all ImGui/GLFW calls
-	//  - render thread: RenderSystem executes the render graph using captured frame data
+	//  - render thread: Render executes the render graph using captured frame data
 	// Platform (GLFW) windows are destroyed on the main thread only after the render thread released their swap chains.
 	class ImGuiSystem {
 	public:
@@ -43,8 +43,8 @@ namespace elm {
 		ImGuiSystem(const ImGuiSystem&) = delete;
 		ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
-		[[nodiscard]] auto Init(platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title,
-			const OcclusionCullingSystem* cullingSystem = nullptr) -> elm::EngineResult<void>;
+		[[nodiscard]] auto Init(platform::Window& window, render::Render& renderer, Settings& settings, StringView title,
+			const OcclusionCulling* culling = nullptr) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame.
 		// Windows may add their own scene views (previews) to the frame.
 		void BuildFrame(const ImGuiWindowContext& context);
@@ -147,7 +147,7 @@ namespace elm {
 		bool m_destroyPlatformWindowsImmediately{ false };
 
 		/// Counts the Destroy events the render thread applied (GetReleasedSurfaceCount), from this baseline.
-		const render::RenderSystem* m_renderSystem{ nullptr };
+		const render::Render* m_render{ nullptr };
 		uint64_t m_releasedSurfaceBaseline{ 0 };
 	};
 

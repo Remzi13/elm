@@ -347,7 +347,7 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; }
     <!-- Frame -->
     <section id="frame">
       <header>
-        <span class="eyebrow">Engine::BeginFrame…SubmitFrame · RenderSystem::RenderNextFrame</span>
+        <span class="eyebrow">Engine::BeginFrame…SubmitFrame · Render::RenderNextFrame</span>
         <h2>Один кадр</h2>
         <p class="muted">Шаги цикла в порядке исполнения. Включите проигрывание, чтобы увидеть, как два потока идут параллельно, а кольцо из трёх слотов сдвигается на кадр. Переключатель режима показывает, что в Edit не выполняется.</p>
       </header>
@@ -614,7 +614,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     [pipeline = m_pipeline](const Data&amp; data, PassContext&amp; context) {   // execute: позже, возможно на воркере
         auto&amp; cmd = context.Commands();
     });</code></pre>
-      <div class="callout warn">Execute-лямбда вызывается после выхода из setup. Локальные переменные setup не захватывайте по ссылке: берите хэндлы по значению, а данные кадра из <code>context.Frame()</code>. RAII-ресурсы (<code>Texture</code>, <code>Mesh</code>, <code>ViewPort</code>, <code>ModelManager</code>) уничтожаются до <code>RenderSystem::Shutdown()</code>.</div>
+      <div class="callout warn">Execute-лямбда вызывается после выхода из setup. Локальные переменные setup не захватывайте по ссылке: берите хэндлы по значению, а данные кадра из <code>context.Frame()</code>. RAII-ресурсы (<code>Texture</code>, <code>Mesh</code>, <code>ViewPort</code>, <code>ModelManager</code>) уничтожаются до <code>Render::Shutdown()</code>.</div>
     </section>
 
     <!-- Glossary -->
@@ -684,14 +684,14 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
   const W = 112, H = 40;
   const mods = {
     Engine:   { x: 360, y: 34,  dir: "src/engine/*, src/editor/Editor.*, main.cpp", ns: "elm", third: [], desc: "Собирает всё: владеет сценой, системами, `PlayMode` и главным циклом. Запускает render-поток.", ents: ["Engine", "PlayMode", "Scene"], note: "render/Главный цикл.md", thread: "update (главный поток)" },
-    graphics: { x: 120, y: 128, dir: "src/graphics", ns: "elm::graphics, elm", third: ["ImGui", "ImGuizmo"], desc: "Модели и их GPU-меши, камера, CPU-отсечение, окна редактора на ImGui.", ents: ["ModelManager", "ModelHandler", "Camera", "OcclusionCullingSystem", "ImGuiSystem", "IImGuiWindow"], note: "editor/Редактор.md", thread: "update" },
+    graphics: { x: 120, y: 128, dir: "src/graphics", ns: "elm::graphics, elm", third: ["ImGui", "ImGuizmo"], desc: "Модели и их GPU-меши, камера, CPU-отсечение, окна редактора на ImGui.", ents: ["ModelManager", "ModelHandler", "Camera", "OcclusionCulling", "ImGuiSystem", "IImGuiWindow"], note: "editor/Редактор.md", thread: "update" },
     script:   { x: 400, y: 128, dir: "src/script", ns: "elm::script", third: ["Lua 5.4.7"], desc: "Lua-машина, главный модуль, скрипты сущностей, hot reload, консоль, `PlayMode`. Остальные модули линкуются PRIVATE, наружу видны `ScriptSystem`, `EngineContext`, `PlayMode`.", ents: ["ScriptSystem", "EngineContext", "PlayMode", "EntityScripts", "HotReload", "lua::State"], note: "script/Скрипты на Lua.md", thread: "update" },
     input:    { x: 610, y: 128, dir: "src/input", ns: "elm", third: ["GLFW"], desc: "Ввод с приоритетами подписчиков, действия и оси.", ents: ["InputSystem", "IInputSubscriber", "InputContext", "ActionBinding", "AxisBinding"], note: null, thread: "update" },
     resource:   { x: 120, y: 222, dir: "src/resource", ns: "elm::resource", third: ["glaze"], desc: "Читает и пишет `.model` и `.scene` (JSON через glaze), экспорт glTF.", ents: ["Serializer", "GltfExporter", "JsonValue"], note: "scene/Файл сцены.md", thread: "любой (SceneAsset)" },
     physics:  { x: 300, y: 222, dir: "src/physics", ns: "elm", third: ["Jolt 5.2"], desc: "Тела Jolt для узлов с `Collider`, по `NodeId`. Jolt линкуется PRIVATE: он выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.", ents: ["PhysicsSystem", "RayHit", "CollisionEvent"], note: "physics/Физика.md", thread: "update" },
     platform: { x: 600, y: 222, dir: "src/platform", ns: "elm::platform", third: ["GLFW"], desc: "Главное окно. Рендер получает от него только `NativeWindow` и размер.", ents: ["platform::Window"], note: "render/бэкенд/Бэкенды.md", thread: "update" },
     Scene:    { x: 230, y: 318, dir: "src/Scene", ns: "elm", third: [], desc: "Узлы, `NodeId`, хранилища компонентов, `SceneAsset`, `SceneSnapshot`. Только update-поток, мутации проверяет `ELM_ASSERT_THREAD(Update)`.", ents: ["Scene", "NodeId", "NodeIdTable", "ComponentStores", "SceneAsset", "SceneSnapshot"], note: "scene/Сцена.md", thread: "update" },
-    render:   { x: 480, y: 318, dir: "src/render", ns: "elm::render", third: ["Direct3D 12", "Vulkan"], desc: "Ресурсы по хэндлам, снимок кадра, кольцо кадров, render graph, нативные бэкенды.", ents: ["RenderSystem", "RenderResources", "FrameWriter", "FrameRing", "RenderGraph", "IRenderFeature"], note: "render/Рендер.md", thread: "update + render" },
+    render:   { x: 480, y: 318, dir: "src/render", ns: "elm::render", third: ["Direct3D 12", "Vulkan"], desc: "Ресурсы по хэндлам, снимок кадра, кольцо кадров, render graph, нативные бэкенды.", ents: ["Render", "RenderResources", "FrameWriter", "FrameRing", "RenderGraph", "IRenderFeature"], note: "render/Рендер.md", thread: "update + render" },
     core:     { x: 230, y: 420, dir: "src/core", ns: "elm::core, elm", third: ["Tracy"], desc: "Ошибки `EngineResult`, хэндлы, настройки, `MessageBus`, `JobSystem`, роли потоков, файловая система, лог, аллокатор.", ents: ["EngineResult", "core::Handle", "Settings", "MessageBus", "JobSystem", "ThreadRole"], note: "core/JobSystem.md", thread: "любой" },
     math:     { x: 480, y: 420, dir: "src/math", ns: "math (корневой)", third: [], desc: "`Vector3`, `Vector4`, `Quaternion`, `Matrix4x4`, `Size`, `AABB`, `MeshData`.", ents: ["Vector3", "Quaternion", "Matrix4x4", "AABB"], note: null, thread: "любой" },
   };
@@ -793,8 +793,8 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
       { t: "Ввод и смена режима", s: "InputSystem::Update · PlayMode::ApplyRequest", d: "Play/Stop, которые попросили скрипты (`elm.engine.play()`), окна или F5, применяются здесь, до скриптов. Поэтому их безопасно вызывать из Lua." },
       { t: "Скрипты", s: "ScriptSystem::Update", mode: "partial", d: "Менеджер скриптов ведёт части по кадру.", li: ["`HotReload::Poll`: перезагрузка изменённых модулей вне хуков", "`main.on_update(dt)` — только в Play", "`on_start` новых экземпляров, затем `on_update` сущностей — только в Play"] },
       { t: "Трансформы и камера", s: "Scene::UpdateWorldTransforms · CameraController::Update", d: "Скрипты двигали узлы через локальные трансформы. Мировые пересчитываются одним линейным проходом, родитель всегда раньше детей." },
-      { t: "Отсечение", s: "OcclusionCullingSystem::ExecuteCulling", d: "CPU-отсечение: frustum и программный буфер глубины. Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Флаг `visible` не меняет." },
-      { t: "BeginFrame", s: "RenderSystem::BeginFrame", d: "Берёт свободный слот `FrameRing`. Ждёт, только если render отстал на два кадра. Невалидный `FrameWriter` значит, что рендер остановлен." },
+      { t: "Отсечение", s: "OcclusionCulling::ExecuteCulling", d: "CPU-отсечение: frustum и программный буфер глубины. Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Флаг `visible` не меняет." },
+      { t: "BeginFrame", s: "Render::BeginFrame", d: "Берёт свободный слот `FrameRing`. Ждёт, только если render отстал на два кадра. Невалидный `FrameWriter` значит, что рендер остановлен." },
       { t: "UI редактора", s: "ImGuiSystem::BuildFrame", d: "Окна Scene Hierarchy, Inspector, Scripts, вьюпорт с гизмо. Окна общаются через `MessageBus`, пишут в сцену её методами по `NodeId`." },
       { t: "SubmitFrame", s: "UpdateWorldTransforms · BeginSceneView · Draw", d: "UI мог сдвинуть узлы, поэтому трансформы пересчитываются ещё раз. Обходится хранилище `ModelComponent`: видимые и не отсечённые узлы становятся draw-командами. Кадр и накопленные команды ресурсов уходят в кольцо." },
     ],
@@ -851,12 +851,12 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
 
   /* ---------- Thread rules ---------- */
   const rules = [
-    ["`RenderSystem::Resources()`, методы `RenderResources`, RAII `Texture`/`Mesh`", ["any"], "хэндл возвращается сразу, команды не меняют порядок"],
-    ["`RenderSystem::Init`, `Shutdown`", ["update"], "render-поток остановлен"],
-    ["`RenderSystem::BeginFrame`, `SubmitFrame`, `StopRendering`, `GetSize`", ["update"], "проверяется `ELM_ASSERT_THREAD(Update)`"],
+    ["`Render::Resources()`, методы `RenderResources`, RAII `Texture`/`Mesh`", ["any"], "хэндл возвращается сразу, команды не меняют порядок"],
+    ["`Render::Init`, `Shutdown`", ["update"], "render-поток остановлен"],
+    ["`Render::BeginFrame`, `SubmitFrame`, `StopRendering`, `GetSize`", ["update"], "проверяется `ELM_ASSERT_THREAD(Update)`"],
     ["`FrameWriter`", ["update"], "только поток, который его получил"],
-    ["`RenderSystem::RenderNextFrame`", ["render"], "проверяется `ELM_ASSERT_THREAD(Render)`"],
-    ["`RenderSystem::GetRenderStats`, `GetMemAllocated`", ["any"], ""],
+    ["`Render::RenderNextFrame`", ["render"], "проверяется `ELM_ASSERT_THREAD(Render)`"],
+    ["`Render::GetRenderStats`, `GetMemAllocated`", ["any"], ""],
     ["`IRenderFeature::Init/Release/Setup`, `IRenderBackend::*`", ["render"], ""],
     ["Шейдеры и пайплайны (`ShaderHandle`, `PipelineHandle`)", ["render"], "создаются в `IRenderFeature::Init`, через `RenderResources` нельзя"],
     ["Execute-лямбда паса (`PassContext`, `CommandList`)", ["render", "worker"], "пасы одного уровня и батчи `RecordParallel`"],
@@ -1099,11 +1099,11 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Модели и редактор", "ModelHandler", "хэндл модели в `ModelCatalog` (историческое имя, не путать с `Handle`)", "graphics/ModelHandler.hpp"],
     ["Модели и редактор", "ModelCatalog, graphics::ModelMeshes", "модели на CPU (модуль model) и их GPU-меши (graphics); раньше ModelManager, владел моделями сцены и их GPU-мешами", "graphics"],
     ["Модели и редактор", "Camera, CameraController", "камера вида и её управление", "graphics"],
-    ["Модели и редактор", "OcclusionCullingSystem, SoftwareDepthBuffer", "CPU-отсечение, результат по `NodeId` (`FindOccludee`)", "graphics/culling"],
+    ["Модели и редактор", "OcclusionCulling, SoftwareDepthBuffer", "CPU-отсечение, результат по `NodeId` (`FindOccludee`)", "graphics/culling"],
     ["Модели и редактор", "ImGuiSystem, IImGuiWindow, ImGuiWindowContext", "окна редактора и то, что им передаётся на кадр", "editor/ui"],
     ["Модели и редактор", "SelectedSceneInstance, PlayControls, OpenModelEditor", "сообщения между окнами через `MessageBus`", "ui/WindowMessages.hpp"],
     ["Модели и редактор", "Edit / Play, PlayMode", "режимы редактора; `script::PlayMode`, владелец `Engine`", "script/PlayMode.hpp"],
-    ["Рендер", "RenderSystem", "фасад подсистемы рендера", "update + render"],
+    ["Рендер", "Render", "фасад подсистемы рендера", "update + render"],
     ["Рендер", "RenderResources", "создание, обновление и удаление ресурсов командами", "любой поток"],
     ["Рендер", "TextureHandle, BufferHandle, MeshHandle, ShaderHandle, PipelineHandle, SurfaceId", "хэндлы ресурсов", "render/api/Handles.hpp"],
     ["Рендер", "render::Texture, render::Mesh", "RAII-владельцы ресурсов", "любой поток"],

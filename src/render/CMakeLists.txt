@@ -1,6 +1,6 @@
 engine_add_library(render
-    RenderSystem.hpp
-    RenderSystem.cpp
+    Render.hpp
+    Render.cpp
     RenderPipeline.hpp
     RenderPipeline.cpp
     ViewPort.hpp

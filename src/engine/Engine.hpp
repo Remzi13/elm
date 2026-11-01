@@ -5,12 +5,12 @@
 
 #include "platform/Window.hpp"
 
-#include "render/RenderSystem.hpp"
+#include "render/Render.hpp"
 #include "render/ViewPort.hpp"
 
 #include "graphics/FrameStats.hpp"
 #include "graphics/Camera.hpp"
-#include "graphics/culling/OcclusionCullingSystem.hpp"
+#include "graphics/culling/OcclusionCulling.hpp"
 #include "resource/ResourceSystem.hpp"
 #include "graphics/ModelMeshes.hpp"
 
@@ -107,13 +107,13 @@ namespace elm {
 
 		[[nodiscard]] Settings& GetSettings() noexcept { return m_settings; }
 		[[nodiscard]] platform::Window& GetWindow() noexcept { return m_window; }
-		[[nodiscard]] render::RenderSystem& GetRenderSystem() noexcept { return *m_renderSystem; }
+		[[nodiscard]] render::Render& GetRender() noexcept { return *m_render; }
 		[[nodiscard]] render::ViewPort& GetViewPort() noexcept { return m_engineViewPort; }
 		[[nodiscard]] Scene& GetScene() noexcept { return m_scene.EditScene(); }
 		[[nodiscard]] SceneSystem& GetSceneSystem() noexcept { return m_scene; }
 		[[nodiscard]] resource::ResourceSystem& GetResources() noexcept { return m_resources; }
 		[[nodiscard]] Camera& GetCamera() noexcept { return m_camera; }
-		[[nodiscard]] OcclusionCullingSystem& GetCulling() noexcept { return m_cullingSystem; }
+		[[nodiscard]] OcclusionCulling& GetCulling() noexcept { return m_culling; }
 		[[nodiscard]] InputSystem& GetInput() noexcept { return *m_inputSystem; }
 		[[nodiscard]] PhysicsSystem& GetPhysics() noexcept { return *m_physicsSystem; }
 		[[nodiscard]] script::ScriptSystem& GetScripts() noexcept { return *m_scriptSystem; }
@@ -135,7 +135,7 @@ namespace elm {
 
 	private:
 		platform::Window m_window;
-		UniquePtr<render::RenderSystem> m_renderSystem;
+		UniquePtr<render::Render> m_render;
 		UniquePtr<PhysicsSystem> m_physicsSystem;
 		UniquePtr<InputSystem> m_inputSystem;
 		UniquePtr<script::ScriptSystem> m_scriptSystem;
@@ -165,10 +165,10 @@ namespace elm {
 		uint32_t m_frameCount{ 0 };
 		FrameStats m_currentStats;
 
-		OcclusionCullingSystem m_cullingSystem;
+		OcclusionCulling m_culling;
 
 		// Update and render run in parallel: the update thread builds frame N+1 while the render
-		// thread draws frame N; RenderSystem's frame ring hands snapshots over (see render/frame/FrameRing.hpp).
+		// thread draws frame N; Render's frame ring hands snapshots over (see render/frame/FrameRing.hpp).
 		std::thread m_renderThread;
 	};
 

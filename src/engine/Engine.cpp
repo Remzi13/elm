@@ -27,11 +27,11 @@ namespace {
 } // namespace
 
 Engine::Engine()
-    : m_renderSystem(MakeUnique<render::RenderSystem>())
+    : m_render(MakeUnique<render::Render>())
     , m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
-    , m_meshes(m_renderSystem->Resources())
+    , m_meshes(m_render->Resources())
     , m_scene(m_resources.GetModels())
     , m_playMode(m_scene, m_physicsSystem.get(), *m_scriptSystem)
 {
@@ -49,7 +49,7 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     m_scriptDebugDraw = desc.debugDraw;
     FileSystem::RegisterSettings(m_settings);
     log::registerSettings(m_settings);
-    m_cullingSystem.RegisterSettings(m_settings);
+    m_culling.RegisterSettings(m_settings);
     script::ScriptSystem::RegisterSettings(m_settings);
     script::PlayMode::RegisterSettings(m_settings);
     const Path settingsPath = Settings::DefaultFilePath();
@@ -66,13 +66,13 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     if (auto windowInit = m_window.Create(Size(desc.width, desc.height), desc.title); !windowInit) {
         return MakeUnexpected(windowInit.error());
     }
-    auto renderInit = m_renderSystem->Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize());
+    auto renderInit = m_render->Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize());
     if (!renderInit) {
         m_window.Destroy();
         return MakeUnexpected(renderInit.error());
     }
 
-    m_engineViewPort = render::ViewPort(m_renderSystem->Resources(), Size(desc.width, desc.height));
+    m_engineViewPort = render::ViewPort(m_render->Resources(), Size(desc.width, desc.height));
     m_inputSystem->AttachWindow(m_window.GetHandle());
 
     // Default axes for the scripts (elm.input.axis): WASD moves, E and Q go up and down
@@ -87,11 +87,11 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     auto physicsInit = m_physicsSystem->Init();
     if (!physicsInit) {
         m_engineViewPort = {};
-        m_renderSystem->Shutdown();
+        m_render->Shutdown();
         return MakeUnexpected(physicsInit.error());
     }
 
-    m_cullingSystem.Init(m_renderSystem->Resources(), m_settings);
+    m_culling.Init(m_render->Resources(), m_settings);
 
     // The scripts start with the project (OpenProject), the main module with Play
     m_playMode.SetStartSource([this](script::PlayTarget target) { return MakePlayStart(target); });
@@ -116,7 +116,7 @@ void Engine::RenderThreadFunc()
     core::registerThread(core::ThreadRole::Render);
 
     render::RenderedFrameInfo info;
-    while (m_renderSystem->RenderNextFrame(info)) {
+    while (m_render->RenderNextFrame(info)) {
     }
 
     core::unregisterThread(core::ThreadRole::Render);
@@ -154,12 +154,12 @@ void Engine::Simulate(float deltaTime)
 
 render::FrameWriter Engine::BeginRenderFrame()
 {
-    return m_renderSystem->BeginFrame();
+    return m_render->BeginFrame();
 }
 
 void Engine::StopRendering()
 {
-    m_renderSystem->StopRendering();
+    m_render->StopRendering();
     if (m_renderThread.joinable())
         m_renderThread.join();
 }
@@ -230,7 +230,7 @@ void Engine::DrawScene(render::FrameWriter& frame)
 
 void Engine::SubmitFrame(render::FrameWriter& frame)
 {
-    m_renderSystem->SubmitFrame(frame);
+    m_render->SubmitFrame(frame);
     log::flushFile();
 }
 
@@ -249,7 +249,7 @@ void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::F
         if (!component.visible || nodeIndex == Scene::NoNode)
             continue;
         // A node culling did not see yet (added by the UI, a scene just loaded) is drawn
-        const auto* occludee = m_cullingSystem.FindOccludee(ids[index]);
+        const auto* occludee = m_culling.FindOccludee(ids[index]);
         if (occludee && !occludee->isVisible)
             continue;
         const Vector4& tint = occludee ? occludee->color : component.color;
@@ -299,7 +299,7 @@ void Engine::Update(float deltaTime)
     m_scene.UpdateTransforms();
 
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
-    m_cullingSystem.ExecuteCulling(m_scene.GetScene(), m_resources.GetModels(), cullingVP, m_settings);
+    m_culling.ExecuteCulling(m_scene.GetScene(), m_resources.GetModels(), cullingVP, m_settings);
 
     if (m_physicsSystem) {
         m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
@@ -326,10 +326,10 @@ void Engine::Shutdown()
     m_scene.Clear();
     m_resources.Close();
     m_meshes.Clear();
-    m_cullingSystem.Shutdown();
+    m_culling.Shutdown();
     m_engineViewPort = {};
-    if (m_renderSystem) {
-        m_renderSystem->Shutdown();
+    if (m_render) {
+        m_render->Shutdown();
     }
     m_window.Destroy();
     core::JobSystem::Get().Shutdown();

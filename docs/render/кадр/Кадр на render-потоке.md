@@ -3,7 +3,7 @@ tags: [render, frame]
 ---
 # Кадр на render-потоке
 
-Шаги `RenderSystem::RenderNextFrame` (`render/RenderSystem.cpp`):
+Шаги `Render::RenderNextFrame` (`render/Render.cpp`):
 
 1. **Ждёт кадр** из [[FrameRing]].
 2. **Выполняет команды ресурсов** (`frame.resourceCommands`) в бэкенде ([[RenderResources]]).

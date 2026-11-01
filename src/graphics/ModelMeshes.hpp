@@ -11,7 +11,7 @@ namespace elm::graphics {
     /// The GPU meshes of the models of a ModelCatalog, one per submesh. Sync makes the meshes of new
     /// models, makes them again for replaced ones (keeping meshes whose geometry stayed) and drops those
     /// of removed models. A stale handle has no meshes. Owner: the drawing side of the scene (Engine, the
-    /// Model Editor preview), thread: update; destroyed before RenderSystem::Shutdown.
+    /// Model Editor preview), thread: update; destroyed before Render::Shutdown.
     class ModelMeshes {
     public:
         explicit ModelMeshes(render::RenderResources& resources);

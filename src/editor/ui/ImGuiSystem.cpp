@@ -94,8 +94,8 @@ namespace elm {
 		return window && window->IsFocused();
 	}
 
-	auto ImGuiSystem::Init( platform::Window& window, render::RenderSystem& renderSystem, Settings& settings, StringView title,
-		const OcclusionCullingSystem* cullingSystem ) -> elm::EngineResult<void> {
+	auto ImGuiSystem::Init( platform::Window& window, render::Render& renderer, Settings& settings, StringView title,
+		const OcclusionCulling* culling ) -> elm::EngineResult<void> {
 		m_window = window.GetHandle();
 		m_title = title;
 
@@ -111,15 +111,15 @@ namespace elm {
 
 		// Register standard engine editor windows
 		// Scene Hierarchy, Model Editor and the script windows belong to the project: Editor adds them
-		EmplaceWindow<SocLabWindow>( settings, cullingSystem );
+		EmplaceWindow<SocLabWindow>( settings, culling );
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 		EmplaceWindow<SettingsWindow>( settings );
 
-		m_renderSystem = &renderSystem;
-		m_releasedSurfaceBaseline = renderSystem.GetReleasedSurfaceCount();
-		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem.Resources() );
+		m_render = &renderer;
+		m_releasedSurfaceBaseline = renderer.GetReleasedSurfaceCount();
+		m_renderer = MakeUnique<render::ImGuiRenderer>( renderer.Resources() );
 		if ( !m_renderer->IsInitialized() ) {
 			m_renderer.reset();
 			Shutdown();
@@ -156,7 +156,7 @@ namespace elm {
 		}
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
-		// Renderer callbacks only record events; RenderSystem's backend applies and draws them on the render thread.
+		// Renderer callbacks only record events; Render's backend applies and draws them on the render thread.
 		// Secondary swap-chain resize events are captured with the frame and applied by the render thread.
 		auto& platformIO = ImGui::GetPlatformIO();
 		platformIO.Renderer_CreateWindow = &ImGuiSystem::OnRendererCreateWindow;
@@ -358,7 +358,7 @@ namespace elm {
 	// --- Main thread ---
 
 	void ImGuiSystem::DestroyReleasedPlatformWindows( bool all ) {
-		const uint64_t released = m_renderSystem ? m_renderSystem->GetReleasedSurfaceCount() - m_releasedSurfaceBaseline : 0;
+		const uint64_t released = m_render ? m_render->GetReleasedSurfaceCount() - m_releasedSurfaceBaseline : 0;
 		size_t count = 0;
 		for ( const auto& pending : m_pendingPlatformWindows ) {
 			if ( !all && pending.releaseSequence > released ) break;

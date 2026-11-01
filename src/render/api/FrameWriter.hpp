@@ -6,15 +6,15 @@
 
 namespace elm::render {
 
-    class RenderSystem;
+    class Render;
 
-    /// Update-side writer for one frame. Obtained from RenderSystem::BeginFrame() and handed back
-    /// with RenderSystem::SubmitFrame(). Everything written here is a copy: the update thread may
+    /// Update-side writer for one frame. Obtained from Render::BeginFrame() and handed back
+    /// with Render::SubmitFrame(). Everything written here is a copy: the update thread may
     /// change the scene right after submitting while the render thread draws the snapshot.
     class FrameWriter {
     public:
         FrameWriter() = default;
-        /// Writes into frame, which must outlive the writer. RenderSystem hands out writers over
+        /// Writes into frame, which must outlive the writer. Render hands out writers over
         /// its frame ring; a self-test may write into a snapshot of its own.
         explicit FrameWriter(FrameSnapshot* frame) noexcept
             : m_frame(frame)
@@ -74,7 +74,7 @@ namespace elm::render {
 
     private:
         /// Takes the frame back in SubmitFrame.
-        friend class RenderSystem;
+        friend class Render;
 
         FrameSnapshot* m_frame { nullptr };
     };

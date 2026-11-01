@@ -29,7 +29,7 @@
 #include "graphics/ModelMeshes.hpp"
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/DebugDraw.hpp"
-#include "graphics/debug/DebugDrawSystem.hpp"
+#include "graphics/debug/DebugDrawing.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
 #include "graphics/debug/WorldAxesVisualizer.hpp"
 #include "graphics/gizmo/TransformGizmo.hpp"
@@ -2144,7 +2144,7 @@ namespace elm::script {
         void RunDebugDrawSystemTests(Report& report)
         {
             Settings settings;
-            graphics::DebugDrawSystem system(settings);
+            graphics::DebugDrawing system(settings);
             int draws = 0;
             system.AddVisualizer(MakeUnique<CountingVisualizer>(system.GetDebugDraw(), draws));
 

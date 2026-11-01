@@ -1,4 +1,4 @@
-#include "graphics/culling/OcclusionCullingSystem.hpp"
+#include "graphics/culling/OcclusionCulling.hpp"
 
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
@@ -9,12 +9,12 @@
 
 namespace elm {
 
-OcclusionCullingSystem::OcclusionCullingSystem(uint32_t width, uint32_t height)
+OcclusionCulling::OcclusionCulling(uint32_t width, uint32_t height)
     : m_depthBuffer(width, height)
 {
 }
 
-void OcclusionCullingSystem::RegisterSettings(Settings& settings) const
+void OcclusionCulling::RegisterSettings(Settings& settings) const
 {
     settings.Register(Settings::Category::Render, ResolutionWidthSetting, "Width", uint32_t{ 256 });
     settings.Register(Settings::Category::Render, ResolutionHeightSetting, "Height", uint32_t{ 144 });
@@ -25,19 +25,19 @@ void OcclusionCullingSystem::RegisterSettings(Settings& settings) const
     settings.Register(Settings::Category::Render, DepthFalseColorSetting, "Depth False Color", true);
 }
 
-void OcclusionCullingSystem::Init(render::RenderResources& resources, const Settings& settings)
+void OcclusionCulling::Init(render::RenderResources& resources, const Settings& settings)
 {
     m_resources = &resources;
     ApplySettings(settings);
 }
 
-void OcclusionCullingSystem::Shutdown()
+void OcclusionCulling::Shutdown()
 {
     m_depthPreviewTexture.Reset();
     m_resources = nullptr;
 }
 
-void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height)
+void OcclusionCulling::SetResolution(uint32_t width, uint32_t height)
 {
     if (m_depthBuffer.GetWidth() == width && m_depthBuffer.GetHeight() == height)
         return;
@@ -47,7 +47,7 @@ void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height)
         CreateDepthPreviewTexture(width, height);
 }
 
-void OcclusionCullingSystem::ApplySettings(const Settings& settings)
+void OcclusionCulling::ApplySettings(const Settings& settings)
 {
     const uint32_t width = settings.Get<uint32_t>(Settings::Category::Render, ResolutionWidthSetting);
     const uint32_t height = settings.Get<uint32_t>(Settings::Category::Render, ResolutionHeightSetting);
@@ -63,7 +63,7 @@ void OcclusionCullingSystem::ApplySettings(const Settings& settings)
         : VisualMode::HideCulled;
 }
 
-void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t height)
+void OcclusionCulling::CreateDepthPreviewTexture(uint32_t width, uint32_t height)
 {
     Vector<uint8_t> depthPreviewPixels;
     depthPreviewPixels.resize(static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(uint32_t), 0);
@@ -83,7 +83,7 @@ void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t 
     m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), width * sizeof(uint32_t)));
 }
 
-void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Settings& settings)
+void OcclusionCulling::UpdateDepthPreviewTexture(const Settings& settings)
 {
     if (!m_depthPreviewTexture.IsValid())
         CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
@@ -95,7 +95,7 @@ void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Settings& settings)
     m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), m_depthBuffer.GetWidth() * sizeof(uint32_t)));
 }
 
-void OcclusionCullingSystem::ExecuteCulling(const Scene& scene, const ModelCatalog& models,
+void OcclusionCulling::ExecuteCulling(const Scene& scene, const ModelCatalog& models,
     const Matrix4x4& cullingViewProj, const Settings& settings)
 {
     ELM_PROFILE_SCOPE_N("Execute Culling");

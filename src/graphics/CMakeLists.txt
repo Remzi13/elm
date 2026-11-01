@@ -12,12 +12,12 @@ engine_add_library(graphics
 
     culling/SoftwareDepthBuffer.hpp
     culling/SoftwareDepthBuffer.cpp
-    culling/OcclusionCullingSystem.hpp
-    culling/OcclusionCullingSystem.cpp
+    culling/OcclusionCulling.hpp
+    culling/OcclusionCulling.cpp
     debug/DebugDraw.hpp
     debug/DebugDraw.cpp
-    debug/DebugDrawSystem.hpp
-    debug/DebugDrawSystem.cpp
+    debug/DebugDrawing.hpp
+    debug/DebugDrawing.cpp
     debug/IDebugVisualizer.hpp
     debug/ColliderVisualizer.hpp
     debug/ColliderVisualizer.cpp

@@ -39,7 +39,7 @@ struct OccludeeInstance {
     bool isOcclusionCulled { false };
 };
 
-class OcclusionCullingSystem {
+class OcclusionCulling {
 public:
     static constexpr StringView ResolutionWidthSetting = "culling/Resolution/Width";
     static constexpr StringView ResolutionHeightSetting = "culling/Resolution/Height";
@@ -49,8 +49,8 @@ public:
     static constexpr StringView VisualModeSetting = "culling/VisualMode";
     static constexpr StringView DepthFalseColorSetting = "culling/DepthFalseColor";
 
-    OcclusionCullingSystem(uint32_t width = 256, uint32_t height = 144);
-    ~OcclusionCullingSystem() = default;
+    OcclusionCulling(uint32_t width = 256, uint32_t height = 144);
+    ~OcclusionCulling() = default;
 
     void Init(render::RenderResources& resources, const Settings& settings);
     void Shutdown();

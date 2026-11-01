@@ -14,7 +14,7 @@ namespace elm::render {
     /// Create* returns the handle immediately; the GPU object is created by the render thread
     /// before it draws the first frame submitted after the call. Commands keep their recording
     /// order (across threads: the order in which the calls acquired the internal lock) and are
-    /// never dropped: RenderSystem moves them into the next submitted frame.
+    /// never dropped: Render moves them into the next submitted frame.
     class RenderResources {
     public:
         RenderResources() = default;
@@ -38,7 +38,7 @@ namespace elm::render {
         [[nodiscard]] bool IsAlive(TextureHandle handle) const { return m_textures.IsAlive(handle); }
         [[nodiscard]] bool IsAlive(MeshHandle handle) const { return m_meshes.IsAlive(handle); }
 
-        /// RenderSystem: moves the recorded commands to out (appends).
+        /// Render: moves the recorded commands to out (appends).
         void TakeCommands(ResourceCommandList& out);
 
     private:

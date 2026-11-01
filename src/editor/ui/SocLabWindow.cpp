@@ -1,6 +1,6 @@
 #include "editor/ui/SocLabWindow.hpp"
 
-#include "graphics/culling/OcclusionCullingSystem.hpp"
+#include "graphics/culling/OcclusionCulling.hpp"
 
 #include "imgui.h"
 
@@ -30,8 +30,8 @@ namespace elm {
 	void SocLabWindow::ApplyResolution() {
 		const uint32_t width = ResolutionWidths[m_currentResolution];
 		const uint32_t height = ResolutionHeights[m_currentResolution];
-		m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::ResolutionWidthSetting, width);
-		m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::ResolutionHeightSetting, height);
+		m_settings.Set(Settings::Category::Render, OcclusionCulling::ResolutionWidthSetting, width);
+		m_settings.Set(Settings::Category::Render, OcclusionCulling::ResolutionHeightSetting, height);
 	}
 
 	void SocLabWindow::Render(ImGuiWindowContext& /*context*/) {
@@ -48,20 +48,20 @@ namespace elm {
 		ImGui::Separator();
 
 		if (ImGui::CollapsingHeader("Software Depth Buffer Viewport", ImGuiTreeNodeFlags_DefaultOpen)) {
-			if (!m_cullingSystem) {
+			if (!m_culling) {
 				ImGui::TextDisabled("No Occlusion Culling System connected.");
 			} else {
-				const uint32_t depthWidth = m_cullingSystem->GetWidth();
-				const uint32_t depthHeight = m_cullingSystem->GetHeight();
+				const uint32_t depthWidth = m_culling->GetWidth();
+				const uint32_t depthHeight = m_culling->GetHeight();
 				ImGui::Text("Resolution: %ux%u", depthWidth, depthHeight);
 				ImGui::SameLine();
 				auto falseColor = m_settings.Get<bool>(Settings::Category::Render,
-					OcclusionCullingSystem::DepthFalseColorSetting);
+					OcclusionCulling::DepthFalseColorSetting);
 				if (ImGui::Checkbox("False Color (Heatmap)", &falseColor)) {
-					m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::DepthFalseColorSetting, falseColor);
+					m_settings.Set(Settings::Category::Render, OcclusionCulling::DepthFalseColorSetting, falseColor);
 				}
 
-				const ImTextureID texture = ToTextureId(m_cullingSystem->GetDepthPreviewTexture().GetHandle());
+				const ImTextureID texture = ToTextureId(m_culling->GetDepthPreviewTexture().GetHandle());
 				if (texture && depthHeight > 0) {
 					const float aspect = static_cast<float>(depthWidth) / static_cast<float>(depthHeight);
 					const float width = ImGui::GetContentRegionAvail().x;
@@ -75,7 +75,7 @@ namespace elm {
 						if (px < depthWidth && py < depthHeight) {
 							ImGui::BeginTooltip();
 							ImGui::Text("Pixel: (%u, %u)", px, py);
-							ImGui::Text("Normalized Depth: %.4f", m_cullingSystem->GetDepth(px, py));
+							ImGui::Text("Normalized Depth: %.4f", m_culling->GetDepth(px, py));
 							ImGui::EndTooltip();
 						}
 					}
@@ -85,25 +85,25 @@ namespace elm {
 
 		if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
 			auto enableFrustumCulling = m_settings.Get<bool>(Settings::Category::Render,
-				OcclusionCullingSystem::EnableFrustumCullingSetting);
+				OcclusionCulling::EnableFrustumCullingSetting);
 			if (ImGui::Checkbox("Enable Frustum Culling", &enableFrustumCulling)) {
-				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::EnableFrustumCullingSetting,
+				m_settings.Set(Settings::Category::Render, OcclusionCulling::EnableFrustumCullingSetting,
 					enableFrustumCulling);
 			}
 			auto enableOcclusionCulling = m_settings.Get<bool>(Settings::Category::Render,
-				OcclusionCullingSystem::EnableOcclusionCullingSetting);
+				OcclusionCulling::EnableOcclusionCullingSetting);
 			if (ImGui::Checkbox("Enable Software Occlusion Culling", &enableOcclusionCulling)) {
-				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::EnableOcclusionCullingSetting,
+				m_settings.Set(Settings::Category::Render, OcclusionCulling::EnableOcclusionCullingSetting,
 					enableOcclusionCulling);
 			}
-			auto depthBias = m_settings.Get<float>(Settings::Category::Render, OcclusionCullingSystem::DepthBiasSetting);
+			auto depthBias = m_settings.Get<float>(Settings::Category::Render, OcclusionCulling::DepthBiasSetting);
 			if (ImGui::SliderFloat("Depth Bias", &depthBias, 0.0f, 0.01f, "%.4f")) {
-				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::DepthBiasSetting, depthBias);
+				m_settings.Set(Settings::Category::Render, OcclusionCulling::DepthBiasSetting, depthBias);
 			}
 			const uint32_t currentWidth =
-				m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCullingSystem::ResolutionWidthSetting);
+				m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCulling::ResolutionWidthSetting);
 			const uint32_t currentHeight =
-				m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCullingSystem::ResolutionHeightSetting);
+				m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCulling::ResolutionHeightSetting);
 			for (size_t index = 0; index < ResolutionWidths.size(); ++index) {
 				if (ResolutionWidths[index] == currentWidth && ResolutionHeights[index] == currentHeight) {
 					m_currentResolution = static_cast<int>(index);
@@ -118,20 +118,20 @@ namespace elm {
 
 		if (ImGui::CollapsingHeader("Visualization Modes", ImGuiTreeNodeFlags_DefaultOpen)) {
 			int mode = static_cast<int>(m_settings.Get<uint32_t>(Settings::Category::Render,
-				OcclusionCullingSystem::VisualModeSetting));
+				OcclusionCulling::VisualModeSetting));
 			bool modeChanged = false;
 			if (ImGui::RadioButton("Hide Culled (Draw Visible Only)", &mode, 0)) modeChanged = true;
 			if (ImGui::RadioButton("Highlight Culled (Red Ghost)", &mode, 1)) modeChanged = true;
 			if (ImGui::RadioButton("Occluders Only", &mode, 2)) modeChanged = true;
 			if (modeChanged) {
-				m_settings.Set(Settings::Category::Render, OcclusionCullingSystem::VisualModeSetting,
+				m_settings.Set(Settings::Category::Render, OcclusionCulling::VisualModeSetting,
 					static_cast<uint32_t>(mode));
 			}
 		}
 
 		if (ImGui::CollapsingHeader("Real-Time Telemetry", ImGuiTreeNodeFlags_DefaultOpen)) {
-			if (m_cullingSystem) {
-				const auto& s = m_cullingSystem->GetStats();
+			if (m_culling) {
+				const auto& s = m_culling->GetStats();
 				ImGui::Text("Total Objects:     %u", s.totalObjects);
 				ImGui::TextColored(ImVec4(0.3f, 1.0f, 0.3f, 1.0f), "Visible Rendered:  %u", s.visibleCount);
 				ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "Frustum Culled:    %u", s.frustumCulledCount);

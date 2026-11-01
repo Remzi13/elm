@@ -44,15 +44,15 @@ namespace elm::render {
     ///  - Update thread: Init, BeginFrame/SubmitFrame, StopRendering, Shutdown, GetSize.
     ///  - Render thread: RenderNextFrame only.
     ///  - Any thread: Resources() and everything on RenderResources.
-    class RenderSystem {
+    class Render {
     public:
-        RenderSystem();
-        ~RenderSystem();
+        Render();
+        ~Render();
 
-        RenderSystem(const RenderSystem&) = delete;
-        RenderSystem& operator=(const RenderSystem&) = delete;
-        RenderSystem(RenderSystem&&) noexcept = delete;
-        RenderSystem& operator=(RenderSystem&&) noexcept = delete;
+        Render(const Render&) = delete;
+        Render& operator=(const Render&) = delete;
+        Render(Render&&) noexcept = delete;
+        Render& operator=(Render&&) noexcept = delete;
 
         /// The window stays owned by the caller and must outlive the render system.
         [[nodiscard]] auto Init(const NativeWindow& window, Size surfaceSize) -> EngineResult<void>;

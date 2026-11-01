@@ -9,17 +9,17 @@
 
 namespace elm {
 
-	class OcclusionCullingSystem;
+	class OcclusionCulling;
 
 	class SocLabWindow final : public IImGuiWindow {
 	public:
-		SocLabWindow(Settings& settings, const OcclusionCullingSystem* cullingSystem = nullptr)
-			: IImGuiWindow(settings), m_cullingSystem(cullingSystem) {}
+		SocLabWindow(Settings& settings, const OcclusionCulling* culling = nullptr)
+			: IImGuiWindow(settings), m_culling(culling) {}
 
 		[[nodiscard]] StringView GetName() const override { return "Software Occlusion Culling Lab"; }
 		void Render(ImGuiWindowContext& context) override;
 
-		void SetCullingSystem(const OcclusionCullingSystem* cullingSystem) noexcept { m_cullingSystem = cullingSystem; }
+		void SetCullingSystem(const OcclusionCulling* culling) noexcept { m_culling = culling; }
 
 		[[nodiscard]] int GetResolutionIndex() const noexcept { return m_currentResolution; }
 		void SetResolutionIndex(int index) noexcept;
@@ -28,7 +28,7 @@ namespace elm {
 		void ApplyResolution();
 
 	private:
-		const OcclusionCullingSystem* m_cullingSystem{ nullptr };
+		const OcclusionCulling* m_culling{ nullptr };
 		int m_currentResolution{ 2 };
 	};
 

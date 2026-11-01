@@ -1,6 +1,6 @@
 #include "editor/ui/SettingsWindow.hpp"
 
-#include "graphics/culling/OcclusionCullingSystem.hpp"
+#include "graphics/culling/OcclusionCulling.hpp"
 
 #include "imgui.h"
 
@@ -75,7 +75,7 @@ namespace elm {
 			else if (const auto* integerValue = std::get_if<uint32_t>(&entry.value)) {
 				const bool isVisualMode = entry.category == Settings::Category::Render &&
 					StringView(entry.path.data(), entry.path.size()) ==
-						OcclusionCullingSystem::VisualModeSetting;
+						OcclusionCulling::VisualModeSetting;
 				if (isVisualMode) {
 					const bool validSelection = *integerValue < VisualModeChoices.size();
 					const char* preview = validSelection ? VisualModeChoices[*integerValue] : "<invalid>";

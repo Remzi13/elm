@@ -1,5 +1,5 @@
 #include "editor/ui/ProfilerWindow.hpp"
-#include "render/RenderSystem.hpp"
+#include "render/Render.hpp"
 #include "graphics/FrameStats.hpp"
 
 #include "imgui.h"
@@ -35,7 +35,7 @@ namespace elm {
 	}
 
 	void ProfilerWindow::Render(ImGuiWindowContext& context) {
-		auto& renderSystem = context.renderSystem;
+		auto& renderer = context.renderer;
 		const auto& stats = context.stats;
 		if (!m_visible) return;
 
@@ -68,7 +68,7 @@ namespace elm {
 
 		ImGui::TextColored(fpsColor, "Avg: %.1f  Min: %.1f  Max: %.1f", m_fpsAvg, m_fpsMin, m_fpsMax);
 
-		const auto renderStats = renderSystem.GetRenderStats();
+		const auto renderStats = renderer.GetRenderStats();
 		ImGui::Text("Render graph: %u passes (%u culled), %u levels, %u draws",
 			renderStats.passCount, renderStats.culledPassCount, renderStats.levelCount, renderStats.drawCalls);
 		ImGui::Text("Command lists: %u (%u on %u workers), render lag %u frame(s)",
@@ -121,7 +121,7 @@ namespace elm {
 		// Two separate pools: the engine allocator's heap and the graphics API memory of the backend.
 		// Neither contains the other, and third-party libraries and the driver are in neither.
 		const long long engineHeapKb = static_cast<long long>(memory::getStatistic().allocated / 1024);
-		const unsigned long long renderGpuMemoryKb = static_cast<unsigned long long>(renderSystem.GetMemAllocated() / 1024);
+		const unsigned long long renderGpuMemoryKb = static_cast<unsigned long long>(renderer.GetMemAllocated() / 1024);
 
 		const auto formatMemory = [](auto valueKb) -> const char* {
 			static char buf[64];

@@ -47,7 +47,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
   `MeshHandle` и т. п., а не указатель или индекс. Устаревший хэндл не проходит проверку поколения,
   и код это обрабатывает (`nullptr`, `false`, пропуск).
 - **Владелец и поток известны.** В `///` комментарии класса сказано, кто владеет объектом, из какого
-  потока его можно вызывать и что будет с невалидным хэндлом (образец: `PhysicsSystem`, `RenderSystem`).
+  потока его можно вызывать и что будет с невалидным хэндлом (образец: `PhysicsSystem`, `Render`).
 - **Данные отдельно от систем.** Компоненты (`ScriptComponent`, `RigidBody`, `Collider`, `ModelComponent`) остаются
   простыми `struct` без логики и без ссылок на Lua/Jolt/GPU. Поведение живёт в системах.
 - **Новая сущность** → строка в глоссарий ниже и раздел в соответствующей заметке `docs/`.
@@ -98,12 +98,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ModelCatalog` | модели сцены на CPU и пути их файлов по хэндлу (`FileOf`, пусто у модели только в памяти), номер версии модели (`RevisionOf`); модуль `model`, о GPU не знает |
 | `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют |
 | `Camera`, `CameraController`, `ViewRay` | камера вида (у `Engine`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
-| `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
+| `OcclusionCulling`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр; `editor/ui/`, только редактор |
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
 | `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
-| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; для вьюпорта движка — у программы (`Editor`, `elm` с `ELM_DEBUG_DRAW`), движок получает только `DebugDraw*` для скриптов |
+| `DebugDrawing` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; для вьюпорта движка — у программы (`Editor`, `elm` с `ELM_DEBUG_DRAW`), движок получает только `DebugDraw*` для скриптов |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
@@ -114,7 +114,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 | Сущность | Что это | Поток |
 |---|---|---|
-| `RenderSystem` | фасад подсистемы рендера | update + render (см. его контракт) |
+| `render::Render` (бывший `RenderSystem`) | фасад рендера: устройство, ресурсы GPU, кадр, свой render-поток; часть `GraphicsSystem` | update + render (см. его контракт) |
 | `RenderResources` | создание, обновление и удаление ресурсов командами | любой |
 | `TextureHandle`, `BufferHandle`, `MeshHandle`, `ShaderHandle`, `PipelineHandle`, `SurfaceId` | хэндлы ресурсов | любой |
 | `render::Texture`, `render::Mesh` | RAII-владельцы ресурсов | любой |
@@ -206,7 +206,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
 - **Lua** подключается только через `script/lua/Lua.hpp`, не через `lua.hpp`. Lua собрана как C++,
   поэтому `lua_error` бросает исключение и разматывает C++-кадры биндингов.
 - **Время жизни.** RAII-ресурсы рендера (`Texture`, `Mesh`, `ViewPort`, `ModelMeshes`) уничтожаются
-  до `RenderSystem::Shutdown()`.
+  до `Render::Shutdown()`.
 - **Формат файлов.** Меняешь формат `.scene`/`.model`: подними `formatVersion`, сохрани чтение
   старых версий и обнови `docs/scene/Файл сцены.md`.
 

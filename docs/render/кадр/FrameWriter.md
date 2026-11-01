@@ -4,7 +4,7 @@ tags: [render, frame, api]
 # FrameWriter
 
 Файл: `render/api/FrameWriter.hpp`. Это writer кадра на update-стороне. Его выдаёт
-`RenderSystem::BeginFrame()`, а возвращают вызовом `RenderSystem::SubmitFrame()`. Всё, что
+`Render::BeginFrame()`, а возвращают вызовом `Render::SubmitFrame()`. Всё, что
 записано через него, **копируется** в [[FrameSnapshot]], поэтому после `SubmitFrame` сцену
 можно сразу менять.
 
