@@ -19,12 +19,13 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 - Плеер, игра без редактора: `Engine --project projects/Sandbox --player` (сразу Play Project, Stop завершает программу).
 - Сборка игры: `Engine --build projects/Sandbox` → `projects/Sandbox/Build/Sandbox/Sandbox.exe`, она без аргументов играет свой проект.
 - Запуск с тестовой сценой: `Engine --scene <0..3> [--instances N]` (`ScenePreset`).
-- Тесты: `Engine --script-selftest`. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все
+- Тесты: `build/elm_tests` (`build/Debug/elm_tests.exe` в MSVC), отдельная программа без окна и GPU. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все
   `projects/Sandbox/assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
+  Их же гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
 - Lua API для LuaLS: `Engine --dump-script-api` перегенерирует `projects/Sandbox/assets/scripts/.meta/elm.lua`. Это сгенерированный файл, руками его не правь.
 - `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
   отступ табом или 4 пробелами, как уже в файле. Посторонние строки не переформатируй.
-- Перед завершением задачи: сборка без новых предупреждений, `--script-selftest` проходит.
+- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` проходит.
 
 ## 1. Сущности выражены явно
 
@@ -306,7 +307,7 @@ Engine     (EngineApp, main.cpp) собирает всё
 - Атомарные счётчики через `std::atomic`.
 
 ## 10. Тесты
-- Тесты — это `Engine --script-selftest`. GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
+- Тесты — это `elm_tests`. GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
 - Lua-тест: файл `projects/Sandbox/assets/scripts/tests/<область>_test.lua` возвращает таблицу `tests` с функциями,
   проверки через `require "tests.expect"` (`expect.eq`, `expect.near`, `expect.error`), фикстуры
   в `tests/fixtures/`. Имя теста описывает сценарий: `tests.vector3_construction`.
@@ -321,7 +322,7 @@ Engine     (EngineApp, main.cpp) собирает всё
 2. Для нетривиальных задач сначала короткий план: какие сущности и файлы затронуты и за что отвечает каждый.
 3. Минимальные изменения под задачу. Постороннее без запроса не рефактори, включая известные нарушения выше.
 4. Одна логическая правка = один набор связанных изменений.
-5. После правок: сборка без новых предупреждений, `--script-selftest`, обновлённые `docs/`.
+5. После правок: сборка без новых предупреждений, `elm_tests`, обновлённые `docs/`.
 6. Новые зависимости только по согласованию.
 7. Требование неясно или правило конфликтует с задачей: спроси, не угадывай.
 8. Сообщения коммитов: коротко, по-английски, в повелительном наклонении (`add lua bindings`).

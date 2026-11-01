@@ -354,7 +354,7 @@ e:destroy()                                   -- вместе с потомка�
 ## Инструменты
 
 ```bash
-Engine --script-selftest      # C++-проверки и tests/*_test.lua проекта Sandbox, код выхода = число провалов
+elm_tests                     # C++-проверки и tests/*_test.lua проекта Sandbox, код выхода = число провалов
 Engine --dump-script-api      # .meta/elm.lua в скриптах Sandbox: аннотации для LuaLS
 ```
 

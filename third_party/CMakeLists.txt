@@ -110,7 +110,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(tracy)
 
 # Build the Tracy Profiler GUI executable (tracy-profiler) in dependencies
-if(EXISTS "${tracy_SOURCE_DIR}/profiler")
+if(ELM_BUILD_TRACY_PROFILER AND EXISTS "${tracy_SOURCE_DIR}/profiler")
     set(NO_PARALLEL_STL ON CACHE BOOL "" FORCE)
     set(LEGACY ON CACHE BOOL "" FORCE)
     # Profiler vendors old dependencies (freetype requires CMake 3.0), CMake 4 rejects policies < 3.5

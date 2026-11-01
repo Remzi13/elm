@@ -15,15 +15,12 @@
 #include "resmgr/Serializer.hpp"
 
 #include "script/ScriptSystem.hpp"
-#include "script/SelfTest.hpp"
 
 #include <algorithm>
 #include <optional>
 
 namespace {
 
-    /// The project the self tests run on: its tests check the demo scripts too.
-    constexpr const char* SelfTestProject = "projects/Sandbox";
     constexpr const char* DefaultScriptApiFile = "projects/Sandbox/assets/scripts/.meta/elm.lua";
 
     /// Resolves the asset root from the settings file without starting the engine.
@@ -57,19 +54,6 @@ namespace {
         }
         std::cout << "Script API written to " << path.string() << std::endl;
         return 0;
-    }
-
-    /// --script-selftest: the binding checks and the Lua tests of the self test project.
-    int RunSelfTests()
-    {
-        using namespace elm;
-        const Path file = project::Project::FindFile(FileSystem::Resolve(SelfTestProject));
-        const auto project = resmgr::Serializer::LoadProject(file);
-        if (!project) {
-            std::cerr << project.error().message << std::endl;
-            return 1;
-        }
-        return script::RunSelfTests(project->Scripts());
     }
 
     /// --build <project>: builds the project into its Build/<Name> folder with this program (docs/project/Проекты.md#Сборка).
@@ -121,15 +105,12 @@ int main(int argc, char** argv) {
 
     // Tool modes: run without a window and exit
     for (int i = 1; i < argc; ++i) {
-        const bool selfTest = std::strcmp(argv[i], "--script-selftest") == 0;
         const bool dumpApi = std::strcmp(argv[i], "--dump-script-api") == 0;
         const bool build = std::strcmp(argv[i], "--build") == 0;
-        if (!selfTest && !dumpApi && !build)
+        if (!dumpApi && !build)
             continue;
         ApplyFileSystemSettings();
         core::registerThread(core::ThreadRole::Update);
-        if (selfTest)
-            return RunSelfTests();
         if (build)
             return i + 1 < argc ? BuildGame(argv[i + 1]) : 1;
         return DumpScriptApi(i + 1 < argc ? argv[i + 1] : DefaultScriptApiFile);

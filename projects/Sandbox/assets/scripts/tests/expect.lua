@@ -1,4 +1,4 @@
--- Assertions for the *_test.lua files (Engine --script-selftest).
+-- Assertions for the *_test.lua files (elm_tests).
 local expect = {}
 
 function expect.eq(actual, expected, message)

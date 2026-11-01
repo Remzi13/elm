@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ELM_LOG_TO_CONSOLE "Duplicate log messages to the system console" OFF)
+option(ELM_BUILD_TRACY_PROFILER "Build the Tracy Profiler GUI (tracy-profiler) with the engine" ON)
 
 # Include custom compile options
 include(cmake/CompileOptions.cmake)
@@ -80,6 +81,22 @@ set_target_properties(Engine PROPERTIES
     CXX_STANDARD 23
     CXX_STANDARD_REQUIRED ON
 )
+
+# ------------------------------------------------------------------------------
+# Self tests: binding checks and Lua tests without a window or GPU (CI)
+# ------------------------------------------------------------------------------
+add_executable(elm_tests
+    src/tests/main.cpp
+)
+
+target_include_directories(elm_tests PUBLIC ${ENGINE_INCLUDE_DIRS})
+if(WIN32)
+    target_compile_definitions(elm_tests PUBLIC PLATFORM_WIN32=1)
+else()
+    target_compile_definitions(elm_tests PUBLIC PLATFORM_LINUX=1)
+endif()
+target_set_warnings(elm_tests)
+target_link_libraries(elm_tests PRIVATE core project resmgr script)
 
 add_custom_command(TARGET Engine POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
