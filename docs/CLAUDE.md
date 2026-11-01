@@ -80,7 +80,7 @@ elm — 3D-движок с редактором на C++23: собственны
 | `ModelHandler` | хэндл модели в `ModelCatalog` (`model/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
 | `ModelCatalog` | модели сцены на CPU и пути их файлов по хэндлу (`FileOf`, пусто у модели только в памяти), номер версии модели (`RevisionOf`); модуль `model`, о GPU не знает |
 | `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют |
-| `Camera`, `CameraController`, `ViewRay` | камера вида (у `Engine`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
+| `Camera`, `CameraController`, `ViewRay` | камера вида (у `GraphicsSystem`, `GetViewCamera`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCulling`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
 | `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |

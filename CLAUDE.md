@@ -96,8 +96,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком. О файлах и проекте модель не знает |
 | `ModelHandler` | хэндл модели в `ModelCatalog` (`model/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
 | `ModelCatalog` | модели сцены на CPU и пути их файлов по хэндлу (`FileOf`, пусто у модели только в памяти), номер версии модели (`RevisionOf`); модуль `model`, о GPU не знает |
-| `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют |
-| `Camera`, `CameraController`, `ViewRay` | камера вида (у `Engine`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
+| `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют; часть `GraphicsSystem` |
+| `Camera`, `CameraController`, `ViewRay` | камера вида (у `GraphicsSystem`, `GetViewCamera`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCulling`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр; `editor/ui/`, только редактор |
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
@@ -114,6 +114,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 | Сущность | Что это | Поток |
 |---|---|---|
+| `graphics::GraphicsSystem` | всё отображение: `render::Render` и render-поток, вид (камера и вьюпорт), culling, GPU-меши моделей, запись моделей в кадр (`DrawWorld`), вид на всё окно (`PresentToWindow`). Сцену и модели только читает | update + свой render-поток |
 | `render::Render` (бывший `RenderSystem`) | фасад рендера: устройство, ресурсы GPU, кадр, свой render-поток; часть `GraphicsSystem` | update + render (см. его контракт) |
 | `RenderResources` | создание, обновление и удаление ресурсов командами | любой |
 | `TextureHandle`, `BufferHandle`, `MeshHandle`, `ShaderHandle`, `PipelineHandle`, `SurfaceId` | хэндлы ресурсов | любой |

@@ -6,7 +6,6 @@
 
 #include "engine/Engine.hpp"
 
-#include "graphics/GameView.hpp"
 #include "graphics/debug/DebugDrawing.hpp"
 #if defined(ELM_DEBUG_DRAW)
 #include "graphics/debug/ColliderVisualizer.hpp"
@@ -107,9 +106,7 @@ namespace {
             elm::render::FrameWriter frame = engine.BeginRenderFrame();
             if (!frame)
                 return;
-            const elm::Size framebuffer = engine.GetWindow().GetFramebufferSize();
-            elm::graphics::FitGameView(framebuffer, engine.GetViewPort(), engine.GetCamera());
-            elm::graphics::WriteGameOverlay(engine.GetViewPort(), framebuffer, frame.Overlay());
+            engine.GetGraphics().PresentToWindow(frame, engine.GetWindow().GetFramebufferSize());
             engine.DrawScene(frame);
             if (debugDraw)
                 debugDraw->EndFrame(frame);

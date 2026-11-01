@@ -39,7 +39,7 @@ namespace elm {
 	Editor::Editor()
 		: m_settings(m_engine.GetSettings())
 		, m_debugDraw(m_settings)
-		, m_cameraController(m_engine.GetCamera())
+		, m_cameraController(m_engine.GetGraphics().GetViewCamera())
 		, m_editMode(m_engine.GetPlayMode(), m_engine.GetSceneSystem(), m_engine.GetScripts())
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
@@ -63,7 +63,7 @@ namespace elm {
 		if (auto engineInit = m_engine.Init(desc); !engineInit)
 			return engineInit;
 		m_engine.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
-		if (auto init = m_imgui->Init(m_engine.GetWindow(), m_engine.GetRender(), m_settings, "Engine Debug UI", &m_engine.GetCulling()); !init)
+		if (auto init = m_imgui->Init(m_engine.GetWindow(), m_engine.GetGraphics().GetRender(), m_settings, "Engine Debug UI", &m_engine.GetGraphics().GetCulling()); !init)
 			return init;
 		m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(m_settings, editor::ProjectHubDesc {
 			.recent = [this] { return RecentProjects(); },
@@ -95,7 +95,7 @@ namespace elm {
 			m_cameraController.Update(deltaTime);
 			m_engine.Simulate(deltaTime);
 			// The SocLab window shows the culling depth buffer; the game never makes the texture
-			m_engine.GetCulling().UpdateDepthPreviewTexture(m_settings);
+			m_engine.GetGraphics().GetCulling().UpdateDepthPreviewTexture(m_settings);
 
 			render::FrameWriter frame = m_engine.BeginRenderFrame();
 			if (!frame)
@@ -221,8 +221,8 @@ namespace elm {
 	{
 		// UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
 		ELM_PROFILE_SCOPE_N("Build Overlay");
-		m_imgui->BuildFrame({ m_engine.GetRender(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetCamera(),
-			m_engine.GetFrameStats(), m_engine.GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
+		m_imgui->BuildFrame({ m_engine.GetGraphics().GetRender(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetGraphics().GetViewCamera(),
+			m_engine.GetFrameStats(), m_engine.GetGraphics().GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
 	}
 
 	void Editor::AddVisualizers()

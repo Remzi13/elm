@@ -27,12 +27,11 @@ namespace {
 } // namespace
 
 Engine::Engine()
-    : m_render(MakeUnique<render::Render>())
-    , m_physicsSystem(MakeUnique<PhysicsSystem>())
+    : m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
-    , m_meshes(m_render->Resources())
     , m_scene(m_resources.GetModels())
+    , m_graphics(m_settings, m_scene, m_resources.GetModels())
     , m_playMode(m_scene, m_physicsSystem.get(), *m_scriptSystem)
 {
 }
@@ -49,7 +48,7 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     m_scriptDebugDraw = desc.debugDraw;
     FileSystem::RegisterSettings(m_settings);
     log::registerSettings(m_settings);
-    m_culling.RegisterSettings(m_settings);
+    m_graphics.RegisterSettings();
     script::ScriptSystem::RegisterSettings(m_settings);
     script::PlayMode::RegisterSettings(m_settings);
     const Path settingsPath = Settings::DefaultFilePath();
@@ -58,21 +57,17 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     FileSystem::ApplySettings(m_settings, settingsPath.Parent());
     log::applySettings(m_settings, settingsPath.Parent());
 
-    m_camera.SetAspect(static_cast<float>(desc.width) / static_cast<float>(desc.height));
-    // Initialize the render backend and its command queue first.
     core::registerThread(core::ThreadRole::Update);
     ELM_PROFILE_THREAD("Main Thread");
     core::JobSystem::Get().Init();
     if (auto windowInit = m_window.Create(Size(desc.width, desc.height), desc.title); !windowInit) {
         return MakeUnexpected(windowInit.error());
     }
-    auto renderInit = m_render->Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize());
-    if (!renderInit) {
+    if (auto graphicsInit = m_graphics.Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize(), Size(desc.width, desc.height));
+        !graphicsInit) {
         m_window.Destroy();
-        return MakeUnexpected(renderInit.error());
+        return MakeUnexpected(graphicsInit.error());
     }
-
-    m_engineViewPort = render::ViewPort(m_render->Resources(), Size(desc.width, desc.height));
     m_inputSystem->AttachWindow(m_window.GetHandle());
 
     // Default axes for the scripts (elm.input.axis): WASD moves, E and Q go up and down
@@ -86,12 +81,9 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     // Initialize Physics System
     auto physicsInit = m_physicsSystem->Init();
     if (!physicsInit) {
-        m_engineViewPort = {};
-        m_render->Shutdown();
+        m_graphics.Shutdown();
         return MakeUnexpected(physicsInit.error());
     }
-
-    m_culling.Init(m_render->Resources(), m_settings);
 
     // The scripts start with the project (OpenProject), the main module with Play
     m_playMode.SetStartSource([this](script::PlayTarget target) { return MakePlayStart(target); });
@@ -99,28 +91,12 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     m_isRunning = true;
     m_physicsAccumulator = 0.0f;
     m_lastFrameTime = core::getTimeStamp();
-    m_renderThread = std::thread(&Engine::RenderThreadFunc, this);
 
     LOG_MESSAGE( log::Category::Core, LogSource, "Engine initialization completed successfully." );
     
     return { };
 }
 
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Render thread — draws the frame snapshots submitted by the update (main) thread.
-// ─────────────────────────────────────────────────────────────────────────────
-void Engine::RenderThreadFunc()
-{
-    ELM_PROFILE_THREAD("Render Thread");
-    core::registerThread(core::ThreadRole::Render);
-
-    render::RenderedFrameInfo info;
-    while (m_render->RenderNextFrame(info)) {
-    }
-
-    core::unregisterThread(core::ThreadRole::Render);
-}
 
 bool Engine::ShouldClose() const
 {
@@ -154,14 +130,12 @@ void Engine::Simulate(float deltaTime)
 
 render::FrameWriter Engine::BeginRenderFrame()
 {
-    return m_render->BeginFrame();
+    return m_graphics.BeginFrame();
 }
 
 void Engine::StopRendering()
 {
-    m_render->StopRendering();
-    if (m_renderThread.joinable())
-        m_renderThread.join();
+    m_graphics.StopRendering();
 }
 
 void Engine::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
@@ -187,7 +161,7 @@ void Engine::OpenProject(project::Project project)
     m_resources.Open(std::move(project));
     const project::Project& opened = *m_resources.GetProject();
 
-    const script::EngineContext scriptEngine { &m_scene.EditScene(), &m_resources.GetModels(), m_inputSystem.get(), &m_camera, &m_settings,
+    const script::EngineContext scriptEngine { &m_scene.EditScene(), &m_resources.GetModels(), m_inputSystem.get(), &m_graphics.GetViewCamera(), &m_settings,
         m_physicsSystem.get(), m_playMode.Requests(), m_scriptDebugDraw, &opened };
     // In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
     if (auto scriptInit = m_scriptSystem->Init(scriptEngine, opened.Scripts()); !scriptInit)
@@ -213,56 +187,15 @@ std::optional<script::PlayStart> Engine::MakePlayStart(script::PlayTarget target
 
 void Engine::DrawScene(render::FrameWriter& frame)
 {
-    ELM_PROFILE_SCOPE_N("Build Frame Snapshot");
-
-    frame.SetBackbufferSize(m_window.GetFramebufferSize());
-
-    const render::CameraData camera { m_camera.GetViewProjectionMatrix(), m_camera.GetPosition() };
-    frame.BeginSceneView(camera, m_engineViewPort.GetColorTexture(), m_engineViewPort.GetSize());
-
-    // The UI may have moved nodes since the update
+    // The UI may have moved nodes since the update; graphics only reads the scene
     m_scene.UpdateTransforms();
-    m_meshes.Sync(m_resources.GetModels());
-    if (const auto* drawn = m_scene.GetScene().FindComponents<ModelComponent>())
-        SubmitModels(*drawn, frame);
-
+    m_graphics.DrawWorld(frame, m_window.GetFramebufferSize());
 }
 
 void Engine::SubmitFrame(render::FrameWriter& frame)
 {
-    m_render->SubmitFrame(frame);
+    m_graphics.EndFrame(frame);
     log::flushFile();
-}
-
-void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame)
-{
-    const auto ids = drawn.Ids();
-    const auto components = drawn.Components();
-    const auto worldTransforms = m_scene.GetScene().WorldTransforms();
-    size_t drawCount = 0;
-    for (const auto& component : components)
-        drawCount += m_meshes.GetMeshes(component.model).size();
-    frame.ReserveDraws(drawCount);
-    for (size_t index = 0; index < components.size(); ++index) {
-        const ModelComponent& component = components[index];
-        const size_t nodeIndex = m_scene.GetScene().IndexOf(ids[index]);
-        if (!component.visible || nodeIndex == Scene::NoNode)
-            continue;
-        // A node culling did not see yet (added by the UI, a scene just loaded) is drawn
-        const auto* occludee = m_culling.FindOccludee(ids[index]);
-        if (occludee && !occludee->isVisible)
-            continue;
-        const Vector4& tint = occludee ? occludee->color : component.color;
-        m_meshes.ForEachSubmesh(m_resources.GetModels(), component.model, [&](const Model::Submesh& submesh, render::MeshHandle mesh) {
-            const Vector4 color {
-                submesh.color.x * tint.x,
-                submesh.color.y * tint.y,
-                submesh.color.z * tint.z,
-                submesh.color.w * tint.w
-            };
-            frame.Draw(mesh, worldTransforms[nodeIndex], color);
-        });
-    }
 }
 
 void Engine::FixedUpdate(float fixedDeltaTime)
@@ -298,8 +231,7 @@ void Engine::Update(float deltaTime)
     // Scripts move nodes through local transforms
     m_scene.UpdateTransforms();
 
-    const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
-    m_culling.ExecuteCulling(m_scene.GetScene(), m_resources.GetModels(), cullingVP, m_settings);
+    m_graphics.Cull();
 
     if (m_physicsSystem) {
         m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
@@ -325,12 +257,7 @@ void Engine::Shutdown()
 
     m_scene.Clear();
     m_resources.Close();
-    m_meshes.Clear();
-    m_culling.Shutdown();
-    m_engineViewPort = {};
-    if (m_render) {
-        m_render->Shutdown();
-    }
+    m_graphics.Shutdown();
     m_window.Destroy();
     core::JobSystem::Get().Shutdown();
 

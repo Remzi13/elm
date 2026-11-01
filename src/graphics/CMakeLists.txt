@@ -8,6 +8,8 @@ engine_add_library(graphics
     ModelImport.hpp
     ModelImport.cpp
     GameView.hpp
+    GraphicsSystem.hpp
+    GraphicsSystem.cpp
     GameView.cpp
 
     culling/SoftwareDepthBuffer.hpp
@@ -30,4 +32,4 @@ engine_add_library(graphics
     gizmo/TransformGizmo.cpp
 )
 
-target_link_libraries(graphics PUBLIC core render platform model resource)
+target_link_libraries(graphics PUBLIC core render platform model Scene resource)

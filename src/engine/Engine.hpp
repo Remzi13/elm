@@ -5,14 +5,10 @@
 
 #include "platform/Window.hpp"
 
-#include "render/Render.hpp"
-#include "render/ViewPort.hpp"
 
 #include "graphics/FrameStats.hpp"
-#include "graphics/Camera.hpp"
-#include "graphics/culling/OcclusionCulling.hpp"
+#include "graphics/GraphicsSystem.hpp"
 #include "resource/ResourceSystem.hpp"
-#include "graphics/ModelMeshes.hpp"
 
 #include "Scene/SceneSystem.hpp"
 #include "Scene/TestScenes.hpp"
@@ -107,13 +103,10 @@ namespace elm {
 
 		[[nodiscard]] Settings& GetSettings() noexcept { return m_settings; }
 		[[nodiscard]] platform::Window& GetWindow() noexcept { return m_window; }
-		[[nodiscard]] render::Render& GetRender() noexcept { return *m_render; }
-		[[nodiscard]] render::ViewPort& GetViewPort() noexcept { return m_engineViewPort; }
+		[[nodiscard]] graphics::GraphicsSystem& GetGraphics() noexcept { return m_graphics; }
 		[[nodiscard]] Scene& GetScene() noexcept { return m_scene.EditScene(); }
 		[[nodiscard]] SceneSystem& GetSceneSystem() noexcept { return m_scene; }
 		[[nodiscard]] resource::ResourceSystem& GetResources() noexcept { return m_resources; }
-		[[nodiscard]] Camera& GetCamera() noexcept { return m_camera; }
-		[[nodiscard]] OcclusionCulling& GetCulling() noexcept { return m_culling; }
 		[[nodiscard]] InputSystem& GetInput() noexcept { return *m_inputSystem; }
 		[[nodiscard]] PhysicsSystem& GetPhysics() noexcept { return *m_physicsSystem; }
 		[[nodiscard]] script::ScriptSystem& GetScripts() noexcept { return *m_scriptSystem; }
@@ -123,31 +116,24 @@ namespace elm {
 	private:
 		void FixedUpdate(float fixedDeltaTime);
 		void Update(float deltaTime);
-		/// Draws the shown models of the scene that culling did not reject.
-		void SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame);
 
-		/// Render thread entry point: draws submitted frames until rendering is stopped.
-		void RenderThreadFunc();
 
 		/// How Play starts for PlayMode: the startup scene for Play Project, the project's main module.
 		/// Nothing when the startup scene cannot be read: the Play does not begin.
 		[[nodiscard]] std::optional<script::PlayStart> MakePlayStart(script::PlayTarget target) const;
 
 	private:
+		Settings m_settings;
 		platform::Window m_window;
-		UniquePtr<render::Render> m_render;
 		UniquePtr<PhysicsSystem> m_physicsSystem;
 		UniquePtr<InputSystem> m_inputSystem;
 		UniquePtr<script::ScriptSystem> m_scriptSystem;
 
-		Camera m_camera;
 		/// The open project and its models; before the scene, which keeps its models there.
 		resource::ResourceSystem m_resources;
 		SceneSystem m_scene;
-		/// GPU meshes of the resources' models, synced before the scene is drawn.
-		graphics::ModelMeshes m_meshes;
-		Settings m_settings;
-		render::ViewPort m_engineViewPort;
+		/// Everything shown: rendering and its thread, the view, culling, the models' GPU meshes.
+		graphics::GraphicsSystem m_graphics;
 		/// Edit or Play: physics steps and entity scripts run only in Play.
 		script::PlayMode m_playMode;
 		/// The program's, given to the scripts; null when they draw nothing.
@@ -165,11 +151,7 @@ namespace elm {
 		uint32_t m_frameCount{ 0 };
 		FrameStats m_currentStats;
 
-		OcclusionCulling m_culling;
 
-		// Update and render run in parallel: the update thread builds frame N+1 while the render
-		// thread draws frame N; Render's frame ring hands snapshots over (see render/frame/FrameRing.hpp).
-		std::thread m_renderThread;
 	};
 
 } // namespace elm
