@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(ELM_LOG_TO_CONSOLE "Duplicate log messages to the system console" OFF)
+option(ELM_LOG_CONSOLE "Duplicate log messages to the system console" ON)
 option(ELM_BUILD_TRACY_PROFILER "Build the Tracy Profiler GUI (tracy-profiler) with the engine" ON)
 
 # Include custom compile options

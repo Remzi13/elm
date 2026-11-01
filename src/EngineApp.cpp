@@ -69,6 +69,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     LOG_MESSAGE( log::Category::Core, "EngineApp", "Initializing 3D Engine Core (C++23)..." );    
 
     FileSystem::RegisterSettings(m_settings);
+    log::registerSettings(m_settings);
     if (m_editor)
         EditorLayer::RegisterSettings(m_settings);
     m_cullingSystem.RegisterSettings(m_settings);
@@ -78,6 +79,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     if (auto loadedSettings = m_settings.Load(settingsPath); !loadedSettings)
         return MakeUnexpected(loadedSettings.error());
     FileSystem::ApplySettings(m_settings, settingsPath.Parent());
+    log::applySettings(m_settings, settingsPath.Parent());
     if (m_editor)
         AddEditorVisualizers();
 
@@ -237,6 +239,7 @@ auto EngineApp::Run() -> EngineResult<void>
 
         BuildOverlay(frame);
         SubmitFrame(frame);
+        log::flushFile();
     }
 
     // ── Signal render thread to exit ──────────────────────────────────────

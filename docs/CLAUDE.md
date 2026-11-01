@@ -48,7 +48,7 @@ elm — 3D-движок с редактором на C++23: собственны
 | `core::JobSystem`, `TaskGroup`, `parallelFor` | пул воркеров и группы задач | `core/JobSystem.hpp` |
 | `core::ThreadRole` (`Update`, `Render`) | роль потока, проверяется `ELM_ASSERT_THREAD` | `core/Threading.hpp` |
 | `FileSystem`, `Path`, `AssetPaths` | пути относительно корня (`Core/FileSystem/RootPath`) | `core/FileSystem.hpp` |
-| `log::Category`, `log::Severity` | лог движка, макросы `LOG_MESSAGE`/`WARNING_MESSAGE`/`ERROR_MESSAGE` | `core/Log.hpp` |
+| `log::Category`, `log::Severity` | лог движка, макросы `LOG_MESSAGE`/`WARNING_MESSAGE`/`ERROR_MESSAGE`; вывод в консоль (`ELM_LOG_CONSOLE`) и в файл (`Core/Log/File`, `log::openFile`) | `core/Log.hpp` |
 
 **Сцена** (`src/Scene`, `elm`)
 

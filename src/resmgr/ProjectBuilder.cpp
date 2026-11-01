@@ -2,6 +2,7 @@
 
 #include "resmgr/SerializationError.hpp"
 
+#include "core/Log.hpp"
 #include "core/Settings.hpp"
 
 #include "project/Project.hpp"
@@ -15,6 +16,8 @@ namespace elm::resmgr {
         constexpr const char* LogSource = "ProjectBuilder";
         constexpr StringView BuildFolder = "Build";
         constexpr StringView LibraryExtension = ".dll";
+        constexpr StringView LogFolder = "Logs";
+        constexpr StringView LogExtension = ".log";
 
         bool IsHidden(const Path& file)
         {
@@ -100,10 +103,17 @@ namespace elm::resmgr {
         }
 
         /// .settings with the folder as the engine root: shaders and the project are found next to the program.
-        auto WriteSettings(const Path& folder) -> EngineResult<void>
+        /// The game logs into Logs/<Name>.log there, for bug reports; an empty setting turns it off.
+        auto WriteSettings(const Path& folder, const String& name) -> EngineResult<void>
         {
             Settings settings;
             FileSystem::RegisterSettings(settings);
+            log::registerSettings(settings);
+            String logFile { LogFolder };
+            logFile += "/";
+            logFile += name;
+            logFile += LogExtension;
+            settings.Set(Settings::Category::Core, log::FileSetting, std::move(logFile));
             return settings.Save(folder / ".settings");
         }
 
@@ -127,7 +137,7 @@ namespace elm::resmgr {
         if (built)
             built = CopyFolder(project.Assets(), folder / "assets", project::Project::SourceFolder);
         if (built)
-            built = WriteSettings(folder);
+            built = WriteSettings(folder, name);
         if (!built)
             return UnexpectedSerializationError(built.error());
         return folder;

@@ -8,7 +8,15 @@
 #include <stdint.h>
 #include <chrono>
 
+namespace elm {
+    class Path;
+    class Settings;
+}
+
 namespace elm::log {
+
+    /// Log file path, relative to the folder of the settings file; empty writes no file.
+    inline constexpr StringView FileSetting = "Log/File";
 
     enum class Severity
     {
@@ -44,6 +52,20 @@ namespace elm::log {
     void clearMessages();
     void setMaxMessages(std::size_t maxMessages);
     std::size_t getMaxMessages();
+
+    /// Duplicates every message into the file from now on, from any thread. Lines are buffered and written
+    /// by flushFile(), when the buffer is full, or at once with a warning or an error. An existing file of
+    /// that name is kept as <stem>.prev<ext>; the messages still kept come first.
+    /// Returns false when the file cannot be written: the log goes on without it.
+    [[nodiscard]] bool openFile( const Path& file );
+    /// Writes the buffered lines of the log file; the engine calls it once per frame.
+    void flushFile();
+    /// Writes the buffered lines and closes the file.
+    void closeFile();
+
+    void registerSettings( Settings& settings );
+    /// Opens the file FileSetting names, or closes the open one when the setting is empty.
+    void applySettings( const Settings& settings, const Path& settingsDirectory );
 }
 
 #define LOG_MESSAGE( category, source, ... ) elm::log::add( elm::log::Severity::Info, category, source, __FILE__, __LINE__, __VA_ARGS__ )

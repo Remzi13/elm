@@ -363,6 +363,12 @@ namespace elm {
         return fs::copy_file(ToFilesystemPath(from), target, fs::copy_options::none, error);
     }
 
+    auto FileSystem::Rename(const Path& from, const Path& to, std::error_code& error) -> bool
+    {
+        fs::rename(ToFilesystemPath(from), ToFilesystemPath(to), error);
+        return !error;
+    }
+
     auto FileSystem::RemoveAll(const Path& path, std::error_code& error) -> bool
     {
         fs::remove_all(ToFilesystemPath(path), error);

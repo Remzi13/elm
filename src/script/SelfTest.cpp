@@ -15,7 +15,9 @@
 #include "script/ui/LuaHighlighter.hpp"
 #include "script/ui/ScriptEditor.hpp"
 
+#include "core/Log.hpp"
 #include "core/Memory.hpp"
+#include "core/Settings.hpp"
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/NodeIdTable.hpp"
@@ -1625,6 +1627,11 @@ namespace elm::script {
                     && fs::exists(built / "Fresh.elmproject") && fs::exists(built / "assets" / "scripts" / "main.lua")
                     && fs::exists(built / ".settings") && !fs::exists(built / "assets" / "source") && !fs::exists(built / "assets" / "scripts" / ".meta"),
                 "project::build_makes_the_game_folder", game ? "" : game.error().message);
+            Settings builtSettings;
+            log::registerSettings(builtSettings);
+            const bool settingsLoaded = builtSettings.Load(pathOf("new/Fresh/Build/Fresh/.settings")).has_value();
+            report.Check(settingsLoaded && builtSettings.Get<String>(Settings::Category::Core, log::FileSetting) == "Logs/Fresh.log",
+                "project::build_turns_on_the_log_file");
             report.Check(opened && resmgr::ProjectBuilder::Build(*opened, buildDesc).has_value(), "project::build_replaces_its_own_build");
             fs::remove(built / resmgr::ProjectBuilder::BuildMarkFile, error);
             report.Check(opened && !resmgr::ProjectBuilder::Build(*opened, buildDesc) && fs::exists(built / "Fresh.exe"),
@@ -2279,6 +2286,55 @@ namespace elm::script {
             report.Check(!geometry.IsEmpty() && geometry.batches[0].style.depth == render::DebugDepth::OnTop, "gizmo::drawn_on_top");
         }
 
+        // ── Log ─────────────────────────────────────────────────────────────────
+
+        String ReadLogFile(const std::filesystem::path& path)
+        {
+            std::ifstream stream(path, std::ios::binary);
+            return String { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        }
+
+        /// The log file gets the kept messages and every new one, keeps the previous run and stops on close.
+        void RunLogFileTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_log_file_selftest";
+            fs::remove_all(root, error);
+            const fs::path file = root / "Logs" / "game.log";
+            const Path logFile(String(file.generic_string().c_str()));
+
+            LOG_MESSAGE(log::Category::Core, "SelfTest", "before the file opens");
+            report.Check(log::openFile(logFile), "log::open_file_makes_its_folder");
+            LOG_MESSAGE(log::Category::Core, "SelfTest", "first run message");
+            const String buffered = ReadLogFile(file);
+            report.Check(buffered.starts_with("Log started ") && buffered.find("before the file opens") != String::npos,
+                "log::file_starts_with_kept_messages");
+            report.Check(buffered.find("first run message") == String::npos, "log::info_waits_for_the_flush");
+            log::flushFile();
+            report.Check(ReadLogFile(file).find("[INFO] [CORE] [SelfTest] first run message") != String::npos, "log::flush_writes_the_buffer");
+
+            LOG_MESSAGE(log::Category::Core, "SelfTest", "info before a warning");
+            WARNING_MESSAGE(log::Category::Core, "SelfTest", "selftest warning");
+            const String warned = ReadLogFile(file);
+            report.Check(warned.find("info before a warning") != String::npos && warned.find("[WARNING] [CORE] [SelfTest] selftest warning") != String::npos,
+                "log::warning_writes_at_once");
+
+            report.Check(log::openFile(logFile), "log::open_file_again");
+            const String previous = ReadLogFile(root / "Logs" / "game.prev.log");
+            report.Check(previous.find("first run message") != String::npos, "log::reopen_keeps_the_previous_file");
+
+            LOG_MESSAGE(log::Category::Core, "SelfTest", "buffered when closing");
+            log::closeFile();
+            LOG_MESSAGE(log::Category::Core, "SelfTest", "after the file closes");
+            const String closed = ReadLogFile(file);
+            report.Check(closed.find("buffered when closing") != String::npos, "log::close_writes_the_buffer");
+            report.Check(closed.find("after the file closes") == String::npos, "log::close_stops_writing");
+
+            report.Check(!log::openFile(Path(String((root / "Logs").generic_string().c_str()))), "log::folder_is_not_a_log_file");
+            fs::remove_all(root, error);
+        }
+
         void RunHighlighterTests(Report& report)
         {
             auto check = [&](const char* name, StringView source, StringView expected) {
@@ -2410,6 +2466,7 @@ line]] .. [==[a]]b]==])",
         RunPhysicsVisualizerTests(report);
         RunDebugDrawSystemTests(report);
         RunTransformGizmoTests(report);
+        RunLogFileTests(report);
         RunHighlighterTests(report);
         RunCodeIndentTests(report);
         {

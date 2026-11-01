@@ -29,6 +29,10 @@ target_include_directories(core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
+if(ELM_LOG_CONSOLE)
+    target_compile_definitions(core PRIVATE ELM_LOG_CONSOLE=1)
+endif()
+
 if(TARGET TracyClient)
     target_link_libraries(core PUBLIC TracyClient)
 endif()

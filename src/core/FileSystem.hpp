@@ -103,6 +103,8 @@ public:
     static bool CreateDirectories(const Path& path, std::error_code& error);
     /// Copies a file, creating the folders of the target; an existing target is not overwritten (an error).
     static bool Copy(const Path& from, const Path& to, std::error_code& error);
+    /// Renames or moves a file; an existing target is replaced.
+    static bool Rename(const Path& from, const Path& to, std::error_code& error);
     /// Removes a file or a folder with everything in it.
     static bool RemoveAll(const Path& path, std::error_code& error);
     /// The folder relative paths of the process start from (a built game works in its own folder).
