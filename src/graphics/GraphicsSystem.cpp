@@ -20,16 +20,13 @@ namespace elm::graphics {
         , m_render(MakeUnique<render::Render>())
         , m_meshes(m_render->Resources())
     {
+        // Registered before or after .settings is read, the keys get the file's values
+        m_culling.RegisterSettings(m_settings);
     }
 
     GraphicsSystem::~GraphicsSystem()
     {
         Shutdown();
-    }
-
-    void GraphicsSystem::RegisterSettings()
-    {
-        m_culling.RegisterSettings(m_settings);
     }
 
     auto GraphicsSystem::Init(const render::NativeWindow& window, Size surfaceSize, Size viewSize) -> EngineResult<void>

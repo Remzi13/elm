@@ -14,7 +14,7 @@ namespace elm::resource {
 
     /// The open project and the resources loaded for it: its models (ModelCatalog) and the files they come
     /// from, the startup scene read from disk (docs/core/Системы.md). Knows nothing of the GPU or the scripts.
-    /// Owner: the program (Engine for now), thread: update.
+    /// Owner: the program (Game, Editor), thread: update.
     class ResourceSystem {
     public:
         ResourceSystem() = default;

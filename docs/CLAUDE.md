@@ -55,7 +55,7 @@ elm — 3D-движок с редактором на C++23: собственны
 
 | Сущность | Что это | Владелец / поток |
 |---|---|---|
-| `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `Engine`, update |
+| `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `SceneSystem`, update |
 | `Scene::Node`, «узел» | ядро элемента сцены: `id`, родитель (`NodeId`), имя, локальный трансформ. Остальное — компоненты. В Lua это `Entity` («сущность») | `Scene` |
 | `Scene::NodeDesc`, `Scene::SetParentResult` | с чем создаётся новый узел (`AddNode`); итог `SetParent` | — |
 | `NodeId` | стабильная ссылка на узел (`Scene/NodeId.hpp`). Индекс узла (`size_t`) нестабилен, живёт в пределах одной операции | — |
@@ -85,12 +85,12 @@ elm — 3D-движок с редактором на C++23: собственны
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
 | `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
-| `DebugDrawing` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `Engine` |
+| `DebugDrawing` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец — программа (`Editor`, `Game` с `ELM_DEBUG_DRAW`) |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
 | `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
-| Edit / Play, `PlayMode` | режимы редактора: в Edit сцена — это данные, в Play работают физика и скрипты сущностей. `script::PlayMode`, владелец `Engine` |
+| Edit / Play, `PlayMode` | режимы редактора: в Edit сцена — это данные, в Play работают физика и скрипты сущностей. `script::PlayMode`, владелец — программа (`Game`, `Editor`) |
 
 **Рендер** (`src/render`, `elm::render`)
 
@@ -144,9 +144,9 @@ physics    → Scene           Jolt PRIVATE
 graphics   → render, platform, model, resource   без ImGui
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-engine     → Scene, physics, script, graphics, project, resource, input   Engine: системы и шаги кадра, без цикла
-editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (владеет Engine) и весь UI
-программы  elm — engine/main.cpp (свой цикл над Engine), elm_editor — editor/main.cpp (Editor)
+engine     → Scene, physics, script, graphics, project, resource, input   общее программ: FrameClock, LoadEngineSettings, MakeProjectPlayStart
+editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (корень композиции) и весь UI
+программы  elm — engine/Game.* и main.cpp (Game), elm_editor — editor/main.cpp (Editor); обе — корни композиции, системы у них полями
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл
@@ -233,7 +233,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
 - Невладеющий доступ: `T&` (обязателен), `T*` (может отсутствовать), `std::span`, `StringView`.
 - Параметры: дешёвые типы и хэндлы по значению; только чтение `const T&`; изменение `T&`;
   передача владения по значению с `std::move`.
-- Системы с идентичностью (`*System`, `Engine`) явно запрещают копирование и перемещение
+- Системы с идентичностью (`*System`, программы `Game`, `Editor`) явно запрещают копирование и перемещение
   (`= delete` для всех четырёх). Значимые типы следуют правилу нуля.
 - `const` по умолчанию. `[[nodiscard]]` на всём, что возвращает результат, хэндл или найденный
   объект. `override`/`final` обязательны. Однопараметрические конструкторы `explicit`.

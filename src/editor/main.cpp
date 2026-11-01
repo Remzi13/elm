@@ -6,8 +6,6 @@
 #include "core/Settings.hpp"
 #include "core/Threading.hpp"
 
-#include "engine/Engine.hpp"
-
 #include "editor/Editor.hpp"
 #include "editor/EditorSelfTest.hpp"
 
@@ -27,7 +25,7 @@ namespace {
 
     constexpr const char* DefaultScriptApiFile = "projects/Sandbox/assets/scripts/.meta/elm.lua";
 
-    /// Resolves the asset root from the settings file without starting the engine.
+    /// Resolves the asset root from the settings file without starting the systems.
     void ApplyFileSystemSettings()
     {
         elm::Settings settings;
@@ -90,7 +88,7 @@ namespace {
     }
 
     /// --scene <preset index> [--instances <count>]: a test scene in place of the startup scene.
-    void LoadTestSceneArgument(elm::Engine& engine, int argc, char** argv)
+    void LoadTestSceneArgument(elm::Editor& editor, int argc, char** argv)
     {
         int scenePreset = -1;
         uint32_t instanceCount = 1500;
@@ -101,7 +99,7 @@ namespace {
                 instanceCount = static_cast<uint32_t>(std::atoi(argv[i + 1]));
         }
         if (scenePreset >= 0)
-            engine.LoadTestScene(static_cast<elm::ScenePreset>(scenePreset), instanceCount);
+            editor.LoadTestScene(static_cast<elm::ScenePreset>(scenePreset), instanceCount);
     }
 
     int ReportFatal(const char* what, const elm::EngineError& error)
@@ -130,7 +128,7 @@ namespace {
         if (projectPath.Empty() || !opened)
             editor.ShowProjectHub();
 
-        LoadTestSceneArgument(editor.GetEngine(), argc, argv);
+        LoadTestSceneArgument(editor, argc, argv);
         editor.Run();
         editor.Shutdown();
         LOG_MESSAGE( log::Category::Core, "Main", "Application terminated gracefully." );

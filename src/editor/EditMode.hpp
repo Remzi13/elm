@@ -16,7 +16,7 @@ namespace elm {
 	/// Play/Stop requests of the windows and scripts around the engine's PlayMode: before a Play it keeps a
 	/// snapshot of the edited scene, after Stop it brings it back with its node ids and gives Edit a fresh
 	/// Lua state. The parts are the engine's and outlive it.
-	/// Owner: Editor, thread: update, before Engine::Simulate.
+	/// Owner: Editor, thread: update, before the frame's fixed steps.
 	class EditMode {
 	public:
 		EditMode(script::PlayMode& play, SceneSystem& scene, script::ScriptSystem& scripts);

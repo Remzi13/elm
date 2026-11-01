@@ -38,8 +38,8 @@ namespace elm::script {
     /// bodies; the scene stays as the game left it. What comes after Stop is the program's: the editor brings
     /// the edited scene back (EditMode), the game ends. It lives next to the scripts because it coordinates
     /// them with the scene and physics and the self-tests cover it there.
-    /// Owner: Engine, thread: update. Requests from Lua and the UI wait for the program: it looks at
-    /// GetRequest and applies it (ApplyRequest) before Engine::Simulate.
+    /// Owner: the program (Game, Editor), thread: update. Requests from Lua and the UI wait for the program: it looks at
+    /// GetRequest and applies it (ApplyRequest) before the frame's fixed steps.
     class PlayMode {
     public:
         static constexpr StringView PlayOnStartSetting = "PlayOnStart";

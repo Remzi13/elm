@@ -3,10 +3,23 @@
 #include "core/Error.hpp"
 #include "core/Settings.hpp"
 
-#include "engine/Engine.hpp"
+#include "engine/FrameClock.hpp"
 
 #include "graphics/CameraController.hpp"
+#include "graphics/GraphicsSystem.hpp"
 #include "graphics/debug/DebugDrawing.hpp"
+
+#include "physics/PhysicsSystem.hpp"
+
+#include "platform/PlatformSystem.hpp"
+
+#include "resource/ResourceSystem.hpp"
+
+#include "Scene/SceneSystem.hpp"
+#include "Scene/TestScenes.hpp"
+
+#include "script/PlayMode.hpp"
+#include "script/ScriptSystem.hpp"
 
 #include "editor/EditMode.hpp"
 #include "editor/ui/ImGuiSystem.hpp"
@@ -21,8 +34,9 @@ namespace elm {
 		class ProjectHubWindow;
 	}
 
-	/// The editor (docs/editor/Редактор.md): the program that owns the engine and runs its frame. It loads
-	/// and sets up projects, scenes and models, draws its UI over the engine view: ImGui and its windows,
+	/// The editor (docs/editor/Редактор.md), the root of its composition (docs/core/Системы.md): owns the systems
+	/// of the game as fields, gives them their dependencies and runs the frame. It loads and sets up projects,
+	/// scenes and models, draws its UI over the engine view: ImGui and its windows,
 	/// the Project menu, the Project Hub and the recent projects; project switches, new projects, the entry,
 	/// Run Standalone and Build Game; Edit mode, which Stop goes back to. Saves the settings when it shuts down.
 	/// Owner: main. Thread: update (the main thread).
@@ -46,12 +60,12 @@ namespace elm {
 		Editor(Editor&&) = delete;
 		Editor& operator=(Editor&&) = delete;
 
-		/// The engine with the editor's settings and debug drawing, ImGui, the editor windows, the Project Hub
-		/// (hidden until ShowProjectHub) and the debug visualizers.
+		/// Reads .settings, opens the window, starts rendering and physics; ImGui, the editor windows, the
+		/// Project Hub (hidden until ShowProjectHub) and the debug visualizers.
 		[[nodiscard]] auto Init() -> EngineResult<void>;
 		/// The frame loop, until the main window closes.
 		void Run();
-		/// Saves the settings, frees the UI, shuts the engine down.
+		/// Saves the settings, frees the UI, ends the scripts and every system.
 		void Shutdown();
 
 		/// Opens a project from its folder or its .elmproject file. It is read first: when it cannot be read
@@ -60,18 +74,28 @@ namespace elm {
 		void ShowProjectHub();
 		/// The project file opened last time, empty when there is none.
 		[[nodiscard]] Path LastProject() const;
-		[[nodiscard]] Engine& GetEngine() noexcept { return m_engine; }
+		/// A test scene in the scene, added to what is there.
+		void LoadTestScene(ScenePreset preset, uint32_t instanceCount);
 
 		/// The program elm next to this one, with this one's extension; an error when it is not there.
 		[[nodiscard]] static auto FindPlayerExecutable() -> EngineResult<Path>;
 
 	private:
 		static void RegisterSettings(Settings& settings);
+		/// False when the main window closed.
+		[[nodiscard]] bool RunFrame();
+		/// The fixed physics steps (in Play) with the scripts, the frame's input and scripts, culling.
+		void Simulate(float deltaTime);
+		void Draw();
 		/// Visualizers of the editor's debug channels: world axes, colliders, rays and contacts.
 		void AddVisualizers();
 		/// The UI of the frame, the scene views of the windows included.
 		void BuildUi(render::FrameWriter& frame);
 
+		/// Makes the project the open one: its scripts start. Precondition: no project is open.
+		void StartProject(project::Project project);
+		/// Stops Play, ends the scripts, clears the scene, models and bodies. Nothing when no project is open.
+		void EndProject();
 		/// The project's windows close, the menu shows no project.
 		void CloseProjectWindows();
 		/// The project's windows open with its startup scene, the menu shows it, it becomes the last project.
@@ -97,20 +121,29 @@ namespace elm {
 		/// empty when no scene was opened (none set, or the file could not be read: the error is logged).
 		[[nodiscard]] Path OpenStartupScene(const project::Project& project);
 
-		/// First: destroyed last, after everything that uses it.
-		Engine m_engine;
-		Settings& m_settings;
+		/// The systems, each after what it depends on: destroyed in the reverse order.
+		Settings m_settings;
+		platform::PlatformSystem m_platform;
+		resource::ResourceSystem m_resources;
+		SceneSystem m_scene;
+		PhysicsSystem m_physics;
+		script::ScriptSystem m_scripts;
+		graphics::GraphicsSystem m_graphics;
+		/// Edit or Play: physics steps and entity scripts run only in Play.
+		script::PlayMode m_playMode;
+		FrameClock m_clock;
 		/// The engine view's debug drawing: the gizmo, the visualizers, elm.debug of the scripts.
 		graphics::DebugDrawing m_debugDraw;
 		/// The fly camera of the engine view in Edit; off in Play, where the camera is the game's.
 		CameraController m_cameraController;
-		/// Edit and Play around the engine's PlayMode: the snapshot of the edited scene.
+		/// Edit and Play around PlayMode: the snapshot of the edited scene.
 		EditMode m_editMode;
 		UniquePtr<ImGuiSystem> m_imgui;
 		/// Owned by m_imgui: an editor window, it outlives projects.
 		editor::ProjectHubWindow* m_hub { nullptr };
 		/// Asked for by the windows, applied at the start of the next frame, outside of any window.
 		std::optional<Path> m_requestedProject;
+		bool m_initialized { false };
 	};
 
 } // namespace elm

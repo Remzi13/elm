@@ -11,7 +11,7 @@ namespace elm {
     /// The scene of the program: nodes, components, world transforms (docs/core/Системы.md). The models its
     /// nodes draw live in the resources' ModelCatalog: a scene put in adds its models there, a snapshot keeps
     /// and restores them with the nodes. Readers take the scene const; writers (scripts, Play, the editor's
-    /// edits) are given a non-const SceneSystem&. Owner: the program (Engine for now), thread: update.
+    /// edits) are given a non-const SceneSystem&. Owner: the program (Game, Editor), thread: update.
     class SceneSystem {
     public:
         explicit SceneSystem(ModelCatalog& models);

@@ -72,7 +72,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | Сущность | Что это | Владелец / поток |
 |---|---|---|
 | `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `SceneSystem`, update |
-| `SceneSystem` | сцена программы: `Scene`, мировые трансформы (`UpdateTransforms`), сцена из файла (`Append`, модели — в каталог ресурсов), снимок (`TakeSnapshot`/`Restore`), `Clear`. Модели держит каталог `ResourceSystem`, сама система знает его по ссылке | программа (`Engine`), update |
+| `SceneSystem` | сцена программы: `Scene`, мировые трансформы (`UpdateTransforms`), сцена из файла (`Append`, модели — в каталог ресурсов), снимок (`TakeSnapshot`/`Restore`), `Clear`. Модели держит каталог `ResourceSystem`, сама система знает его по ссылке | программа (`Game`, `Editor`), update |
 | `Scene::Node`, «узел» | ядро элемента сцены: `id`, родитель (`NodeId`), имя, локальный трансформ. Остальное — компоненты. В Lua это `Entity` («сущность») | `Scene` |
 | `Scene::NodeDesc`, `Scene::SetParentResult` | с чем создаётся новый узел (`AddNode`); итог `SetParent` | — |
 | `NodeId` | стабильная ссылка на узел (`Scene/NodeId.hpp`). Индекс узла (`size_t`) нестабилен, живёт в пределах одной операции | — |
@@ -108,7 +108,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
 | `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
-| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget`, `EditMode` | `script::PlayMode` (владелец `Engine`) — идёт ли игра: Play со свежей Lua-машиной, стартовой сценой и главным модулем, Stop останавливает скрипты и физику; запросы применяет программа (`GetRequest`/`ApplyRequest`). `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). Режим Edit — `EditMode` редактора (`editor/EditMode.*`): снимок сцены вокруг Play, возврат после Stop |
+| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget`, `EditMode` | `script::PlayMode` (владелец — программа) — идёт ли игра: Play со свежей Lua-машиной, стартовой сценой и главным модулем, Stop останавливает скрипты и физику; запросы применяет программа (`GetRequest`/`ApplyRequest`). `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). Режим Edit — `EditMode` редактора (`editor/EditMode.*`): снимок сцены вокруг Play, возврат после Stop |
 
 **Рендер** (`src/render`, `elm::render`)
 
@@ -137,8 +137,9 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `platform::PlatformSystem` | связь с ОС: главное окно и его ввод (`Input`), оси по умолчанию для скриптов; `PollEvents`, `DispatchInput` | `platform` |
 | `platform::Window` | главное окно GLFW; часть `PlatformSystem` | `platform` |
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
-| `Engine`, `EngineDesc` | движок: системы игры и открытый проект; шаги кадра (`BeginFrame`, `Simulate`, `BeginRenderFrame`, `DrawScene`, `SubmitFrame`) вызывает программа, своего цикла и обратных вызовов нет; окно и `DebugDraw*` для скриптов | `engine` |
-| `Editor` | программа-редактор: владеет `Engine` и ведёт его кадр; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
+| `Game`, `GameDesc` | программа `elm`, корень композиции (`docs/core/Системы.md`): системы полями, зависимости в конструкторах, кадр `RunFrame`; Play Project одного проекта, вид на всё окно, `DebugDrawing` с `ELM_DEBUG_DRAW`. Объекта «движок» нет | `engine` |
+| `FrameClock`, `LoadEngineSettings`, `MakeProjectPlayStart` | общее двух программ: время кадра, фиксированные шаги физики и FPS; настройки, которые читают обе, и `.settings`; `PlayStart` открытого проекта | `engine` |
+| `Editor` | программа-редактор, корень композиции: те же системы полями и кадр `RunFrame`; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resource` |
@@ -178,9 +179,9 @@ physics    → Scene           Jolt PRIVATE
 graphics   → render, platform, model, resource   без ImGui   о project не знает
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-engine     → Scene, physics, script, graphics, project, resource, input   Engine: системы и шаги кадра, без цикла
-editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (владеет Engine) и весь UI: ui/, script/
-программы  elm — engine/main.cpp (свой цикл над Engine), elm_editor — editor/main.cpp (Editor)
+engine     → Scene, physics, script, graphics, project, resource, input   общее программ: FrameClock, LoadEngineSettings, MakeProjectPlayStart
+editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (корень композиции) и весь UI: ui/, script/
+программы  elm — engine/Game.* и main.cpp (Game), elm_editor — editor/main.cpp (Editor); обе — корни композиции, системы у них полями
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл
@@ -268,7 +269,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
 - Невладеющий доступ: `T&` (обязателен), `T*` (может отсутствовать), `std::span`, `StringView`.
 - Параметры: дешёвые типы и хэндлы по значению; только чтение `const T&`; изменение `T&`;
   передача владения по значению с `std::move`.
-- Системы с идентичностью (`*System`, `Engine`) явно запрещают копирование и перемещение
+- Системы с идентичностью (`*System`, программы `Game`, `Editor`) явно запрещают копирование и перемещение
   (`= delete` для всех четырёх). Значимые типы следуют правилу нуля.
 - `const` по умолчанию. `[[nodiscard]]` на всём, что возвращает результат, хэндл или найденный
   объект. `override`/`final` обязательны. Однопараметрические конструкторы `explicit`.

@@ -9,7 +9,7 @@
 namespace elm::platform {
 
     /// Contact with the OS (docs/core/Системы.md): the main window and its input, with the default axes the
-    /// scripts read (elm.input.axis). Owner: the program (Engine for now). Thread: update, which is the main
+    /// scripts read (elm.input.axis). Owner: the program (Game, Editor). Thread: update, which is the main
     /// thread: GLFW events belong to it.
     class PlatformSystem {
     public:

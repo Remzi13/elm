@@ -23,10 +23,11 @@ namespace elm::graphics {
     /// models of the scene with their GPU meshes into the frame, the game view in the whole window, the frame
     /// handed to the render thread. Reads the scene and the resources' models, never writes them: world
     /// transforms are the program's to update before DrawWorld.
-    /// Owner: the program (Engine for now). Thread: update; the render thread is its own between Init and
+    /// Owner: the program (Game, Editor). Thread: update; the render thread is its own between Init and
     /// StopRendering.
     class GraphicsSystem {
     public:
+        /// Registers the culling settings.
         GraphicsSystem(Settings& settings, const SceneSystem& scene, const ModelCatalog& models);
         ~GraphicsSystem();
 
@@ -35,8 +36,6 @@ namespace elm::graphics {
         GraphicsSystem(GraphicsSystem&&) = delete;
         GraphicsSystem& operator=(GraphicsSystem&&) = delete;
 
-        /// Before the settings file is read: culling settings.
-        void RegisterSettings();
         /// Rendering into the window and its thread, the view of viewSize, culling.
         [[nodiscard]] auto Init(const render::NativeWindow& window, Size surfaceSize, Size viewSize) -> EngineResult<void>;
         /// Stops the render thread; the program then frees what it rendered with (UI) before Shutdown.

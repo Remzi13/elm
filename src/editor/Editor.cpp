@@ -1,9 +1,15 @@
 #include "editor/Editor.hpp"
 
+#include "core/JobSystem.hpp"
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
+#include "core/Threading.hpp"
 #include "core/Unexpected.hpp"
 
+#include "engine/EngineSettings.hpp"
+#include "engine/ProjectPlayStart.hpp"
+
+#include "graphics/FrameStats.hpp"
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
 #include "graphics/debug/WorldAxesVisualizer.hpp"
@@ -31,16 +37,17 @@ namespace elm {
 
 		constexpr const char* LogSource = "Editor";
 		constexpr StringView MainWindowTitle = "C++23 3D Engine - Direct3D 12 & Jolt Physics";
-		constexpr uint32_t MainWindowWidth = 1280;
-		constexpr uint32_t MainWindowHeight = 720;
+		constexpr Size MainWindowSize { 1280, 720 };
 
 	} // namespace
 
 	Editor::Editor()
-		: m_settings(m_engine.GetSettings())
+		: m_scene(m_resources.GetModels())
+		, m_graphics(m_settings, m_scene, m_resources.GetModels())
+		, m_playMode(m_scene, &m_physics, m_scripts)
 		, m_debugDraw(m_settings)
-		, m_cameraController(m_engine.GetGraphics().GetViewCamera())
-		, m_editMode(m_engine.GetPlayMode(), m_engine.GetSceneSystem(), m_engine.GetScripts())
+		, m_cameraController(m_graphics.GetViewCamera())
+		, m_editMode(m_playMode, m_scene, m_scripts)
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -59,11 +66,27 @@ namespace elm {
 	auto Editor::Init() -> EngineResult<void>
 	{
 		RegisterSettings(m_settings);
-		const EngineDesc desc { MainWindowWidth, MainWindowHeight, MainWindowTitle, &m_debugDraw.GetDebugDraw() };
-		if (auto engineInit = m_engine.Init(desc); !engineInit)
-			return engineInit;
-		m_engine.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
-		if (auto init = m_imgui->Init(m_engine.GetWindow(), m_engine.GetGraphics().GetRender(), m_settings, "Engine Debug UI", &m_engine.GetGraphics().GetCulling()); !init)
+		if (auto loaded = LoadEngineSettings(m_settings); !loaded)
+			return loaded;
+		core::registerThread(core::ThreadRole::Update);
+		ELM_PROFILE_THREAD("Main Thread");
+		core::JobSystem::Get().Init();
+		if (auto platformInit = m_platform.Init(MainWindowSize, MainWindowTitle); !platformInit)
+			return platformInit;
+		const platform::Window& window = m_platform.GetWindow();
+		if (auto graphicsInit = m_graphics.Init(window.GetNativeWindow(), window.GetFramebufferSize(), MainWindowSize); !graphicsInit) {
+			m_platform.Shutdown();
+			return graphicsInit;
+		}
+		if (auto physicsInit = m_physics.Init(); !physicsInit) {
+			m_graphics.Shutdown();
+			m_platform.Shutdown();
+			return physicsInit;
+		}
+		m_playMode.SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
+		m_initialized = true;
+		m_platform.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
+		if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), m_settings, "Engine Debug UI", &m_graphics.GetCulling()); !init)
 			return init;
 		m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(m_settings, editor::ProjectHubDesc {
 			.recent = [this] { return RecentProjects(); },
@@ -75,51 +98,94 @@ namespace elm {
 		AddVisualizers();
 		// The editor starts in Edit mode: physics and scripts wait for Play
 		if (m_settings.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting, false))
-			m_engine.GetPlayMode().RequestPlay(script::PlayTarget::Project);
+			m_playMode.RequestPlay(script::PlayTarget::Project);
 		return { };
 	}
 
 	void Editor::Run()
 	{
-		while (!m_engine.ShouldClose()) {
-			const float deltaTime = m_engine.BeginFrame();
-			// Before anything of the frame draws, physics steps included
-			m_debugDraw.BeginFrame(deltaTime);
-			// Before Play/Stop: a project switch stops Play itself
-			ApplyProjectRequest();
-			m_editMode.ApplyRequest();
-			// Before Simulate, which culls from the camera. The viewport state comes from the previous UI
-			// frame, the keys from the input the last Simulate dispatched
-			m_cameraController.SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
-			m_cameraController.SetEnabled(!m_engine.GetPlayMode().IsPlaying());
-			m_cameraController.Update(deltaTime);
-			m_engine.Simulate(deltaTime);
-			// The SocLab window shows the culling depth buffer; the game never makes the texture
-			m_engine.GetGraphics().GetCulling().UpdateDepthPreviewTexture(m_settings);
-
-			render::FrameWriter frame = m_engine.BeginRenderFrame();
-			if (!frame)
-				return;
-			BuildUi(frame);
-			m_engine.DrawScene(frame);
-			m_debugDraw.EndFrame(frame);
-			m_engine.SubmitFrame(frame);
+		m_clock.Start();
+		while (RunFrame()) {
 		}
+	}
+
+	bool Editor::RunFrame()
+	{
+		ELM_PROFILE_FRAME();
+		const float deltaTime = m_clock.Tick();
+		m_physics.ClearFrameLog();
+		m_platform.PollEvents();
+		// Before anything of the frame draws, physics steps included
+		m_debugDraw.BeginFrame(deltaTime);
+		// Before Play/Stop: a project switch stops Play itself
+		ApplyProjectRequest();
+		m_editMode.ApplyRequest();
+		// Before Simulate, which culls from the camera. The viewport state comes from the previous UI
+		// frame, the keys from the input the last Simulate dispatched
+		m_cameraController.SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
+		m_cameraController.SetEnabled(!m_playMode.IsPlaying());
+		m_cameraController.Update(deltaTime);
+		Simulate(deltaTime);
+		// The SocLab window shows the culling depth buffer; the game never makes the texture
+		m_graphics.GetCulling().UpdateDepthPreviewTexture(m_settings);
+		Draw();
+		return !m_platform.ShouldClose();
+	}
+
+	void Editor::Simulate(float deltaTime)
+	{
+		for (uint32_t step = m_clock.TakeFixedSteps(deltaTime); step > 0; --step) {
+			ELM_PROFILE_SCOPE_N("FixedUpdate Physics Step");
+			// Edit mode: the scene stands still
+			std::span<const CollisionEvent> collisions;
+			if (m_playMode.IsPlaying()) {
+				m_physics.Step(m_scene.EditScene(), FrameClock::FixedStep);
+				collisions = m_physics.CollisionEvents();
+			}
+			m_scripts.FixedUpdate(FrameClock::FixedStep, collisions);
+		}
+		m_platform.DispatchInput();
+		m_scripts.Update(deltaTime);
+		// Scripts move nodes through local transforms
+		m_scene.UpdateTransforms();
+		m_graphics.Cull();
+	}
+
+	void Editor::Draw()
+	{
+		render::FrameWriter frame = m_graphics.BeginFrame();
+		if (!frame)
+			return;
+		BuildUi(frame);
+		// The UI may have moved nodes since Simulate; graphics only reads the scene
+		m_scene.UpdateTransforms();
+		m_graphics.DrawWorld(frame, m_platform.GetWindow().GetFramebufferSize());
+		m_debugDraw.EndFrame(frame);
+		m_graphics.EndFrame(frame);
+		log::flushFile();
 	}
 
 	void Editor::Shutdown()
 	{
-		if (!m_engine.IsRunning())
+		if (!m_initialized)
 			return;
 		// The settings are the editor's: the player only reads them
 		if (auto savedSettings = m_settings.Save(Settings::DefaultFilePath()); !savedSettings)
 			ERROR_MESSAGE(log::Category::Core, LogSource, "%s", savedSettings.error().message.c_str());
-		// The UI's surfaces and textures go before the render system, with its thread stopped
-		m_engine.StopRendering();
+		// The UI's surfaces and textures go before rendering, with its thread stopped
+		m_graphics.StopRendering();
 		m_hub = nullptr;
 		m_imgui->Shutdown();
-		m_engine.GetInput().RemoveSubscriber(&m_cameraController);
-		m_engine.Shutdown();
+		m_platform.GetInput().RemoveSubscriber(&m_cameraController);
+		// Scripts go first: they may still talk to the other systems in on_shutdown
+		m_scripts.Shutdown();
+		m_physics.Shutdown();
+		m_scene.Clear();
+		m_resources.Close();
+		m_graphics.Shutdown();
+		m_platform.Shutdown();
+		core::JobSystem::Get().Shutdown();
+		m_initialized = false;
 	}
 
 	auto Editor::OpenProject(const Path& folderOrFile) -> EngineResult<void>
@@ -127,14 +193,44 @@ namespace elm {
 		auto project = resource::ResourceSystem::ReadProject(folderOrFile);
 		if (!project)
 			return MakeUnexpected(project.error());
-		if (m_engine.GetResources().GetProject()) {
+		if (m_resources.GetProject()) {
 			m_editMode.Stop();
+			// The windows go before the data they look at
 			CloseProjectWindows();
-			m_engine.CloseProject();
+			EndProject();
 		}
-		m_engine.OpenProject(std::move(*project));
-		OpenProjectWindows(*m_engine.GetResources().GetProject());
+		StartProject(std::move(*project));
+		OpenProjectWindows(*m_resources.GetProject());
 		return { };
+	}
+
+	void Editor::StartProject(project::Project project)
+	{
+		m_resources.Open(std::move(project));
+		const project::Project& opened = *m_resources.GetProject();
+		const script::EngineContext context { &m_scene.EditScene(), &m_resources.GetModels(), &m_platform.GetInput(),
+			&m_graphics.GetViewCamera(), &m_settings, &m_physics, m_playMode.Requests(), &m_debugDraw.GetDebugDraw(), &opened };
+		// In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
+		if (auto scriptInit = m_scripts.Init(context, opened.Scripts()); !scriptInit)
+			ERROR_MESSAGE(log::Category::Script, LogSource, "%s", scriptInit.error().message.c_str());
+	}
+
+	void Editor::EndProject()
+	{
+		if (!m_resources.GetProject())
+			return;
+		if (m_playMode.IsPlaying())
+			m_playMode.Stop();
+		// on_shutdown still sees the scene
+		m_scripts.Shutdown();
+		m_physics.Clear();
+		m_scene.Clear();
+		m_resources.Close();
+	}
+
+	void Editor::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
+	{
+		TestScenes::BuildScene(preset, instanceCount, m_scene.EditScene(), m_resources.GetModels());
 	}
 
 	void Editor::OpenProjectWindows(const project::Project& project)
@@ -221,16 +317,17 @@ namespace elm {
 	{
 		// UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
 		ELM_PROFILE_SCOPE_N("Build Overlay");
-		m_imgui->BuildFrame({ m_engine.GetGraphics().GetRender(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetGraphics().GetViewCamera(),
-			m_engine.GetFrameStats(), m_engine.GetGraphics().GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
+		const FrameStats stats { m_clock.GetFps(), m_clock.GetAverageFrameMs(), m_physics.GetNumBodies() };
+		m_imgui->BuildFrame({ m_graphics.GetRender(), m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(),
+			stats, m_graphics.GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
 	}
 
 	void Editor::AddVisualizers()
 	{
 		graphics::DebugDraw& debugDraw = m_debugDraw.GetDebugDraw();
 		m_debugDraw.AddVisualizer(MakeUnique<graphics::WorldAxesVisualizer>(debugDraw));
-		m_debugDraw.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_engine.GetScene(), debugDraw));
-		m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_engine.GetPhysics().FrameLog(), debugDraw));
+		m_debugDraw.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_scene.GetScene(), debugDraw));
+		m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_physics.FrameLog(), debugDraw));
 	}
 
 	void Editor::CreateProjectWindows(const project::Project& project, const Path& openedScene)
@@ -240,7 +337,7 @@ namespace elm {
 		m_imgui->AddProjectWindow(MakeUnique<ModelEditorWindow>(m_settings, project.Assets(), project.Models()));
 		m_imgui->AddProjectWindow(MakeUnique<editor::ProjectWindow>(m_settings, project,
 			[this](project::ProjectEntry entry) { return SetProjectEntry(std::move(entry)); }));
-		for (auto& window : script::CreateEditorWindows(m_engine.GetScripts(), m_settings))
+		for (auto& window : script::CreateEditorWindows(m_scripts, m_settings))
 			m_imgui->AddProjectWindow(std::move(window));
 	}
 
@@ -316,17 +413,17 @@ namespace elm {
 	auto Editor::SetProjectEntry(project::ProjectEntry entry) -> EngineResult<void>
 	{
 		// The file first: a project that cannot be saved keeps the entry it had
-		project::Project changed = *m_engine.GetResources().GetProject();
+		project::Project changed = *m_resources.GetProject();
 		changed.SetEntry(entry);
 		if (auto saved = resource::Serializer::SaveProject(changed); !saved)
 			return saved;
-		m_engine.GetResources().SetEntry(std::move(entry));
+		m_resources.SetEntry(std::move(entry));
 		return { };
 	}
 
 	void Editor::RunStandalone()
 	{
-		const project::Project* project = m_engine.GetResources().GetProject();
+		const project::Project* project = m_resources.GetProject();
 		if (!project)
 			return;
 		// Errors are logged: the editor goes on
@@ -340,7 +437,7 @@ namespace elm {
 
 	void Editor::BuildGame()
 	{
-		const project::Project* project = m_engine.GetResources().GetProject();
+		const project::Project* project = m_resources.GetProject();
 		if (!project)
 			return;
 		// Errors are logged: the editor goes on
@@ -357,10 +454,10 @@ namespace elm {
 		if (!project.Desc().entry.startupScene)
 			return { };
 		// A broken scene file is logged; the editor opens with an empty scene
-		auto scene = m_engine.GetResources().LoadStartupScene();
+		auto scene = m_resources.LoadStartupScene();
 		if (!scene)
 			return { };
-		(void)m_engine.GetSceneSystem().Append(std::move(*scene));
+		(void)m_scene.Append(std::move(*scene));
 		return project.Resolve(*project.Desc().entry.startupScene);
 	}
 
