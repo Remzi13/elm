@@ -51,9 +51,77 @@ namespace {
         return backend.CreatePipeline(desc);
     }
 
-    /// batches share one vertex upload that starts at vertex firstVertex of the frame.
-    void recordBatches(std::span<const DebugBatch> batches, uint32_t firstVertex, rhi::UploadRef vertices,
-        rhi::UploadRef camera, const StylePipelines& pipelines, rhi::CommandList& commands)
+    /// Debug primitives of one view as they are uploaded; batches index into vertices.
+    struct ViewGeometry {
+        Vector<DebugVertex> vertices;
+        Vector<DebugBatch> batches;
+    };
+
+    /// Part [enter, exit] of the clip-space segment a -> b inside the view volume (D3D depth 0..w).
+    /// False when the segment is entirely outside.
+    bool clipSegment(const Vector4& a, const Vector4& b, float& enter, float& exit)
+    {
+        // Signed distances to the six planes, inside when >= 0
+        const auto distances = [](const Vector4& p) {
+            return std::array { p.w + p.x, p.w - p.x, p.w + p.y, p.w - p.y, p.z, p.w - p.z };
+        };
+        const auto fromA = distances(a);
+        const auto fromB = distances(b);
+        enter = 0.0f;
+        exit = 1.0f;
+        for (size_t plane = 0; plane < fromA.size(); ++plane) {
+            if (fromA[plane] < 0.0f && fromB[plane] < 0.0f)
+                return false;
+            const float crossing = fromA[plane] / (fromA[plane] - fromB[plane]);
+            if (fromA[plane] < 0.0f)
+                enter = (std::max)(enter, crossing);
+            else if (fromB[plane] < 0.0f)
+                exit = (std::min)(exit, crossing);
+        }
+        return enter <= exit;
+    }
+
+    /// Lines are clipped to the view volume on the CPU. Some rasterizers (llvmpipe) fill garbage
+    /// when a line is clipped by the GPU far outside the screen, e.g. a long collider edge that
+    /// passes beside and behind the camera. Triangles are copied as they are.
+    void appendBatch(const DebugBatch& batch, const Vector<DebugVertex>& source, const Matrix4x4& viewProjection, ViewGeometry& out)
+    {
+        DebugBatch clipped { batch.style, static_cast<uint32_t>(out.vertices.size()), 0 };
+        const auto first = source.begin() + batch.firstVertex;
+        if (batch.style.topology == DebugTopology::Triangles) {
+            out.vertices.insert(out.vertices.end(), first, first + batch.vertexCount);
+        } else {
+            for (uint32_t index = 0; index + 1 < batch.vertexCount; index += 2) {
+                DebugVertex a = first[index];
+                DebugVertex b = first[index + 1];
+                float enter = 0.0f;
+                float exit = 1.0f;
+                if (!clipSegment(viewProjection.TransformPoint(a.position), viewProjection.TransformPoint(b.position), enter, exit))
+                    continue;
+                const Vector3 direction = b.position - a.position;
+                b.position = a.position + direction * exit;
+                a.position = a.position + direction * enter;
+                out.vertices.push_back(a);
+                out.vertices.push_back(b);
+            }
+        }
+        clipped.vertexCount = static_cast<uint32_t>(out.vertices.size()) - clipped.firstVertex;
+        if (clipped.vertexCount > 0)
+            out.batches.push_back(clipped);
+    }
+
+    ViewGeometry buildViewGeometry(std::span<const DebugBatch> batches, const Vector<DebugVertex>& vertices, const Matrix4x4& viewProjection)
+    {
+        ViewGeometry geometry;
+        geometry.batches.reserve(batches.size());
+        for (const DebugBatch& batch : batches)
+            appendBatch(batch, vertices, viewProjection, geometry);
+        return geometry;
+    }
+
+    /// batches share one vertex upload.
+    void recordBatches(std::span<const DebugBatch> batches, rhi::UploadRef vertices, rhi::UploadRef camera,
+        const StylePipelines& pipelines, rhi::CommandList& commands)
     {
         for (const DebugDepth depth : DrawOrder) {
             for (const DebugBatch& batch : batches) {
@@ -62,7 +130,7 @@ namespace {
                 commands.SetPipeline(pipelines[DebugStyleIndex(batch.style)]);
                 commands.SetConstants(CameraConstantsSlot, camera);
                 commands.BindVertexBuffer(0, rhi::BufferSource::FromUpload(vertices));
-                commands.Draw(batch.vertexCount, 1, batch.firstVertex - firstVertex);
+                commands.Draw(batch.vertexCount, 1, batch.firstVertex);
             }
         }
     }
@@ -72,22 +140,23 @@ namespace {
         const auto& frame = context.Frame();
         const auto& view = frame.sceneViews[viewIndex];
         const std::span batches { frame.debug.batches.data() + view.firstDebugBatch, view.debugBatchCount };
-        const uint32_t firstVertex = batches.front().firstVertex;
-        const uint32_t vertexCount = batches.back().firstVertex + batches.back().vertexCount - firstVertex;
+        const ViewGeometry geometry = buildViewGeometry(batches, frame.debug.vertices, view.camera.viewProjection);
+        if (geometry.batches.empty())
+            return;
 
         auto& uploads = context.Uploads();
         const CameraConstants constants { view.camera.viewProjection };
         const auto camera = uploads.Upload(rhi::UploadArena::Constants, &constants, 1);
-        const auto vertices = uploads.Upload(rhi::UploadArena::Vertex, frame.debug.vertices.data() + firstVertex, vertexCount);
+        const auto vertices = uploads.Upload(rhi::UploadArena::Vertex, geometry.vertices.data(), geometry.vertices.size());
         if (!camera.IsValid() || !vertices.IsValid()) {
-            ERROR_MESSAGE(log::Category::Render, "DebugDrawPass", "Upload arena is full, %u debug vertices skipped", vertexCount);
+            ERROR_MESSAGE(log::Category::Render, "DebugDrawPass", "Upload arena is full, %zu debug vertices skipped", geometry.vertices.size());
             return;
         }
 
         constexpr float unusedClearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
         auto& commands = context.Commands();
         commands.BeginRenderPass(context.ColorTarget(targets.color, false, unusedClearColor), context.DepthTarget(targets.depth, false));
-        recordBatches(batches, firstVertex, vertices, camera, pipelines, commands);
+        recordBatches(geometry.batches, vertices, camera, pipelines, commands);
         commands.EndRenderPass();
     }
 
