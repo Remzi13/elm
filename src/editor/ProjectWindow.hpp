@@ -2,7 +2,7 @@
 
 #include "core/Error.hpp"
 
-#include "graphics/ui/IImGuiWindow.hpp"
+#include "editor/ui/IImGuiWindow.hpp"
 
 #include "editor/ProjectSettingsPanel.hpp"
 

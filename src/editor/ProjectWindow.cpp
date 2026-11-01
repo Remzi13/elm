@@ -1,6 +1,6 @@
 #include "editor/ProjectWindow.hpp"
 
-#include "graphics/ui/WindowMessages.hpp"
+#include "editor/ui/WindowMessages.hpp"
 
 #include "imgui.h"
 

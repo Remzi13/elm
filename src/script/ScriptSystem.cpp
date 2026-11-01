@@ -15,7 +15,6 @@
 #include "script/module/ModuleLoader.hpp"
 #include "script/module/ModulePaths.hpp"
 #include "script/reload/HotReload.hpp"
-#include "script/ui/ScriptWindow.hpp"
 
 #include <utility>
 
@@ -176,15 +175,6 @@ namespace elm::script {
         if (auto init = scripts.Init({ }); !init)
             return MakeUnexpected(init.error());
         return scripts.m_state.Api().GenerateLuaMeta();
-    }
-
-    Vector<UniquePtr<IImGuiWindow>> ScriptSystem::CreateEditorWindows(Settings& settings)
-    {
-        const ScriptWindowDesc scripts { m_state, *m_console, *m_modulePaths, *m_moduleLoader, *m_hotReload, *m_mainModule,
-            *m_entityScripts, *m_scriptDefaults, [this] { m_restartRequested = true; }, m_engine.play };
-        Vector<UniquePtr<IImGuiWindow>> windows;
-        windows.push_back(MakeUnique<ScriptWindow>(settings, scripts));
-        return windows;
     }
 
     auto ScriptSystem::Restart() -> EngineResult<void>

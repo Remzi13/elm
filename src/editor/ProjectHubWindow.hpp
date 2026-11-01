@@ -2,8 +2,8 @@
 
 #include "core/Error.hpp"
 
-#include "graphics/ui/FileDialog.hpp"
-#include "graphics/ui/IImGuiWindow.hpp"
+#include "editor/ui/FileDialog.hpp"
+#include "editor/ui/IImGuiWindow.hpp"
 
 #include <array>
 #include <functional>

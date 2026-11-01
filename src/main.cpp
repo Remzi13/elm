@@ -10,6 +10,7 @@
 #include "engine/PlayerLayer.hpp"
 
 #include "editor/EditorLayer.hpp"
+#include "editor/EditorSelfTest.hpp"
 
 #include "platform/Process.hpp"
 
@@ -186,12 +187,16 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const bool dumpApi = std::strcmp(argv[i], "--dump-script-api") == 0;
         const bool build = std::strcmp(argv[i], "--build") == 0;
-        if (!dumpApi && !build)
+        const bool editorSelfTest = std::strcmp(argv[i], "--editor-selftest") == 0;
+        if (!dumpApi && !build && !editorSelfTest)
             continue;
         ApplyFileSystemSettings();
         core::registerThread(core::ThreadRole::Update);
         if (build)
             return i + 1 < argc ? BuildGame(argv[i + 1]) : 1;
+        // The editor's own logic: elm_tests checks the engine without the editor
+        if (editorSelfTest)
+            return editor::RunSelfTests();
         return DumpScriptApi(i + 1 < argc ? argv[i + 1] : DefaultScriptApiFile);
     }
 

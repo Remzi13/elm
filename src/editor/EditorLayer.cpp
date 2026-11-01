@@ -8,8 +8,8 @@
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
 #include "graphics/debug/WorldAxesVisualizer.hpp"
-#include "graphics/ui/ModelEditorWindow.hpp"
-#include "graphics/ui/SceneHierarchyWindow.hpp"
+#include "editor/ui/ModelEditorWindow.hpp"
+#include "editor/ui/SceneHierarchyWindow.hpp"
 
 #include "editor/ProjectHubWindow.hpp"
 #include "editor/ProjectWindow.hpp"
@@ -21,6 +21,7 @@
 #include "resmgr/Serializer.hpp"
 
 #include "script/ScriptSystem.hpp"
+#include "editor/script/ScriptEditorWindows.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -181,7 +182,7 @@ namespace elm {
 		m_imgui->AddProjectWindow(MakeUnique<ModelEditorWindow>(m_settings, project.Assets(), project.Models()));
 		m_imgui->AddProjectWindow(MakeUnique<editor::ProjectWindow>(m_settings, project,
 			[this](project::ProjectEntry entry) { return SetProjectEntry(std::move(entry)); }));
-		for (auto& window : m_engine.GetScripts().CreateEditorWindows(m_settings))
+		for (auto& window : script::CreateEditorWindows(m_engine.GetScripts(), m_settings))
 			m_imgui->AddProjectWindow(std::move(window));
 	}
 

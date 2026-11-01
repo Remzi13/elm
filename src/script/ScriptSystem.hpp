@@ -9,7 +9,6 @@
 #include <span>
 
 namespace elm {
-    class IImGuiWindow;
     class Settings;
     struct CollisionEvent;
 }
@@ -72,12 +71,10 @@ namespace elm::script {
         /// Play -> Edit: entity scripts end (on_destroy), the main module gets on_stop. Not from inside a Lua call.
         void OnStop();
 
-        /// The Scripts window, wired to the parts of this system. After Init: it takes the Play requests of
-        /// the engine context and gives the other windows PlayControls and ScriptInspection.
-        [[nodiscard]] Vector<UniquePtr<IImGuiWindow>> CreateEditorWindows(Settings& settings);
-
     private:
         friend struct SelfTestAccess;
+        /// The Scripts window of the editor (editor/script) shows the parts of this system (CreateEditorWindows).
+        friend struct EditorWindowsAccess;
 
         void RegisterBindings();
         /// Reset now, on the update after the request; in Play the main module starts again.

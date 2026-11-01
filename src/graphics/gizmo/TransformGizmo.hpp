@@ -2,7 +2,7 @@
 
 #include "graphics/Camera.hpp"
 #include "graphics/debug/DebugDraw.hpp"
-#include "graphics/ui/WindowMessages.hpp"
+#include "graphics/gizmo/GizmoSettings.hpp"
 
 #include "math/Matrix.hpp"
 #include "math/Vector.hpp"

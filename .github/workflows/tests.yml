@@ -28,8 +28,11 @@ jobs:
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DELM_BUILD_TRACY_PROFILER=OFF
 
       - name: Build
-        run: cmake --build build --target elm_tests
+        run: cmake --build build --target elm_tests Engine
 
       # Exit code is the number of failures
       - name: Self tests
         run: ./build/elm_tests
+
+      - name: Editor self tests
+        run: ./build/Engine --editor-selftest

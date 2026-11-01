@@ -450,7 +450,7 @@ UseWorldPosition(scene.WorldTransforms()[scene.IndexOf(lamp)]);</code></pre>
           <tr><td>Простой <code>struct</code> без логики со <code>static constexpr ComponentType Type</code></td><td><code>src/Scene/</code></td></tr>
           <tr><td>Значение в <code>ComponentType</code>, <code>AllComponentTypes</code>, <code>ComponentTypeName</code></td><td><code>Scene/ComponentTypes.hpp</code></td></tr>
           <tr><td>Запись и чтение: <code>MakeComponent</code>, <code>ReadComponents</code></td><td><code>resmgr/Serializer.cpp</code></td></tr>
-          <tr><td><code>bindings::ComponentKind</code>, строка в <code>LuaKinds</code>, раздел Inspector</td><td><code>script/bindings/</code>, <code>script/ui/</code></td></tr>
+          <tr><td><code>bindings::ComponentKind</code>, строка в <code>LuaKinds</code>, раздел Inspector</td><td><code>script/bindings/</code>, <code>editor/script/</code></td></tr>
           <tr><td>Строка в глоссарии и раздел в «Файл сцены»</td><td><code>CLAUDE.md</code>, <code>docs/scene/</code></td></tr>
         </tbody></table></div>
       </div>
@@ -1100,7 +1100,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Модели и редактор", "graphics::ModelManager", "владеет моделями сцены и их GPU-мешами", "graphics"],
     ["Модели и редактор", "Camera, CameraController", "камера вида и её управление", "graphics"],
     ["Модели и редактор", "OcclusionCullingSystem, SoftwareDepthBuffer", "CPU-отсечение, результат по `NodeId` (`FindOccludee`)", "graphics/culling"],
-    ["Модели и редактор", "ImGuiSystem, IImGuiWindow, ImGuiWindowContext", "окна редактора и то, что им передаётся на кадр", "graphics/ui"],
+    ["Модели и редактор", "ImGuiSystem, IImGuiWindow, ImGuiWindowContext", "окна редактора и то, что им передаётся на кадр", "editor/ui"],
     ["Модели и редактор", "SelectedSceneInstance, PlayControls, OpenModelEditor", "сообщения между окнами через `MessageBus`", "ui/WindowMessages.hpp"],
     ["Модели и редактор", "Edit / Play, PlayMode", "режимы редактора; `script::PlayMode`, владелец `Engine`", "script/PlayMode.hpp"],
     ["Рендер", "RenderSystem", "фасад подсистемы рендера", "update + render"],

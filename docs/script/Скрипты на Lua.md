@@ -22,8 +22,8 @@ Lua собирается **как C++**. Поэтому `lua_error` бросае
 
 | Слой | Части | Что делают |
 |---|---|---|
-| 5 | `ScriptSystem` (`script/ScriptSystem.*`) | жизненный цикл, сборка частей, регистрация биндингов, окна редактора |
-| 4 | `bindings/*`, `ui/*` | адаптеры: Lua API и окна редактора. Каждый файл биндингов и каждая панель зависят только от того, что показывают |
+| 5 | `ScriptSystem` (`script/ScriptSystem.*`) | жизненный цикл, сборка частей, регистрация биндингов; части для окна Scripts (`EditorWindowsAccess`) |
+| 4 | `bindings/*`, окно Scripts (`editor/script/*`) | адаптеры: Lua API и окна редактора. Каждый файл биндингов и каждая панель зависят только от того, что показывают |
 | 3 | `MainModule`, `EntityScripts` (+ `EntityScriptList`), `ScriptDefaults`, `HotReload`, `ScriptConsole` | главный модуль, скрипты сущностей, props для Scene Hierarchy, перезагрузка, консоль |
 | 2 | `ScriptClass` (`entity/`) | модуль как класс скрипта: проверка таблицы и props, новый экземпляр |
 | 1 | `ModuleLoader` (`module/`), `values/` | `require` и список загруженных модулей; `Entity`, `ModelRef`, `ScriptValue` ↔ Lua |
@@ -217,10 +217,15 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 
 ## Окно Scripts
 
-`script/ui/ScriptWindow.*`, пункт «Scripts» в меню Windows. Окно только раскладывает свои части и выполняет
+`editor/script/ScriptWindow.*`, пункт «Scripts» в меню Windows. Окно только раскладывает свои части и выполняет
 `/`-команды консоли. Каждая панель работает только со своими частями модуля: `ScriptStatusBar` (панель сверху),
 `ConsolePanel` (`ScriptConsole`), `ScriptEditor`, `ModulesPanel` (`ModuleLoader`, `HotReload`), `ApiPanel` (`lua::State`).
-Окна создаёт `ScriptSystem::CreateEditorWindows`, `EditorLayer` только добавляет их в `ImGuiSystem`.
+Окна создаёт `script::CreateEditorWindows(scripts, settings)` (`editor/script/ScriptEditorWindows.*`),
+`EditorLayer` только добавляет их в `ImGuiSystem`. Окна на ImGui лежат в модуле `editor`: у движка без
+редактора ImGui нет. Части `ScriptSystem` окну отдаёт
+`EditorWindowsAccess` (друг `ScriptSystem`, как `SelfTestAccess` у тестов). Текстовая логика окна без
+ImGui — `CodeIndent`, `LuaHighlighter`, `ErrorLocation` (`FindErrorLocation`: файл и строка из сообщения
+Lua) — лежит там же, в `editor/script/`; её проверяет `Engine --editor-selftest` (`editor/EditorSelfTest.cpp`).
 
 - **Панель сверху:** состояние главного модуля (running / stopped с текстом ошибки и кнопкой
   перезагрузки / not running), память Lua, флажок Hot reload, кнопки «Reload changed» и «Restart».
@@ -238,7 +243,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
   - Файл, изменённый на диске другим редактором, подхватывается сам. Если в нём есть
     несохранённые правки, редактор спрашивает, чью версию оставить.
   - Внизу позиция курсора `Ln, Col` (подсказка по клавишам — при наведении на имя файла).
-  - Отступы (`script/ui/CodeIndent.*`, отступ — четыре пробела, как в скриптах): **Tab** вставляет
+  - Отступы (`editor/script/CodeIndent.*`, отступ — четыре пробела, как в скриптах): **Tab** вставляет
     отступ, а при выделении на несколько строк сдвигает их вправо (пустые строки не трогает);
     **Ctrl+]** / **Ctrl+[** сдвигают выделенные строки вправо / влево; **Enter** повторяет отступ
     строки выше. Shift+Tab не используется: ImGui по нему переводит фокус на предыдущий элемент.
@@ -250,7 +255,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
     в том числе сразу при открытии файла модуля, который не загрузился.
   - Как это устроено: `InputTextMultiline` из ImGui умеет только один цвет текста. Поле рисует
     текст прозрачным, а `ScriptEditor::DrawHighlight` поверх в том же дочернем окне рисует цветные
-    токены (`script/ui/LuaHighlighter.*`), курсор и номера строк по тем же координатам и прокрутке.
+    токены (`editor/script/LuaHighlighter.*`), курсор и номера строк по тем же координатам и прокрутке.
     Используется `imgui_internal.h`, поэтому при обновлении ImGui это место нужно проверить.
 - **Modules:** загруженные модули, их состояние или ошибка, число перезагрузок, кнопки Reload и
   Edit. Клик по ошибке открывает файл на её строке.
@@ -355,6 +360,7 @@ e:destroy()                                   -- вместе с потомка�
 
 ```bash
 elm_tests                     # C++-проверки и tests/*_test.lua проекта Sandbox, код выхода = число провалов
+Engine --editor-selftest      # логика окна Scripts: подсветка, отступы, место ошибки
 Engine --dump-script-api      # .meta/elm.lua в скриптах Sandbox: аннотации для LuaLS
 ```
 

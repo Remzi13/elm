@@ -1,24 +1,3 @@
-set(UI_SRC
-    ui/ScriptWindowActions.hpp
-    ui/ScriptWindowStyle.hpp
-    ui/ScriptWindow.hpp
-    ui/ScriptWindow.cpp
-    ui/ScriptStatusBar.hpp
-    ui/ScriptStatusBar.cpp
-    ui/ConsolePanel.hpp
-    ui/ConsolePanel.cpp
-    ui/ModulesPanel.hpp
-    ui/ModulesPanel.cpp
-    ui/ApiPanel.hpp
-    ui/ApiPanel.cpp
-    ui/ScriptEditor.hpp
-    ui/ScriptEditor.cpp
-    ui/LuaHighlighter.hpp
-    ui/LuaHighlighter.cpp
-    ui/CodeIndent.hpp
-    ui/CodeIndent.cpp
-)
-
 set(ENTITY_SRC
     entity/ScriptClass.hpp
     entity/ScriptClass.cpp
@@ -92,14 +71,10 @@ set(ALL_SRC
     console/ScriptConsole.cpp
 )
 
-set(ALL_SRC ${ALL_SRC} ${UI_SRC} ${ENTITY_SRC} ${BINDINGS_SRC} ${LUA_SRC} ${MODULE_SRC} ${VALUES_SRC})
+set(ALL_SRC ${ALL_SRC} ${ENTITY_SRC} ${BINDINGS_SRC} ${LUA_SRC} ${MODULE_SRC} ${VALUES_SRC})
 
 engine_add_library(script
     ${ALL_SRC}
-)
-
-source_group("Ui" FILES
-    ${UI_SRC}
 )
 
 source_group("Bindings" FILES

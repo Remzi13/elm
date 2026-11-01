@@ -13,11 +13,12 @@ elm — 3D-движок с редактором на C++23: собственны
 - Бинарник: `build/Debug/Engine.exe` (MSVC) или `build/Engine`. Файл `.settings` ищется вверх от текущего каталога, поэтому запускать можно из корня или из `build/`.
 - Запуск с тестовой сценой: `Engine --scene <0..3> [--instances N]` (`ScenePreset`).
 - Тесты: `build/elm_tests` (`build/Debug/elm_tests.exe` в MSVC), отдельная программа без окна и GPU. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все `assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
-  Их же гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
+  Логику редактора (подсветка, отступы, место ошибки в окне Scripts) проверяет `Engine --editor-selftest`,
+  тоже без окна, код возврата — число падений. Оба набора гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
 - Lua API для LuaLS: `Engine --dump-script-api` перегенерирует `assets/scripts/.meta/elm.lua`.  Это сгенерированный файл, руками его не правь.
 - `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
   отступ табом или 4 пробелами, как уже в файле. Посторонние строки не переформатируй.
-- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` проходит.
+- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` и `Engine --editor-selftest` проходят.
 
 ## 1. Сущности выражены явно
 
@@ -81,7 +82,7 @@ elm — 3D-движок с редактором на C++23: собственны
 | `Camera`, `CameraController`, `ViewRay` | камера вида и её управление; `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
-| `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
+| `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
 | `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `Engine` |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
@@ -137,11 +138,11 @@ platform   → render          GLFW
 Scene      → core, math, render
 resmgr     → Scene           glaze PRIVATE
 physics    → Scene           Jolt PRIVATE
-graphics   → render, platform, resmgr (+ ImGui)
+graphics   → render, platform, resmgr   без ImGui
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
 engine     → Scene, physics, script, graphics, project, resmgr, input   Engine, PlayerLayer
-editor     → graphics, project, engine   EditorLayer и окна редактора
+editor     → graphics, project, engine, script (+ ImGui, GLFW)   EditorLayer и весь UI редактора
 Engine     (main.cpp) выбирает слой и собирает всё
 ```
 
@@ -150,8 +151,10 @@ Engine     (main.cpp) выбирает слой и собирает всё
 
 Внутри `script` действуют слои (`docs/script/Скрипты на Lua.md`): зависимость только вниз, части
 одного слоя друг о друге не знают, связи между ними задаёт `ScriptSystem`. Внутренние части модуля
-(`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`, `ui/`) не подключаются вне `src/script/`:
-снаружи видны `ScriptSystem`, `EngineContext`, `PlayMode` и `RunSelfTests`.
+(`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`) не подключаются вне `src/script/`:
+снаружи видны `ScriptSystem`, `EngineContext`, `PlayMode` и `RunSelfTests`. Исключение — окно Scripts редактора
+(`editor/script/`): оно показывает части `ScriptSystem` и подключает их заголовки, а сами части получает через
+`EditorWindowsAccess` (`CreateEditorWindows`).
 
 Известные нарушения, их не расширяй: заголовки модуля Scene подключают заголовки `graphics` (`Scene.hpp` и
 `ModelComponent.hpp` — `ModelHandler.hpp`, `SceneAsset.hpp` — `Model.hpp`, `SceneSnapshot.hpp` и `TestScenes.hpp` — `ModelManager.hpp`,
@@ -281,11 +284,12 @@ Engine     (main.cpp) выбирает слой и собирает всё
 - Атомарные счётчики через `std::atomic`.
 
 ## 10. Тесты
-- Тесты — это `elm_tests`. GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
+- Тесты — это `elm_tests` (движок) и `Engine --editor-selftest` (логика редактора). GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
 - Lua-тест: файл `assets/scripts/tests/<область>_test.lua` возвращает таблицу `tests` с функциями,
   проверки через `require "tests.expect"` (`expect.eq`, `expect.near`, `expect.error`), фикстуры
   в `tests/fixtures/`. Имя теста описывает сценарий: `tests.vector3_construction`.
-- C++-проверки биндингов и тестовый модуль `elm_test` лежат в `script/SelfTest.cpp`.
+- C++-проверки биндингов и тестовый модуль `elm_test` лежат в `script/SelfTest.cpp`; проверки редактора — в
+  `editor/EditorSelfTest.cpp`. Тест кода редактора идёт туда, а не в `elm_tests`: движок о редакторе не знает.
 - Изменил биндинги или Lua API: добавь тест и перегенерируй `assets/scripts/.meta/elm.lua`.
 - Для рендера, culling и UI автотестов нет. Проверяй запуском (`Engine --scene N`) и прямо пиши,
   что проверено вручную, а что нет.

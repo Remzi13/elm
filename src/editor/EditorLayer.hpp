@@ -5,7 +5,7 @@
 
 #include "engine/IEngineLayer.hpp"
 
-#include "graphics/ui/ImGuiSystem.hpp"
+#include "editor/ui/ImGuiSystem.hpp"
 
 #include "project/Project.hpp"
 

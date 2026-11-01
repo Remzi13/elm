@@ -21,11 +21,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 - Запуск с тестовой сценой: `Engine --scene <0..3> [--instances N]` (`ScenePreset`).
 - Тесты: `build/elm_tests` (`build/Debug/elm_tests.exe` в MSVC), отдельная программа без окна и GPU. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все
   `projects/Sandbox/assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
-  Их же гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
+  Логику редактора (подсветка, отступы, место ошибки в окне Scripts) проверяет `Engine --editor-selftest`,
+  тоже без окна, код возврата — число падений. Оба набора гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
 - Lua API для LuaLS: `Engine --dump-script-api` перегенерирует `projects/Sandbox/assets/scripts/.meta/elm.lua`. Это сгенерированный файл, руками его не правь.
 - `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
   отступ табом или 4 пробелами, как уже в файле. Посторонние строки не переформатируй.
-- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` проходит.
+- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` и `Engine --editor-selftest` проходят.
 
 ## 1. Сущности выражены явно
 
@@ -92,9 +93,9 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `graphics::ModelManager` | владеет моделями сцены, их GPU-мешами (`render::Mesh`) и путями их файлов (`FileOf`, пусто у модели только в памяти) |
 | `Camera`, `CameraController`, `ViewRay` | камера вида и её управление; `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`) |
-| `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
+| `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр; `editor/ui/`, только редактор |
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
-| `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |
+| `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
 | `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `Engine` |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
@@ -135,7 +136,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `resmgr::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resmgr` |
 | `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `Engine`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |
-| `ProjectMenu`, `ProjectMenuDesc` | меню Project редактора; открытый проект для него, недавние проекты, запрос `open` (применяется в начале update) | `graphics/ui` |
+| `ProjectMenu`, `ProjectMenuDesc` | меню Project редактора; открытый проект для него, недавние проекты, запрос `open` (применяется в начале update) | `editor/ui` |
 | `project::AssetType`, `ProjectAssets`, `AssetEntry` | тип файла ассета по расширению; дерево папки `assets` для окон | `project` |
 | `resmgr::ProjectTemplate` | новый проект на диске: `.elmproject`, папки ассетов, `main.lua`, настройка LuaLS | `resmgr` |
 | `resmgr::ProjectBuilder`, `BuildDesc` | сборка игры в `Build/<Имя>/`: программа, шейдеры, проект без `source/`, `.settings` | `resmgr` |
@@ -165,11 +166,11 @@ Scene      → core, math, render
 project    → core
 resmgr     → Scene           project, glaze PRIVATE
 physics    → Scene           Jolt PRIVATE
-graphics   → render, platform, resmgr (+ ImGui)   о project не знает
+graphics   → render, platform, resmgr   без ImGui   о project не знает
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
 engine     → Scene, physics, script, graphics, project, resmgr, input   Engine, PlayerLayer
-editor     → graphics, project, engine   EditorLayer и окна редактора, которым нужен проект
+editor     → graphics, project, engine, script (+ ImGui, GLFW)   EditorLayer и весь UI редактора: ui/, script/
 Engine     (main.cpp) выбирает слой и собирает всё
 ```
 
@@ -178,8 +179,10 @@ Engine     (main.cpp) выбирает слой и собирает всё
 
 Внутри `script` действуют слои (`docs/script/Скрипты на Lua.md`): зависимость только вниз, части
 одного слоя друг о друге не знают, связи между ними задаёт `ScriptSystem`. Внутренние части модуля
-(`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`, `ui/`) не подключаются вне `src/script/`:
-снаружи видны `ScriptSystem`, `EngineContext`, `PlayMode` и `RunSelfTests`.
+(`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`) не подключаются вне `src/script/`:
+снаружи видны `ScriptSystem`, `EngineContext`, `PlayMode` и `RunSelfTests`. Исключение — окно Scripts редактора
+(`editor/script/`): оно показывает части `ScriptSystem` и подключает их заголовки, а сами части получает через
+`EditorWindowsAccess` (`CreateEditorWindows`).
 
 Известные нарушения, их не расширяй: заголовки модуля Scene подключают заголовки `graphics` (`Scene.hpp` и
 `ModelComponent.hpp` — `ModelHandler.hpp`, `SceneAsset.hpp` — `Model.hpp`, `SceneSnapshot.hpp` и `TestScenes.hpp` — `ModelManager.hpp`,
@@ -310,11 +313,12 @@ Engine     (main.cpp) выбирает слой и собирает всё
 - Атомарные счётчики через `std::atomic`.
 
 ## 10. Тесты
-- Тесты — это `elm_tests`. GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
+- Тесты — это `elm_tests` (движок) и `Engine --editor-selftest` (логика редактора). GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
 - Lua-тест: файл `projects/Sandbox/assets/scripts/tests/<область>_test.lua` возвращает таблицу `tests` с функциями,
   проверки через `require "tests.expect"` (`expect.eq`, `expect.near`, `expect.error`), фикстуры
   в `tests/fixtures/`. Имя теста описывает сценарий: `tests.vector3_construction`.
-- C++-проверки биндингов и тестовый модуль `elm_test` лежат в `script/SelfTest.cpp`.
+- C++-проверки биндингов и тестовый модуль `elm_test` лежат в `script/SelfTest.cpp`; проверки редактора — в
+  `editor/EditorSelfTest.cpp`. Тест кода редактора идёт туда, а не в `elm_tests`: движок о редакторе не знает.
 - Изменил биндинги или Lua API: добавь тест и перегенерируй `projects/Sandbox/assets/scripts/.meta/elm.lua`.
 - Для рендера, culling и UI автотестов нет. Проверяй запуском (`Engine --scene N`) и прямо пиши,
   что проверено вручную, а что нет.
