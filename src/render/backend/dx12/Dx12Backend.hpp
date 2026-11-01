@@ -14,6 +14,7 @@
 #include <dxgi1_6.h>
 #include <wrl/client.h>
 
+#include <array>
 #include <atomic>
 
 namespace elm::render::dx12 {
@@ -80,6 +81,9 @@ namespace elm::render::dx12 {
 
     /// Native Direct3D 12 implementation. Render-thread only; stale handles are ignored.
     /// Init and Shutdown run while the render thread is stopped.
+    ///
+    /// Up to FramesInFlight frames are on the GPU. Each frame records into the shared command list with its own
+    /// allocator and upload memory; resources destroyed during a frame are freed once the GPU finished it.
     class Dx12Backend final : public rhi::IRenderBackend {
     public:
         Dx12Backend() = default;
@@ -120,6 +124,10 @@ namespace elm::render::dx12 {
 
         static constexpr uint32_t TransientIndexBit = 1u << (TextureHandle::IndexBits - 1);
         static constexpr uint32_t BufferCount = 2;
+        /// Frames the CPU may record ahead of the GPU.
+        static constexpr uint32_t FramesInFlight = 2;
+        /// Vertex and Index upload arenas copied to the GPU each frame; Constants are copied per block.
+        static constexpr uint32_t StreamArenaCount = 2;
         static constexpr uint32_t MaxVertexSlots = 4;
         static constexpr uint32_t RenderTargetDescriptorCapacity = 4096;
         static constexpr uint32_t DepthDescriptorCapacity = 1024;
@@ -145,6 +153,31 @@ namespace elm::render::dx12 {
             uint32_t m_increment { 0 };
         };
 
+        /// What one frame in flight owns until the GPU has finished it (its fence value is reached).
+        struct FrameContext {
+            ComPtr<ID3D12CommandAllocator> allocator;
+            std::array<ComPtr<ID3D12Resource>, StreamArenaCount> streams;
+            std::array<uint8_t*, StreamArenaCount> streamsMapped {};
+            ComPtr<ID3D12Resource> constants;
+            uint8_t* constantsMapped { nullptr };
+            uint64_t constantsOffset { 0 };
+            /// Signalled when the GPU finished the frame's last submission; 0 before the first one.
+            uint64_t fenceValue { 0 };
+            Vector<uint32_t> shaderDescriptors;
+            Vector<ComPtr<ID3D12Resource>> staging;
+            Vector<GpuTexture> retiredTextures;
+            Vector<GpuBuffer> retiredBuffers;
+            Vector<GpuMesh> retiredMeshes;
+            Vector<GpuPipeline> retiredPipelines;
+        };
+
+        [[nodiscard]] auto InitFrame(FrameContext& frame) -> EngineResult<void>;
+        void ShutdownFrame(FrameContext& frame);
+        /// The frame being recorded or, between frames, the last submitted one: it holds retired resources.
+        [[nodiscard]] FrameContext& CurrentFrame() noexcept { return m_frames[m_frameSlot]; }
+        /// Frees what the frame retired and its shader descriptors; the GPU must be done with it.
+        void ReleaseFrame(FrameContext& frame);
+
         [[nodiscard]] GpuTexture* FindTexture(TextureHandle handle);
         [[nodiscard]] const GpuTexture* FindTexture(TextureHandle handle) const;
         [[nodiscard]] GpuSurface* FindSurface(SurfaceId surface);
@@ -158,10 +191,12 @@ namespace elm::render::dx12 {
         void Transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES& current, D3D12_RESOURCE_STATES target);
         void UploadBuffer(GpuBuffer& destination, uint64_t offset, std::span<const uint8_t> data);
         void UploadTexture(GpuTexture& texture, const TextureData& data);
+        /// Starts the next frame when none is recording: waits for its slot's previous submission.
         void EnsureRecording();
         void ExecuteCommands();
-        void WaitForGpu();
-        void CollectRetired();
+        void WaitForFence(uint64_t value);
+        /// Waits for every submitted frame and releases all of them.
+        void WaitForIdle();
         void Retire(GpuTexture texture);
         void Retire(GpuBuffer buffer);
         void Retire(GpuMesh mesh);
@@ -172,8 +207,9 @@ namespace elm::render::dx12 {
         ComPtr<IDXGIAdapter1> m_adapter;
         ComPtr<ID3D12Device> m_device;
         ComPtr<ID3D12CommandQueue> m_queue;
-        ComPtr<ID3D12CommandAllocator> m_commandAllocator;
         ComPtr<ID3D12GraphicsCommandList> m_commandList;
+        std::array<FrameContext, FramesInFlight> m_frames;
+        uint32_t m_frameSlot { 0 };
         ComPtr<ID3D12Fence> m_fence;
         HANDLE m_fenceEvent { nullptr };
         uint64_t m_fenceValue { 0 };
@@ -183,7 +219,6 @@ namespace elm::render::dx12 {
         DescriptorPool m_dsvDescriptors;
         DescriptorPool m_srvDescriptors;
         DescriptorPool m_shaderDescriptors;
-        Vector<uint32_t> m_frameShaderDescriptors;
 
         GpuSurface m_mainSurface;
         UnorderedMap<SurfaceId, GpuSurface> m_surfaces;
@@ -199,17 +234,7 @@ namespace elm::render::dx12 {
         HandleAllocator<PipelineHandle> m_pipelineHandles;
         ResourceRegistry<PipelineHandle, GpuPipeline> m_pipelines;
 
-        ComPtr<ID3D12Resource> m_uploadBuffers[2];
-        uint8_t* m_uploadMapped[2] { nullptr, nullptr };
-        ComPtr<ID3D12Resource> m_constantUploadBuffer;
-        uint8_t* m_constantUploadMapped { nullptr };
         uint64_t m_constantUploadCapacity { 0 };
-        uint64_t m_constantUploadOffset { 0 };
-        Vector<ComPtr<ID3D12Resource>> m_stagingResources;
-        Vector<GpuTexture> m_retiredTextures;
-        Vector<GpuBuffer> m_retiredBuffers;
-        Vector<GpuMesh> m_retiredMeshes;
-        Vector<GpuPipeline> m_retiredPipelines;
         std::atomic<size_t> m_allocatedMemory { 0 };
     };
 

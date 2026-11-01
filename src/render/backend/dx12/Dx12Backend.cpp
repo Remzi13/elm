@@ -484,18 +484,19 @@ public:
         for (auto& constants : m_pipeline->constants) {
             if (constants.slot != command.slot)
                 continue;
+            FrameContext& frame = m_backend.CurrentFrame();
             const uint64_t allocationSize = AlignConstantBufferSize((std::max)(constants.size, command.data.size));
-            if (m_backend.m_constantUploadOffset > m_backend.m_constantUploadCapacity ||
-                allocationSize > m_backend.m_constantUploadCapacity - m_backend.m_constantUploadOffset) {
+            if (frame.constantsOffset > m_backend.m_constantUploadCapacity ||
+                allocationSize > m_backend.m_constantUploadCapacity - frame.constantsOffset) {
                 ERROR_MESSAGE(log::Category::Render, Source, "Per-frame constant upload buffer is full");
                 return;
             }
-            auto* destination = m_backend.m_constantUploadMapped + m_backend.m_constantUploadOffset;
+            auto* destination = frame.constantsMapped + frame.constantsOffset;
             std::memset(destination, 0, static_cast<size_t>(allocationSize));
             std::memcpy(destination, m_uploads.GetData(command.data.arena) + command.data.offset, command.data.size);
             m_commands->SetGraphicsRootConstantBufferView(constants.rootParameter,
-                m_backend.m_constantUploadBuffer->GetGPUVirtualAddress() + m_backend.m_constantUploadOffset);
-            m_backend.m_constantUploadOffset += allocationSize;
+                frame.constants->GetGPUVirtualAddress() + frame.constantsOffset);
+            frame.constantsOffset += allocationSize;
             return;
         }
     }
@@ -556,8 +557,8 @@ private:
             break;
         case rhi::BufferSource::Kind::Upload: {
             const size_t arena = static_cast<size_t>(source.upload.arena);
-            if (source.upload.IsValid() && arena < 2)
-                return { m_backend.m_uploadBuffers[arena].Get(), m_uploads.GetCapacity(source.upload.arena), source.upload.offset };
+            if (source.upload.IsValid() && arena < StreamArenaCount)
+                return { m_backend.CurrentFrame().streams[arena].Get(), m_uploads.GetCapacity(source.upload.arena), source.upload.offset };
             break;
         }
         case rhi::BufferSource::Kind::None:
@@ -623,7 +624,7 @@ private:
                 ERROR_MESSAGE(log::Category::Render, Source, "Per-frame shader descriptor heap is full");
                 return false;
             }
-            m_backend.m_frameShaderDescriptors.push_back(descriptor);
+            m_backend.CurrentFrame().shaderDescriptors.push_back(descriptor);
             m_backend.m_device->CopyDescriptorsSimple(1, m_backend.m_shaderDescriptors.Cpu(descriptor),
                 m_backend.m_srvDescriptors.Cpu(texture->srvIndex), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
             ID3D12DescriptorHeap* heaps[] { m_backend.m_shaderDescriptors.GetHeap() };
@@ -703,13 +704,13 @@ auto Dx12Backend::Init(const NativeWindow& window, Size size) -> EngineResult<vo
             log::Category::Render, Source);
     }
 
-    result = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&m_commandAllocator));
-    if (FAILED(result)) {
-        LogFailure("CreateCommandAllocator", result);
-        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create a command allocator",
-            log::Category::Render, Source);
+    m_constantUploadCapacity = rhi::UploadAllocator::GetDefaultCapacity(rhi::UploadArena::Constants)
+        * ConstantBufferAlignment / MinimumUploadAlignment;
+    for (auto& frame : m_frames) {
+        if (auto frameResult = InitFrame(frame); !frameResult)
+            return frameResult;
     }
-    result = m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_commandAllocator.Get(), nullptr,
+    result = m_device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_frames.front().allocator.Get(), nullptr,
         IID_PPV_ARGS(&m_commandList));
     if (FAILED(result)) {
         LogFailure("CreateCommandList", result);
@@ -738,45 +739,6 @@ auto Dx12Backend::Init(const NativeWindow& window, Size size) -> EngineResult<vo
             log::Category::Render, Source);
     }
 
-    for (uint32_t index = 0; index < 2; ++index) {
-        const uint64_t capacity = rhi::UploadAllocator::GetDefaultCapacity(
-            index == 0 ? rhi::UploadArena::Vertex : rhi::UploadArena::Index);
-        m_uploadBuffers[index] = CreateCommittedBuffer(capacity, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
-        if (!m_uploadBuffers[index]) {
-            return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create upload stream buffers",
-                log::Category::Render, Source);
-        }
-        void* mapped = nullptr;
-        const D3D12_RANGE readRange { 0, 0 };
-        result = m_uploadBuffers[index]->Map(0, &readRange, &mapped);
-        if (FAILED(result)) {
-            LogFailure("Map upload stream", result);
-            return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to map upload stream buffers",
-                log::Category::Render, Source);
-        }
-        m_uploadMapped[index] = static_cast<uint8_t*>(mapped);
-        m_allocatedMemory += static_cast<size_t>(capacity);
-    }
-
-    m_constantUploadCapacity = rhi::UploadAllocator::GetDefaultCapacity(rhi::UploadArena::Constants)
-        * ConstantBufferAlignment / MinimumUploadAlignment;
-    m_constantUploadBuffer = CreateCommittedBuffer(m_constantUploadCapacity, D3D12_HEAP_TYPE_UPLOAD,
-        D3D12_RESOURCE_STATE_GENERIC_READ);
-    if (!m_constantUploadBuffer) {
-        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create the constant upload buffer",
-            log::Category::Render, Source);
-    }
-    void* constantsMapped = nullptr;
-    const D3D12_RANGE constantsReadRange { 0, 0 };
-    result = m_constantUploadBuffer->Map(0, &constantsReadRange, &constantsMapped);
-    if (FAILED(result)) {
-        LogFailure("Map constant upload buffer", result);
-        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to map the constant upload buffer",
-            log::Category::Render, Source);
-    }
-    m_constantUploadMapped = static_cast<uint8_t*>(constantsMapped);
-    m_allocatedMemory += static_cast<size_t>(m_constantUploadCapacity);
-
     m_mainSurface.width = size.width;
     m_mainSurface.height = size.height;
     if (!CreateSurfaceResources(m_mainSurface, window, size.width, size.height)) {
@@ -788,33 +750,21 @@ auto Dx12Backend::Init(const NativeWindow& window, Size size) -> EngineResult<vo
 
 void Dx12Backend::Shutdown()
 {
-    if (m_queue && m_fence) {
-        if (m_recording) {
-            m_commandList->Close();
-            m_recording = false;
-        }
-        m_queue->Signal(m_fence.Get(), ++m_fenceValue);
-        WaitForGpu();
+    if (m_recording) {
+        m_commandList->Close();
+        m_recording = false;
     }
-    CollectRetired();
+    WaitForIdle();
     m_pipelines.Clear();
     m_shaders.Clear();
     m_transientTextures.Clear();
     m_textures.Clear();
     m_buffers.Clear();
     m_meshes.Clear();
-    for (uint32_t index = 0; index < 2; ++index) {
-        if (m_uploadBuffers[index] && m_uploadMapped[index])
-            m_uploadBuffers[index]->Unmap(0, nullptr);
-        m_uploadMapped[index] = nullptr;
-        m_uploadBuffers[index].Reset();
-    }
-    if (m_constantUploadBuffer && m_constantUploadMapped)
-        m_constantUploadBuffer->Unmap(0, nullptr);
-    m_constantUploadMapped = nullptr;
-    m_constantUploadBuffer.Reset();
+    for (auto& frame : m_frames)
+        ShutdownFrame(frame);
+    m_frameSlot = 0;
     m_constantUploadCapacity = 0;
-    m_constantUploadOffset = 0;
     m_surfaces.clear();
     ReleaseSurfaceResources(m_mainSurface);
     m_mainSurface = {};
@@ -823,8 +773,8 @@ void Dx12Backend::Shutdown()
     m_dsvDescriptors.Reset();
     m_rtvDescriptors.Reset();
     m_commandList.Reset();
-    m_commandAllocator.Reset();
     m_fence.Reset();
+    m_fenceValue = 0;
     m_queue.Reset();
     m_device.Reset();
     m_factory.Reset();
@@ -834,6 +784,50 @@ void Dx12Backend::Shutdown()
         m_fenceEvent = nullptr;
     }
     m_allocatedMemory = 0;
+}
+
+auto Dx12Backend::InitFrame(FrameContext& frame) -> EngineResult<void>
+{
+    const HRESULT result = m_device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&frame.allocator));
+    if (FAILED(result)) {
+        LogFailure("CreateCommandAllocator", result);
+        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create a command allocator",
+            log::Category::Render, Source);
+    }
+
+    const auto createMapped = [&](uint64_t capacity, ComPtr<ID3D12Resource>& buffer, uint8_t*& mapped) {
+        buffer = CreateCommittedBuffer(capacity, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ);
+        void* pointer = nullptr;
+        const D3D12_RANGE readRange { 0, 0 };
+        if (!buffer || FAILED(buffer->Map(0, &readRange, &pointer)))
+            return false;
+        mapped = static_cast<uint8_t*>(pointer);
+        m_allocatedMemory += static_cast<size_t>(capacity);
+        return true;
+    };
+    for (uint32_t index = 0; index < StreamArenaCount; ++index) {
+        const uint64_t capacity = rhi::UploadAllocator::GetDefaultCapacity(static_cast<rhi::UploadArena>(index));
+        if (!createMapped(capacity, frame.streams[index], frame.streamsMapped[index])) {
+            return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create upload stream buffers",
+                log::Category::Render, Source);
+        }
+    }
+    if (!createMapped(m_constantUploadCapacity, frame.constants, frame.constantsMapped)) {
+        return MakeUnexpected(ErrorCode::RenderEngineInitializationFailed, "Failed to create the constant upload buffer",
+            log::Category::Render, Source);
+    }
+    return {};
+}
+
+void Dx12Backend::ShutdownFrame(FrameContext& frame)
+{
+    for (uint32_t index = 0; index < StreamArenaCount; ++index) {
+        if (frame.streams[index] && frame.streamsMapped[index])
+            frame.streams[index]->Unmap(0, nullptr);
+    }
+    if (frame.constants && frame.constantsMapped)
+        frame.constants->Unmap(0, nullptr);
+    frame = {};
 }
 
 void Dx12Backend::ExecuteResourceCommands(ResourceCommandList& commands)
@@ -1258,7 +1252,7 @@ void Dx12Backend::UploadBuffer(GpuBuffer& destination, uint64_t offset, std::spa
     Transition(destination.resource.Get(), destination.state, D3D12_RESOURCE_STATE_COPY_DEST);
     m_commandList->CopyBufferRegion(destination.resource.Get(), offset, staging.Get(), 0, data.size());
     Transition(destination.resource.Get(), destination.state, BufferState(destination.desc.type));
-    m_stagingResources.push_back(std::move(staging));
+    CurrentFrame().staging.push_back(std::move(staging));
 }
 
 void Dx12Backend::UploadTexture(GpuTexture& texture, const TextureData& data)
@@ -1309,7 +1303,7 @@ void Dx12Backend::UploadTexture(GpuTexture& texture, const TextureData& data)
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE)
         : D3D12_RESOURCE_STATE_COMMON;
     Transition(texture.resource.Get(), texture.state, nextState);
-    m_stagingResources.push_back(std::move(staging));
+    CurrentFrame().staging.push_back(std::move(staging));
 }
 
 void Dx12Backend::Transition(ID3D12Resource* resource, D3D12_RESOURCE_STATES& current, D3D12_RESOURCE_STATES target)
@@ -1433,8 +1427,7 @@ void Dx12Backend::DestroySurface(SurfaceId surface)
         return;
     if (m_recording)
         ExecuteCommands();
-    WaitForGpu();
-    CollectRetired();
+    WaitForIdle();
     m_surfaces.erase(surface);
 }
 
@@ -1448,8 +1441,7 @@ void Dx12Backend::ResizeSurface(SurfaceId surface, uint32_t width, uint32_t heig
         return;
     if (m_recording)
         ExecuteCommands();
-    WaitForGpu();
-    CollectRetired();
+    WaitForIdle();
     const NativeWindow window { target->windowHandle, nullptr, WindowSystem::Win32 };
     if (!CreateSurfaceResources(*target, window, width, height))
         ERROR_MESSAGE(log::Category::Render, Source, "Failed to resize DXGI surface %u", surface);
@@ -1473,24 +1465,23 @@ TextureFormat Dx12Backend::GetSurfaceDepthFormat() const
 
 void Dx12Backend::EnsureRecording()
 {
-    if (m_recording || !m_device || !m_commandAllocator || !m_commandList)
+    if (m_recording || !m_device || !m_commandList)
         return;
-    WaitForGpu();
-    CollectRetired();
-    for (const uint32_t descriptor : m_frameShaderDescriptors)
-        m_shaderDescriptors.Free(descriptor);
-    m_frameShaderDescriptors.clear();
-    const HRESULT allocatorResult = m_commandAllocator->Reset();
+    m_frameSlot = (m_frameSlot + 1) % FramesInFlight;
+    FrameContext& frame = CurrentFrame();
+    WaitForFence(frame.fenceValue);
+    ReleaseFrame(frame);
+    const HRESULT allocatorResult = frame.allocator->Reset();
     if (FAILED(allocatorResult)) {
         LogFailure("Reset command allocator", allocatorResult);
         return;
     }
-    const HRESULT listResult = m_commandList->Reset(m_commandAllocator.Get(), nullptr);
+    const HRESULT listResult = m_commandList->Reset(frame.allocator.Get(), nullptr);
     if (FAILED(listResult)) {
         LogFailure("Reset command list", listResult);
         return;
     }
-    m_constantUploadOffset = 0;
+    frame.constantsOffset = 0;
     m_recording = true;
 }
 
@@ -1506,25 +1497,28 @@ void Dx12Backend::ExecuteCommands()
     for (auto& [surfaceId, surface] : m_surfaces)
         submitSurface(surface);
 
+    m_recording = false;
     const HRESULT result = m_commandList->Close();
     if (FAILED(result)) {
         LogFailure("Close command list", result);
-        m_recording = false;
         return;
     }
     ID3D12CommandList* lists[] { m_commandList.Get() };
     m_queue->ExecuteCommandLists(1, lists);
-    const HRESULT signalResult = m_queue->Signal(m_fence.Get(), ++m_fenceValue);
-    if (FAILED(signalResult))
+    const HRESULT signalResult = m_queue->Signal(m_fence.Get(), m_fenceValue + 1);
+    if (FAILED(signalResult)) {
+        // Nothing will reach the value: waiting for it later would hang
         LogFailure("Signal frame fence", signalResult);
-    m_recording = false;
+        return;
+    }
+    CurrentFrame().fenceValue = ++m_fenceValue;
 }
 
-void Dx12Backend::WaitForGpu()
+void Dx12Backend::WaitForFence(uint64_t value)
 {
-    if (!m_queue || !m_fence || !m_fenceEvent || m_fenceValue == 0 || m_fence->GetCompletedValue() >= m_fenceValue)
+    if (!m_fence || !m_fenceEvent || value == 0 || m_fence->GetCompletedValue() >= value)
         return;
-    const HRESULT result = m_fence->SetEventOnCompletion(m_fenceValue, m_fenceEvent);
+    const HRESULT result = m_fence->SetEventOnCompletion(value, m_fenceEvent);
     if (FAILED(result)) {
         LogFailure("SetEventOnCompletion", result);
         return;
@@ -1534,17 +1528,25 @@ void Dx12Backend::WaitForGpu()
         ERROR_MESSAGE(log::Category::Render, Source, "Waiting for the GPU fence failed (status %lu)", waitResult);
 }
 
+void Dx12Backend::WaitForIdle()
+{
+    WaitForFence(m_fenceValue);
+    for (auto& frame : m_frames)
+        ReleaseFrame(frame);
+}
+
 rhi::SubmitStats Dx12Backend::Submit(std::span<const rhi::CommandList* const> lists, const rhi::UploadAllocator& uploads)
 {
     ELM_ASSERT_THREAD(Render);
     EnsureRecording();
     if (!m_recording)
         return {};
-    for (size_t index = 0; index < 2; ++index) {
-        const auto arena = index == 0 ? rhi::UploadArena::Vertex : rhi::UploadArena::Index;
+    FrameContext& frame = CurrentFrame();
+    for (uint32_t index = 0; index < StreamArenaCount; ++index) {
+        const auto arena = static_cast<rhi::UploadArena>(index);
         const size_t used = uploads.GetUsedSize(arena);
         if (used > 0)
-            std::memcpy(m_uploadMapped[index], uploads.GetData(arena), used);
+            std::memcpy(frame.streamsMapped[index], uploads.GetData(arena), used);
     }
 
     rhi::SubmitStats stats;
@@ -1584,41 +1586,44 @@ size_t Dx12Backend::GetAllocatedMemory() const
 
 void Dx12Backend::Retire(GpuTexture texture)
 {
-    m_retiredTextures.push_back(std::move(texture));
+    CurrentFrame().retiredTextures.push_back(std::move(texture));
 }
 
 void Dx12Backend::Retire(GpuBuffer buffer)
 {
-    m_retiredBuffers.push_back(std::move(buffer));
+    CurrentFrame().retiredBuffers.push_back(std::move(buffer));
 }
 
 void Dx12Backend::Retire(GpuMesh mesh)
 {
-    m_retiredMeshes.push_back(std::move(mesh));
+    CurrentFrame().retiredMeshes.push_back(std::move(mesh));
 }
 
 void Dx12Backend::Retire(GpuPipeline pipeline)
 {
-    m_retiredPipelines.push_back(std::move(pipeline));
+    CurrentFrame().retiredPipelines.push_back(std::move(pipeline));
 }
 
-void Dx12Backend::CollectRetired()
+void Dx12Backend::ReleaseFrame(FrameContext& frame)
 {
-    for (const auto& texture : m_retiredTextures) {
+    for (const auto& texture : frame.retiredTextures) {
         m_srvDescriptors.Free(texture.srvIndex);
         m_rtvDescriptors.Free(texture.rtvIndex);
         m_dsvDescriptors.Free(texture.dsvIndex);
         m_allocatedMemory -= texture.memoryBytes;
     }
-    for (const auto& buffer : m_retiredBuffers)
+    for (const auto& buffer : frame.retiredBuffers)
         m_allocatedMemory -= buffer.memoryBytes;
-    for (const auto& mesh : m_retiredMeshes)
+    for (const auto& mesh : frame.retiredMeshes)
         m_allocatedMemory -= mesh.memoryBytes;
-    m_retiredTextures.clear();
-    m_retiredBuffers.clear();
-    m_retiredMeshes.clear();
-    m_retiredPipelines.clear();
-    m_stagingResources.clear();
+    for (const uint32_t descriptor : frame.shaderDescriptors)
+        m_shaderDescriptors.Free(descriptor);
+    frame.retiredTextures.clear();
+    frame.retiredBuffers.clear();
+    frame.retiredMeshes.clear();
+    frame.retiredPipelines.clear();
+    frame.shaderDescriptors.clear();
+    frame.staging.clear();
 }
 
 } // namespace elm::render::dx12
