@@ -10,7 +10,7 @@
 
 set(ELM_DXC_EXECUTABLE "" CACHE FILEPATH "Own DirectX Shader Compiler instead of the fetched release")
 
-# Functions Diligent provides to HLSL; the SPIR-V build defines them itself
+# Shared HLSL helpers that are not language intrinsics.
 set(ELM_DXC_COMPAT_DEFINES
     "-DMatrixFromRows(r0,r1,r2,r3)=float4x4(r0,r1,r2,r3)"
 )
@@ -81,4 +81,50 @@ function(elm_add_spirv_shaders target)
 
     add_custom_target(${target}_spirv DEPENDS ${outputs})
     add_dependencies(${target} ${target}_spirv)
+endfunction()
+
+function(elm_compile_dxil source_dir file macros out_list)
+    elm_dxc_executable(dxc)
+    elm_spirv_profile(${file} profile)
+    string(REGEX REPLACE "\\.hlsl$" "" output_name ${file})
+    set(defines)
+    foreach(macro IN LISTS macros)
+        string(REPLACE "=" "_" suffix ${macro})
+        string(APPEND output_name ".${suffix}")
+        list(APPEND defines "-D${macro}")
+    endforeach()
+
+    set(output ${source_dir}/dxil/${output_name}.dxil)
+    add_custom_command(
+        OUTPUT  ${output}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${source_dir}/dxil
+        COMMAND ${dxc} -T ${profile} -E main ${ELM_DXC_COMPAT_DEFINES} ${defines} -Fo ${output} ${source_dir}/${file}
+        DEPENDS ${source_dir}/${file} ${dxc}
+        COMMENT "DXIL ${output_name}.dxil"
+        VERBATIM
+    )
+    set(${out_list} ${${out_list}} ${output} PARENT_SCOPE)
+endfunction()
+
+function(elm_add_dxil_shaders target)
+    cmake_parse_arguments(ARG "" "SOURCE_DIR" "VARIANTS" ${ARGN})
+    if(NOT ELM_DXC_EXECUTABLE AND NOT ELM_DXC_FETCHED_EXECUTABLE)
+        message(FATAL_ERROR "No DXC: the fetched release is missing and ELM_DXC_EXECUTABLE is not set")
+    endif()
+
+    file(GLOB sources RELATIVE ${ARG_SOURCE_DIR} CONFIGURE_DEPENDS ${ARG_SOURCE_DIR}/*.hlsl)
+    set(outputs)
+    foreach(file IN LISTS sources)
+        elm_compile_dxil(${ARG_SOURCE_DIR} ${file} "" outputs)
+    endforeach()
+    foreach(variant IN LISTS ARG_VARIANTS)
+        string(REPLACE ":" ";" parts ${variant})
+        list(GET parts 0 file)
+        list(GET parts 1 macros)
+        string(REPLACE "," ";" macros ${macros})
+        elm_compile_dxil(${ARG_SOURCE_DIR} ${file} "${macros}" outputs)
+    endforeach()
+
+    add_custom_target(${target}_dxil DEPENDS ${outputs})
+    add_dependencies(${target} ${target}_dxil)
 endfunction()

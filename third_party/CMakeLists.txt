@@ -53,7 +53,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(imgui)
 
-# Declared before Diligent: its Diligent-Imgui links an existing "imgui" target instead of building a copy
 add_library(imgui STATIC
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_draw.cpp
@@ -73,28 +72,6 @@ add_library(imgui_glfw STATIC
 )
 target_link_libraries(imgui_glfw PRIVATE glfw imgui)
 set_property(TARGET imgui_glfw PROPERTY FOLDER "third party")
-
-# ------------------------------------------------------------------------------
-# Diligent Engine: render backend on Windows (D3D12). Linux uses the Vulkan backend.
-# ------------------------------------------------------------------------------
-if(WIN32)
-    set(DILIGENT_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
-    set(DILIGENT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-    set(DILIGENT_NO_FORMAT_VALIDATION ON CACHE BOOL "" FORCE)
-    set(DILIGENT_NO_RENDER_STATE_PACKAGER ON CACHE BOOL "" FORCE)
-
-    FetchContent_Declare(
-        DiligentEngine
-        GIT_REPOSITORY https://github.com/DiligentGraphics/DiligentEngine.git
-        GIT_TAG        v2.5.6
-        PATCH_COMMAND  ${CMAKE_COMMAND}
-                           -DDILIGENT_TOOLS_CMAKE=<SOURCE_DIR>/DiligentTools/CMakeLists.txt
-                           -P ${CMAKE_SOURCE_DIR}/cmake/DisableDiligentRenderStateNotation.cmake
-    )
-    FetchContent_MakeAvailable(DiligentEngine)
-    set_property(TARGET Diligent-Imgui PROPERTY FOLDER "third party")
-    set_dependency_folder("${diligentengine_SOURCE_DIR}")
-endif()
 
 # ------------------------------------------------------------------------------
 # Jolt Physics Engine
@@ -159,7 +136,6 @@ set_dependency_folder("${JoltPhysics_SOURCE_DIR}")
 
 # Expose dependency source directories to the engine modules.
 set(glfw_SOURCE_DIR "${glfw_SOURCE_DIR}" PARENT_SCOPE)
-set(diligentengine_SOURCE_DIR "${diligentengine_SOURCE_DIR}" PARENT_SCOPE)
 set(JoltPhysics_SOURCE_DIR "${JoltPhysics_SOURCE_DIR}" PARENT_SCOPE)
 set(tracy_SOURCE_DIR "${tracy_SOURCE_DIR}" PARENT_SCOPE)
 
@@ -185,7 +161,7 @@ target_compile_definitions(lua PUBLIC $<$<CONFIG:Debug>:LUA_USE_APICHECK>)
 set_property(TARGET lua PROPERTY FOLDER "third party")
 
 # ------------------------------------------------------------------------------
-# DirectX Shader Compiler: a build tool, compiles shaders/*.hlsl (cmake/Shaders.cmake).
+# DirectX Shader Compiler: a build tool for shaders/*.hlsl (cmake/Shaders.cmake).
 # A pinned Microsoft release, so every machine gets the same SPIR-V; ELM_DXC_EXECUTABLE
 # replaces it with an own DXC and skips the download.
 # ------------------------------------------------------------------------------

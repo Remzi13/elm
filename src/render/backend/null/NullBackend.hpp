@@ -8,7 +8,7 @@
 namespace elm::render::null {
 
     /// Backend without a GPU: keeps resource bookkeeping, validates command lists and draws nothing.
-    /// Proves that everything above rhi::IRenderBackend builds and runs without Diligent, and is
+    /// Proves that everything above rhi::IRenderBackend builds and runs without a graphics API, and is
     /// useful for headless runs and tests (ELM_RENDER_BACKEND=Null).
     class NullBackend final : public rhi::IRenderBackend {
     public:

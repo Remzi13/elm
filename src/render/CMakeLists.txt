@@ -46,21 +46,18 @@ target_link_libraries(render PUBLIC core math)
 target_include_directories(render PUBLIC ${ENGINE_INCLUDE_DIRS})
 
 # ------------------------------------------------------------------------------
-# Backend: Diligent (D3D12) on Windows, own Vulkan backend on Linux.
+# Backend: native Direct3D 12 on Windows, own Vulkan backend on Linux.
 # Only the selected backend is compiled, its API stays private to render.
 # ------------------------------------------------------------------------------
 if(WIN32)
     target_sources(render PRIVATE
-        backend/diligent/DiligentBackend.hpp
-        backend/diligent/DiligentBackend.cpp
-        backend/diligent/SwapChain.hpp
-        backend/diligent/SwapChain.cpp
-        backend/diligent/Utils.hpp
-        backend/diligent/Utils.cpp
+        backend/dx12/Dx12Backend.hpp
+        backend/dx12/Dx12Backend.cpp
     )
-    target_link_libraries(render PRIVATE Diligent-GraphicsEngineD3D12-static)
-    target_include_directories(render SYSTEM PRIVATE
-        ${diligentengine_SOURCE_DIR}/DiligentCore
+    target_link_libraries(render PRIVATE d3d12 dxgi dxguid)
+    elm_add_dxil_shaders(render
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/shaders
+        VARIANTS "overlay.frag.hlsl:OVERLAY_MANUAL_SRGB=1"
     )
 else()
     find_package(Vulkan 1.3 REQUIRED)

@@ -15,7 +15,7 @@ namespace {
 
     constexpr const char* Source = "VulkanBackend";
     constexpr uint64_t NoTimeout = std::numeric_limits<uint64_t>::max();
-    /// sRGB first: the overlay shader encodes for an sRGB target as the Diligent backend did.
+    /// sRGB first: the overlay shader encodes for an sRGB target, matching Direct3D 12.
     constexpr std::array PreferredFormats { VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM };
 
     VkSemaphore CreateSemaphore(VkDevice device)

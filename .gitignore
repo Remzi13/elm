@@ -12,3 +12,4 @@ docs/.obsidian/
 docs/.trash/
 
 shaders/spirv/
+shaders/dxil/

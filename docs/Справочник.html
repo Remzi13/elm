@@ -312,7 +312,7 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; }
       <h1>elm: сцена, скрипты, физика и рендер <span>в двух потоках</span></h1>
       <p class="lede">Update-поток собирает кадр N+1, пока render-поток рисует кадр N. Сцена хранит узлы и компоненты, системы их читают и меняют, а Lua-скрипты сущностей оживают только в режиме Play.</p>
       <div class="stack">
-        <span class="chip"><i>рендер</i> Diligent · D3D12 / Vulkan</span>
+        <span class="chip"><i>рендер</i> нативные D3D12 / Vulkan</span>
         <span class="chip"><i>физика</i> Jolt 5.2</span>
         <span class="chip"><i>скрипты</i> Lua 5.4.7 как C++</span>
         <span class="chip"><i>UI</i> ImGui docking + ImGuizmo</span>
@@ -604,7 +604,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
         <div class="card"><h3>Хэндлы ресурсов</h3><p><code>TextureHandle</code>, <code>MeshHandle</code>, <code>BufferHandle</code> создаются из любого потока и возвращаются сразу. Удалённый ресурс не проходит проверку поколения, отрисовка с ним пропускается.</p></div>
         <div class="card"><h3>Фичи</h3><p><code>IRenderFeature</code>: <code>Init</code> создаёт шейдеры и пайплайны, <code>Setup</code> каждый кадр только объявляет пасы. Сейчас <code>ScenePass</code> и <code>OverlayPass</code>.</p></div>
         <div class="card"><h3>Compile()</h3><p>Отсекает пасы, чей результат никто не читает, раскладывает по уровням, вставляет переходы состояний. Пасы одного уровня пишутся параллельно.</p></div>
-        <div class="card"><h3>Бэкенды</h3><p><code>DiligentBackend</code> (D3D12 / Vulkan) или <code>NullBackend</code> для headless-прогонов. Выбор: <code>-DELM_RENDER_BACKEND=Diligent|Null</code>.</p></div>
+        <div class="card"><h3>Бэкенды</h3><p><code>Dx12Backend</code> на Windows, <code>VulkanBackend</code> на Linux или <code>NullBackend</code> для headless-прогонов.</p></div>
       </div>
 <pre><code>graph.AddPass&lt;Data&gt;("MyPass",
     [&amp;](PassBuilder&amp; builder, Data&amp; data) {          // setup: сразу, объявляет ресурсы
@@ -691,7 +691,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     physics:  { x: 300, y: 222, dir: "src/physics", ns: "elm", third: ["Jolt 5.2"], desc: "Тела Jolt для узлов с `Collider`, по `NodeId`. Jolt линкуется PRIVATE: он выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.", ents: ["PhysicsSystem", "RayHit", "CollisionEvent"], note: "physics/Физика.md", thread: "update" },
     platform: { x: 600, y: 222, dir: "src/platform", ns: "elm::platform", third: ["GLFW"], desc: "Главное окно. Рендер получает от него только `NativeWindow` и размер.", ents: ["platform::Window"], note: "render/бэкенд/Бэкенды.md", thread: "update" },
     Scene:    { x: 230, y: 318, dir: "src/Scene", ns: "elm", third: [], desc: "Узлы, `NodeId`, хранилища компонентов, `SceneAsset`, `SceneSnapshot`. Только update-поток, мутации проверяет `ELM_ASSERT_THREAD(Update)`.", ents: ["Scene", "NodeId", "NodeIdTable", "ComponentStores", "SceneAsset", "SceneSnapshot"], note: "scene/Сцена.md", thread: "update" },
-    render:   { x: 480, y: 318, dir: "src/render", ns: "elm::render", third: ["Diligent"], desc: "Ресурсы по хэндлам, снимок кадра, кольцо кадров, render graph, бэкенды. Типы Diligent видны только в `render/backend/diligent/`.", ents: ["RenderSystem", "RenderResources", "FrameWriter", "FrameRing", "RenderGraph", "IRenderFeature"], note: "render/Рендер.md", thread: "update + render" },
+    render:   { x: 480, y: 318, dir: "src/render", ns: "elm::render", third: ["Direct3D 12", "Vulkan"], desc: "Ресурсы по хэндлам, снимок кадра, кольцо кадров, render graph, нативные бэкенды.", ents: ["RenderSystem", "RenderResources", "FrameWriter", "FrameRing", "RenderGraph", "IRenderFeature"], note: "render/Рендер.md", thread: "update + render" },
     core:     { x: 230, y: 420, dir: "src/core", ns: "elm::core, elm", third: ["Tracy"], desc: "Ошибки `EngineResult`, хэндлы, настройки, `MessageBus`, `JobSystem`, роли потоков, файловая система, лог, аллокатор.", ents: ["EngineResult", "core::Handle", "Settings", "MessageBus", "JobSystem", "ThreadRole"], note: "core/JobSystem.md", thread: "любой" },
     math:     { x: 480, y: 420, dir: "src/math", ns: "math (корневой)", third: [], desc: "`Vector3`, `Vector4`, `Quaternion`, `Matrix4x4`, `Size`, `AABB`, `MeshData`.", ents: ["Vector3", "Quaternion", "Matrix4x4", "AABB"], note: null, thread: "любой" },
   };
@@ -1111,7 +1111,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Рендер", "ViewPort", "offscreen-цель 3D-вида для UI", "update"],
     ["Рендер", "IRenderFeature (ScenePass, OverlayPass), RenderPipeline", "фичи, добавляющие пасы в граф", "render"],
     ["Рендер", "RenderGraph, PassBuilder, PassContext, FrameBlackboard", "граф пасов, зависимости, барьеры", "render / воркер"],
-    ["Рендер", "rhi::IRenderBackend (DiligentBackend, NullBackend), CommandList, UploadAllocator", "абстракция графического API", "render"],
+    ["Рендер", "rhi::IRenderBackend (Dx12Backend, VulkanBackend, NullBackend), CommandList, UploadAllocator", "абстракция графического API", "render"],
     ["Системы", "PhysicsSystem, RayHit", "тела Jolt для узлов с `Collider`, по `NodeId`, только update", "physics"],
     ["Системы", "InputSystem, IInputSubscriber, InputContext, ActionBinding, AxisBinding", "ввод с приоритетами подписчиков и действия", "input"],
     ["Системы", "platform::Window", "главное окно GLFW", "platform"],
@@ -1149,7 +1149,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     [0, "Голые `new`/`delete`, C-style касты, `using namespace` в новых заголовках"],
     [0, "Многострочные тела функций в `.hpp`, кроме шаблонов и inline"],
     [0, "Синонимы существующих сущностей и понятия голыми `int`/`bool`/индексами"],
-    [0, "Типы Diligent вне `render/backend/diligent/`, Jolt вне `PhysicsSystem.cpp`, `lua.hpp` напрямую"],
+    [0, "Типы D3D12 вне `render/backend/dx12/`, Jolt вне `PhysicsSystem.cpp`, `lua.hpp` напрямую"],
     [0, "Вызовы графического API из update-потока, исключения через render-поток"],
     [0, "Глобальные изменяемые переменные и новые синглтоны"],
     [0, "Функции «на все случаи» с флагами-переключателями поведения"],

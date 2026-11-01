@@ -64,7 +64,7 @@ namespace {
         return module;
     }
 
-    /// Vertex streams in the Diligent convention: attributes of a buffer slot are packed in declaration order.
+    /// Attributes in each vertex buffer slot are packed in declaration order.
     struct VertexInput {
         Vector<VkVertexInputBindingDescription> bindings;
         Vector<VkVertexInputAttributeDescription> attributes;
