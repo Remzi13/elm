@@ -147,7 +147,7 @@ int main(int argc, char** argv)
     desc.debugDraw = debugDraw ? &debugDraw->GetDebugDraw() : nullptr;
     if (const auto init = engine.Init(desc); !init)
         return ReportFatal("Failed to initialize engine", init.error());
-    auto opened = Engine::ReadProject(*project);
+    auto opened = resource::ResourceSystem::ReadProject(*project);
     if (!opened) {
         engine.Shutdown();
         return ReportFatal("Failed to open the project", opened.error());

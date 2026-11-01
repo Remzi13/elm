@@ -11,7 +11,7 @@
 #include "graphics/FrameStats.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
-#include "model/ModelCatalog.hpp"
+#include "resource/ResourceSystem.hpp"
 #include "graphics/ModelMeshes.hpp"
 
 #include "Scene/TestScenes.hpp"
@@ -97,18 +97,11 @@ namespace elm {
 
 		// --- The project ---
 
-		/// The project of a project folder or its .elmproject file; a relative path starts at the engine root.
-		[[nodiscard]] static auto ReadProject(const Path& folderOrFile) -> EngineResult<project::Project>;
-		/// Makes the project the open one: its scripts start. Precondition: no project is open (CloseProject).
+		/// Makes the project the open one (ResourceSystem::ReadProject reads it): its scripts start.
+		/// Precondition: no project is open (CloseProject).
 		void OpenProject(project::Project project);
 		/// Stops Play, ends the scripts, clears the scene, models and bodies. Nothing when no project is open.
 		void CloseProject();
-		/// The open project; null until one is opened.
-		[[nodiscard]] const project::Project* OpenedProject() const;
-		/// The open project's entry in memory, what the next Play starts with; the file is the caller's.
-		void SetProjectEntry(project::ProjectEntry entry);
-		/// The startup scene of the open project from its file. Precondition: the entry has a startup scene.
-		[[nodiscard]] auto LoadStartupScene() const -> EngineResult<SceneAsset>;
 		void LoadTestScene(ScenePreset preset, uint32_t instanceCount = 1500);
 
 		[[nodiscard]] Settings& GetSettings() noexcept { return m_settings; }
@@ -116,7 +109,7 @@ namespace elm {
 		[[nodiscard]] render::RenderSystem& GetRenderSystem() noexcept { return *m_renderSystem; }
 		[[nodiscard]] render::ViewPort& GetViewPort() noexcept { return m_engineViewPort; }
 		[[nodiscard]] Scene& GetScene() noexcept { return m_scene; }
-		[[nodiscard]] ModelCatalog& GetModels() noexcept { return m_models; }
+		[[nodiscard]] resource::ResourceSystem& GetResources() noexcept { return m_resources; }
 		[[nodiscard]] Camera& GetCamera() noexcept { return m_camera; }
 		[[nodiscard]] OcclusionCullingSystem& GetCulling() noexcept { return m_cullingSystem; }
 		[[nodiscard]] InputSystem& GetInput() noexcept { return *m_inputSystem; }
@@ -147,15 +140,14 @@ namespace elm {
 
 		Camera m_camera;
 		Scene m_scene;
-		ModelCatalog m_models;
-		/// GPU meshes of m_models, synced before the scene is drawn.
+		/// The open project and its models.
+		resource::ResourceSystem m_resources;
+		/// GPU meshes of the resources' models, synced before the scene is drawn.
 		graphics::ModelMeshes m_meshes;
 		Settings m_settings;
 		render::ViewPort m_engineViewPort;
 		/// Edit or Play: physics steps and entity scripts run only in Play.
 		script::PlayMode m_playMode;
-		/// The open project; none until one is opened.
-		std::optional<project::Project> m_project;
 		/// The program's, given to the scripts; null when they draw nothing.
 		graphics::DebugDraw* m_scriptDebugDraw { nullptr };
 

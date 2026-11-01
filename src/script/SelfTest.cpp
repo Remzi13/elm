@@ -39,6 +39,7 @@
 #include "render/api/FrameWriter.hpp"
 #include "resource/AssetImport.hpp"
 #include "resource/ProjectBuilder.hpp"
+#include "resource/ResourceSystem.hpp"
 #include "resource/ProjectTemplate.hpp"
 #include "resource/Serializer.hpp"
 
@@ -2162,7 +2163,8 @@ namespace elm::script {
             Settings settings;
             ScriptSystem::RegisterSettings(settings);
             ScriptSystem system;
-            const EngineContext engine { .settings = &settings };
+            EngineContext engine;
+            engine.settings = &settings;
             if (auto init = system.Init(engine); !init) {
                 report.Check(false, "debug_bindings::init_without_debug_draw", init.error().message);
                 return;
@@ -2268,6 +2270,37 @@ namespace elm::script {
         {
             std::ifstream stream(path, std::ios::binary);
             return String { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        }
+
+        /// The open project and its models live and go together; reading a project opens nothing.
+        void RunResourceSystemTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_resource_system_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root / "Game", error);
+            WriteScript(root / "Game" / "Game.elmproject",
+                R"({ "formatVersion": 1, "name": "Game", "entry": { "startupScene": "scenes/level.scene", "mainModule": "main" } })");
+
+            resource::ResourceSystem resources;
+            auto project = resource::ResourceSystem::ReadProject(Path(String((root / "Game").generic_string().c_str())));
+            report.Check(project && !resources.GetProject(), "resources::read_opens_nothing");
+            if (!project)
+                return;
+            resources.Close();
+            report.Check(!resources.GetProject(), "resources::close_without_a_project");
+
+            resources.Open(std::move(*project));
+            const ModelHandler model = resources.GetModels().Insert(Model("Cube"));
+            report.Check(resources.GetProject() && resources.GetProject()->Name() == "Game" && resources.GetModels().Get(model),
+                "resources::open_keeps_project_and_models");
+            resources.SetEntry({ .startupScene = std::nullopt, .mainModule = "game.main" });
+            report.Check(resources.GetProject()->Desc().entry.mainModule == "game.main", "resources::set_entry_in_memory");
+            resources.Close();
+            report.Check(!resources.GetProject() && !resources.GetModels().Get(model) && resources.GetModels().Size() == 0,
+                "resources::close_forgets_project_and_models");
+            fs::remove_all(root, error);
         }
 
         /// The GPU meshes follow the catalog: new models get them, a replaced model keeps the meshes of the
@@ -2459,6 +2492,7 @@ namespace elm::script {
         RunDebugDrawSystemTests(report);
         RunTransformGizmoTests(report);
         RunLogFileTests(report);
+        RunResourceSystemTests(report);
         RunModelMeshesTests(report);
         RunLateSettingsTests(report);
         RunDebugWithoutDrawingTests(report);

@@ -40,7 +40,7 @@ namespace elm {
 		: m_settings(m_engine.GetSettings())
 		, m_debugDraw(m_settings)
 		, m_cameraController(m_engine.GetCamera())
-		, m_editMode(m_engine.GetPlayMode(), m_engine.GetScene(), m_engine.GetModels(), m_engine.GetScripts())
+		, m_editMode(m_engine.GetPlayMode(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetScripts())
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -124,16 +124,16 @@ namespace elm {
 
 	auto Editor::OpenProject(const Path& folderOrFile) -> EngineResult<void>
 	{
-		auto project = Engine::ReadProject(folderOrFile);
+		auto project = resource::ResourceSystem::ReadProject(folderOrFile);
 		if (!project)
 			return MakeUnexpected(project.error());
-		if (m_engine.OpenedProject()) {
+		if (m_engine.GetResources().GetProject()) {
 			m_editMode.Stop();
 			CloseProjectWindows();
 			m_engine.CloseProject();
 		}
 		m_engine.OpenProject(std::move(*project));
-		OpenProjectWindows(*m_engine.OpenedProject());
+		OpenProjectWindows(*m_engine.GetResources().GetProject());
 		return { };
 	}
 
@@ -221,7 +221,7 @@ namespace elm {
 	{
 		// UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
 		ELM_PROFILE_SCOPE_N("Build Overlay");
-		m_imgui->BuildFrame({ m_engine.GetRenderSystem(), m_engine.GetScene(), m_engine.GetModels(), m_engine.GetCamera(),
+		m_imgui->BuildFrame({ m_engine.GetRenderSystem(), m_engine.GetScene(), m_engine.GetResources().GetModels(), m_engine.GetCamera(),
 			m_engine.GetFrameStats(), m_engine.GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
 	}
 
@@ -316,17 +316,17 @@ namespace elm {
 	auto Editor::SetProjectEntry(project::ProjectEntry entry) -> EngineResult<void>
 	{
 		// The file first: a project that cannot be saved keeps the entry it had
-		project::Project changed = *m_engine.OpenedProject();
+		project::Project changed = *m_engine.GetResources().GetProject();
 		changed.SetEntry(entry);
 		if (auto saved = resource::Serializer::SaveProject(changed); !saved)
 			return saved;
-		m_engine.SetProjectEntry(std::move(entry));
+		m_engine.GetResources().SetEntry(std::move(entry));
 		return { };
 	}
 
 	void Editor::RunStandalone()
 	{
-		const project::Project* project = m_engine.OpenedProject();
+		const project::Project* project = m_engine.GetResources().GetProject();
 		if (!project)
 			return;
 		// Errors are logged: the editor goes on
@@ -340,7 +340,7 @@ namespace elm {
 
 	void Editor::BuildGame()
 	{
-		const project::Project* project = m_engine.OpenedProject();
+		const project::Project* project = m_engine.GetResources().GetProject();
 		if (!project)
 			return;
 		// Errors are logged: the editor goes on
@@ -357,10 +357,10 @@ namespace elm {
 		if (!project.Desc().entry.startupScene)
 			return { };
 		// A broken scene file is logged; the editor opens with an empty scene
-		auto scene = m_engine.LoadStartupScene();
+		auto scene = m_engine.GetResources().LoadStartupScene();
 		if (!scene)
 			return { };
-		const auto handlers = m_engine.GetModels().InsertAll(std::move(scene->models), scene->modelFiles);
+		const auto handlers = m_engine.GetResources().GetModels().InsertAll(std::move(scene->models), scene->modelFiles);
 		(void)m_engine.GetScene().Append(std::move(*scene), handlers);
 		return project.Resolve(*project.Desc().entry.startupScene);
 	}

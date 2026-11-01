@@ -32,7 +32,7 @@ Engine::Engine()
     , m_inputSystem(MakeUnique<InputSystem>())
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
     , m_meshes(m_renderSystem->Resources())
-    , m_playMode(m_scene, &m_models, m_physicsSystem.get(), *m_scriptSystem)
+    , m_playMode(m_scene, &m_resources.GetModels(), m_physicsSystem.get(), *m_scriptSystem)
 {
 }
 
@@ -165,33 +165,12 @@ void Engine::StopRendering()
 
 void Engine::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
 {
-    TestScenes::BuildScene(preset, instanceCount, m_scene, m_models);
-}
-
-auto Engine::ReadProject(const Path& folderOrFile) -> EngineResult<project::Project>
-{
-    const Path file = project::Project::FindFile(FileSystem::Resolve(folderOrFile));
-    auto loaded = resource::Serializer::LoadProject(file);
-    if (loaded && StringView(loaded->Name()) != StringView(file.Stem().string()))
-        WARNING_MESSAGE(log::Category::Core, LogSource, "Project \"%s\" is in %s: the name and the file should match",
-            loaded->Name().c_str(), file.Filename().string().c_str());
-    return loaded;
-}
-
-const project::Project* Engine::OpenedProject() const
-{
-    return m_project ? &*m_project : nullptr;
-}
-
-void Engine::SetProjectEntry(project::ProjectEntry entry)
-{
-    ELM_ASSERT(m_project && "the entry belongs to the open project");
-    m_project->SetEntry(std::move(entry));
+    TestScenes::BuildScene(preset, instanceCount, m_scene, m_resources.GetModels());
 }
 
 void Engine::CloseProject()
 {
-    if (!m_project)
+    if (!m_resources.GetProject())
         return;
     if (m_playMode.IsPlaying())
         m_playMode.Stop();
@@ -199,39 +178,30 @@ void Engine::CloseProject()
     m_scriptSystem->Shutdown();
     m_physicsSystem->Clear();
     m_scene.Clear();
-    m_models.Clear();
-    LOG_MESSAGE(log::Category::Core, LogSource, "Project %s closed", m_project->Name().c_str());
-    m_project.reset();
+    m_resources.Close();
 }
 
 void Engine::OpenProject(project::Project project)
 {
-    ELM_ASSERT(!m_project && "the open project is closed first (CloseProject)");
-    m_project = std::move(project);
+    m_resources.Open(std::move(project));
+    const project::Project& opened = *m_resources.GetProject();
 
-    const script::EngineContext scriptEngine { &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get(),
-        m_playMode.Requests(), m_scriptDebugDraw, &*m_project };
+    const script::EngineContext scriptEngine { &m_scene, &m_resources.GetModels(), m_inputSystem.get(), &m_camera, &m_settings,
+        m_physicsSystem.get(), m_playMode.Requests(), m_scriptDebugDraw, &opened };
     // In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
-    if (auto scriptInit = m_scriptSystem->Init(scriptEngine, m_project->Scripts()); !scriptInit)
+    if (auto scriptInit = m_scriptSystem->Init(scriptEngine, opened.Scripts()); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, LogSource, "%s", scriptInit.error().message.c_str());
-    LOG_MESSAGE(log::Category::Core, LogSource, "Project %s opened from %s", m_project->Name().c_str(),
-        m_project->File().string().c_str());
-}
-
-auto Engine::LoadStartupScene() const -> EngineResult<SceneAsset>
-{
-    const project::AssetPath& startupScene = *m_project->Desc().entry.startupScene;
-    return resource::Serializer::LoadScene(m_project->Resolve(startupScene), m_project->Assets());
 }
 
 std::optional<script::PlayStart> Engine::MakePlayStart(script::PlayTarget target) const
 {
-    if (!m_project)
+    const project::Project* project = m_resources.GetProject();
+    if (!project)
         return std::nullopt;
-    script::PlayStart start { .mainModule = m_project->Desc().entry.mainModule };
-    if (target == script::PlayTarget::Scene || !m_project->Desc().entry.startupScene)
+    script::PlayStart start { .mainModule = project->Desc().entry.mainModule };
+    if (target == script::PlayTarget::Scene || !project->Desc().entry.startupScene)
         return start;
-    auto scene = LoadStartupScene();
+    auto scene = m_resources.LoadStartupScene();
     if (!scene) {
         ERROR_MESSAGE(log::Category::Core, LogSource, "Play Project did not start: %s", scene.error().message.c_str());
         return std::nullopt;
@@ -251,7 +221,7 @@ void Engine::DrawScene(render::FrameWriter& frame)
 
     // The UI may have moved nodes since the update
     m_scene.UpdateWorldTransforms();
-    m_meshes.Sync(m_models);
+    m_meshes.Sync(m_resources.GetModels());
     if (const auto* drawn = m_scene.FindComponents<ModelComponent>())
         SubmitModels(*drawn, frame);
 
@@ -282,7 +252,7 @@ void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::F
         if (occludee && !occludee->isVisible)
             continue;
         const Vector4& tint = occludee ? occludee->color : component.color;
-        m_meshes.ForEachSubmesh(m_models, component.model, [&](const Model::Submesh& submesh, render::MeshHandle mesh) {
+        m_meshes.ForEachSubmesh(m_resources.GetModels(), component.model, [&](const Model::Submesh& submesh, render::MeshHandle mesh) {
             const Vector4 color {
                 submesh.color.x * tint.x,
                 submesh.color.y * tint.y,
@@ -328,7 +298,7 @@ void Engine::Update(float deltaTime)
     m_scene.UpdateWorldTransforms();
 
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
-    m_cullingSystem.ExecuteCulling(m_scene, m_models, cullingVP, m_settings);
+    m_cullingSystem.ExecuteCulling(m_scene, m_resources.GetModels(), cullingVP, m_settings);
 
     if (m_physicsSystem) {
         m_currentStats.physicsBodyCount = m_physicsSystem->GetNumBodies();
@@ -352,9 +322,8 @@ void Engine::Shutdown()
         m_physicsSystem->Shutdown();
     }
 
-    m_project.reset();
     m_scene.Clear();
-    m_models.Clear();
+    m_resources.Close();
     m_meshes.Clear();
     m_cullingSystem.Shutdown();
     m_engineViewPort = {};

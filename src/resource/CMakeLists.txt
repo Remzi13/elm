@@ -1,4 +1,6 @@
 engine_add_library(resource
+    ResourceSystem.hpp
+    ResourceSystem.cpp
     JsonValue.hpp
     JsonValue.cpp
     AssetImport.hpp
@@ -18,4 +20,5 @@ target_include_directories(resource PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_link_libraries(resource PUBLIC core Scene PRIVATE project glaze::glaze)
+# ResourceSystem keeps the open project: project is in its interface
+target_link_libraries(resource PUBLIC core Scene model project PRIVATE glaze::glaze)
