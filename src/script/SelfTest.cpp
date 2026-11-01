@@ -1600,12 +1600,12 @@ namespace elm::script {
             // A build of the new project, with a stand-in program and library
             fs::create_directories(root / "bin", error);
             fs::create_directories(root / "shaders", error);
-            WriteScript(root / "bin" / "Engine.exe", "program");
+            WriteScript(root / "bin" / "elm.exe", "program");
             WriteScript(root / "bin" / "helper.dll", "library");
             WriteScript(root / "shaders" / "mesh.vert.hlsl", "shader");
             fs::create_directories(root / "new" / "Fresh" / "assets" / "source" / "raw", error);
             WriteScript(root / "new" / "Fresh" / "assets" / "source" / "raw" / "original.gltf", "{}");
-            const resmgr::BuildDesc buildDesc { pathOf("bin/Engine.exe"), pathOf("shaders") };
+            const resmgr::BuildDesc buildDesc { pathOf("bin/elm.exe"), pathOf("shaders") };
             const auto game = opened ? resmgr::ProjectBuilder::Build(*opened, buildDesc) : std::unexpected(opened.error());
             const fs::path built = root / "new" / "Fresh" / "Build" / "Fresh";
             report.Check(game && fs::exists(built / "Fresh.exe") && fs::exists(built / "helper.dll") && fs::exists(built / "shaders" / "mesh.vert.hlsl")

@@ -30,6 +30,9 @@ namespace elm {
 		/// Project files opened before, the last one first, one per line.
 		static constexpr StringView RecentProjectsSetting = "Project/Recent";
 		static constexpr size_t MaxRecentProjects = 8;
+		/// The game alone (docs/project/Проекты.md#Плеер), built next to the editor: Run Standalone starts it,
+		/// Build Game copies it as the game's program.
+		static constexpr StringView PlayerProgram = "elm";
 
 		explicit EditorLayer(Engine& engine);
 		~EditorLayer() override;
@@ -59,6 +62,8 @@ namespace elm {
 		void OnFrameRendered(const render::RenderedFrameInfo& info) override;
 
 		void ShowProjectHub();
+		/// The program elm next to this one, with this one's extension; an error when it is not there.
+		[[nodiscard]] static auto FindPlayerExecutable() -> EngineResult<Path>;
 		/// The project file opened last time, empty when there is none.
 		[[nodiscard]] Path LastProject() const;
 
@@ -78,9 +83,9 @@ namespace elm {
 		[[nodiscard]] auto CreateProject(const Path& location, StringView name) -> EngineResult<void>;
 		/// Sets the open project's entry and writes its file (the Project window).
 		[[nodiscard]] auto SetProjectEntry(project::ProjectEntry entry) -> EngineResult<void>;
-		/// Starts this program as the player of the open project: `--project <file> --player`.
+		/// Starts the program elm for the open project: `elm --project <file>`.
 		void RunStandalone();
-		/// Builds the open project into its Build/<Name> folder with this program as the game's (ProjectBuilder).
+		/// Builds the open project into its Build/<Name> folder with elm as the game's program (ProjectBuilder).
 		void BuildGame();
 		/// Puts the project's startup scene into the scene, if the project has one. Returns its file,
 		/// empty when no scene was opened (none set, or the file could not be read: the error is logged).

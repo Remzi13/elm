@@ -556,7 +556,7 @@ print(guard.speed, npc.script == guard)    -- 3  true</code></pre>
       <header>
         <span class="eyebrow">script/bindings · assets/scripts/.meta/elm.lua</span>
         <h2>Lua API</h2>
-        <p class="muted">Модули движка для скриптов и консоли окна Scripts. Аннотации для LuaLS генерирует <code>Engine --dump-script-api</code>. Если системы нет (инструменты, самотесты), её функции бросают ошибку «not available here».</p>
+        <p class="muted">Модули движка для скриптов и консоли окна Scripts. Аннотации для LuaLS генерирует <code>elm_editor --dump-script-api</code>. Если системы нет (инструменты, самотесты), её функции бросают ошибку «not available here».</p>
       </header>
       <div class="api">
         <div class="api-list" id="apiList" role="group" aria-label="Модули Lua"></div>
@@ -662,9 +662,9 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
   const cmds = [
     ["Конфигурация", "cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug", "Первая идёт долго: зависимости качаются в ../elm_deps"],
     ["Сборка", "cmake --build build --config Debug -j", "Без новых предупреждений, /W4 /permissive-"],
-    ["Тестовая сцена", "build/Debug/Engine.exe --scene 3 --instances 500", "0 Box · 1 WallAndGrid · 2 RoomsAndCorridors · 3 PhysicsSandbox"],
-    ["Самотесты", "build/Debug/Engine.exe --script-selftest", "C++-проверки и tests/*_test.lua, код выхода = число падений"],
-    ["API для LuaLS", "build/Debug/Engine.exe --dump-script-api", "Перегенерирует assets/scripts/.meta/elm.lua"],
+    ["Тестовая сцена", "build/Debug/elm_editor.exe --scene 3 --instances 500", "0 Box · 1 WallAndGrid · 2 RoomsAndCorridors · 3 PhysicsSandbox"],
+    ["Самотесты", "build/Debug/elm_editor.exe --script-selftest", "C++-проверки и tests/*_test.lua, код выхода = число падений"],
+    ["API для LuaLS", "build/Debug/elm_editor.exe --dump-script-api", "Перегенерирует assets/scripts/.meta/elm.lua"],
     ["Null-бэкенд", "cmake -S . -B build-null -DELM_RENDER_BACKEND=Null", "Ничего не рисует, считает ресурсы и draw call'ы"],
   ];
   const cmdsBox = $("#cmds");

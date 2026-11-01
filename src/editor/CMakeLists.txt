@@ -74,3 +74,11 @@ target_include_directories(editor PUBLIC
 target_link_libraries(editor PUBLIC imgui_glfw imgui_core core graphics project engine)
 # GLFW for the ImGui backend; new projects, Build Game, Run Standalone; the Scripts window
 target_link_libraries(editor PRIVATE glfw platform render Scene resmgr script)
+
+# elm_editor: the editor; Run Standalone and Build Game use elm next to it
+engine_add_executable(elm_editor
+    main.cpp
+)
+target_link_libraries(elm_editor PRIVATE core resmgr project script engine editor)
+set_target_properties(elm_editor PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+add_dependencies(elm_editor elm)

@@ -92,6 +92,19 @@ namespace elm {
 		UpdateProjectMenu(nullptr);
 	}
 
+	auto EditorLayer::FindPlayerExecutable() -> EngineResult<Path>
+	{
+		const auto editor = platform::CurrentExecutable();
+		if (!editor)
+			return MakeUnexpected(editor.error());
+		Path player = editor->Parent() / PlayerProgram;
+		player += editor->Extension();
+		if (!FileSystem::Exists(player))
+			return MakeUnexpected(ErrorCode::UnknownError, "The program " + String(player.string().c_str())
+				+ " is not next to the editor: build the target elm", log::Category::Core, LogSource);
+		return player;
+	}
+
 	void EditorLayer::ShowProjectHub()
 	{
 		if (m_hub)
@@ -272,10 +285,10 @@ namespace elm {
 		if (!project)
 			return;
 		// Errors are logged: the editor goes on
-		const auto executable = platform::CurrentExecutable();
+		const auto executable = FindPlayerExecutable();
 		if (!executable)
 			return;
-		const Vector<String> arguments { "--project", String(project->File().string().c_str()), "--player" };
+		const Vector<String> arguments { "--project", String(project->File().string().c_str()) };
 		if (platform::StartProcess(*executable, arguments))
 			LOG_MESSAGE(log::Category::Core, LogSource, "Run Standalone: %s plays from its saved files", project->Name().c_str());
 	}
@@ -286,7 +299,7 @@ namespace elm {
 		if (!project)
 			return;
 		// Errors are logged: the editor goes on
-		const auto executable = platform::CurrentExecutable();
+		const auto executable = FindPlayerExecutable();
 		if (!executable)
 			return;
 		const auto folder = resmgr::ProjectBuilder::Build(*project, { *executable, FileSystem::Resolve("shaders") });

@@ -10,15 +10,15 @@ elm — 3D-движок с редактором на C++23: собственны
 - Зависимости (GLFW, ImGui docking, Jolt, Tracy, glaze, Lua 5.4.7, DXC) подключены через FetchContent в `third_party/CMakeLists.txt`. Исходники скачиваются в `../elm_deps`, вне репозитория.  Первая конфигурация идёт долго.
 - Конфигурация: `cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug`
 - Сборка: `cmake --build build --config Debug -j`
-- Бинарник: `build/Debug/Engine.exe` (MSVC) или `build/Engine`. Файл `.settings` ищется вверх от текущего каталога, поэтому запускать можно из корня или из `build/`.
-- Запуск с тестовой сценой: `Engine --scene <0..3> [--instances N]` (`ScenePreset`).
+- Программы: `elm_editor` — редактор, `elm` — игра без редактора, `elm_tests` — тесты движка; `build/Debug/` (MSVC) или `build/`. Файл `.settings` ищется вверх от текущего каталога, поэтому запускать можно из корня или из `build/`.
+- Запуск с тестовой сценой: `elm_editor --scene <0..3> [--instances N]` (`ScenePreset`).
 - Тесты: `build/elm_tests` (`build/Debug/elm_tests.exe` в MSVC), отдельная программа без окна и GPU. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все `assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
-  Логику редактора (подсветка, отступы, место ошибки в окне Scripts) проверяет `Engine --editor-selftest`,
+  Логику редактора (подсветка, отступы, место ошибки в окне Scripts) проверяет `elm_editor --editor-selftest`,
   тоже без окна, код возврата — число падений. Оба набора гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
-- Lua API для LuaLS: `Engine --dump-script-api` перегенерирует `assets/scripts/.meta/elm.lua`.  Это сгенерированный файл, руками его не правь.
+- Lua API для LuaLS: `elm_editor --dump-script-api` перегенерирует `assets/scripts/.meta/elm.lua`.  Это сгенерированный файл, руками его не правь.
 - `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
   отступ табом или 4 пробелами, как уже в файле. Посторонние строки не переформатируй.
-- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` и `Engine --editor-selftest` проходят.
+- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` и `elm_editor --editor-selftest` проходят.
 
 ## 1. Сущности выражены явно
 
@@ -143,7 +143,7 @@ input      → glfw
 script     → core, lua       остальные модули PRIVATE
 engine     → Scene, physics, script, graphics, project, resmgr, input   Engine, PlayerLayer
 editor     → graphics, project, engine, script (+ ImGui, GLFW)   EditorLayer и весь UI редактора
-Engine     (main.cpp) выбирает слой и собирает всё
+программы  elm — engine/main.cpp (engine + PlayerLayer), elm_editor — editor/main.cpp (engine + editor)
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл
@@ -284,14 +284,14 @@ Engine     (main.cpp) выбирает слой и собирает всё
 - Атомарные счётчики через `std::atomic`.
 
 ## 10. Тесты
-- Тесты — это `elm_tests` (движок) и `Engine --editor-selftest` (логика редактора). GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
+- Тесты — это `elm_tests` (движок) и `elm_editor --editor-selftest` (логика редактора). GoogleTest/Catch2 в проекте нет, без согласования не добавляй.
 - Lua-тест: файл `assets/scripts/tests/<область>_test.lua` возвращает таблицу `tests` с функциями,
   проверки через `require "tests.expect"` (`expect.eq`, `expect.near`, `expect.error`), фикстуры
   в `tests/fixtures/`. Имя теста описывает сценарий: `tests.vector3_construction`.
 - C++-проверки биндингов и тестовый модуль `elm_test` лежат в `script/SelfTest.cpp`; проверки редактора — в
   `editor/EditorSelfTest.cpp`. Тест кода редактора идёт туда, а не в `elm_tests`: движок о редакторе не знает.
 - Изменил биндинги или Lua API: добавь тест и перегенерируй `assets/scripts/.meta/elm.lua`.
-- Для рендера, culling и UI автотестов нет. Проверяй запуском (`Engine --scene N`) и прямо пиши,
+- Для рендера, culling и UI автотестов нет. Проверяй запуском (`elm_editor --scene N`) и прямо пиши,
   что проверено вручную, а что нет.
 - Исправление бага: сначала тест, который его воспроизводит, если это достижимо через self-test.
 

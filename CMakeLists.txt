@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(Engine LANGUAGES C CXX)
+project(elm LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -39,6 +39,18 @@ function(engine_add_library target_name)
     target_set_warnings(${target_name})
 endfunction()
 
+# Common helper for the programs: elm, elm_editor, elm_tests
+function(engine_add_executable target_name)
+    add_executable(${target_name} ${ARGN})
+    target_include_directories(${target_name} PUBLIC ${ENGINE_INCLUDE_DIRS})
+    if(WIN32)
+        target_compile_definitions(${target_name} PUBLIC PLATFORM_WIN32=1)
+    else()
+        target_compile_definitions(${target_name} PUBLIC PLATFORM_LINUX=1)
+    endif()
+    target_set_warnings(${target_name})
+endfunction()
+
 include_directories(src)
 
 # ------------------------------------------------------------------------------
@@ -59,44 +71,13 @@ add_subdirectory(src/engine)
 add_subdirectory(src/editor)
 
 # ------------------------------------------------------------------------------
-# Application target
+# Programs
 # ------------------------------------------------------------------------------
-add_executable(Engine
-    src/main.cpp
-)
+# elm (src/engine/main.cpp) and elm_editor (src/editor/main.cpp) are made by their modules
 
-target_include_directories(Engine PUBLIC ${ENGINE_INCLUDE_DIRS})
-if(WIN32)
-    target_compile_definitions(Engine PUBLIC PLATFORM_WIN32=1)
-else()
-    target_compile_definitions(Engine PUBLIC PLATFORM_LINUX=1)
-endif()
-target_set_warnings(Engine)
-target_link_libraries(Engine PRIVATE core platform resmgr project script engine editor)
-
-set_target_properties(Engine PROPERTIES
-    CXX_STANDARD 23
-    CXX_STANDARD_REQUIRED ON
-)
-
-# ------------------------------------------------------------------------------
 # Self tests: binding checks and Lua tests without a window or GPU (CI)
-# ------------------------------------------------------------------------------
-add_executable(elm_tests
+engine_add_executable(elm_tests
     src/tests/main.cpp
 )
-
-target_include_directories(elm_tests PUBLIC ${ENGINE_INCLUDE_DIRS})
-if(WIN32)
-    target_compile_definitions(elm_tests PUBLIC PLATFORM_WIN32=1)
-else()
-    target_compile_definitions(elm_tests PUBLIC PLATFORM_LINUX=1)
-endif()
-target_set_warnings(elm_tests)
 target_link_libraries(elm_tests PRIVATE core project resmgr script)
 
-add_custom_command(TARGET Engine POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/shaders
-            ${CMAKE_BINARY_DIR}/shaders
-)

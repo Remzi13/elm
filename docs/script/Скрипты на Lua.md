@@ -225,7 +225,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 редактора ImGui нет. Части `ScriptSystem` окну отдаёт
 `EditorWindowsAccess` (друг `ScriptSystem`, как `SelfTestAccess` у тестов). Текстовая логика окна без
 ImGui — `CodeIndent`, `LuaHighlighter`, `ErrorLocation` (`FindErrorLocation`: файл и строка из сообщения
-Lua) — лежит там же, в `editor/script/`; её проверяет `Engine --editor-selftest` (`editor/EditorSelfTest.cpp`).
+Lua) — лежит там же, в `editor/script/`; её проверяет `elm_editor --editor-selftest` (`editor/EditorSelfTest.cpp`).
 
 - **Панель сверху:** состояние главного модуля (running / stopped с текстом ошибки и кнопкой
   перезагрузки / not running), память Lua, флажок Hot reload, кнопки «Reload changed» и «Restart».
@@ -360,8 +360,8 @@ e:destroy()                                   -- вместе с потомка�
 
 ```bash
 elm_tests                     # C++-проверки и tests/*_test.lua проекта Sandbox, код выхода = число провалов
-Engine --editor-selftest      # логика окна Scripts: подсветка, отступы, место ошибки
-Engine --dump-script-api      # .meta/elm.lua в скриптах Sandbox: аннотации для LuaLS
+elm_editor --editor-selftest      # логика окна Scripts: подсветка, отступы, место ошибки
+elm_editor --dump-script-api      # .meta/elm.lua в скриптах Sandbox: аннотации для LuaLS
 ```
 
 `assets/scripts/.luarc.json` подключает `.meta` к языковому серверу Lua в редакторе.

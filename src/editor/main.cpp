@@ -7,12 +7,9 @@
 #include "core/Threading.hpp"
 
 #include "engine/Engine.hpp"
-#include "engine/PlayerLayer.hpp"
 
 #include "editor/EditorLayer.hpp"
 #include "editor/EditorSelfTest.hpp"
-
-#include "platform/Process.hpp"
 
 #include "project/Project.hpp"
 
@@ -21,8 +18,10 @@
 
 #include "script/ScriptSystem.hpp"
 
-#include <algorithm>
 #include <optional>
+
+// elm_editor: the editor (docs/editor/Редактор.md), and its tools without a window: --build, --dump-script-api,
+// --editor-selftest. The game alone is the program elm next to it.
 
 namespace {
 
@@ -62,12 +61,12 @@ namespace {
         return 0;
     }
 
-    /// --build <project>: builds the project into its Build/<Name> folder with this program (docs/project/Проекты.md#Сборка).
+    /// --build <project>: builds the project into its Build/<Name> folder with the program elm (docs/project/Проекты.md#Сборка).
     int BuildGame(const char* folderOrFile)
     {
         using namespace elm;
         const auto project = resmgr::Serializer::LoadProject(project::Project::FindFile(FileSystem::Resolve(folderOrFile)));
-        const auto executable = platform::CurrentExecutable();
+        const auto executable = EditorLayer::FindPlayerExecutable();
         if (!project || !executable) {
             std::cerr << (project ? executable.error().message : project.error().message) << std::endl;
             return 1;
@@ -79,19 +78,6 @@ namespace {
         }
         std::cout << "Game built in " << folder->string() << std::endl;
         return 0;
-    }
-
-    /// A built game (docs/project/Проекты.md#Сборка): <Name>.elmproject lies next to the program <Name>(.exe).
-    std::optional<elm::Path> FindBuiltGame()
-    {
-        const auto executable = elm::platform::CurrentExecutable();
-        if (!executable)
-            return std::nullopt;
-        elm::Path file = executable->Parent() / executable->Stem();
-        file += elm::project::Project::FileExtension;
-        if (!elm::FileSystem::Exists(file))
-            return std::nullopt;
-        return file;
     }
 
     /// The value after --name, if the argument is given.
@@ -134,21 +120,6 @@ namespace {
             return ReportFatal("Engine runtime failure", runResult.error());
         LOG_MESSAGE( elm::log::Category::Core, "Main", "Application terminated gracefully." );
         return 0;
-    }
-
-    /// The game alone, no editor (docs/project/Проекты.md#Плеер).
-    int RunPlayer(const elm::Path& project, int argc, char** argv)
-    {
-        elm::Engine engine;
-        elm::PlayerLayer player(engine);
-        if (const auto init = engine.Init(MainWindow, player); !init)
-            return ReportFatal("Failed to initialize engine", init.error());
-        if (const auto opened = engine.OpenProject(project); !opened) {
-            engine.Shutdown();
-            return ReportFatal("Failed to open the project", opened.error());
-        }
-        LoadTestSceneArgument(engine, argc, argv);
-        return RunAndShutdown(engine);
     }
 
     /// The editor with the --project argument, otherwise the project opened last time, otherwise the Project Hub.
@@ -200,22 +171,9 @@ int main(int argc, char** argv) {
         return DumpScriptApi(i + 1 < argc ? argv[i + 1] : DefaultScriptApiFile);
     }
 
-    LOG_MESSAGE( log::Category::Core, "Main", "Starting C++23 Cross-Platform 3D Engine Core..." );
-    
-    // A built game plays its own project, from its own folder: its .settings and shaders are there
-    const auto builtGame = FindBuiltGame();
-    if (builtGame) {
-        std::error_code error;
-        FileSystem::SetCurrentPath(builtGame->Parent(), error);
-    }
-    // --player: the game alone, no editor (docs/project/Проекты.md#Плеер)
-    const bool player = builtGame
-        || std::any_of(argv + 1, argv + argc, [](const char* argument) { return std::strcmp(argument, "--player") == 0; });
+    LOG_MESSAGE( log::Category::Core, "Main", "Starting elm_editor..." );
+
     const auto projectFlag = FindArgument(argc, argv, "--project");
-    const std::optional<Path> projectArgument = projectFlag ? std::optional<Path>(Path(*projectFlag)) : builtGame;
-    if (player && !projectArgument) {
-        std::cerr << "[Fatal Error] The player needs a project: --project <folder or .elmproject file>" << std::endl;
-        return 1;
-    }
-    return player ? RunPlayer(*projectArgument, argc, argv) : RunEditor(projectArgument, argc, argv);
+    const std::optional<Path> projectArgument = projectFlag ? std::optional<Path>(Path(*projectFlag)) : std::nullopt;
+    return RunEditor(projectArgument, argc, argv);
 }
