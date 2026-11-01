@@ -118,8 +118,10 @@ namespace elm {
 		ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "Memory");
 		ImGui::Separator();
 
-		const long long allocatedMemoryKb = static_cast<long long>(memory::getStatistic().allocated / 1024);
-		const unsigned long long renderCpuMemoryKb = static_cast<unsigned long long>(renderSystem.GetMemAllocated() / 1024);
+		// Two separate pools: the engine allocator's heap and the graphics API memory of the backend.
+		// Neither contains the other, and third-party libraries and the driver are in neither.
+		const long long engineHeapKb = static_cast<long long>(memory::getStatistic().allocated / 1024);
+		const unsigned long long renderGpuMemoryKb = static_cast<unsigned long long>(renderSystem.GetMemAllocated() / 1024);
 
 		const auto formatMemory = [](auto valueKb) -> const char* {
 			static char buf[64];
@@ -131,15 +133,12 @@ namespace elm {
 			return buf;
 		};
 
-		ImGui::BulletText("Total Allocated: %s", formatMemory(allocatedMemoryKb));
-		ImGui::BulletText("Render CPU:      %s", formatMemory(renderCpuMemoryKb));
-
-		if (allocatedMemoryKb > 0) {
-			const float renderFraction = static_cast<float>(renderCpuMemoryKb) / static_cast<float>(allocatedMemoryKb);
-			ImGui::ProgressBar(renderFraction, ImVec2(-1, 0), "");
-			ImGui::SameLine(0.0f, 5.0f);
-			ImGui::Text("Render / Total: %.1f%%", renderFraction * 100.0f);
-		}
+		ImGui::BulletText("Engine heap: %s", formatMemory(engineHeapKb));
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Engine containers (core/Std.hpp); without third-party libraries");
+		ImGui::BulletText("Render GPU:  %s", formatMemory(renderGpuMemoryKb));
+		if (ImGui::IsItemHovered())
+			ImGui::SetTooltip("Graphics API memory of the render backend: meshes, textures, per-frame upload buffers");
 
 		ImGui::End();
 	}

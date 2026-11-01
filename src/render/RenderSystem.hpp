@@ -73,6 +73,8 @@ namespace elm::render {
 
         /// Size of the main surface (backbuffer pixels) of the last submitted frame.
         [[nodiscard]] Size GetSize() const { return m_surfaceSize; }
+        /// Graphics API memory the backend allocated (GPU resources and per-frame upload buffers);
+        /// not part of memory::getStatistic, which counts only the engine allocator.
         [[nodiscard]] size_t GetMemAllocated() const;
         [[nodiscard]] RenderStats GetRenderStats() const;
 
