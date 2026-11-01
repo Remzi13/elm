@@ -1,6 +1,7 @@
 #include "physics/PhysicsSystem.hpp"
 
 #include "Scene/Scene.hpp"
+#include "core/JobSystem.hpp"
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
 
@@ -9,7 +10,8 @@
 #include <Jolt/RegisterTypes.h>
 #include <Jolt/Core/Factory.h>
 #include <Jolt/Core/TempAllocator.h>
-#include <Jolt/Core/JobSystemThreadPool.h>
+#include <Jolt/Core/FixedSizeFreeList.h>
+#include <Jolt/Core/JobSystemWithBarrier.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/CastResult.h>
@@ -33,6 +35,60 @@ namespace elm  {
 namespace {
 
     constexpr const char* LogSource = "PhysicsSystem";
+
+    /// Jolt's jobs on the engine's workers (core::JobSystem) instead of a thread pool of Jolt's own. A job is
+    /// queued as a worker task when its dependencies are done; the step's barrier wait runs jobs on the update
+    /// thread too (JobSystemWithBarrier). Without workers (tests, tools) a job runs where it is queued.
+    class CoreJobSystem final : public JPH::JobSystemWithBarrier {
+    public:
+        CoreJobSystem()
+            : JobSystemWithBarrier(JPH::cMaxPhysicsBarriers)
+        {
+            m_jobs.Init(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsJobs);
+        }
+
+        int GetMaxConcurrency() const override
+        {
+            // The workers and the update thread that waits on the step's barrier
+            return static_cast<int>(elm::core::JobSystem::Get().GetWorkerCount()) + 1;
+        }
+
+        JobHandle CreateJob(const char* name, JPH::ColorArg color, const JobFunction& function, JPH::uint32 dependencies) override
+        {
+            const JPH::uint32 index = m_jobs.ConstructObject(name, color, this, function, dependencies);
+            ELM_ASSERT(index != decltype(m_jobs)::cInvalidObjectIndex && "more physics jobs than cMaxPhysicsJobs");
+            Job* job = &m_jobs.Get(index);
+            // The handle keeps a reference: the job may run and finish before CreateJob returns
+            JobHandle handle(job);
+            if (dependencies == 0)
+                QueueJob(job);
+            return handle;
+        }
+
+        void QueueJob(Job* job) override
+        {
+            job->AddRef();
+            elm::core::JobSystem::Get().Submit([job] {
+                job->Execute();
+                job->Release();
+            });
+        }
+
+        void QueueJobs(Job** jobs, JPH::uint count) override
+        {
+            for (JPH::uint index = 0; index < count; ++index)
+                QueueJob(jobs[index]);
+        }
+
+    protected:
+        void FreeJob(Job* job) override
+        {
+            m_jobs.DestructObject(job);
+        }
+
+    private:
+        JPH::FixedSizeFreeList<Job> m_jobs;
+    };
     /// Smallest shape size: Jolt rejects empty shapes, a flat model still gets a thin body.
     constexpr float MinExtent = 0.01f;
 
@@ -249,9 +305,7 @@ auto PhysicsSystem::Init() -> elm::EngineResult<void> {
     // Create TempAllocator & JobSystem
     m_tempAllocator = MakeUnique<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
 
-    const uint32_t numThreads = std::max(1u, std::thread::hardware_concurrency() - 1);
-    m_jobSystem = MakeUnique<JPH::JobSystemThreadPool>(
-        JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, static_cast<int>(numThreads));
+    m_jobSystem = MakeUnique<CoreJobSystem>();
 
     // Create BroadPhase and Object filter implementations
     m_broadPhaseLayerInterface = MakeUnique<BPLayerInterfaceImpl>();

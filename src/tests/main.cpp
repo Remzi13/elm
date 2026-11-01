@@ -1,4 +1,5 @@
 #include "core/FileSystem.hpp"
+#include "core/JobSystem.hpp"
 #include "core/Settings.hpp"
 #include "core/Threading.hpp"
 
@@ -36,6 +37,8 @@ int main()
 
     ApplyFileSystemSettings();
     core::registerThread(core::ThreadRole::Update);
+    // Workers as in the programs: the physics step and culling run on them
+    core::JobSystem::Get().Init();
 
     const Path file = project::Project::FindFile(FileSystem::Resolve(SelfTestProject));
     const auto project = resource::Serializer::LoadProject(file);
@@ -43,5 +46,7 @@ int main()
         std::cerr << project.error().message << std::endl;
         return 1;
     }
-    return script::RunSelfTests(project->Scripts());
+    const int failures = script::RunSelfTests(project->Scripts());
+    core::JobSystem::Get().Shutdown();
+    return failures;
 }

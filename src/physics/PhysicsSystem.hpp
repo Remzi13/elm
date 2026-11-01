@@ -14,7 +14,7 @@
 namespace JPH {
     class PhysicsSystem;
     class TempAllocatorImpl;
-    class JobSystemThreadPool;
+    class JobSystem;
     class BroadPhaseLayerInterface;
     class ObjectVsBroadPhaseLayerFilter;
     class ObjectLayerPairFilter;
@@ -134,7 +134,8 @@ private:
 
     UniquePtr<JPH::PhysicsSystem> m_physicsSystem;
     UniquePtr<JPH::TempAllocatorImpl> m_tempAllocator;
-    UniquePtr<JPH::JobSystemThreadPool> m_jobSystem;
+    /// Jolt's jobs on core::JobSystem's workers.
+    UniquePtr<JPH::JobSystem> m_jobSystem;
 
     UniquePtr<JPH::BroadPhaseLayerInterface> m_broadPhaseLayerInterface;
     UniquePtr<JPH::ObjectVsBroadPhaseLayerFilter> m_objectVsBroadPhaseFilter;
