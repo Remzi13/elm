@@ -38,7 +38,7 @@ namespace elm::script {
     /// Stop ends the scripts, clears the physics bodies, brings the snapshot back with its node ids and
     /// gives Edit a fresh Lua state. It lives next to the scripts because it coordinates them with the
     /// scene and physics and the self-tests cover it there.
-    /// Owner: EngineApp, thread: update. Requests from Lua and the UI are applied by ApplyRequest,
+    /// Owner: Engine, thread: update. Requests from Lua and the UI are applied by ApplyRequest,
     /// at the start of the update.
     class PlayMode {
     public:

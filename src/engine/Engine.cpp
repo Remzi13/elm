@@ -1,4 +1,6 @@
-#include "EngineApp.hpp"
+#include "engine/Engine.hpp"
+
+#include "engine/IEngineLayer.hpp"
 
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
@@ -12,16 +14,6 @@
 
 #include "resmgr/Serializer.hpp"
 
-#include "graphics/GameView.hpp"
-#include "graphics/debug/ColliderVisualizer.hpp"
-#include "graphics/debug/PhysicsVisualizer.hpp"
-#include "graphics/debug/WorldAxesVisualizer.hpp"
-
-#include "platform/Process.hpp"
-
-#include "resmgr/ProjectBuilder.hpp"
-#include "resmgr/ProjectTemplate.hpp"
-
 #include <iostream>
 #include <utility>
 
@@ -29,7 +21,7 @@ namespace elm {
 
 namespace {
 
-    constexpr const char* LogSource = "EngineApp";
+    constexpr const char* LogSource = "Engine";
 
     /// The project of a project folder or a .elmproject file; a relative path starts at the engine root.
     auto LoadProject(const Path& folderOrFile) -> EngineResult<project::Project>
@@ -44,7 +36,7 @@ namespace {
 
 } // namespace
 
-EngineApp::EngineApp(AppMode mode)
+Engine::Engine()
     : m_renderSystem(MakeUnique<render::RenderSystem>())
     , m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
@@ -54,24 +46,21 @@ EngineApp::EngineApp(AppMode mode)
     , m_playMode(m_scene, &m_models, m_physicsSystem.get(), *m_scriptSystem)
     , m_debugDraw(m_settings)
 {
-    if (mode == AppMode::Editor)
-        m_editor = MakeUnique<EditorLayer>(m_settings, MakeEditorRequests());
 }
 
-EngineApp::~EngineApp()
+Engine::~Engine()
 {
     Shutdown();
 }
 
-auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> EngineResult<void>
-{ 
- 
-    LOG_MESSAGE( log::Category::Core, "EngineApp", "Initializing 3D Engine Core (C++23)..." );    
+auto Engine::Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<void>
+{
+    LOG_MESSAGE( log::Category::Core, LogSource, "Initializing 3D Engine Core (C++23)..." );
 
+    m_layer = &layer;
     FileSystem::RegisterSettings(m_settings);
     log::registerSettings(m_settings);
-    if (m_editor)
-        EditorLayer::RegisterSettings(m_settings);
+    m_layer->RegisterSettings(m_settings);
     m_cullingSystem.RegisterSettings(m_settings);
     script::ScriptSystem::RegisterSettings(m_settings);
     script::PlayMode::RegisterSettings(m_settings);
@@ -80,14 +69,12 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         return MakeUnexpected(loadedSettings.error());
     FileSystem::ApplySettings(m_settings, settingsPath.Parent());
     log::applySettings(m_settings, settingsPath.Parent());
-    if (m_editor)
-        AddEditorVisualizers();
 
-    m_camera.SetAspect(static_cast<float>(width) / static_cast<float>(height));
+    m_camera.SetAspect(static_cast<float>(desc.width) / static_cast<float>(desc.height));
     // Initialize the render backend and its command queue first.
     core::registerThread(core::ThreadRole::Update);
     core::JobSystem::Get().Init();
-    if (auto windowInit = m_window.Create(Size(width, height), title); !windowInit) {
+    if (auto windowInit = m_window.Create(Size(desc.width, desc.height), desc.title); !windowInit) {
         return MakeUnexpected(windowInit.error());
     }
     auto renderInit = m_renderSystem->Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize());
@@ -96,14 +83,14 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
         return MakeUnexpected(renderInit.error());
     }
 
-    m_engineViewPort = render::ViewPort(m_renderSystem->Resources(), Size(width, height));
+    m_engineViewPort = render::ViewPort(m_renderSystem->Resources(), Size(desc.width, desc.height));
     m_inputSystem->AttachWindow(m_window.GetHandle());
     m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
-    if (auto editorInit = m_editor ? m_editor->Init(m_window, *m_renderSystem, m_cullingSystem) : EngineResult<void> { }; !editorInit) {
+    if (auto layerInit = m_layer->Init(); !layerInit) {
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
-        return MakeUnexpected(editorInit.error());
+        return MakeUnexpected(layerInit.error());
     }
 
     // Register UI input consumer for keyboard focus (e.g. typing in text fields)
@@ -130,8 +117,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
     // Initialize Physics System
     auto physicsInit = m_physicsSystem->Init();
     if (!physicsInit) {
-        if (m_editor)
-            m_editor->Shutdown();
+        m_layer->Shutdown();
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
         return MakeUnexpected(physicsInit.error());
@@ -144,7 +130,7 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 
     m_isRunning = true;
     
-    LOG_MESSAGE( log::Category::Core, "EngineApp", "Engine initialization completed successfully." );
+    LOG_MESSAGE( log::Category::Core, LogSource, "Engine initialization completed successfully." );
     
     return { };
 }
@@ -153,16 +139,14 @@ auto EngineApp::Init(uint32_t width, uint32_t height, StringView title) -> Engin
 // ─────────────────────────────────────────────────────────────────────────────
 // Render thread — draws the frame snapshots submitted by the update (main) thread.
 // ─────────────────────────────────────────────────────────────────────────────
-void EngineApp::RenderThreadFunc()
+void Engine::RenderThreadFunc()
 {
     ELM_PROFILE_THREAD("Render Thread");
     core::registerThread(core::ThreadRole::Render);
 
     render::RenderedFrameInfo info;
-    while (m_renderSystem->RenderNextFrame(info)) {
-        if (m_editor)
-            m_editor->NotifyViewportSurfacesReleased(info.releasedSurfaceCount);
-    }
+    while (m_renderSystem->RenderNextFrame(info))
+        m_layer->OnFrameRendered(info);
 
     core::unregisterThread(core::ThreadRole::Render);
 }
@@ -170,23 +154,19 @@ void EngineApp::RenderThreadFunc()
 // ─────────────────────────────────────────────────────────────────────────────
 // Main loop — runs on the main thread (required for GLFW event polling).
 // ─────────────────────────────────────────────────────────────────────────────
-auto EngineApp::Run() -> EngineResult<void>
+auto Engine::Run() -> EngineResult<void>
 {
     if (!m_isRunning) {
         return MakeUnexpected(ErrorCode::UnknownError,
-            "EngineApp::Run called without prior successful initialization", log::Category::Core, "EngineApp");
+            "Engine::Run called without prior successful initialization", log::Category::Core, LogSource);
     }
 
-    LOG_MESSAGE( log::Category::Core, "EngineApp", "Entering main loop with pipelined Update/Render." );
+    LOG_MESSAGE( log::Category::Core, LogSource, "Entering main loop with pipelined Update/Render." );
     
     ELM_PROFILE_THREAD("Main Thread");
 
-    // The editor starts in Edit mode: physics and scripts wait for Play. The player plays the project.
-    if (!m_editor || m_settings.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting, false))
-        m_playMode.RequestPlay(script::PlayTarget::Project);
-
     // Start the render thread
-    m_renderThread = std::thread(&EngineApp::RenderThreadFunc, this);
+    m_renderThread = std::thread(&Engine::RenderThreadFunc, this);
 
     auto lastTime = core::getTimeStamp();
     float accumulator = 0.0f;
@@ -237,7 +217,11 @@ auto EngineApp::Run() -> EngineResult<void>
         if (!frame)
             break;
 
-        BuildOverlay(frame);
+        {
+            // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
+            ELM_PROFILE_SCOPE_N("Build Overlay");
+            m_layer->BuildOverlay(frame);
+        }
         SubmitFrame(frame);
         log::flushFile();
     }
@@ -248,124 +232,52 @@ auto EngineApp::Run() -> EngineResult<void>
         m_renderThread.join();
     }
 
-    std::cout << "[EngineApp] Main loop exited." << std::endl;
+    std::cout << "[Engine] Main loop exited." << std::endl;
     return { };
 }
 
-void EngineApp::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
+void Engine::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
 {
     TestScenes::BuildScene(preset, instanceCount, m_scene, m_models);
 }
 
-auto EngineApp::OpenProject(const Path& folderOrFile) -> EngineResult<void>
+auto Engine::OpenProject(const Path& folderOrFile) -> EngineResult<void>
 {
-    ELM_ASSERT(!m_project && "another project is opened through the Project menu");
     auto project = LoadProject(folderOrFile);
     if (!project)
         return MakeUnexpected(project.error());
-    StartProject(std::move(*project));
-    return { };
-}
-
-Path EngineApp::LastProject() const
-{
-    return m_editor ? m_editor->LastProject() : Path { };
-}
-
-void EngineApp::ShowProjectHub()
-{
-    if (m_editor)
-        m_editor->ShowProjectHub();
-}
-
-EditorRequests EngineApp::MakeEditorRequests()
-{
-    return {
-        .openProject = [this](const Path& file) { m_requestedProject = file; },
-        .createProject = [this](const Path& location, StringView name) { return CreateProject(location, name); },
-        .setEntry = [this](project::ProjectEntry entry) { return SetProjectEntry(std::move(entry)); },
-        .runStandalone = [this] { RunStandalone(); },
-        .buildGame = [this] { BuildGame(); },
-    };
-}
-
-void EngineApp::AddEditorVisualizers()
-{
-    graphics::DebugDraw& debugDraw = m_debugDraw.GetDebugDraw();
-    m_debugDraw.AddVisualizer(MakeUnique<graphics::WorldAxesVisualizer>(debugDraw));
-    m_debugDraw.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_scene, debugDraw));
-    m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_physicsSystem->FrameLog(), debugDraw));
-}
-
-script::PlayRequests EngineApp::MakePlayRequests()
-{
-    script::PlayRequests requests = m_playMode.Requests();
-    // The player has no Edit mode to go back to
-    if (!m_editor)
-        requests.stop = [this] { m_quitRequested = true; };
-    return requests;
-}
-
-void EngineApp::RunStandalone()
-{
-    if (!m_project)
-        return;
-    // Errors are logged: the editor goes on
-    const auto executable = platform::CurrentExecutable();
-    if (!executable)
-        return;
-    const Vector<String> arguments { "--project", String(m_project->File().string().c_str()), "--player" };
-    if (platform::StartProcess(*executable, arguments))
-        LOG_MESSAGE(log::Category::Core, LogSource, "Run Standalone: %s plays from its saved files", m_project->Name().c_str());
-}
-
-auto EngineApp::SetProjectEntry(project::ProjectEntry entry) -> EngineResult<void>
-{
-    // The file first: a project that cannot be saved keeps the entry it had
-    project::Project changed = *m_project;
-    changed.SetEntry(entry);
-    if (auto saved = resmgr::Serializer::SaveProject(changed); !saved)
-        return saved;
-    m_project->SetEntry(std::move(entry));
-    return { };
-}
-
-auto EngineApp::CreateProject(const Path& location, StringView name) -> EngineResult<void>
-{
-    // The new project's scripts get the LuaLS description of the engine API
-    auto luaApi = script::ScriptSystem::GenerateApiMeta();
-    if (!luaApi)
-        return MakeUnexpected(luaApi.error());
-    auto file = resmgr::ProjectTemplate::Create(FileSystem::Resolve(location), name, *luaApi);
-    if (!file)
-        return MakeUnexpected(file.error());
-    m_requestedProject = std::move(*file);
-    return { };
-}
-
-void EngineApp::ApplyProjectRequest()
-{
-    if (!m_requestedProject)
-        return;
-    const Path requested = std::move(*m_requestedProject);
-    m_requestedProject.reset();
-    // The error is logged; the open project stays
-    auto project = LoadProject(requested);
-    if (!project)
-        return;
     if (m_project)
         CloseProject();
     StartProject(std::move(*project));
+    return { };
 }
 
-void EngineApp::CloseProject()
+const project::Project* Engine::OpenedProject() const
+{
+    return m_project ? &*m_project : nullptr;
+}
+
+void Engine::SetProjectEntry(project::ProjectEntry entry)
+{
+    ELM_ASSERT(m_project && "the entry belongs to the open project");
+    m_project->SetEntry(std::move(entry));
+}
+
+script::PlayRequests Engine::MakePlayRequests()
+{
+    script::PlayRequests requests = m_playMode.Requests();
+    // The editor goes back to Edit, the player has no Edit mode to go back to
+    requests.stop = [this] { m_layer->RequestStop(); };
+    return requests;
+}
+
+void Engine::CloseProject()
 {
     if (m_playMode.IsPlaying())
         m_playMode.Stop();
     // on_shutdown still sees the scene
     m_scriptSystem->Shutdown();
-    if (m_editor)
-        m_editor->OnProjectClosed();
+    m_layer->OnProjectClosed();
     m_physicsSystem->Clear();
     m_scene.Clear();
     m_models.Clear();
@@ -373,7 +285,7 @@ void EngineApp::CloseProject()
     m_project.reset();
 }
 
-void EngineApp::StartProject(project::Project project)
+void Engine::StartProject(project::Project project)
 {
     m_project = std::move(project);
 
@@ -382,37 +294,18 @@ void EngineApp::StartProject(project::Project project)
     // In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
     if (auto scriptInit = m_scriptSystem->Init(scriptEngine, m_project->Scripts()); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, LogSource, "%s", scriptInit.error().message.c_str());
-    if (m_editor) {
-        const Path openedScene = OpenStartupScene();
-        m_editor->OnProjectOpened(*m_project, *m_scriptSystem, openedScene);
-    } else {
-        // The player plays the startup scene itself (Play Project)
-        m_window.SetTitle(m_project->Name());
-    }
+    m_layer->OnProjectOpened(*m_project);
     LOG_MESSAGE(log::Category::Core, LogSource, "Project %s opened from %s", m_project->Name().c_str(),
         m_project->File().string().c_str());
 }
 
-Path EngineApp::OpenStartupScene()
-{
-    if (!m_project->Desc().entry.startupScene)
-        return { };
-    // A broken scene file is logged; the editor opens with an empty scene
-    auto scene = LoadStartupScene();
-    if (!scene)
-        return { };
-    const auto handlers = m_models.InsertAll(std::move(scene->models), scene->modelFiles);
-    (void)m_scene.Append(std::move(*scene), handlers);
-    return m_project->Resolve(*m_project->Desc().entry.startupScene);
-}
-
-auto EngineApp::LoadStartupScene() const -> EngineResult<SceneAsset>
+auto Engine::LoadStartupScene() const -> EngineResult<SceneAsset>
 {
     const project::AssetPath& startupScene = *m_project->Desc().entry.startupScene;
     return resmgr::Serializer::LoadScene(m_project->Resolve(startupScene), m_project->Assets());
 }
 
-std::optional<script::PlayStart> EngineApp::MakePlayStart(script::PlayTarget target) const
+std::optional<script::PlayStart> Engine::MakePlayStart(script::PlayTarget target) const
 {
     if (!m_project)
         return std::nullopt;
@@ -428,34 +321,7 @@ std::optional<script::PlayStart> EngineApp::MakePlayStart(script::PlayTarget tar
     return start;
 }
 
-void EngineApp::BuildGame()
-{
-    if (!m_project)
-        return;
-    // Errors are logged: the editor goes on
-    const auto executable = platform::CurrentExecutable();
-    if (!executable)
-        return;
-    const auto folder = resmgr::ProjectBuilder::Build(*m_project, { *executable, FileSystem::Resolve("shaders") });
-    if (folder)
-        LOG_MESSAGE(log::Category::Core, LogSource, "Build Game: %s is in %s", m_project->Name().c_str(), folder->string().c_str());
-}
-
-void EngineApp::BuildOverlay(render::FrameWriter& frame)
-{
-    // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
-    ELM_PROFILE_SCOPE_N("Build Overlay");
-    if (m_editor) {
-        m_editor->BuildFrame({ *m_renderSystem, m_scene, m_models, m_camera, m_currentStats,
-            m_engineViewPort, frame, m_debugDraw.GetDebugDraw() });
-        return;
-    }
-    const Size framebuffer = m_window.GetFramebufferSize();
-    graphics::FitGameView(framebuffer, m_engineViewPort, m_camera);
-    graphics::WriteGameOverlay(m_engineViewPort, framebuffer, frame.Overlay());
-}
-
-void EngineApp::SubmitFrame(render::FrameWriter& frame)
+void Engine::SubmitFrame(render::FrameWriter& frame)
 {
     ELM_PROFILE_SCOPE_N("Build Frame Snapshot");
 
@@ -474,7 +340,7 @@ void EngineApp::SubmitFrame(render::FrameWriter& frame)
     m_renderSystem->SubmitFrame(frame);
 }
 
-void EngineApp::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame)
+void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame)
 {
     const auto ids = drawn.Ids();
     const auto components = drawn.Components();
@@ -505,7 +371,7 @@ void EngineApp::SubmitModels(const ComponentStore<ModelComponent>& drawn, render
     }
 }
 
-void EngineApp::FixedUpdate(float fixedDeltaTime)
+void Engine::FixedUpdate(float fixedDeltaTime)
 {
     ELM_PROFILE_SCOPE_N("FixedUpdate Physics Step");
     // Edit mode: the scene stands still
@@ -517,7 +383,7 @@ void EngineApp::FixedUpdate(float fixedDeltaTime)
     m_scriptSystem->FixedUpdate(fixedDeltaTime, collisions);
 }
 
-void EngineApp::Update(float deltaTime)
+void Engine::Update(float deltaTime)
 {
     ELM_PROFILE_SCOPE_N("Update Engine Logic");
 
@@ -532,13 +398,11 @@ void EngineApp::Update(float deltaTime)
         m_frameCounterTime = 0.0f;
     }
 
-    // The viewport state comes from the previous UI frame; the player has no editor camera
-    m_cameraController.SetViewportState(m_editor && m_editor->IsSceneViewportHovered(), m_editor && m_editor->IsSceneViewportFocused());
+    // Before Play/Stop: a project switch of the editor stops Play itself
+    m_layer->Update();
 
     m_inputSystem->Update();
 
-    // Before Play/Stop: a project switch stops Play itself
-    ApplyProjectRequest();
     // Play/Stop asked for by scripts and windows since the last update
     m_playMode.ApplyRequest();
     // In Play the camera is the game's (elm.camera); the editor's fly camera waits for Stop
@@ -557,18 +421,12 @@ void EngineApp::Update(float deltaTime)
     }
 }
 
-void EngineApp::Shutdown()
+void Engine::Shutdown()
 {
     if (!m_isRunning)
         return;
 
-    std::cout << "[EngineApp] Shutting down systems..." << std::endl;
-
-    // The settings are the editor's: the player only reads them
-    if (m_editor) {
-        if (auto savedSettings = m_settings.Save(Settings::DefaultFilePath()); !savedSettings)
-            ERROR_MESSAGE(log::Category::Core, "EngineApp", "%s", savedSettings.error().message.c_str());
-    }
+    std::cout << "[Engine] Shutting down systems..." << std::endl;
 
     // Ensure the render thread is stopped before destroying resources
     m_renderSystem->StopRendering();
@@ -583,9 +441,7 @@ void EngineApp::Shutdown()
         m_physicsSystem->Shutdown();
     }
 
-    if (m_editor) {
-        m_editor->Shutdown();
-    }
+    m_layer->Shutdown();
     m_scene.Clear();
     m_models.Clear();
     m_cullingSystem.Shutdown();
@@ -597,7 +453,7 @@ void EngineApp::Shutdown()
     core::JobSystem::Get().Shutdown();
 
     m_isRunning = false;
-    std::cout << "[EngineApp] Engine shutdown finished." << std::endl;
+    std::cout << "[Engine] Engine shutdown finished." << std::endl;
 }
 
-} // namespace Engine
+} // namespace elm

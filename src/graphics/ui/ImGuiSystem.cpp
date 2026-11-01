@@ -110,7 +110,7 @@ namespace elm {
 		ApplyEditorStyle();
 
 		// Register standard engine editor windows
-		// Scene Hierarchy, Model Editor and the script windows belong to the project: EngineApp adds them
+		// Scene Hierarchy, Model Editor and the script windows belong to the project: EditorLayer adds them
 		EmplaceWindow<SocLabWindow>( settings, cullingSystem );
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<LogWindow>( settings );

@@ -33,7 +33,7 @@ namespace elm::script {
     ///  - ScriptClass, EntityScripts, ScriptDefaults: the scripts of scene nodes;
     ///  - ScriptConsole: the Lua console; bindings/: the engine API for Lua.
     /// The parts live as long as the system, the Lua state is opened again on a restart.
-    /// Owner: EngineApp, thread: update.
+    /// Owner: Engine, thread: update.
     class ScriptSystem {
     public:
         static constexpr StringView EnabledSetting = "Enabled";

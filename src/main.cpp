@@ -1,4 +1,3 @@
-#include "EngineApp.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -6,6 +5,11 @@
 #include "core/Log.hpp"
 #include "core/Settings.hpp"
 #include "core/Threading.hpp"
+
+#include "engine/Engine.hpp"
+#include "engine/PlayerLayer.hpp"
+
+#include "editor/EditorLayer.hpp"
 
 #include "platform/Process.hpp"
 
@@ -21,6 +25,7 @@
 
 namespace {
 
+    constexpr elm::EngineDesc MainWindow { 1280, 720, "C++23 3D Engine - Direct3D 12 & Jolt Physics" };
     constexpr const char* DefaultScriptApiFile = "projects/Sandbox/assets/scripts/.meta/elm.lua";
 
     /// Resolves the asset root from the settings file without starting the engine.
@@ -98,6 +103,80 @@ namespace {
         return std::nullopt;
     }
 
+    /// --scene <preset index> [--instances <count>]: a test scene in place of the startup scene.
+    void LoadTestSceneArgument(elm::Engine& engine, int argc, char** argv)
+    {
+        int scenePreset = -1;
+        uint32_t instanceCount = 1500;
+        for (int i = 1; i + 1 < argc; ++i) {
+            if (std::strcmp(argv[i], "--scene") == 0)
+                scenePreset = std::atoi(argv[i + 1]);
+            else if (std::strcmp(argv[i], "--instances") == 0)
+                instanceCount = static_cast<uint32_t>(std::atoi(argv[i + 1]));
+        }
+        if (scenePreset >= 0)
+            engine.LoadTestScene(static_cast<elm::ScenePreset>(scenePreset), instanceCount);
+    }
+
+    int ReportFatal(const char* what, const elm::EngineError& error)
+    {
+        std::cerr << "[Fatal Error] " << what << ": " << error.message << std::endl;
+        return static_cast<int>(error.code);
+    }
+
+    /// The frame loop, then Shutdown: it runs while the layer is still alive.
+    int RunAndShutdown(elm::Engine& engine)
+    {
+        const auto runResult = engine.Run();
+        engine.Shutdown();
+        if (!runResult)
+            return ReportFatal("Engine runtime failure", runResult.error());
+        LOG_MESSAGE( elm::log::Category::Core, "Main", "Application terminated gracefully." );
+        return 0;
+    }
+
+    /// The game alone, no editor (docs/project/Проекты.md#Плеер).
+    int RunPlayer(const elm::Path& project, int argc, char** argv)
+    {
+        elm::Engine engine;
+        elm::PlayerLayer player(engine);
+        if (const auto init = engine.Init(MainWindow, player); !init)
+            return ReportFatal("Failed to initialize engine", init.error());
+        if (const auto opened = engine.OpenProject(project); !opened) {
+            engine.Shutdown();
+            return ReportFatal("Failed to open the project", opened.error());
+        }
+        LoadTestSceneArgument(engine, argc, argv);
+        return RunAndShutdown(engine);
+    }
+
+    /// The editor with the --project argument, otherwise the project opened last time, otherwise the Project Hub.
+    int RunEditor(const std::optional<elm::Path>& projectArgument, int argc, char** argv)
+    {
+        using namespace elm;
+        Engine engine;
+        EditorLayer editor(engine);
+        if (const auto init = engine.Init(MainWindow, editor); !init)
+            return ReportFatal("Failed to initialize engine", init.error());
+
+        const Path projectPath = projectArgument ? *projectArgument : editor.LastProject();
+        const auto opened = projectPath.Empty() ? EngineResult<void> { } : engine.OpenProject(projectPath);
+        if (!opened && projectArgument) {
+            engine.Shutdown();
+            return ReportFatal("Failed to open the project", opened.error());
+        }
+        if (!opened) {
+            WARNING_MESSAGE(log::Category::Core, "Main", "Failed to open last project \"%s\": %s",
+                projectPath.string().c_str(), opened.error().message.c_str());
+        }
+        // The last project may be gone: the hub offers the others
+        if (projectPath.Empty() || !opened)
+            editor.ShowProjectHub();
+
+        LoadTestSceneArgument(engine, argc, argv);
+        return RunAndShutdown(engine);
+    }
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -133,52 +212,5 @@ int main(int argc, char** argv) {
         std::cerr << "[Fatal Error] The player needs a project: --project <folder or .elmproject file>" << std::endl;
         return 1;
     }
-    elm::EngineApp app(player ? AppMode::Player : AppMode::Editor);
-
-    // Initialize application using C++23 std::expected error checking
-    const auto initResult = app.Init(1280, 720, "C++23 3D Engine - Direct3D 12 & Jolt Physics");
-    if (!initResult) {
-        std::cerr << "[Fatal Error] Failed to initialize engine: " << initResult.error().message << std::endl;
-        return static_cast<int>(initResult.error().code);
-    }
-
-    // --project <folder or .elmproject file>, otherwise the project opened last time, otherwise the Project Hub
-    const Path projectPath = projectArgument ? *projectArgument : app.LastProject();
-    const auto opened = projectPath.Empty() ? EngineResult<void> { } : app.OpenProject(projectPath);
-    if (!opened) {
-        if (projectArgument) {
-            std::cerr << "[Fatal Error] Failed to open the project: " << opened.error().message << std::endl;
-            return static_cast<int>(opened.error().code);
-        }
-        if (!projectPath.Empty()) {
-            WARNING_MESSAGE(log::Category::Core, "Main", "Failed to open last project \"%s\": %s",
-                projectPath.string().c_str(), opened.error().message.c_str());
-        }
-    }
-    // The last project may be gone: the hub offers the others
-    if (projectPath.Empty() || !opened)
-        app.ShowProjectHub();
-
-    // --scene <preset index> [--instances <count>]: a test scene in place of the startup scene
-    int scenePreset = -1;
-    uint32_t instanceCount = 1500;
-    for (int i = 1; i + 1 < argc; ++i) {
-        if (std::strcmp(argv[i], "--scene") == 0)
-            scenePreset = std::atoi(argv[i + 1]);
-        else if (std::strcmp(argv[i], "--instances") == 0)
-            instanceCount = static_cast<uint32_t>(std::atoi(argv[i + 1]));
-    }
-    if (scenePreset >= 0)
-        app.LoadTestScene(static_cast<ScenePreset>(scenePreset), instanceCount);
-
-    // Run engine loop
-    const auto runResult = app.Run();
-    if (!runResult) {
-        std::cerr << "[Fatal Error] Engine runtime failure: " << runResult.error().message << std::endl;
-        return static_cast<int>(runResult.error().code);
-    }
-
-    app.Shutdown();
-    LOG_MESSAGE( log::Category::Core, "Main", "Application terminated gracefully." );
-    return 0;
+    return player ? RunPlayer(*projectArgument, argc, argv) : RunEditor(projectArgument, argc, argv);
 }

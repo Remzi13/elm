@@ -220,7 +220,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 `script/ui/ScriptWindow.*`, пункт «Scripts» в меню Windows. Окно только раскладывает свои части и выполняет
 `/`-команды консоли. Каждая панель работает только со своими частями модуля: `ScriptStatusBar` (панель сверху),
 `ConsolePanel` (`ScriptConsole`), `ScriptEditor`, `ModulesPanel` (`ModuleLoader`, `HotReload`), `ApiPanel` (`lua::State`).
-Окна создаёт `ScriptSystem::CreateEditorWindows`, `EngineApp` только добавляет их в `ImGuiSystem`.
+Окна создаёт `ScriptSystem::CreateEditorWindows`, `EditorLayer` только добавляет их в `ImGuiSystem`.
 
 - **Панель сверху:** состояние главного модуля (running / stopped с текстом ошибки и кнопкой
   перезагрузки / not running), память Lua, флажок Hot reload, кнопки «Reload changed» и «Restart».

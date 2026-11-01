@@ -1702,7 +1702,7 @@ namespace elm::script {
             Scene scene;
             ScriptSystem system;
             PlayMode playMode(scene, &models, &physics, system);
-            // As EngineApp gives it: Play Scene plays the edited scene, Play Project a start scene of one node
+            // As Engine gives it: Play Scene plays the edited scene, Play Project a start scene of one node
             bool hasStartScene = false;
             playMode.SetStartSource([&](PlayTarget target) -> std::optional<PlayStart> {
                 PlayStart start { .mainModule = "main" };
@@ -1721,7 +1721,7 @@ namespace elm::script {
             }
             auto eval = [&](const char* code) { return Evaluate(system, code); };
             constexpr float Step = 1.0f / 60.0f;
-            // As EngineApp: physics steps in Play only, requests apply before the update
+            // As Engine: physics steps in Play only, requests apply before the update
             auto frame = [&] {
                 std::span<const CollisionEvent> collisions;
                 if (playMode.IsPlaying()) {

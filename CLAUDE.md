@@ -66,7 +66,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 
 | Сущность | Что это | Владелец / поток |
 |---|---|---|
-| `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `EngineApp`, update |
+| `Scene` | узлы (плоский массив `Scene::Node`, родитель всегда раньше детей), их мировые трансформы (производный массив `WorldTransforms()`) и компоненты. Узлы выдаются только для чтения, запись идёт методами сцены по `NodeId` | `Engine`, update |
 | `Scene::Node`, «узел» | ядро элемента сцены: `id`, родитель (`NodeId`), имя, локальный трансформ. Остальное — компоненты. В Lua это `Entity` («сущность») | `Scene` |
 | `Scene::NodeDesc`, `Scene::SetParentResult` | с чем создаётся новый узел (`AddNode`); итог `SetParent` | — |
 | `NodeId` | стабильная ссылка на узел (`Scene/NodeId.hpp`). Индекс узла (`size_t`) нестабилен, живёт в пределах одной операции | — |
@@ -96,12 +96,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
 | `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
-| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `EngineApp` |
+| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `Engine` |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
 | `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
-| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget` | режимы редактора: в Edit сцена — это данные, в Play работают физика, скрипты сущностей и главный модуль, каждый Play со свежей Lua-машиной. `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). `script::PlayMode`, владелец `EngineApp` |
+| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget` | режимы редактора: в Edit сцена — это данные, в Play работают физика, скрипты сущностей и главный модуль, каждый Play со свежей Lua-машиной. `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). `script::PlayMode`, владелец `Engine` |
 
 **Рендер** (`src/render`, `elm::render`)
 
@@ -128,10 +128,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `InputSystem`, `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия | `input` |
 | `platform::Window` | главное окно GLFW | `platform` |
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
-| `EngineApp`, `AppMode`, `EditorLayer`, `EditorRequests` | движок и цикл кадра; режим запуска (редактор или плеер); всё редакторское поверх движка и его запросы к движку | `Engine` |
+| `Engine`, `EngineDesc`, `IEngineLayer` | движок и цикл кадра; его главное окно; слой программы поверх движка, который движок зовёт из кадра | `engine` |
+| `PlayerLayer` | слой игры: вид на всё окно, сразу Play Project, Stop завершает программу | `engine` |
+| `EditorLayer` | слой редактора: окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
 | `resmgr::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resmgr` |
 | `resmgr::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resmgr` |
-| `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `EngineApp`, update | `project` |
+| `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `Engine`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |
 | `ProjectMenu`, `ProjectMenuDesc` | меню Project редактора; открытый проект для него, недавние проекты, запрос `open` (применяется в начале update) | `graphics/ui` |
 | `project::AssetType`, `ProjectAssets`, `AssetEntry` | тип файла ассета по расширению; дерево папки `assets` для окон | `project` |
@@ -166,8 +168,9 @@ physics    → Scene           Jolt PRIVATE
 graphics   → render, platform, resmgr (+ ImGui)   о project не знает
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-editor     → graphics, project   окна редактора, которым нужен проект
-Engine     (EngineApp, main.cpp) собирает всё
+engine     → Scene, physics, script, graphics, project, resmgr, input   Engine, PlayerLayer
+editor     → graphics, project, engine   EditorLayer и окна редактора, которым нужен проект
+Engine     (main.cpp) выбирает слой и собирает всё
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл
@@ -255,7 +258,7 @@ Engine     (EngineApp, main.cpp) собирает всё
 - Невладеющий доступ: `T&` (обязателен), `T*` (может отсутствовать), `std::span`, `StringView`.
 - Параметры: дешёвые типы и хэндлы по значению; только чтение `const T&`; изменение `T&`;
   передача владения по значению с `std::move`.
-- Системы с идентичностью (`*System`, `EngineApp`) явно запрещают копирование и перемещение
+- Системы с идентичностью (`*System`, `Engine`) явно запрещают копирование и перемещение
   (`= delete` для всех четырёх). Значимые типы следуют правилу нуля.
 - `const` по умолчанию. `[[nodiscard]]` на всём, что возвращает результат, хэндл или найденный
   объект. `override`/`final` обязательны. Однопараметрические конструкторы `explicit`.

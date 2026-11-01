@@ -19,7 +19,7 @@ namespace elm {
 struct SceneAsset;
 
 /// Nodes of a scene and their components. The nodes are a flat array, a parent always comes before its
-/// children. Owners: EngineApp (the live scene) and SceneSnapshot. Update thread only.
+/// children. Owners: Engine (the live scene) and SceneSnapshot. Update thread only.
 /// Nodes are handed out read-only: every change goes through the scene, so it keeps node ids, parents,
 /// the order and components in step. A stale or foreign NodeId finds nothing: Find returns nullptr,
 /// setters false. World transforms are derived from the local ones, parallel to the nodes, and current

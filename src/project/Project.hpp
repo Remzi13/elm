@@ -11,7 +11,7 @@
 namespace elm::project {
 
     /// An open game project: its file, description and asset folders (docs/project/Проекты.md).
-    /// A value: the editor replaces it when another project is opened. Owner: EngineApp, thread: update.
+    /// A value: the editor replaces it when another project is opened. Owner: Engine, thread: update.
     class Project {
     public:
         static constexpr StringView FileExtension = ".elmproject";

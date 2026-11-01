@@ -50,7 +50,7 @@ namespace elm::graphics {
     };
 
     /// Collects the debug primitives of one scene view, grouped into channels. Owned by the owner
-    /// of the view (EngineApp for the engine viewport); update thread only.
+    /// of the view (Engine for the engine viewport); update thread only.
     /// A channel is on or off through the setting Render/Debug/Draw/<name>, so its state persists
     /// and shows in the Settings window. Primitives of a disabled or invalid channel are dropped
     /// at the call; timed primitives of a channel switched off are kept but not drawn.

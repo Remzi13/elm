@@ -347,7 +347,7 @@ mark { background: var(--accent-soft); color: inherit; border-radius: 2px; }
     <!-- Frame -->
     <section id="frame">
       <header>
-        <span class="eyebrow">EngineApp::Run · RenderSystem::RenderNextFrame</span>
+        <span class="eyebrow">Engine::Run · RenderSystem::RenderNextFrame</span>
         <h2>Один кадр</h2>
         <p class="muted">Шаги цикла в порядке исполнения. Включите проигрывание, чтобы увидеть, как два потока идут параллельно, а кольцо из трёх слотов сдвигается на кадр. Переключатель режима показывает, что в Edit не выполняется.</p>
       </header>
@@ -477,7 +477,7 @@ UseWorldPosition(scene.WorldTransforms()[scene.IndexOf(lamp)]);</code></pre>
     <!-- Play -->
     <section id="play">
       <header>
-        <span class="eyebrow">script::PlayMode · владелец EngineApp</span>
+        <span class="eyebrow">script::PlayMode · владелец Engine</span>
         <h2>Edit и Play</h2>
         <p class="muted">Движок стартует в Edit: сцена — это данные. Play (F5, кнопка над вьюпортом, <code>elm.engine.play()</code>) включает физику и скрипты сущностей. Переключение выполняется в начале следующего обновления, в <code>PlayMode::ApplyRequest</code>.</p>
       </header>
@@ -683,7 +683,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
   /* ---------- Module graph ---------- */
   const W = 112, H = 40;
   const mods = {
-    Engine:   { x: 360, y: 34,  dir: "src/EngineApp.*, main.cpp", ns: "elm", third: [], desc: "Собирает всё: владеет сценой, системами, `PlayMode` и главным циклом. Запускает render-поток.", ents: ["EngineApp", "PlayMode", "Scene"], note: "render/Главный цикл.md", thread: "update (главный поток)" },
+    Engine:   { x: 360, y: 34,  dir: "src/engine/*, src/editor/EditorLayer.*, main.cpp", ns: "elm", third: [], desc: "Собирает всё: владеет сценой, системами, `PlayMode` и главным циклом. Запускает render-поток.", ents: ["Engine", "PlayMode", "Scene"], note: "render/Главный цикл.md", thread: "update (главный поток)" },
     graphics: { x: 120, y: 128, dir: "src/graphics", ns: "elm::graphics, elm", third: ["ImGui", "ImGuizmo"], desc: "Модели и их GPU-меши, камера, CPU-отсечение, окна редактора на ImGui.", ents: ["ModelManager", "ModelHandler", "Camera", "OcclusionCullingSystem", "ImGuiSystem", "IImGuiWindow"], note: "editor/Редактор.md", thread: "update" },
     script:   { x: 400, y: 128, dir: "src/script", ns: "elm::script", third: ["Lua 5.4.7"], desc: "Lua-машина, главный модуль, скрипты сущностей, hot reload, консоль, `PlayMode`. Остальные модули линкуются PRIVATE, наружу видны `ScriptSystem`, `EngineContext`, `PlayMode`.", ents: ["ScriptSystem", "EngineContext", "PlayMode", "EntityScripts", "HotReload", "lua::State"], note: "script/Скрипты на Lua.md", thread: "update" },
     input:    { x: 610, y: 128, dir: "src/input", ns: "elm", third: ["GLFW"], desc: "Ввод с приоритетами подписчиков, действия и оси.", ents: ["InputSystem", "IInputSubscriber", "InputContext", "ActionBinding", "AxisBinding"], note: null, thread: "update" },
@@ -1080,7 +1080,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Ядро", "core::ThreadRole (Update, Render)", "роль потока, проверяется `ELM_ASSERT_THREAD`", "core/Threading.hpp"],
     ["Ядро", "FileSystem, Path, AssetPaths", "пути относительно корня (`Core/FileSystem/RootPath`)", "core/FileSystem.hpp"],
     ["Ядро", "log::Category, log::Severity", "лог движка, макросы `LOG_MESSAGE`/`WARNING_MESSAGE`/`ERROR_MESSAGE`", "core/Log.hpp"],
-    ["Сцена", "Scene", "узлы, их мировые трансформы и компоненты; запись методами сцены по `NodeId`", "EngineApp, update"],
+    ["Сцена", "Scene", "узлы, их мировые трансформы и компоненты; запись методами сцены по `NodeId`", "Engine, update"],
     ["Сцена", "Scene::Node, узел", "ядро элемента сцены: `id`, родитель, имя, локальный трансформ. В Lua — `Entity`", "Scene"],
     ["Сцена", "Scene::NodeDesc, Scene::SetParentResult", "с чем создаётся узел (`AddNode`); итог `SetParent`", "Scene/Scene.hpp"],
     ["Сцена", "NodeId", "стабильная ссылка на узел. Индекс (`size_t`) живёт одну операцию", "Scene/NodeId.hpp"],
@@ -1102,7 +1102,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Модели и редактор", "OcclusionCullingSystem, SoftwareDepthBuffer", "CPU-отсечение, результат по `NodeId` (`FindOccludee`)", "graphics/culling"],
     ["Модели и редактор", "ImGuiSystem, IImGuiWindow, ImGuiWindowContext", "окна редактора и то, что им передаётся на кадр", "graphics/ui"],
     ["Модели и редактор", "SelectedSceneInstance, PlayControls, OpenModelEditor", "сообщения между окнами через `MessageBus`", "ui/WindowMessages.hpp"],
-    ["Модели и редактор", "Edit / Play, PlayMode", "режимы редактора; `script::PlayMode`, владелец `EngineApp`", "script/PlayMode.hpp"],
+    ["Модели и редактор", "Edit / Play, PlayMode", "режимы редактора; `script::PlayMode`, владелец `Engine`", "script/PlayMode.hpp"],
     ["Рендер", "RenderSystem", "фасад подсистемы рендера", "update + render"],
     ["Рендер", "RenderResources", "создание, обновление и удаление ресурсов командами", "любой поток"],
     ["Рендер", "TextureHandle, BufferHandle, MeshHandle, ShaderHandle, PipelineHandle, SurfaceId", "хэндлы ресурсов", "render/api/Handles.hpp"],
