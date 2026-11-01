@@ -4,7 +4,7 @@
 
 #include "script/lua/Ref.hpp"
 
-#include "graphics/Model.hpp"
+#include "model/Model.hpp"
 
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/Scene.hpp"
@@ -57,6 +57,6 @@ namespace elm::script::bindings {
     [[nodiscard]] std::optional<ColliderRef> GetCollider(lua_State* L, const Entity& entity);
     /// A collider around a model: a box of its bounds; sphere and capsule radius from the X/Z size.
     /// A flat model gets a thin box under it. The default collider without a model.
-    [[nodiscard]] Collider FitColliderToModel(const graphics::Model* model);
+    [[nodiscard]] Collider FitColliderToModel(const Model* model);
 
 } // namespace elm::script::bindings

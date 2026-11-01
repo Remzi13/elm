@@ -2,7 +2,7 @@
 
 #include "math/Vector.hpp"
 
-#include "graphics/ModelHandler.hpp"
+#include "model/ModelHandler.hpp"
 
 #include "Scene/ComponentTypes.hpp"
 
@@ -14,8 +14,8 @@ namespace elm {
 struct ModelComponent {
     static constexpr ComponentType Type = ComponentType::Model;
 
-    /// Empty or removed from the ModelManager: nothing is drawn.
-    graphics::ModelHandler model;
+    /// Empty or removed from the ModelCatalog: nothing is drawn.
+    ModelHandler model;
     math::Vector4 color { 1.0f, 1.0f, 1.0f, 1.0f };
     /// Hidden by the user (editor, scripts). Culling keeps its own result and never changes it.
     bool visible { true };

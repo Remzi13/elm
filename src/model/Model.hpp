@@ -4,17 +4,17 @@
 
 #include "math/Primitivs.hpp"
 
-#include "graphics/ModelHandler.hpp"
+#include "model/ModelHandler.hpp"
 
 #include <algorithm>
 #include <cmath>
 
-namespace elm::graphics {
+namespace elm {
 
     /// Geometry is shared between models and the render thread, it must not change once created.
     using MeshDataPtr = SharedPtr<const MeshData>;
 
-    /// CPU-side model description. GPU resources of a model are owned by ModelManager.
+    /// CPU-side model description. Its GPU meshes are graphics::ModelMeshes'.
     class Model {
     public:
         struct Submesh {
@@ -38,4 +38,4 @@ namespace elm::graphics {
     /// mirroring transforms flip the triangle winding so faces keep pointing outwards.
     [[nodiscard]] MeshData TransformMeshData(const MeshData& source, const Matrix4x4& transform);
 
-} // namespace elm::graphics
+} // namespace elm

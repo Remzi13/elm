@@ -5,7 +5,7 @@
 #include "core/Settings.hpp"
 
 #include "graphics/Camera.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 
 #include "Scene/Scene.hpp"
 
@@ -29,7 +29,7 @@ namespace elm {
 	struct ImGuiWindowContext {
 		render::RenderSystem& renderSystem;
 		Scene& scene;
-        graphics::ModelManager& models;
+        ModelCatalog& models;
 		Camera& camera;
 		const FrameStats& stats;
 		render::ViewPort& viewPort;

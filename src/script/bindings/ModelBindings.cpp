@@ -4,7 +4,7 @@
 
 #include "project/Project.hpp"
 #include "math/Primitivs.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 #include "resource/GltfExporter.hpp"
 #include "resource/Serializer.hpp"
 
@@ -16,13 +16,13 @@ namespace elm::script::bindings {
 
         /// What elm.models and the Model class reach.
         struct ModelsContext {
-            graphics::ModelManager* models { nullptr };
+            ModelCatalog* models { nullptr };
             const project::Project* project { nullptr };
         };
 
-        graphics::ModelManager& ModelsOf(lua_State* L) { return RequireSystem(L, ContextOf<ModelsContext>(L).models, "elm.models"); }
+        ModelCatalog& ModelsOf(lua_State* L) { return RequireSystem(L, ContextOf<ModelsContext>(L).models, "elm.models"); }
 
-        const graphics::Model& ModelOf(lua_State* L, const ModelRef& model)
+        const Model& ModelOf(lua_State* L, const ModelRef& model)
         {
             const auto* found = ModelsOf(L).Get(model.handle);
             if (!found)
@@ -36,14 +36,14 @@ namespace elm::script::bindings {
             return models && models->Get(model.handle);
         }
 
-        ModelRef Insert(lua_State* L, graphics::Model model, Path file = { })
+        ModelRef Insert(lua_State* L, Model model, Path file = { })
         {
             return { ModelsOf(L).Insert(std::move(model), std::move(file)) };
         }
 
         ModelRef MakePrimitive(lua_State* L, const char* name, MeshData mesh)
         {
-            graphics::Model model { String(name) };
+            Model model { String(name) };
             model.AddSubmesh(std::move(mesh));
             return Insert(L, std::move(model));
         }
@@ -59,7 +59,7 @@ namespace elm::script::bindings {
         }
 
         /// A .model or .gltf file of the project by its asset path, "models/crate.model". A .model keeps
-        /// its file (ModelManager::FileOf); a glTF model is new and gets a .model file when the scene is saved.
+        /// its file (ModelCatalog::FileOf); a glTF model is new and gets a .model file when the scene is saved.
         EngineResult<ModelRef> Load(lua_State* L, StringView file)
         {
             ModelsOf(L);
@@ -87,7 +87,7 @@ namespace elm::script::bindings {
         std::optional<ModelRef> FindModel(lua_State* L, StringView name)
         {
             std::optional<ModelRef> found;
-            ModelsOf(L).ForEach([&](graphics::ModelHandler handle, const graphics::Model& model) {
+            ModelsOf(L).ForEach([&](ModelHandler handle, const Model& model) {
                 if (!found && model.name == name)
                     found = ModelRef { handle };
             });
@@ -96,7 +96,7 @@ namespace elm::script::bindings {
 
     } // namespace
 
-    void RegisterModels(lua::State& state, graphics::ModelManager* models, const project::Project* project)
+    void RegisterModels(lua::State& state, ModelCatalog* models, const project::Project* project)
     {
         state.SetContext(ModelsContext { models, project });
         lua::Module module(state, "elm.models");

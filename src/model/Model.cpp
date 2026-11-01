@@ -1,6 +1,6 @@
-#include "graphics/Model.hpp"
+#include "model/Model.hpp"
 
-namespace elm::graphics {
+namespace elm {
 
     Model::Model(String modelName)
         : name(std::move(modelName))

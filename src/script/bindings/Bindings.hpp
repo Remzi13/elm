@@ -28,12 +28,12 @@ namespace elm::script::bindings {
     void RegisterMath(lua::State& state);
     void RegisterInput(lua::State& state, InputSystem* input);
     /// elm.scene, the Entity class and the Script component.
-    void RegisterScene(lua::State& state, Scene* scene, graphics::ModelManager* models, EntityScripts& entityScripts);
+    void RegisterScene(lua::State& state, Scene* scene, ModelCatalog* models, EntityScripts& entityScripts);
     /// elm.models and the Model class; model files are taken from the project's assets folder.
-    void RegisterModels(lua::State& state, graphics::ModelManager* models, const project::Project* project);
+    void RegisterModels(lua::State& state, ModelCatalog* models, const project::Project* project);
     void RegisterCamera(lua::State& state, Camera* camera);
     /// elm.physics, the RigidBody and Collider components.
-    void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, graphics::ModelManager* models);
+    void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, ModelCatalog* models);
 
     /// elm.debug: lines and wireframe shapes in the engine view, in the channel Script/Default or
     /// in a channel the scripts register (elm.debug.channel).
@@ -46,7 +46,7 @@ namespace elm::script::bindings {
     /// scene is replaced, the Play/Stop requests and the project the scene files belong to.
     struct EngineModuleContext {
         Scene* scene { nullptr };
-        graphics::ModelManager* models { nullptr };
+        ModelCatalog* models { nullptr };
         EntityScripts* entityScripts { nullptr };
         PlayRequests play;
         const project::Project* project { nullptr };

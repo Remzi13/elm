@@ -156,7 +156,7 @@ void Scene::UpdateWorldTransforms()
     }
 }
 
-Vector<NodeId> Scene::Append(SceneAsset&& asset, std::span<const graphics::ModelHandler> models)
+Vector<NodeId> Scene::Append(SceneAsset&& asset, std::span<const ModelHandler> models)
 {
     ELM_ASSERT_THREAD(Update);
 
@@ -236,7 +236,7 @@ NodeId Scene::PushNode(Node node, const math::Matrix4x4& worldTransform)
     return m_nodes.back().id;
 }
 
-void Scene::AppendComponents(SceneAsset& asset, std::span<const NodeId> ids, std::span<const graphics::ModelHandler> models)
+void Scene::AppendComponents(SceneAsset& asset, std::span<const NodeId> ids, std::span<const ModelHandler> models)
 {
     // The asset keys its components and Entity props by its own nodes and refers to its models by index:
     // they get the ids those nodes have now and the handles those models got
@@ -252,7 +252,7 @@ void Scene::AppendComponents(SceneAsset& asset, std::span<const NodeId> ids, std
     }
     for (auto& model : asset.components.Components<ModelComponent>().Components()) {
         const size_t modelIndex = SceneAsset::ModelIndexOf(model.model);
-        model.model = modelIndex < models.size() ? models[modelIndex] : graphics::ModelHandler { };
+        model.model = modelIndex < models.size() ? models[modelIndex] : ModelHandler { };
     }
     m_components.TakeFrom(std::move(asset.components), idOf);
 }

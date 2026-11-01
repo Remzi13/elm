@@ -40,9 +40,9 @@ private:
     void DrawNodeItem(ImGuiWindowContext& context, size_t nodeIndex, const Vector<Vector<size_t>>& nodeChildren);
     void DrawNodeDetails(ImGuiWindowContext& context, NodeId nodeId);
     void DrawTransformSection(Scene& scene, NodeId nodeId);
-    void DrawModelComponent(Scene& scene, NodeId nodeId, graphics::ModelManager& models);
+    void DrawModelComponent(Scene& scene, NodeId nodeId, ModelCatalog& models);
     void DrawRigidBodyComponent(Scene& scene, NodeId nodeId);
-    void DrawColliderComponent(Scene& scene, NodeId nodeId, const graphics::ModelManager& models);
+    void DrawColliderComponent(Scene& scene, NodeId nodeId, const ModelCatalog& models);
     /// The Script component: its module, the instance in Play mode, the props of the script with their
     /// defaults (ScriptInspection of the Scripts window); a changed prop becomes this node's own value.
     void DrawScriptComponent(Scene& scene, NodeId nodeId);
@@ -51,10 +51,10 @@ private:
     void DrawScriptProps(Scene& scene, NodeId nodeId, const ScriptInspection& scripts);
     /// Values the node keeps for props the script no longer has: shown to be removed.
     void DrawUnknownProps(ScriptComponent& script, const ScriptProps& props);
-    void DrawAddComponentPopup(Scene& scene, NodeId nodeId, const graphics::ModelManager& models);
+    void DrawAddComponentPopup(Scene& scene, NodeId nodeId, const ModelCatalog& models);
 
     NodeId DuplicateNode(Scene& scene, NodeId sourceId);
-    NodeId AddPrimitiveNode(Scene& scene, graphics::ModelManager& models, NodeId parentId, const char* name, int primitiveType);
+    NodeId AddPrimitiveNode(Scene& scene, ModelCatalog& models, NodeId parentId, const char* name, int primitiveType);
     void RefreshScriptModules();
     /// Replaces the scene with a scene file; the file field shows it from then on.
     void LoadSceneFile(ImGuiWindowContext& context, const Path& file);

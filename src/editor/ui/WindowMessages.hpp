@@ -3,7 +3,7 @@
 #include "core/Error.hpp"
 #include "core/FileSystem.hpp"
 
-#include "graphics/ModelHandler.hpp"
+#include "model/ModelHandler.hpp"
 #include "graphics/gizmo/GizmoSettings.hpp"
 
 #include "Scene/NodeId.hpp"
@@ -14,9 +14,9 @@
 
 namespace elm {
 
-	/// Provided by the model editor: opens a model of the scene ModelManager for editing.
+	/// Provided by the model editor: opens a model of the scene ModelCatalog for editing.
 	struct OpenModelEditor {
-		std::function<void(graphics::ModelHandler)> open;
+		std::function<void(ModelHandler)> open;
 	};
 
 	/// Provided by Scene Hierarchy: replaces the scene with a scene file (the Project window opens one).

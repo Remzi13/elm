@@ -40,7 +40,7 @@ namespace elm::script {
     public:
         static constexpr StringView PlayOnStartSetting = "PlayOnStart";
 
-        PlayMode(Scene& scene, graphics::ModelManager* models, PhysicsSystem* physics, ScriptSystem& scripts) noexcept;
+        PlayMode(Scene& scene, ModelCatalog* models, PhysicsSystem* physics, ScriptSystem& scripts) noexcept;
         ~PlayMode();
 
         PlayMode(const PlayMode&) = delete;
@@ -73,7 +73,7 @@ namespace elm::script {
         void ReplaceScene(SceneAsset asset);
 
         Scene& m_scene;
-        graphics::ModelManager* m_models { nullptr };
+        ModelCatalog* m_models { nullptr };
         PhysicsSystem* m_physics { nullptr };
         ScriptSystem& m_scripts;
         Request m_request { Request::None };

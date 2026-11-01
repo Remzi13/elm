@@ -3,7 +3,7 @@
 #include "core/Error.hpp"
 #include "core/FileSystem.hpp"
 
-#include "graphics/Model.hpp"
+#include "model/Model.hpp"
 
 #include "Scene/SceneAsset.hpp"
 
@@ -11,7 +11,7 @@ namespace elm::resource {
 
     /// A model kept in the project: the model and its .model file in the assets folder.
     struct ProjectModel {
-        graphics::Model model;
+        Model model;
         Path file;
     };
 

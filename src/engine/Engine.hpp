@@ -11,7 +11,8 @@
 #include "graphics/FrameStats.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
+#include "graphics/ModelMeshes.hpp"
 
 #include "Scene/TestScenes.hpp"
 
@@ -115,7 +116,7 @@ namespace elm {
 		[[nodiscard]] render::RenderSystem& GetRenderSystem() noexcept { return *m_renderSystem; }
 		[[nodiscard]] render::ViewPort& GetViewPort() noexcept { return m_engineViewPort; }
 		[[nodiscard]] Scene& GetScene() noexcept { return m_scene; }
-		[[nodiscard]] graphics::ModelManager& GetModels() noexcept { return m_models; }
+		[[nodiscard]] ModelCatalog& GetModels() noexcept { return m_models; }
 		[[nodiscard]] Camera& GetCamera() noexcept { return m_camera; }
 		[[nodiscard]] OcclusionCullingSystem& GetCulling() noexcept { return m_cullingSystem; }
 		[[nodiscard]] InputSystem& GetInput() noexcept { return *m_inputSystem; }
@@ -146,7 +147,9 @@ namespace elm {
 
 		Camera m_camera;
 		Scene m_scene;
-		graphics::ModelManager m_models;
+		ModelCatalog m_models;
+		/// GPU meshes of m_models, synced before the scene is drawn.
+		graphics::ModelMeshes m_meshes;
 		Settings m_settings;
 		render::ViewPort m_engineViewPort;
 		/// Edit or Play: physics steps and entity scripts run only in Play.

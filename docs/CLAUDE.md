@@ -72,13 +72,14 @@ elm — 3D-движок с редактором на C++23: собственны
 | `SceneSnapshot` | снимок сцены и моделей: редактор делает его перед Play и возвращает после Stop | `EditMode` |
 | `ScenePreset`, `TestScenes` | генераторы тестовых сцен | — |
 
-**Модели и редактор** (`src/graphics`, `elm::graphics` и `elm`)
+**Модели и редактор** (`src/model` и `src/graphics`, `elm` и `elm::graphics`)
 
 | Сущность | Что это |
 |---|---|
 | `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком |
-| `ModelHandler` | хэндл модели в `ModelManager` (`graphics/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
-| `graphics::ModelManager` | владеет моделями сцены и их GPU-мешами (`render::Mesh`) |
+| `ModelHandler` | хэндл модели в `ModelCatalog` (`model/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
+| `ModelCatalog` | модели сцены на CPU и пути их файлов по хэндлу (`FileOf`, пусто у модели только в памяти), номер версии модели (`RevisionOf`); модуль `model`, о GPU не знает |
+| `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют |
 | `Camera`, `CameraController`, `ViewRay` | камера вида (у `Engine`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
@@ -135,10 +136,11 @@ elm — 3D-движок с редактором на C++23: собственны
 core, math                   основа, ни от кого не зависят (core: Tracy)
 render     → core, math      Vulkan / D3D12 только PRIVATE
 platform   → render          GLFW
-Scene      → core, math, render
+model      → core, math      модели на CPU: Model, ModelHandler, ModelCatalog
+Scene      → core, math, render, model
 resource   → Scene           glaze PRIVATE
 physics    → Scene           Jolt PRIVATE
-graphics   → render, platform, resource   без ImGui
+graphics   → render, platform, model, resource   без ImGui
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
 engine     → Scene, physics, script, graphics, project, resource, input   Engine: системы и шаги кадра, без цикла
@@ -156,9 +158,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
 (`editor/script/`): оно показывает части `ScriptSystem` и подключает их заголовки, а сами части получает через
 `EditorWindowsAccess` (`CreateEditorWindows`).
 
-Известные нарушения, их не расширяй: заголовки модуля Scene подключают заголовки `graphics` (`Scene.hpp` и
-`ModelComponent.hpp` — `ModelHandler.hpp`, `SceneAsset.hpp` — `Model.hpp`, `SceneSnapshot.hpp` и `TestScenes.hpp` — `ModelManager.hpp`,
-`Transform.hpp` — `culling/MathTypes.hpp`; цикл Scene ↔ graphics через resource); `using namespace math;` в
+Известные нарушения, их не расширяй: `Scene/Transform.hpp` подключает `graphics/culling/MathTypes.hpp`; `using namespace math;` в
 `math/Primitivs.hpp`, `Scene/TestScenes.hpp`, `graphics/culling/MathTypes.hpp`.
 
 ### Границы, которые нельзя нарушать
@@ -171,7 +171,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
   выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.
 - **Lua** подключается только через `script/lua/Lua.hpp`, не через `lua.hpp`. Lua собрана как C++,
   поэтому `lua_error` бросает исключение и разматывает C++-кадры биндингов.
-- **Время жизни.** RAII-ресурсы рендера (`Texture`, `Mesh`, `ViewPort`, `ModelManager`) уничтожаются
+- **Время жизни.** RAII-ресурсы рендера (`Texture`, `Mesh`, `ViewPort`, `ModelMeshes`) уничтожаются
   до `RenderSystem::Shutdown()`.
 - **Формат файлов.** Меняешь формат `.scene`/`.model`: подними `formatVersion`, сохрани чтение
   старых версий и обнови `docs/scene/Файл сцены.md`.
@@ -185,7 +185,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
   системы (`*System`) считают, `resource` читает и пишет файлы.
 - Никаких `utils.h`/`helpers.h`/`common.h`: файл называется по назначению. Исключение — уже
   `render/backend/dx12/` и `render/backend/vulkan/` остаются изолированными внутри `render`.
-- Зависимости приходят снаружи: через конструктор (`ModelManager(RenderResources&)`), `Init`
+- Зависимости приходят снаружи: через конструктор (`ModelMeshes(RenderResources&)`), `Init`
   или контекст кадра. `core::JobSystem::Get()` — единственный глобальный синглтон, новых не добавляй.
 - Один основной класс = пара `ClassName.hpp` / `ClassName.cpp`.
 - **Многострочные тела функций в `.hpp` запрещены.** Тело функции в заголовке допустимо только у:
@@ -210,7 +210,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
 - Приватные поля: `m_camelCase`. Публичные поля `struct`: `camelCase` без префикса.
 - Константы: `static constexpr` в `PascalCase` (`NoNode`, `MaxIndex`, `MainSurface`, `EnabledSetting`).
   Префикс `k` не используется.
-- Хэндлы: `XxxHandle` в render, `NodeId` в сцене, `ModelHandler` в graphics; теги `XxxTag` объявлены
+- Хэндлы: `XxxHandle` в render, `NodeId` в сцене, `ModelHandler` в model; теги `XxxTag` объявлены
   без определения.
 - Макросы: только с префиксом `ELM_` и только для логов, ассертов и платформы.
 - Namespace: всё в `elm` (`elm::core`, `elm::render`, `elm::render::rhi`, `elm::graphics`,

@@ -4,7 +4,7 @@
 
 #include "Scene/Scene.hpp"
 #include "core/Debug.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 #include "core/Log.hpp"
 #include "physics/PhysicsSystem.hpp"
 
@@ -18,7 +18,7 @@ namespace elm::script {
 
     } // namespace
 
-    PlayMode::PlayMode(Scene& scene, graphics::ModelManager* models, PhysicsSystem* physics, ScriptSystem& scripts) noexcept
+    PlayMode::PlayMode(Scene& scene, ModelCatalog* models, PhysicsSystem* physics, ScriptSystem& scripts) noexcept
         : m_scene(scene)
         , m_models(models)
         , m_physics(physics)
@@ -61,7 +61,7 @@ namespace elm::script {
         m_scene.Clear();
         // Models of the scene before stay: the editor puts its nodes back after Stop
         const auto handlers = m_models ? m_models->InsertAll(std::move(asset.models), asset.modelFiles)
-                                       : Vector<graphics::ModelHandler> { };
+                                       : Vector<ModelHandler> { };
         (void)m_scene.Append(std::move(asset), handlers);
     }
 

@@ -68,7 +68,7 @@ String NodeDisplayName(const Scene::Node& node, size_t index)
     return String("Node ") + std::to_string(index).c_str();
 }
 
-String FormatModelLabel(const graphics::Model* model, graphics::ModelHandler handle)
+String FormatModelLabel(const Model* model, ModelHandler handle)
 {
     if (!model)
         return String("No Model");
@@ -93,7 +93,7 @@ bool NodeMatchesFilter(const Scene& scene, size_t nodeIndex, const Vector<Vector
     return false;
 }
 
-Collider FitColliderToModel(const graphics::Model* model)
+Collider FitColliderToModel(const Model* model)
 {
     Collider collider;
     if (!model || model->submeshes.empty())
@@ -442,7 +442,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
         }
 
         if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
-            context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+            context.models.ForEach([&](ModelHandler handle, const Model& m) {
                 String label = FormatModelLabel(&m, handle);
                 if (ImGui::MenuItem(label.c_str())) {
                     String name = m.name.empty() ? "Model" : m.name;
@@ -485,7 +485,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
             }
 
             if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model (as Child)")) {
-                context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                context.models.ForEach([&](ModelHandler handle, const Model& m) {
                     String label = FormatModelLabel(&m, handle);
                     if (ImGui::MenuItem(label.c_str())) {
                         String name = m.name.empty() ? "Model" : m.name;
@@ -557,7 +557,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
             m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
         }
         if (context.models.Size() > 0 && ImGui::BeginMenu("Add from Loaded Model")) {
-            context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+            context.models.ForEach([&](ModelHandler handle, const Model& m) {
                 String label = FormatModelLabel(&m, handle);
                 if (ImGui::MenuItem(label.c_str())) {
                     String name = m.name.empty() ? "Model" : m.name;
@@ -687,7 +687,7 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
                 m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
             }
             if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
-                context.models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                context.models.ForEach([&](ModelHandler handle, const Model& m) {
                     String modelItemLabel = FormatModelLabel(&m, handle);
                     if (ImGui::MenuItem(modelItemLabel.c_str())) {
                         String name = m.name.empty() ? "Model" : m.name;
@@ -922,7 +922,7 @@ void SceneHierarchyWindow::DrawTransformSection(Scene& scene, NodeId nodeId)
     }
 }
 
-void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, graphics::ModelManager& models)
+void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, ModelCatalog& models)
 {
     auto* modelCompStore = scene.Components<ModelComponent>().Find(nodeId);
     if (!modelCompStore)
@@ -953,7 +953,7 @@ void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, graph
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
     ImGui::SetNextItemWidth((std::max)(100.0f, ImGui::GetContentRegionAvail().x - browseBtnWidth - spacing));
     if (ImGui::BeginCombo("##ModelCombo", previewName.c_str())) {
-        models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+        models.ForEach([&](ModelHandler handle, const Model& m) {
             String itemText = FormatModelLabel(&m, handle);
             ImGui::PushID(static_cast<int>(handle.Raw()));
             if (ImGui::Selectable(itemText.c_str(), comp.model == handle))
@@ -981,21 +981,21 @@ void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, graph
     ImGui::TextUnformatted("Set Primitive:");
     ImGui::SameLine();
     if (ImGui::Button("Cube")) {
-        graphics::Model m;
+        Model m;
         m.name = "Cube";
         m.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
         comp.model = models.Insert(std::move(m));
     }
     ImGui::SameLine();
     if (ImGui::Button("Wall")) {
-        graphics::Model m;
+        Model m;
         m.name = "Wall";
         m.AddSubmesh(GeometryPrimitives::CreateWall(2.0f, 2.0f, 0.2f));
         comp.model = models.Insert(std::move(m));
     }
     ImGui::SameLine();
     if (ImGui::Button("Plane")) {
-        graphics::Model m;
+        Model m;
         m.name = "Ground Plane";
         m.AddSubmesh(GeometryPrimitives::CreateGroundPlane(10.0f, 10.0f));
         comp.model = models.Insert(std::move(m));
@@ -1055,7 +1055,7 @@ void SceneHierarchyWindow::DrawRigidBodyComponent(Scene& scene, NodeId nodeId)
     }
 }
 
-void SceneHierarchyWindow::DrawColliderComponent(Scene& scene, NodeId nodeId, const graphics::ModelManager& models)
+void SceneHierarchyWindow::DrawColliderComponent(Scene& scene, NodeId nodeId, const ModelCatalog& models)
 {
     auto* colStore = scene.Components<Collider>().Find(nodeId);
     if (!colStore)
@@ -1267,7 +1267,7 @@ void SceneHierarchyWindow::DrawUnknownProps(ScriptComponent& script, const Scrip
     }
 }
 
-void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, const graphics::ModelManager& models)
+void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, const ModelCatalog& models)
 {
     ImGui::Spacing();
     ImGui::Separator();
@@ -1289,10 +1289,10 @@ void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, co
                 m_modelDialogAction = ModelDialogAction::AssignToComponent;
                 m_modelDialogTargetNode = nodeId;
                 m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
-                graphics::Model m;
+                Model m;
                 m.name = "Model";
                 m.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
-                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                const auto handle = const_cast<ModelCatalog&>(models).Insert(std::move(m));
                 scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
                     .model = handle,
                     .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -1300,10 +1300,10 @@ void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, co
                 });
             }
             if (ImGui::MenuItem("Default Cube")) {
-                graphics::Model m;
+                Model m;
                 m.name = "Cube";
                 m.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
-                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                const auto handle = const_cast<ModelCatalog&>(models).Insert(std::move(m));
                 scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
                     .model = handle,
                     .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -1311,10 +1311,10 @@ void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, co
                 });
             }
             if (ImGui::MenuItem("Default Wall")) {
-                graphics::Model m;
+                Model m;
                 m.name = "Wall";
                 m.AddSubmesh(GeometryPrimitives::CreateWall(2.0f, 2.0f, 0.2f));
-                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                const auto handle = const_cast<ModelCatalog&>(models).Insert(std::move(m));
                 scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
                     .model = handle,
                     .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -1322,10 +1322,10 @@ void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, co
                 });
             }
             if (ImGui::MenuItem("Default Ground Plane")) {
-                graphics::Model m;
+                Model m;
                 m.name = "Ground Plane";
                 m.AddSubmesh(GeometryPrimitives::CreateGroundPlane(10.0f, 10.0f));
-                const auto handle = const_cast<graphics::ModelManager&>(models).Insert(std::move(m));
+                const auto handle = const_cast<ModelCatalog&>(models).Insert(std::move(m));
                 scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
                     .model = handle,
                     .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
@@ -1335,7 +1335,7 @@ void SceneHierarchyWindow::DrawAddComponentPopup(Scene& scene, NodeId nodeId, co
             if (models.Size() > 0) {
                 ImGui::Separator();
                 ImGui::TextDisabled("Loaded Models:");
-                models.ForEach([&](graphics::ModelHandler handle, const graphics::Model& m) {
+                models.ForEach([&](ModelHandler handle, const Model& m) {
                     String label = FormatModelLabel(&m, handle);
                     if (ImGui::MenuItem(label.c_str())) {
                         scene.Components<ModelComponent>().Emplace(nodeId, ModelComponent {
@@ -1407,13 +1407,13 @@ NodeId SceneHierarchyWindow::DuplicateNode(Scene& scene, NodeId sourceId)
     return newId;
 }
 
-NodeId SceneHierarchyWindow::AddPrimitiveNode(Scene& scene, graphics::ModelManager& models, NodeId parentId, const char* name, int primitiveType)
+NodeId SceneHierarchyWindow::AddPrimitiveNode(Scene& scene, ModelCatalog& models, NodeId parentId, const char* name, int primitiveType)
 {
     if (primitiveType == 0) {
         return scene.AddNode(name, math::Matrix4x4::Identity(), parentId);
     }
 
-    graphics::Model model;
+    Model model;
     model.name = name;
     math::Vector4 color { 0.8f, 0.8f, 0.8f, 1.0f };
     math::Vector3 pos { 0.0f, 0.0f, 0.0f };

@@ -8,7 +8,7 @@
 #include "Scene/ModelComponent.hpp"
 #include "Scene/Scene.hpp"
 #include "Scene/ScriptComponent.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 #include "math/Rotation.hpp"
 
 #include <algorithm>
@@ -28,13 +28,13 @@ namespace elm::script::bindings {
         /// What elm.scene, the Entity class and the Script component reach.
         struct SceneContext {
             Scene* scene { nullptr };
-            graphics::ModelManager* models { nullptr };
+            ModelCatalog* models { nullptr };
             EntityScripts* entityScripts { nullptr };
         };
 
         SceneContext& Context(lua_State* L) { return ContextOf<SceneContext>(L); }
         Scene& SceneOf(lua_State* L) { return RequireSystem(L, Context(L).scene, "elm.scene"); }
-        graphics::ModelManager& ModelsOf(lua_State* L) { return RequireSystem(L, Context(L).models, "elm.models"); }
+        ModelCatalog& ModelsOf(lua_State* L) { return RequireSystem(L, Context(L).models, "elm.models"); }
         EntityScripts& ScriptsOf(lua_State* L) { return RequireSystem(L, Context(L).entityScripts, "entity scripts"); }
 
         // ── Entity ──────────────────────────────────────────────────────────────
@@ -238,7 +238,7 @@ namespace elm::script::bindings {
                 luaL_error(L, "the model was removed");
             auto& models = SceneOf(L).Components<ModelComponent>();
             if (ModelComponent* existing = models.Find(AliveId(L, entity)))
-                existing->model = model ? model->handle : graphics::ModelHandler { };
+                existing->model = model ? model->handle : ModelHandler { };
             else if (model)
                 models.Emplace(entity.id, ModelComponent { .model = model->handle });
         }
@@ -475,7 +475,7 @@ namespace elm::script::bindings {
 
     } // namespace
 
-    void RegisterScene(lua::State& state, Scene* scene, graphics::ModelManager* models, EntityScripts& entityScripts)
+    void RegisterScene(lua::State& state, Scene* scene, ModelCatalog* models, EntityScripts& entityScripts)
     {
         state.SetContext(SceneContext { scene, models, &entityScripts });
         lua::Module module(state, "elm.scene");

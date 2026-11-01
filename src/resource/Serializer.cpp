@@ -365,7 +365,7 @@ namespace elm::resource {
         }
 
         /// Index of every saved model in the file's "models".
-        using ModelIndices = UnorderedMap<graphics::ModelHandler, size_t>;
+        using ModelIndices = UnorderedMap<ModelHandler, size_t>;
 
         /// The model as its index in "models" (none for a component without a model), the tint and the user's flag.
         auto MakeModel(const ModelComponent& component, const ModelIndices& modelIndices) -> EngineResult<JsonValue>
@@ -758,7 +758,7 @@ namespace elm::resource {
             });
         }
 
-        auto SerializeModel(const graphics::Model& model) -> EngineResult<JsonValue>
+        auto SerializeModel(const Model& model) -> EngineResult<JsonValue>
         {
             JsonValue document{ JsonValue::Type::Object };
             auto result = SetField(document, "formatVersion", JsonValue(2.0));
@@ -919,9 +919,9 @@ namespace elm::resource {
             return meshData;
         }
 
-        auto DeserializeModel(const JsonValue& document) -> EngineResult<graphics::Model>
+        auto DeserializeModel(const JsonValue& document) -> EngineResult<Model>
         {
-            graphics::Model model;
+            Model model;
             if (const auto nameValue = document.Find("name")) {
                 auto name = nameValue->AsString();
                 if (!name)
@@ -976,9 +976,9 @@ namespace elm::resource {
         }
 
         /// The models of the scene's Model components, each once, in the order of the nodes.
-        auto UsedModels(const Scene& scene, const graphics::ModelManager& models) -> Vector<graphics::ModelHandler>
+        auto UsedModels(const Scene& scene, const ModelCatalog& models) -> Vector<ModelHandler>
         {
-            Vector<graphics::ModelHandler> used;
+            Vector<ModelHandler> used;
             const auto* modelComponents = scene.FindComponents<ModelComponent>();
             for (const auto& node : scene.Nodes()) {
                 const ModelComponent* component = modelComponents ? modelComponents->Find(node.id) : nullptr;
@@ -1054,7 +1054,7 @@ namespace elm::resource {
 
     }
 
-    auto Serializer::SaveModel(const graphics::Model& model, const Path& path) -> EngineResult<void>
+    auto Serializer::SaveModel(const Model& model, const Path& path) -> EngineResult<void>
     {
         auto serializedModel = SerializeModel(model);
         if (!serializedModel)
@@ -1066,7 +1066,7 @@ namespace elm::resource {
         return WriteFile(path, *json);
     }
 
-    auto Serializer::LoadModel(const Path& path) -> EngineResult<graphics::Model>
+    auto Serializer::LoadModel(const Path& path) -> EngineResult<Model>
     {
         auto json = ReadFile(path);
         if (!json)
@@ -1086,7 +1086,7 @@ namespace elm::resource {
         return DeserializeModel(document);
     }
 
-    auto Serializer::SaveNewModel(const graphics::Model& model, const Path& assetsFolder) -> EngineResult<Path>
+    auto Serializer::SaveNewModel(const Model& model, const Path& assetsFolder) -> EngineResult<Path>
     {
         const auto asset = UnusedModelFile(MakeModelFileStem(model.name, 0), assetsFolder);
         if (!asset)
@@ -1097,11 +1097,11 @@ namespace elm::resource {
         return file;
     }
 
-    auto Serializer::SaveNewModels(const Scene& scene, graphics::ModelManager& models, const Path& assetsFolder)
+    auto Serializer::SaveNewModels(const Scene& scene, ModelCatalog& models, const Path& assetsFolder)
         -> EngineResult<size_t>
     {
         size_t saved = 0;
-        for (const graphics::ModelHandler handler : UsedModels(scene, models)) {
+        for (const ModelHandler handler : UsedModels(scene, models)) {
             // A file outside of the assets folder (a model from elsewhere, an old scene) is copied in
             if (const Path* file = models.FileOf(handler); file && project::AssetPath::Of(*file, assetsFolder))
                 continue;
@@ -1114,7 +1114,7 @@ namespace elm::resource {
         return saved;
     }
 
-    auto Serializer::SaveScene(const Scene& scene, const graphics::ModelManager& models, const Path& assetsFolder,
+    auto Serializer::SaveScene(const Scene& scene, const ModelCatalog& models, const Path& assetsFolder,
         const Path& path) -> EngineResult<void>
     {
         JsonValue document{ JsonValue::Type::Object };
@@ -1125,7 +1125,7 @@ namespace elm::resource {
 
         JsonValue serializedModels{ JsonValue::Type::Array };
         ModelIndices modelIndices;
-        for (const graphics::ModelHandler handler : UsedModels(scene, models)) {
+        for (const ModelHandler handler : UsedModels(scene, models)) {
             const Path* file = models.FileOf(handler);
             const auto asset = file ? project::AssetPath::Of(*file, assetsFolder) : std::nullopt;
             if (!asset)
@@ -1378,7 +1378,7 @@ namespace elm::resource {
                 auto meshData = DeserializeMeshData(modelDocument);
                 if (!meshData)
                     return UnexpectedSerializationError(meshData.error());
-                graphics::Model model;
+                Model model;
                 model.AddSubmesh(std::move(*meshData), Vector4 { 1.0f, 1.0f, 1.0f, 1.0f });
                 loaded.models.push_back(std::move(model));
                 modelColors.push_back(Vector4 { 0.8f, 0.8f, 0.8f, 1.0f });

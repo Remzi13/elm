@@ -122,7 +122,7 @@ namespace {
         Merge(target.localBounds, source.localBounds);
     }
 
-    [[nodiscard]] size_t CountTriangles(const graphics::Model& model) noexcept
+    [[nodiscard]] size_t CountTriangles(const Model& model) noexcept
     {
         size_t triangles = 0;
         for (const auto& submesh : model.submeshes)
@@ -132,7 +132,7 @@ namespace {
 
     /// The Model component an imported glTF node gets in the scene: the model it went into, with the color
     /// and the visible flag the node had.
-    [[nodiscard]] ModelComponent ImportedNodeModel(const SceneAsset& asset, size_t nodeIndex, graphics::ModelHandler model)
+    [[nodiscard]] ModelComponent ImportedNodeModel(const SceneAsset& asset, size_t nodeIndex, ModelHandler model)
     {
         const auto* sourceModels = asset.components.FindComponents<ModelComponent>();
         const ModelComponent* source = sourceModels ? sourceModels->Find(SceneAsset::NodeRef(nodeIndex)) : nullptr;
@@ -165,7 +165,7 @@ void ModelEditorWindow::OnAttach()
         } };
     }));
     m_querySubscriptions.push_back(RegisterQuery<OpenModelEditor>([this] {
-        return OpenModelEditor { [this](graphics::ModelHandler handler) {
+        return OpenModelEditor { [this](ModelHandler handler) {
             if (handler)
                 m_requestedSceneModel = handler;
             m_visible = true;
@@ -179,8 +179,8 @@ void ModelEditorWindow::Render(ImGuiWindowContext& context)
     if (!m_visible)
         return;
 
-    if (!m_previewModels)
-        m_previewModels.emplace(context.renderSystem.Resources());
+    if (!m_previewMeshes)
+        m_previewMeshes.emplace(context.renderSystem.Resources());
     if (!m_viewPort.IsValid())
         m_viewPort = render::ViewPort(context.renderSystem.Resources(), Size(512, 512));
 
@@ -261,7 +261,7 @@ void ModelEditorWindow::Render(ImGuiWindowContext& context)
 // Documents
 // ─────────────────────────────────────────────────────────────────────────────
 
-void ModelEditorWindow::SetDocument(graphics::Model model, Path filePath, graphics::ModelHandler sceneModel, String status)
+void ModelEditorWindow::SetDocument(Model model, Path filePath, ModelHandler sceneModel, String status)
 {
     CloseDocument();
     m_model.emplace(std::move(model));
@@ -276,8 +276,7 @@ void ModelEditorWindow::SetDocument(graphics::Model model, Path filePath, graphi
 
 void ModelEditorWindow::CloseDocument()
 {
-    if (m_previewModels)
-        m_previewModels->Remove(m_previewModel);
+    m_previewModels.Remove(m_previewModel);
     m_previewModel = {};
     m_import.reset();
     m_model.reset();
@@ -391,8 +390,8 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
     auto& scene = context.scene;
 
     // Every model goes to the scene once; the glTF nodes using them keep their hierarchy
-    Vector<graphics::ModelHandler> nodeModels(sourceNodes.size());
-    Vector<graphics::ModelHandler> originModels;
+    Vector<ModelHandler> nodeModels(sourceNodes.size());
+    Vector<ModelHandler> originModels;
     for (size_t resultIndex = 0; resultIndex < session.results.size(); ++resultIndex) {
         const auto& imported = session.results[resultIndex];
         const auto handler = context.models.Insert(imported.model,
@@ -445,7 +444,7 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
         + " nodes under \"" + rootName + "\", with the glTF hierarchy.";
 }
 
-void ModelEditorWindow::OpenFromScene(ImGuiWindowContext& context, graphics::ModelHandler handler)
+void ModelEditorWindow::OpenFromScene(ImGuiWindowContext& context, ModelHandler handler)
 {
     const auto* model = context.models.Get(handler);
     if (!model) {
@@ -591,7 +590,7 @@ void ModelEditorWindow::TransformGeometry(const Matrix4x4& transform, bool selec
         auto& submesh = submeshes[index];
         if (!submesh.data || (selectedOnly && index != m_selected))
             continue;
-        submesh.data = MakeShared<const MeshData>(graphics::TransformMeshData(*submesh.data, transform));
+        submesh.data = MakeShared<const MeshData>(TransformMeshData(*submesh.data, transform));
     }
     m_status = String(description);
 }
@@ -623,12 +622,12 @@ void ModelEditorWindow::FlipFaces(bool selectedOnly)
 void ModelEditorWindow::MergeByColor()
 {
     auto& submeshes = m_model->submeshes;
-    Vector<graphics::Model::Submesh> merged;
+    Vector<Model::Submesh> merged;
     Vector<MeshData> geometry;
     for (const auto& submesh : submeshes) {
         if (!submesh.data)
             continue;
-        const auto same = std::find_if(merged.begin(), merged.end(), [&](const graphics::Model::Submesh& candidate) {
+        const auto same = std::find_if(merged.begin(), merged.end(), [&](const Model::Submesh& candidate) {
             const auto& a = candidate.color;
             const auto& b = submesh.color;
             return a.x == b.x && a.y == b.y && a.z == b.z && a.w == b.w;
@@ -790,7 +789,7 @@ void ModelEditorWindow::DrawMenuBar(ImGuiWindowContext& context)
     if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("New"))
             RunDiscarding([this](ImGuiWindowContext&) {
-                SetDocument(graphics::Model("New Model"), {}, {}, "New model.");
+                SetDocument(Model("New Model"), {}, {}, "New model.");
             });
         if (ImGui::MenuItem("Open .model..."))
             RunDiscarding([this](ImGuiWindowContext&) { OpenFileDialog(DialogAction::Open); });
@@ -864,7 +863,7 @@ void ModelEditorWindow::DrawEmptyState()
     ImGui::TextDisabled("or press \"Edit Model\" on a node in the Scene Hierarchy.");
     ImGui::Spacing();
     if (ImGui::Button("New"))
-        SetDocument(graphics::Model("New Model"), {}, {}, "New model.");
+        SetDocument(Model("New Model"), {}, {}, "New model.");
     ImGui::SameLine();
     if (ImGui::Button("Open .model..."))
         OpenFileDialog(DialogAction::Open);
@@ -1244,7 +1243,8 @@ void ModelEditorWindow::DrawPreview(ImGuiWindowContext& context)
 
     auto& frame = context.frame;
     frame.BeginSceneView({ projection * view, eye }, m_viewPort.GetColorTexture(), m_viewPort.GetSize());
-    m_previewModels->ForEachSubmesh(m_previewModel, [&](const graphics::Model::Submesh& submesh, render::MeshHandle mesh) {
+    m_previewMeshes->Sync(m_previewModels);
+    m_previewMeshes->ForEachSubmesh(m_previewModels, m_previewModel, [&](const Model::Submesh& submesh, render::MeshHandle mesh) {
         frame.Draw(mesh, Matrix4x4::Identity(), submesh.color);
     });
 }
@@ -1255,7 +1255,7 @@ void ModelEditorWindow::RecordSceneFile(ImGuiWindowContext& context) const
     context.models.SetFile(m_sceneModel, m_dirty ? Path { } : m_filePath);
 }
 
-const graphics::Model* ModelEditorWindow::GetPreviewSource() const
+const Model* ModelEditorWindow::GetPreviewSource() const
 {
     if (m_import) {
         const auto& results = m_import->results;
@@ -1266,12 +1266,12 @@ const graphics::Model* ModelEditorWindow::GetPreviewSource() const
 
 void ModelEditorWindow::UpdatePreview()
 {
-    if (!m_previewDirty && m_previewModels->Get(m_previewModel))
+    if (!m_previewDirty && m_previewModels.Get(m_previewModel))
         return;
     m_previewDirty = false;
 
     // Same geometry as the source, so unchanged submeshes keep their GPU meshes
-    graphics::Model preview;
+    Model preview;
     if (const auto* source = GetPreviewSource()) {
         // Submesh selection only exists for the edited document
         const bool document = !m_import;
@@ -1287,10 +1287,10 @@ void ModelEditorWindow::UpdatePreview()
             preview.AddSubmesh(submesh.data, color, submesh.name);
         }
     }
-    if (m_previewModels->Get(m_previewModel))
-        m_previewModels->Replace(m_previewModel, std::move(preview));
+    if (m_previewModels.Get(m_previewModel))
+        m_previewModels.Replace(m_previewModel, std::move(preview));
     else
-        m_previewModel = m_previewModels->Insert(std::move(preview));
+        m_previewModel = m_previewModels.Insert(std::move(preview));
 }
 
 } // namespace elm

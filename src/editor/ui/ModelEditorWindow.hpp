@@ -4,7 +4,8 @@
 #include "editor/ui/FileDialog.hpp"
 
 #include "graphics/ModelImport.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
+#include "graphics/ModelMeshes.hpp"
 #include "render/ViewPort.hpp"
 
 #include <functional>
@@ -53,7 +54,7 @@ private:
     using Action = std::function<void(ImGuiWindowContext&)>;
 
     // Documents
-    void SetDocument(graphics::Model model, Path filePath, graphics::ModelHandler sceneModel, String status);
+    void SetDocument(Model model, Path filePath, ModelHandler sceneModel, String status);
     void CloseDocument();
     void OpenFile(const Path& path);
     /// Single-mesh files open right away, scenes start an import session.
@@ -61,7 +62,7 @@ private:
     void OpenImportedResult();
     void SaveImported(const Path& anyFileInDirectory);
     void AddImportedToScene(ImGuiWindowContext& context);
-    void OpenFromScene(ImGuiWindowContext& context, graphics::ModelHandler handler);
+    void OpenFromScene(ImGuiWindowContext& context, ModelHandler handler);
     void Append(const Path& path, bool gltf);
     bool SaveTo(const Path& path);
     void Save();
@@ -103,32 +104,33 @@ private:
     /// Uploads the previewed model (document or selected import result) when it changed.
     void UpdatePreview();
     /// Model shown in the preview: the selected import result or the document.
-    [[nodiscard]] const graphics::Model* GetPreviewSource() const;
+    [[nodiscard]] const Model* GetPreviewSource() const;
     /// The file of the scene model the document was applied to: the document's file unless it has unsaved edits.
     void RecordSceneFile(ImGuiWindowContext& context) const;
     [[nodiscard]] bool IsSceneModelAlive(const ImGuiWindowContext& context) const;
 
     Path m_assetsFolder;
     Path m_modelsFolder;
-    // Preview resources live in their own manager, apart from the scene models
-    std::optional<graphics::ModelManager> m_previewModels;
-    graphics::ModelHandler m_previewModel;
+    // The preview model lives in its own catalog, apart from the scene models; its meshes once rendering is up
+    ModelCatalog m_previewModels;
+    std::optional<graphics::ModelMeshes> m_previewMeshes;
+    ModelHandler m_previewModel;
     render::ViewPort m_viewPort;
     bool m_previewDirty { false };
 
     std::optional<ImportSession> m_import;
 
     // Document
-    std::optional<graphics::Model> m_model;
+    std::optional<Model> m_model;
     Path m_filePath;
     /// Scene model the document was opened from; Apply to Scene replaces it.
-    graphics::ModelHandler m_sceneModel;
+    ModelHandler m_sceneModel;
     bool m_dirty { false };
     size_t m_selected { 0 };
 
     // History
-    Vector<graphics::Model> m_undo;
-    Vector<graphics::Model> m_redo;
+    Vector<Model> m_undo;
+    Vector<Model> m_redo;
     String m_lastEditKey;
     bool m_editInProgress { false };
 
@@ -152,7 +154,7 @@ private:
     /// Runs at window level on the next opportunity (see Render).
     Action m_deferredAction;
     bool m_openDiscardPopup { false };
-    std::optional<graphics::ModelHandler> m_requestedSceneModel;
+    std::optional<ModelHandler> m_requestedSceneModel;
     /// Asked for through OpenModelFile, opened in the next Render (after the unsaved-changes question).
     std::optional<Path> m_requestedFile;
     bool m_focusRequested { false };

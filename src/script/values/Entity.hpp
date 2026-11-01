@@ -1,6 +1,6 @@
 #pragma once
 
-#include "graphics/ModelHandler.hpp"
+#include "model/ModelHandler.hpp"
 
 #include "Scene/NodeId.hpp"
 
@@ -15,9 +15,9 @@ namespace elm::script {
         bool operator==(const Entity&) const = default;
     };
 
-    /// A model of the scene's ModelManager.
+    /// A model of the scene's ModelCatalog.
     struct ModelRef {
-        graphics::ModelHandler handle;
+        ModelHandler handle;
         bool operator==(const ModelRef&) const = default;
     };
 

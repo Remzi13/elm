@@ -3,7 +3,7 @@
 #include "script/entity/EntityScripts.hpp"
 
 #include "project/Project.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 #include "Scene/TestScenes.hpp"
 #include "resource/Serializer.hpp"
 
@@ -13,7 +13,7 @@ namespace elm::script::bindings {
 
         EngineModuleContext& Context(lua_State* L) { return ContextOf<EngineModuleContext>(L); }
         Scene& SceneOf(lua_State* L) { return RequireSystem(L, Context(L).scene, "elm.scene"); }
-        graphics::ModelManager& ModelsOf(lua_State* L) { return RequireSystem(L, Context(L).models, "elm.models"); }
+        ModelCatalog& ModelsOf(lua_State* L) { return RequireSystem(L, Context(L).models, "elm.models"); }
 
         /// The scripts end while the scene they live in is still there.
         void EndEntityScripts(lua_State* L)

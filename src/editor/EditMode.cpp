@@ -15,7 +15,7 @@ namespace elm {
 
 	} // namespace
 
-	EditMode::EditMode(script::PlayMode& play, Scene& scene, graphics::ModelManager& models, script::ScriptSystem& scripts)
+	EditMode::EditMode(script::PlayMode& play, Scene& scene, ModelCatalog& models, script::ScriptSystem& scripts)
 		: m_play(play)
 		, m_scene(scene)
 		, m_models(models)

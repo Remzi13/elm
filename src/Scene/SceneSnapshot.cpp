@@ -4,13 +4,13 @@
 
 namespace elm {
 
-SceneSnapshot SceneSnapshot::Take(const Scene& scene, const graphics::ModelManager* models)
+SceneSnapshot SceneSnapshot::Take(const Scene& scene, const ModelCatalog* models)
 {
     SceneSnapshot snapshot;
     snapshot.m_scene = scene.Clone();
     // Models share their mesh data: copies are cheap
     if (models) {
-        models->ForEach([&](graphics::ModelHandler handle, const graphics::Model& model) {
+        models->ForEach([&](ModelHandler handle, const Model& model) {
             const Path* file = models->FileOf(handle);
             snapshot.m_models.push_back({ handle, model, file ? *file : Path { } });
         });
@@ -18,14 +18,14 @@ SceneSnapshot SceneSnapshot::Take(const Scene& scene, const graphics::ModelManag
     return snapshot;
 }
 
-void SceneSnapshot::Restore(Scene& scene, graphics::ModelManager* models) &&
+void SceneSnapshot::Restore(Scene& scene, ModelCatalog* models) &&
 {
     scene.RestoreFrom(std::move(m_scene));
     if (!models)
         return;
 
-    UnorderedMap<graphics::ModelHandler, graphics::ModelHandler> reinserted;
-    Set<graphics::ModelHandler> known;
+    UnorderedMap<ModelHandler, ModelHandler> reinserted;
+    Set<ModelHandler> known;
     for (auto& [handle, model, file] : m_models) {
         if (models->Get(handle)) {
             known.insert(handle);
@@ -37,15 +37,15 @@ void SceneSnapshot::Restore(Scene& scene, graphics::ModelManager* models) &&
         known.insert(inserted);
     }
 
-    Set<graphics::ModelHandler> used;
+    Set<ModelHandler> used;
     for (auto& component : scene.Components<ModelComponent>().Components()) {
         if (const auto found = reinserted.find(component.model); found != reinserted.end())
             component.model = found->second;
         used.insert(component.model);
     }
 
-    Vector<graphics::ModelHandler> added;
-    models->ForEach([&](graphics::ModelHandler handle, const graphics::Model&) {
+    Vector<ModelHandler> added;
+    models->ForEach([&](ModelHandler handle, const Model&) {
         if (!known.contains(handle) && !used.contains(handle))
             added.push_back(handle);
     });

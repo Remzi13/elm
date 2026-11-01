@@ -500,7 +500,7 @@ namespace elm::resource {
             Vector<Vector4> m_materialColors;
         };
 
-        [[nodiscard]] auto MakeExportMesh(const graphics::Model& model) -> EngineResult<ExportMesh>
+        [[nodiscard]] auto MakeExportMesh(const Model& model) -> EngineResult<ExportMesh>
         {
             ExportMesh mesh { model.name, {} };
             mesh.primitives.reserve(model.submeshes.size());
@@ -1267,7 +1267,7 @@ namespace elm::resource {
         }
     }
 
-    auto GltfExporter::ExportModel(const graphics::Model& model, const Path& path) -> EngineResult<void>
+    auto GltfExporter::ExportModel(const Model& model, const Path& path) -> EngineResult<void>
     {
         auto mesh = MakeExportMesh(model);
         if (!mesh)
@@ -1283,11 +1283,11 @@ namespace elm::resource {
         return writer.Write(path);
     }
 
-    auto GltfExporter::Export(const Path& path, const Scene& scene, const graphics::ModelManager& models) -> EngineResult<void>
+    auto GltfExporter::Export(const Path& path, const Scene& scene, const ModelCatalog& models) -> EngineResult<void>
     {
         // One glTF mesh per engine model, shared by every node that uses it
         GltfWriter writer;
-        UnorderedMap<graphics::ModelHandler, size_t> meshIndices;
+        UnorderedMap<ModelHandler, size_t> meshIndices;
         const auto sceneNodes = scene.Nodes();
         const auto* modelComponents = scene.FindComponents<ModelComponent>();
         Vector<ExportNode> nodes(sceneNodes.size());
@@ -1334,13 +1334,13 @@ namespace elm::resource {
         return writer.Write(path);
     }
 
-    auto GltfExporter::LoadModel(const Path& path) -> EngineResult<graphics::Model>
+    auto GltfExporter::LoadModel(const Path& path) -> EngineResult<Model>
     {
         auto asset = LoadScene(path);
         if (!asset)
             return UnexpectedSerializationError(asset.error());
 
-        graphics::Model model(String(path.Stem().c_str()));
+        Model model(String(path.Stem().c_str()));
         const auto worldTransforms = asset->WorldTransforms();
         for (size_t nodeIndex = 0; nodeIndex < asset->nodes.size(); ++nodeIndex) {
             const auto& node = asset->nodes[nodeIndex];
@@ -1356,7 +1356,7 @@ namespace elm::resource {
                 }
                 if (name.empty())
                     name = "Submesh " + String(std::to_string(model.submeshes.size()));
-                model.AddSubmesh(graphics::TransformMeshData(*submesh.data, worldTransforms[nodeIndex]),
+                model.AddSubmesh(TransformMeshData(*submesh.data, worldTransforms[nodeIndex]),
                     submesh.color, std::move(name));
             }
         }
@@ -1387,7 +1387,7 @@ namespace elm::resource {
             auto submeshes = ReadMeshPrimitives(*document, meshIndex);
             if (!submeshes)
                 return UnexpectedSerializationError(submeshes.error());            
-            graphics::Model model;
+            Model model;
             if (const auto nameField = Optional(meshesResult->At(meshIndex), "name")) {
                 auto name = nameField->AsString();
                 if (!name)

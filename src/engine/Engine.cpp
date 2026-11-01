@@ -31,7 +31,7 @@ Engine::Engine()
     , m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
-    , m_models(m_renderSystem->Resources())
+    , m_meshes(m_renderSystem->Resources())
     , m_playMode(m_scene, &m_models, m_physicsSystem.get(), *m_scriptSystem)
 {
 }
@@ -251,6 +251,7 @@ void Engine::DrawScene(render::FrameWriter& frame)
 
     // The UI may have moved nodes since the update
     m_scene.UpdateWorldTransforms();
+    m_meshes.Sync(m_models);
     if (const auto* drawn = m_scene.FindComponents<ModelComponent>())
         SubmitModels(*drawn, frame);
 
@@ -269,7 +270,7 @@ void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::F
     const auto worldTransforms = m_scene.WorldTransforms();
     size_t drawCount = 0;
     for (const auto& component : components)
-        drawCount += m_models.GetMeshes(component.model).size();
+        drawCount += m_meshes.GetMeshes(component.model).size();
     frame.ReserveDraws(drawCount);
     for (size_t index = 0; index < components.size(); ++index) {
         const ModelComponent& component = components[index];
@@ -281,7 +282,7 @@ void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::F
         if (occludee && !occludee->isVisible)
             continue;
         const Vector4& tint = occludee ? occludee->color : component.color;
-        m_models.ForEachSubmesh(component.model, [&](const graphics::Model::Submesh& submesh, render::MeshHandle mesh) {
+        m_meshes.ForEachSubmesh(m_models, component.model, [&](const Model::Submesh& submesh, render::MeshHandle mesh) {
             const Vector4 color {
                 submesh.color.x * tint.x,
                 submesh.color.y * tint.y,
@@ -354,6 +355,7 @@ void Engine::Shutdown()
     m_project.reset();
     m_scene.Clear();
     m_models.Clear();
+    m_meshes.Clear();
     m_cullingSystem.Shutdown();
     m_engineViewPort = {};
     if (m_renderSystem) {

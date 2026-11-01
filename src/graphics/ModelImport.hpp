@@ -1,6 +1,6 @@
 #pragma once
 
-#include "graphics/Model.hpp"
+#include "model/Model.hpp"
 
 #include "Scene/SceneAsset.hpp"
 

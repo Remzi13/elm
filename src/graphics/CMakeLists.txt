@@ -3,11 +3,8 @@ engine_add_library(graphics
     Camera.cpp
     CameraController.hpp
     CameraController.cpp
-    Model.cpp
-    Model.hpp
-    ModelHandler.hpp
-    ModelManager.cpp
-    ModelManager.hpp
+    ModelMeshes.hpp
+    ModelMeshes.cpp
     ModelImport.hpp
     ModelImport.cpp
     GameView.hpp
@@ -33,4 +30,4 @@ engine_add_library(graphics
     gizmo/TransformGizmo.cpp
 )
 
-target_link_libraries(graphics PUBLIC core render platform resource)
+target_link_libraries(graphics PUBLIC core render platform model resource)

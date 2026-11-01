@@ -3,7 +3,7 @@
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 #include "physics/PhysicsSystem.hpp"
 
 #include <algorithm>
@@ -24,7 +24,7 @@ namespace elm::script::bindings {
         struct PhysicsContext {
             PhysicsSystem* physics { nullptr };
             Scene* scene { nullptr };
-            graphics::ModelManager* models { nullptr };
+            ModelCatalog* models { nullptr };
         };
 
         PhysicsContext& Context(lua_State* L) { return ContextOf<PhysicsContext>(L); }
@@ -259,7 +259,7 @@ namespace elm::script::bindings {
 
     } // namespace
 
-    Collider FitColliderToModel(const graphics::Model* model)
+    Collider FitColliderToModel(const Model* model)
     {
         Collider collider;
         if (!model || model->submeshes.empty())
@@ -305,7 +305,7 @@ namespace elm::script::bindings {
         return ColliderRef { entity.id };
     }
 
-    void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, graphics::ModelManager* models)
+    void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, ModelCatalog* models)
     {
         state.SetContext(PhysicsContext { physics, scene, models });
         lua::Module module(state, "elm.physics");

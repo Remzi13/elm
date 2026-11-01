@@ -9,9 +9,9 @@ namespace elm {
     class PhysicsSystem;
     class Scene;
     class Settings;
+    class ModelCatalog;
     namespace graphics {
         class DebugDraw;
-        class ModelManager;
     }
     namespace project {
         class Project;
@@ -36,7 +36,7 @@ namespace elm::script {
     /// the bindings that need it raise a Lua error then.
     struct EngineContext {
         Scene* scene { nullptr };
-        graphics::ModelManager* models { nullptr };
+        ModelCatalog* models { nullptr };
         InputSystem* input { nullptr };
         Camera* camera { nullptr };
         Settings* settings { nullptr };

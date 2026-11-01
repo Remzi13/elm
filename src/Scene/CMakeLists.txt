@@ -20,4 +20,4 @@ engine_add_library(Scene
     SceneSnapshot.cpp
 )
 
-target_link_libraries(Scene PUBLIC core math render)
+target_link_libraries(Scene PUBLIC core math render model)

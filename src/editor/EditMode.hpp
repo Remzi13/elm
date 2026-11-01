@@ -5,11 +5,8 @@
 namespace elm {
 
 	class Scene;
+	class ModelCatalog;
 	class SceneSnapshot;
-
-	namespace graphics {
-		class ModelManager;
-	}
 
 	namespace script {
 		class PlayMode;
@@ -23,7 +20,7 @@ namespace elm {
 	/// Owner: Editor, thread: update, before Engine::Simulate.
 	class EditMode {
 	public:
-		EditMode(script::PlayMode& play, Scene& scene, graphics::ModelManager& models, script::ScriptSystem& scripts);
+		EditMode(script::PlayMode& play, Scene& scene, ModelCatalog& models, script::ScriptSystem& scripts);
 		~EditMode();
 
 		EditMode(const EditMode&) = delete;
@@ -43,7 +40,7 @@ namespace elm {
 
 		script::PlayMode& m_play;
 		Scene& m_scene;
-		graphics::ModelManager& m_models;
+		ModelCatalog& m_models;
 		script::ScriptSystem& m_scripts;
 		/// The edited scene as Play found it; null in Edit.
 		UniquePtr<SceneSnapshot> m_snapshot;

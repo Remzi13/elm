@@ -4,7 +4,7 @@
 
 #include "math/Matrix.hpp"
 
-#include "graphics/ModelHandler.hpp"
+#include "model/ModelHandler.hpp"
 
 #include "Scene/ComponentStore.hpp"
 #include "Scene/ComponentStores.hpp"
@@ -52,7 +52,7 @@ public:
 
     void UpdateWorldTransforms();
 
-    [[nodiscard]] Vector<NodeId> Append(SceneAsset&& asset, std::span<const graphics::ModelHandler> models);
+    [[nodiscard]] Vector<NodeId> Append(SceneAsset&& asset, std::span<const ModelHandler> models);
     void Clear();
     void ReserveNodes(size_t capacity);
 
@@ -88,7 +88,7 @@ private:
     [[nodiscard]] Node* MutableNode(NodeId id);
     NodeId PushNode(Node node, const math::Matrix4x4& worldTransform);
     /// ids[i] is the id asset node i got.
-    void AppendComponents(SceneAsset& asset, std::span<const NodeId> ids, std::span<const graphics::ModelHandler> models);
+    void AppendComponents(SceneAsset& asset, std::span<const NodeId> ids, std::span<const ModelHandler> models);
     /// Moves the node and its descendants in [nodeIndex, parentIndex] after the other nodes there, so the
     /// node can become a child of the node at parentIndex, which is not one of its descendants.
     void MoveSubtreeAfter(size_t nodeIndex, size_t parentIndex);

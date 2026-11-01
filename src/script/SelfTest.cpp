@@ -25,6 +25,7 @@
 #include "Scene/ScriptComponent.hpp"
 #include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/ModelMeshes.hpp"
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/DebugDraw.hpp"
 #include "graphics/debug/DebugDrawSystem.hpp"
@@ -506,7 +507,7 @@ namespace elm::script {
                 ModelComponent { .model = SceneAsset::ModelRef(0), .color = { 1.0f, 0.0f, 0.0f, 1.0f } });
             Scene target;
             (void)target.AddNode("existing");
-            const graphics::ModelHandler model(3, 1);
+            const ModelHandler model(3, 1);
             const Vector<NodeId> ids = target.Append(std::move(asset), std::span(&model, 1));
             report.Check(ids.size() == 2 && target.IndexOf(ids[1]) == 1 && target.IndexOf(ids[0]) == 2 && target.Find(ids[0])->name == "child"
                     && target.Find(ids[0])->parent == ids[1] && ParentsComeFirst(target),
@@ -550,9 +551,8 @@ namespace elm::script {
                 "snapshot::copy_components");
 
             // A model removed meanwhile comes back with a new handle and its file
-            render::RenderResources resources;
-            graphics::ModelManager models(resources);
-            graphics::Model cube("Cube");
+            ModelCatalog models;
+            Model cube("Cube");
             cube.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
             const Path cubeFile("assets/models/Cube.model");
             const auto model = models.Insert(cube, cubeFile);
@@ -1233,9 +1233,8 @@ namespace elm::script {
             const project::Project project(pathOf("selftest.elmproject"), project::ProjectDesc { .name = "selftest" });
             auto loadScene = [&](const Path& file) { return resource::Serializer::LoadScene(file, project.Assets()); };
 
-            render::RenderResources resources;
-            graphics::ModelManager models(resources);
-            auto assetPathOf = [&](graphics::ModelHandler model) {
+            ModelCatalog models;
+            auto assetPathOf = [&](ModelHandler model) {
                 const Path* file = models.FileOf(model);
                 const auto asset = file ? project.AssetPathOf(*file) : std::nullopt;
                 return asset ? asset->Text() : String { };
@@ -1246,7 +1245,7 @@ namespace elm::script {
             const NodeId plain = Place(scene, "plain", { });
             const NodeId gone = Place(scene, "gone", { });
             (void)scene.SetParent(target, guard);
-            graphics::Model cubeModel("Cube");
+            Model cubeModel("Cube");
             cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
             const ModelComponent guardModel { .model = models.Insert(cubeModel), .color = { 0.5f, 0.25f, 1.0f, 1.0f }, .visible = false };
             scene.Components<ModelComponent>().Emplace(guard, guardModel);
@@ -1672,9 +1671,8 @@ namespace elm::script {
                 "function main.on_stop() log[#log + 1] = 'stop' stopped_spawn = elm.scene.spawn('z') stopped_spawn:add('Script', 'mover') end\n"
                 "return main\n");
 
-            render::RenderResources resources;
-            graphics::ModelManager models(resources);
-            graphics::Model cubeModel("Cube");
+            ModelCatalog models;
+            Model cubeModel("Cube");
             cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
             const auto cube = models.Insert(cubeModel);
             PhysicsSystem physics;
@@ -1765,7 +1763,7 @@ namespace elm::script {
             // What the game does meanwhile goes away on Stop
             (void)SelfTestAccess::Console(system).Execute("local a = elm.scene.find('a') elm.scene.find('b'):destroy() "
                 "elm.scene.spawn('c') a.color = elm.math.Vector4(1, 0, 0, 1) a:remove('Collider') play_marker = 1");
-            graphics::Model extraModel("Extra");
+            Model extraModel("Extra");
             extraModel.AddSubmesh(GeometryPrimitives::CreateCube(2.0f));
             const auto extra = models.Insert(extraModel);
             models.Remove(cube);
@@ -2272,6 +2270,43 @@ namespace elm::script {
             return String { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
         }
 
+        /// The GPU meshes follow the catalog: new models get them, a replaced model keeps the meshes of the
+        /// geometry it still shares, a removed model loses them.
+        void RunModelMeshesTests(Report& report)
+        {
+            render::RenderResources resources;
+            ModelCatalog catalog;
+            graphics::ModelMeshes meshes(resources);
+            Model cube("Cube");
+            cube.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            cube.AddSubmesh(GeometryPrimitives::CreateCube(2.0f));
+            const MeshDataPtr kept = cube.submeshes[0].data;
+            const ModelHandler handler = catalog.Insert(cube);
+            report.Check(meshes.GetMeshes(handler).empty(), "model_meshes::none_before_sync");
+            meshes.Sync(catalog);
+            const auto made = meshes.GetMeshes(handler);
+            report.Check(made.size() == 2 && made[0].IsValid() && made[0].GetData() == kept, "model_meshes::sync_makes_meshes");
+            const render::MeshHandle keptMesh = made[0].GetHandle();
+            const render::MeshHandle droppedMesh = made[1].GetHandle();
+
+            Model changed = cube;
+            changed.submeshes[1].data = MakeShared<const MeshData>(GeometryPrimitives::CreateCube(3.0f));
+            const uint32_t revision = catalog.RevisionOf(handler);
+            (void)catalog.Replace(handler, changed);
+            meshes.Sync(catalog);
+            const auto replaced = meshes.GetMeshes(handler);
+            report.Check(catalog.RevisionOf(handler) != revision && replaced.size() == 2 && replaced[0].GetHandle() == keptMesh
+                    && replaced[1].GetHandle() != droppedMesh,
+                "model_meshes::replace_keeps_shared_geometry");
+
+            (void)catalog.Remove(handler);
+            meshes.Sync(catalog);
+            const ModelHandler reused = catalog.Insert(Model("Other"));
+            report.Check(meshes.GetMeshes(handler).empty() && meshes.GetMeshes(reused).empty(), "model_meshes::remove_drops_meshes");
+            meshes.Sync(catalog);
+            report.Check(meshes.GetMeshes(reused).empty() && catalog.Get(reused), "model_meshes::model_without_submeshes");
+        }
+
         /// A setting registered after Load (a debug channel made later) still gets the file's value,
         /// and Save keeps the keys nobody registered in this run.
         void RunLateSettingsTests(Report& report)
@@ -2424,6 +2459,7 @@ namespace elm::script {
         RunDebugDrawSystemTests(report);
         RunTransformGizmoTests(report);
         RunLogFileTests(report);
+        RunModelMeshesTests(report);
         RunLateSettingsTests(report);
         RunDebugWithoutDrawingTests(report);
         {

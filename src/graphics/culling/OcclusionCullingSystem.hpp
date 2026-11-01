@@ -6,7 +6,7 @@
 #include "render/api/RenderResources.hpp"
 
 #include "graphics/culling/SoftwareDepthBuffer.hpp"
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 
 #include "Scene/ComponentStore.hpp"
 #include "Scene/Scene.hpp"
@@ -62,7 +62,7 @@ public:
     void UpdateDepthPreviewTexture(const Settings& settings);
 
     /// Reads the scene only: ModelComponent::visible is the user's flag, the result stays here.
-    void ExecuteCulling(const Scene& scene, const graphics::ModelManager& models,
+    void ExecuteCulling(const Scene& scene, const ModelCatalog& models,
         const Matrix4x4& cullingViewProj, const Settings& settings);
 
     [[nodiscard]] const CullingStats& GetStats() const noexcept { return m_stats; }

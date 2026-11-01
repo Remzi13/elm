@@ -11,17 +11,17 @@ namespace elm {
 
 namespace {
 
-    auto AddMesh(graphics::ModelManager& models, const MeshData& data, String name = {})
-        -> graphics::ModelHandler
+    auto AddMesh(ModelCatalog& models, const MeshData& data, String name = {})
+        -> ModelHandler
     {     
-        graphics::Model asset;
+        Model asset;
         asset.name = name;        
         asset.AddSubmesh(data);
 
         return models.Insert(std::move(asset));
     }
 
-    void AddNode(Scene& scene, const graphics::ModelHandler& model, const Matrix4x4& transform,
+    void AddNode(Scene& scene, const ModelHandler& model, const Matrix4x4& transform,
         const Vector4& color = { 0.8f, 0.8f, 0.8f, 1.0f })
     {
         const NodeId node = scene.AddNode("", transform );
@@ -36,7 +36,7 @@ namespace {
 } // namespace
 
 void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Scene& scene,
-    graphics::ModelManager& models)
+    ModelCatalog& models)
 {
     scene.Clear();
     models.Clear();
@@ -58,14 +58,14 @@ void TestScenes::BuildScene(ScenePreset preset, uint32_t targetInstanceCount, Sc
     }
 }
 
-void TestScenes::BuildBox([[maybe_unused]] uint32_t count, Scene& scene, graphics::ModelManager& models)
+void TestScenes::BuildBox([[maybe_unused]] uint32_t count, Scene& scene, ModelCatalog& models)
 {
     const auto cubeModel = AddMesh(models, GeometryPrimitives::CreateCube(1.0f), "Cube");
     AddNode(scene, cubeModel, Matrix4x4::Translation(Vector3 { 0.0f, 0.5f, 0.0f }),
         Vector4 { 0.8f, 0.2f, 0.2f, 1.0f });
 }
 
-void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelManager& models)
+void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, ModelCatalog& models)
 {
     const auto wallModel = AddMesh(models, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Wall");
     AddNode(scene, wallModel, MakeWallTransform(18.0f, 9.0f, 1.5f, Vector3 { -10.5f, 4.5f, 0.0f }));
@@ -93,7 +93,7 @@ void TestScenes::BuildWallAndGrid(uint32_t count, Scene& scene, graphics::ModelM
     }
 }
 
-void TestScenes::BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager& models)
+void TestScenes::BuildRooms(uint32_t count, Scene& scene, ModelCatalog& models)
 {
     const auto wallModel = AddMesh(models, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Wall");
     const float roomSize = 16.0f;
@@ -133,7 +133,7 @@ void TestScenes::BuildRooms(uint32_t count, Scene& scene, graphics::ModelManager
     }
 }
 
-void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene, graphics::ModelManager& models)
+void TestScenes::BuildPhysicsSandbox(uint32_t count, Scene& scene, ModelCatalog& models)
 {
     const auto wallModel = AddMesh(models, GeometryPrimitives::CreateWall(1.0f, 1.0f, 1.0f), "Barrier");
     AddNode(scene, wallModel, MakeWallTransform(16.0f, 6.0f, 1.5f, Vector3 { 0.0f, 3.0f, 0.0f }));

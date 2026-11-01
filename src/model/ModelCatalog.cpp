@@ -1,13 +1,8 @@
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 
-namespace elm::graphics {
+namespace elm {
 
-    ModelManager::ModelManager(render::RenderResources& resources)
-        : m_resources(&resources)
-    {
-    }
-
-    ModelHandler ModelManager::Insert(Model model, Path file)
+    ModelHandler ModelCatalog::Insert(Model model, Path file)
     {
         uint32_t index;
         if (m_freeSlots.empty()) {
@@ -20,13 +15,13 @@ namespace elm::graphics {
         }
 
         auto& slot = m_slots[index];
-        slot.meshes = CreateMeshes(model, { });
         slot.model.emplace(std::move(model));
         slot.file = std::move(file);
+        slot.revision = NextRevision();
         return ModelHandler(index + 1, slot.generation);
     }
 
-    Vector<ModelHandler> ModelManager::InsertAll(Vector<Model> models, std::span<const Path> files)
+    Vector<ModelHandler> ModelCatalog::InsertAll(Vector<Model> models, std::span<const Path> files)
     {
         Vector<ModelHandler> handlers;
         handlers.reserve(models.size());
@@ -35,17 +30,17 @@ namespace elm::graphics {
         return handlers;
     }
 
-    bool ModelManager::Replace(ModelHandler handler, Model model)
+    bool ModelCatalog::Replace(ModelHandler handler, Model model)
     {
         auto* slot = GetSlot(handler);
         if (!slot)
             return false;
-        slot->meshes = CreateMeshes(model, std::move(slot->meshes));
         slot->model.emplace(std::move(model));
+        slot->revision = NextRevision();
         return true;
     }
 
-    bool ModelManager::SetFile(ModelHandler handler, Path file)
+    bool ModelCatalog::SetFile(ModelHandler handler, Path file)
     {
         auto* slot = GetSlot(handler);
         if (!slot)
@@ -54,31 +49,30 @@ namespace elm::graphics {
         return true;
     }
 
-    const Path* ModelManager::FileOf(ModelHandler handler) const noexcept
+    const Path* ModelCatalog::FileOf(ModelHandler handler) const noexcept
     {
         const auto* slot = GetSlot(handler);
         return slot && !slot->file.Empty() ? &slot->file : nullptr;
     }
 
-    const Model* ModelManager::Get(ModelHandler handler) const noexcept
+    const Model* ModelCatalog::Get(ModelHandler handler) const noexcept
     {
         const auto* slot = GetSlot(handler);
         return slot ? &*slot->model : nullptr;
     }
 
-    std::span<const render::Mesh> ModelManager::GetMeshes(ModelHandler handler) const noexcept
+    uint32_t ModelCatalog::RevisionOf(ModelHandler handler) const noexcept
     {
         const auto* slot = GetSlot(handler);
-        return slot ? std::span<const render::Mesh>(slot->meshes) : std::span<const render::Mesh>();
+        return slot ? slot->revision : 0;
     }
 
-    bool ModelManager::Remove(ModelHandler handler)
+    bool ModelCatalog::Remove(ModelHandler handler)
     {
         auto* slot = GetSlot(handler);
         if (!slot)
             return false;
 
-        slot->meshes.clear();
         slot->model.reset();
         slot->file.Clear();
         ++slot->generation;
@@ -86,13 +80,12 @@ namespace elm::graphics {
         return true;
     }
 
-    void ModelManager::Clear()
+    void ModelCatalog::Clear()
     {
         for (uint32_t index = 0; index < m_slots.size(); ++index) {
             auto& slot = m_slots[index];
             if (!slot.model)
                 continue;
-            slot.meshes.clear();
             slot.model.reset();
             slot.file.Clear();
             ++slot.generation;
@@ -100,12 +93,12 @@ namespace elm::graphics {
         }
     }
 
-    size_t ModelManager::Size() const noexcept
+    size_t ModelCatalog::Size() const noexcept
     {
         return m_slots.size() - m_freeSlots.size();
     }
 
-    [[nodiscard]] ModelManager::Slot* ModelManager::GetSlot(ModelHandler handler) noexcept
+    [[nodiscard]] ModelCatalog::Slot* ModelCatalog::GetSlot(ModelHandler handler) noexcept
     {
         if (!handler.IsValid() || handler.Index() == 0 || handler.Index() > m_slots.size())
             return nullptr;
@@ -113,27 +106,9 @@ namespace elm::graphics {
         return slot.generation == handler.Generation() && slot.model ? &slot : nullptr;
     }
 
-    [[nodiscard]] const ModelManager::Slot* ModelManager::GetSlot(ModelHandler handler) const noexcept
+    [[nodiscard]] const ModelCatalog::Slot* ModelCatalog::GetSlot(ModelHandler handler) const noexcept
     {
-        return const_cast<ModelManager*>(this)->GetSlot(handler);
+        return const_cast<ModelCatalog*>(this)->GetSlot(handler);
     }
 
-    [[nodiscard]] Vector<render::Mesh> ModelManager::CreateMeshes(const Model& model, Vector<render::Mesh> previous)
-    {
-        Vector<render::Mesh> meshes;
-        meshes.reserve(model.submeshes.size());
-        for (const auto& submesh : model.submeshes) {
-            const auto reused = std::find_if(previous.begin(), previous.end(), [&](const render::Mesh& mesh) {
-                return mesh.IsValid() && mesh.GetData() == submesh.data;
-            });
-            if (reused != previous.end())
-                meshes.push_back(std::move(*reused));
-            else if (submesh.data)
-                meshes.emplace_back(*m_resources, submesh.data);
-            else
-                meshes.emplace_back();
-        }
-        return meshes;
-    }
-
-}
+} // namespace elm

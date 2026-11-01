@@ -67,7 +67,7 @@ namespace elm::resource {
             return extension == ".gltf" || extension == ".glb";
         }
 
-        auto LoadOneModel(const Path& file) -> EngineResult<graphics::Model>
+        auto LoadOneModel(const Path& file) -> EngineResult<Model>
         {
             auto model = IsGltf(file) ? GltfExporter::LoadModel(file) : Serializer::LoadModel(file);
             if (model && model->name.empty())

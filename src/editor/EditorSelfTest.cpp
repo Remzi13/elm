@@ -5,7 +5,7 @@
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
 
-#include "graphics/ModelManager.hpp"
+#include "model/ModelCatalog.hpp"
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -14,7 +14,6 @@
 
 #include "physics/PhysicsSystem.hpp"
 
-#include "render/api/RenderResources.hpp"
 
 #include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
@@ -163,9 +162,8 @@ line]] .. [==[a]]b]==])",
                 "function Mover:on_update(dt) self.entity.position = self.entity.position + elm.math.Vector3(1, 0, 0) end\n"
                 "return Mover\n";
 
-            render::RenderResources resources;
-            graphics::ModelManager models(resources);
-            graphics::Model cubeModel("Cube");
+            ModelCatalog models;
+            Model cubeModel("Cube");
             cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
             const auto cube = models.Insert(cubeModel);
             PhysicsSystem physics;

@@ -95,7 +95,7 @@ void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Settings& settings)
     m_depthPreviewTexture.Update(render::TextureData(std::move(depthPreviewPixels), m_depthBuffer.GetWidth() * sizeof(uint32_t)));
 }
 
-void OcclusionCullingSystem::ExecuteCulling(const Scene& scene, const graphics::ModelManager& models,
+void OcclusionCullingSystem::ExecuteCulling(const Scene& scene, const ModelCatalog& models,
     const Matrix4x4& cullingViewProj, const Settings& settings)
 {
     ELM_PROFILE_SCOPE_N("Execute Culling");
