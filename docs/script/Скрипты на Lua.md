@@ -314,7 +314,7 @@ lua::Class<Vector3>(module, "Vector3")
 | `elm.models` | `cube(size?)`, `box(half)`, `plane(x, z)`, `load(path)` (.model / .gltf, путь ассета `"models/crate.model"`), `find(name)`; класс `Model` (`name`, `submesh_count`, `file` — путь файла модели или nil) |
 | `elm.camera` | `position`/`set_position`, `translate`, `forward`, `right`, `yaw`/`pitch`/`set_orientation`, `rotate`, `look_at`, `fov`/`set_fov` |
 | `elm.physics` | `raycast(origin, direction, max_distance?, ignore?)`, `gravity`/`set_gravity`, `body_count`; классы `RigidBody`, `Collider` |
-| `elm.debug` | `text(position, text)`, `line`, `arrow`, `ray(origin, direction, length)`, `point(position, size?)`, `box(center, half_extents)`, `sphere`, `capsule` (последний аргумент — `style?`), `channel(name, enabled_by_default?)`; класс `DebugChannel` ([[Отладочная отрисовка]]) |
+| `elm.debug` | `text(position, text)`, `line`, `arrow`, `ray(origin, direction, length)`, `point(position, size?)`, `box(center, half_extents)`, `sphere`, `capsule` (последний аргумент — `style?`), `channel(name, enabled_by_default?)`; класс `DebugChannel` ([[Отладочная отрисовка]]). В игре без отладочной отрисовки (`ELM_DEBUG_DRAW=OFF`) вызовы ничего не рисуют и не падают, `channel.enabled` всегда `false` |
 
 ```lua
 local Vector3 = elm.math.Vector3

@@ -5,6 +5,8 @@
 
 #include "engine/IEngineLayer.hpp"
 
+#include "graphics/debug/DebugDrawSystem.hpp"
+
 #include "editor/ui/ImGuiSystem.hpp"
 
 #include "project/Project.hpp"
@@ -59,6 +61,8 @@ namespace elm {
 		void BuildOverlay(render::FrameWriter& frame) override;
 		/// Back to Edit: the scene the Play started from comes back.
 		void RequestStop() override;
+		/// The editor always draws debug primitives: the gizmo, the visualizers, elm.debug.
+		[[nodiscard]] graphics::DebugDrawSystem* GetDebugDraw() override { return &m_debugDraw; }
 		void OnFrameRendered(const render::RenderedFrameInfo& info) override;
 
 		void ShowProjectHub();
@@ -93,6 +97,8 @@ namespace elm {
 
 		Engine& m_engine;
 		Settings& m_settings;
+		/// The engine view's debug drawing, given to the engine (GetDebugDraw).
+		graphics::DebugDrawSystem m_debugDraw;
 		UniquePtr<ImGuiSystem> m_imgui;
 		/// Owned by m_imgui: an editor window, it outlives projects.
 		editor::ProjectHubWindow* m_hub { nullptr };

@@ -28,7 +28,8 @@ namespace elm::script::bindings {
             String name;
         };
 
-        /// What elm.debug reaches.
+        /// What elm.debug reaches. No DebugDraw (a game built without debug drawing): the calls check
+        /// their arguments and draw nothing, channels are invalid and never enabled.
         struct DebugContext {
             DebugDraw* debugDraw { nullptr };
             /// Every channel the scripts drew in, the default one first; Stop clears them.
@@ -42,7 +43,8 @@ namespace elm::script::bindings {
         };
 
         DebugContext& Context(lua_State* L) { return ContextOf<DebugContext>(L); }
-        DebugDraw& DebugDrawOf(lua_State* L) { return RequireSystem(L, Context(L).debugDraw, "elm.debug"); }
+        /// Null when the engine has no debug drawing.
+        DebugDraw* DebugDrawOf(lua_State* L) { return Context(L).debugDraw; }
 
         DebugChannel RegisterScriptChannel(DebugContext& context, StringView name, bool enabledByDefault)
         {
@@ -98,8 +100,8 @@ namespace elm::script::bindings {
         ScriptPen ReadPen(lua_State* L, const std::optional<lua::Ref>& style)
         {
             DebugContext& context = Context(L);
-            RequireSystem(L, context.debugDraw, "elm.debug");
-            ScriptPen pen { {}, context.channels.front() };
+            // The default channel is first; without debug drawing there is none
+            ScriptPen pen { {}, context.channels.empty() ? DebugChannel { } : context.channels.front() };
             if (!style)
                 return pen;
             style->Push(L);
@@ -117,61 +119,82 @@ namespace elm::script::bindings {
         void Text(lua_State* L, const Vector3& position, StringView text, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Text(pen.channel, position, text, pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Text(pen.channel, position, text, pen.pen);
         }
 
         void Line(lua_State* L, const Vector3& from, const Vector3& to, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Line(pen.channel, from, to, pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Line(pen.channel, from, to, pen.pen);
         }
 
         void Arrow(lua_State* L, const Vector3& from, const Vector3& to, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Arrow(pen.channel, from, to, pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Arrow(pen.channel, from, to, pen.pen);
         }
 
         /// ray(origin, direction, length, style?): an arrow of the given length along direction.
         void Ray(lua_State* L, const Vector3& origin, const Vector3& direction, float length, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Arrow(pen.channel, origin, origin + direction.Normalized() * length, pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Arrow(pen.channel, origin, origin + direction.Normalized() * length, pen.pen);
         }
 
         void Point(lua_State* L, const Vector3& position, std::optional<float> size, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Point(pen.channel, position, size.value_or(DefaultPointSize), pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Point(pen.channel, position, size.value_or(DefaultPointSize), pen.pen);
         }
 
         void Box(lua_State* L, const Vector3& center, const Vector3& halfExtents, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Box(pen.channel, math::Matrix4x4::Translation(center), halfExtents, pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Box(pen.channel, math::Matrix4x4::Translation(center), halfExtents, pen.pen);
         }
 
         void Sphere(lua_State* L, const Vector3& center, float radius, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Sphere(pen.channel, math::Matrix4x4::Translation(center), radius, pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Sphere(pen.channel, math::Matrix4x4::Translation(center), radius, pen.pen);
         }
 
         /// capsule(center, radius, half_height, style?): along the world Y axis.
         void Capsule(lua_State* L, const Vector3& center, float radius, float halfHeight, const std::optional<lua::Ref>& style)
         {
             const ScriptPen pen = ReadPen(L, style);
-            DebugDrawOf(L).Capsule(pen.channel, math::Matrix4x4::Translation(center), radius, halfHeight, pen.pen);
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->Capsule(pen.channel, math::Matrix4x4::Translation(center), radius, halfHeight, pen.pen);
         }
 
         /// channel(name, enabled_by_default?): the channel Script/<name>, made the first time.
         ScriptDebugChannel Channel(lua_State* L, StringView name, std::optional<bool> enabledByDefault)
         {
             DebugContext& context = Context(L);
-            RequireSystem(L, context.debugDraw, "elm.debug");
             if (name.empty() || name.find('/') != StringView::npos)
                 luaL_error(L, "elm.debug.channel: the name must be non-empty and have no '/'");
+            if (!context.debugDraw)
+                return { DebugChannel { }, String(name) };
             return { RegisterScriptChannel(context, name, enabledByDefault.value_or(true)), String(name) };
+        }
+
+        bool IsChannelEnabled(lua_State* L, const ScriptDebugChannel& channel)
+        {
+            const DebugDraw* debugDraw = DebugDrawOf(L);
+            return debugDraw && debugDraw->IsEnabled(channel.channel);
+        }
+
+        void SetChannelEnabled(lua_State* L, const ScriptDebugChannel& channel, bool enabled)
+        {
+            if (DebugDraw* debugDraw = DebugDrawOf(L))
+                debugDraw->SetEnabled(channel.channel, enabled);
         }
 
     } // namespace
@@ -197,8 +220,8 @@ namespace elm::script::bindings {
 
         lua::Class<ScriptDebugChannel>(module, "DebugChannel")
             .Property<[](const ScriptDebugChannel& channel) { return channel.name; }>("name")
-            .Property<[](lua_State* L, const ScriptDebugChannel& channel) { return DebugDrawOf(L).IsEnabled(channel.channel); },
-                [](lua_State* L, ScriptDebugChannel& channel, bool enabled) { DebugDrawOf(L).SetEnabled(channel.channel, enabled); }>("enabled");
+            .Property<[](lua_State* L, const ScriptDebugChannel& channel) { return IsChannelEnabled(L, channel); },
+                [](lua_State* L, ScriptDebugChannel& channel, bool enabled) { SetChannelEnabled(L, channel, enabled); }>("enabled");
     }
 
     void ClearScriptDebugDraw(lua::State& state)

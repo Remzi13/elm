@@ -8,7 +8,6 @@
 #include "render/RenderSystem.hpp"
 #include "render/ViewPort.hpp"
 
-#include "graphics/debug/DebugDrawSystem.hpp"
 #include "graphics/FrameStats.hpp"
 #include "graphics/CameraController.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
@@ -32,6 +31,10 @@ namespace elm {
 
 	class IEngineLayer;
 	struct ModelComponent;
+
+	namespace graphics {
+		class DebugDrawSystem;
+	}
 
 	/// The main window the engine opens.
 	struct EngineDesc {
@@ -84,7 +87,6 @@ namespace elm {
 		[[nodiscard]] Camera& GetCamera() noexcept { return m_camera; }
 		[[nodiscard]] CameraController& GetCameraController() noexcept { return m_cameraController; }
 		[[nodiscard]] const OcclusionCullingSystem& GetCulling() const noexcept { return m_cullingSystem; }
-		[[nodiscard]] graphics::DebugDrawSystem& GetDebugDraw() noexcept { return m_debugDraw; }
 		[[nodiscard]] PhysicsSystem& GetPhysics() noexcept { return *m_physicsSystem; }
 		[[nodiscard]] script::ScriptSystem& GetScripts() noexcept { return *m_scriptSystem; }
 		[[nodiscard]] script::PlayMode& GetPlayMode() noexcept { return m_playMode; }
@@ -142,8 +144,9 @@ namespace elm {
 
 		OcclusionCullingSystem m_cullingSystem;
 
-		/// Debug primitives of the engine view, collected during the frame and copied into it.
-		graphics::DebugDrawSystem m_debugDraw;
+		/// Debug primitives of the engine view, collected during the frame and copied into it; the layer's,
+		/// null when it has none.
+		graphics::DebugDrawSystem* m_debugDraw { nullptr };
 
 		// Update and render run in parallel: the update thread builds frame N+1 while the render
 		// thread draws frame N; RenderSystem's frame ring hands snapshots over (see render/frame/FrameRing.hpp).

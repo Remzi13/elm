@@ -2162,6 +2162,27 @@ namespace elm::script {
             report.Check(labels.size() == 1 && labels[0].text == "counted", "debug_draw_system::end_frame_publishes_labels");
         }
 
+        /// A game built without debug drawing has no DebugDraw: elm.debug draws nothing and fails no script.
+        void RunDebugWithoutDrawingTests(Report& report)
+        {
+            Settings settings;
+            ScriptSystem::RegisterSettings(settings);
+            ScriptSystem system;
+            const EngineContext engine { .settings = &settings };
+            if (auto init = system.Init(engine); !init) {
+                report.Check(false, "debug_bindings::init_without_debug_draw", init.error().message);
+                return;
+            }
+            const String drawn = Evaluate(system,
+                "local o = elm.math.Vector3(0, 0, 0) elm.debug.line(o, elm.math.Vector3(1, 0, 0)) elm.debug.text(o, 'x') "
+                "elm.debug.sphere(o, 1, { duration = 1 }) local c = elm.debug.channel('tests') c.enabled = true "
+                "elm.debug.point(o, nil, { channel = c }) return c.enabled, c.name");
+            report.Check(drawn == "false\ttests", "debug_bindings::without_debug_draw_does_nothing", drawn);
+            const String typo = Evaluate(system, "elm.debug.line(elm.math.Vector3(0, 0, 0), elm.math.Vector3(1, 0, 0), { colour = 1 })");
+            report.Check(typo.find("no field 'colour'") != String::npos, "debug_bindings::without_debug_draw_checks_style", typo);
+            system.Shutdown();
+        }
+
         /// elm.debug as the engine sees it: what reaches DebugDraw and what Stop clears.
         void RunDebugBindingTests(ScriptSystem& system, graphics::DebugDraw& debugDraw, Report& report)
         {
@@ -2253,6 +2274,38 @@ namespace elm::script {
         {
             std::ifstream stream(path, std::ios::binary);
             return String { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        }
+
+        /// A setting registered after Load (a debug channel made later) still gets the file's value,
+        /// and Save keeps the keys nobody registered in this run.
+        void RunLateSettingsTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_late_settings_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root, error);
+            auto pathOf = [&](const char* name) { return Path(String((root / name).generic_string().c_str())); };
+            WriteScript(root / "first.settings", R"({ "version": 1, "settings": { "Render/Late/Flag": false,
+                "Core/Late/Count": 3, "Core/Late/Name": "kept", "Core/Late/Wrong": "text" } })");
+
+            Settings settings;
+            report.Check(settings.Load(pathOf("first.settings")).has_value(), "settings::load_keeps_unregistered_keys");
+            settings.Register(Settings::Category::Render, "Late/Flag", "Flag", true);
+            settings.Register(Settings::Category::Core, "Late/Count", "Count", uint32_t { 1 });
+            settings.Register(Settings::Category::Core, "Late/Wrong", "Wrong", true);
+            report.Check(!settings.Get<bool>(Settings::Category::Render, "Late/Flag", true)
+                    && settings.Get<uint32_t>(Settings::Category::Core, "Late/Count") == 3,
+                "settings::late_register_gets_the_file_value");
+            report.Check(settings.Get<bool>(Settings::Category::Core, "Late/Wrong", false), "settings::late_register_of_other_type_keeps_default");
+
+            report.Check(settings.Save(pathOf("second.settings")).has_value(), "settings::save_with_unregistered_keys");
+            Settings reloaded;
+            const bool loaded = reloaded.Load(pathOf("second.settings")).has_value();
+            reloaded.Register(Settings::Category::Core, "Late/Name", "Name", String { });
+            report.Check(loaded && reloaded.Get<String>(Settings::Category::Core, "Late/Name") == "kept",
+                "settings::save_keeps_unregistered_keys");
+            fs::remove_all(root, error);
         }
 
         /// The log file gets the kept messages and every new one, keeps the previous run and stops on close.
@@ -2375,6 +2428,8 @@ namespace elm::script {
         RunDebugDrawSystemTests(report);
         RunTransformGizmoTests(report);
         RunLogFileTests(report);
+        RunLateSettingsTests(report);
+        RunDebugWithoutDrawingTests(report);
         {
             // Engine systems the bindings can reach without a window; models need the renderer
             Scene scene;

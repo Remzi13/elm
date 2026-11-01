@@ -18,6 +18,9 @@ elm — 3D-движок с редактором на C++23: рендер чер�
   `--scene N` заменяет стартовую сцену проекта тестовой.
   Без `--project` открывается последний проект (настройка `Core/Project/Last`), без него — окно Project Hub. Пример и тестовый проект — `projects/Sandbox`.
 - Игра без редактора: `elm --project projects/Sandbox` (сразу Play Project, Stop завершает программу).
+- Опции сборки: `ELM_PROFILING` (Tracy, вся сборка), `ELM_DEBUG_DRAW` (отладочная отрисовка в `elm`),
+  `ELM_LOG_CONSOLE`, `ELM_BUILD_TRACY_PROFILER`; все `ON` по умолчанию. Игра для выпуска:
+  `-DCMAKE_BUILD_TYPE=Release -DELM_PROFILING=OFF -DELM_DEBUG_DRAW=OFF`.
 - Сборка игры: `elm_editor --build projects/Sandbox` → `projects/Sandbox/Build/Sandbox/Sandbox.exe` (копия `elm`), она без аргументов играет свой проект.
 - Запуск с тестовой сценой: `elm_editor --scene <0..3> [--instances N]` (`ScenePreset`).
 - Тесты: `build/elm_tests` (`build/Debug/elm_tests.exe` в MSVC), отдельная программа без окна и GPU. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все
@@ -57,7 +60,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 |---|---|---|
 | `EngineResult<T>`, `EngineError`, `ErrorCode` | результат операции, `std::expected<T, EngineError>` | `core/Error.hpp` |
 | `core::Handle<Tag>` | типизированный хэндл: 24 бита индекса + 8 бит поколения, 0 значит невалидный | `core/Handler.hpp` |
-| `Settings` | настройки по ключу `Category/path`, хранятся в `.settings` | `core/Settings.hpp` |
+| `Settings` | настройки по ключу `Category/path`, хранятся в `.settings`; ключ, зарегистрированный после `Load`, получает значение из файла | `core/Settings.hpp` |
 | `MessageBus` | запросы между окнами редактора (`RegisterQuery`/`Request`) | `core/MessageBus.hpp` |
 | `core::JobSystem`, `TaskGroup`, `parallelFor` | пул воркеров и группы задач | `core/JobSystem.hpp` |
 | `core::ThreadRole` (`Update`, `Render`) | роль потока, проверяется `ELM_ASSERT_THREAD` | `core/Threading.hpp` |
@@ -98,7 +101,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
 | `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
-| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец `Engine` |
+| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; для вьюпорта движка — у слоя (`IEngineLayer::GetDebugDraw`), в игре без `ELM_DEBUG_DRAW` её нет |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
@@ -131,7 +134,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `platform::Window` | главное окно GLFW | `platform` |
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
 | `Engine`, `EngineDesc`, `IEngineLayer` | движок и цикл кадра; его главное окно; слой программы поверх движка, который движок зовёт из кадра | `engine` |
-| `PlayerLayer` | слой игры: вид на всё окно, сразу Play Project, Stop завершает программу | `engine` |
+| `PlayerLayer` | слой игры: вид на всё окно, сразу Play Project, Stop завершает программу; визуализаторы по `ELM_DEBUG_DRAW`. Часть программы `elm` | `engine` |
 | `EditorLayer` | слой редактора: окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
 | `resmgr::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resmgr` |
 | `resmgr::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resmgr` |

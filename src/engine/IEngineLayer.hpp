@@ -6,6 +6,10 @@ namespace elm {
 
 	class Settings;
 
+	namespace graphics {
+		class DebugDrawSystem;
+	}
+
 	namespace project {
 		class Project;
 	}
@@ -40,6 +44,11 @@ namespace elm {
 		virtual void BuildOverlay(render::FrameWriter& frame) = 0;
 		/// Stop asked for by the scripts.
 		virtual void RequestStop() = 0;
+
+		/// The debug drawing of the engine view, owned by the layer for as long as the engine runs; the
+		/// engine asks once, in Init. Null: none at all (a game built without ELM_DEBUG_DRAW), the scripts'
+		/// elm.debug draws nothing.
+		[[nodiscard]] virtual graphics::DebugDrawSystem* GetDebugDraw() = 0;
 
 		/// Render thread: the frame was drawn.
 		virtual void OnFrameRendered(const render::RenderedFrameInfo& info) = 0;

@@ -2,6 +2,8 @@
 
 #include "engine/IEngineLayer.hpp"
 
+#include "graphics/debug/DebugDrawSystem.hpp"
+
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 #include "core/Log.hpp"
@@ -44,7 +46,6 @@ Engine::Engine()
     , m_cameraController(m_camera)
     , m_models(m_renderSystem->Resources())
     , m_playMode(m_scene, &m_models, m_physicsSystem.get(), *m_scriptSystem)
-    , m_debugDraw(m_settings)
 {
 }
 
@@ -69,6 +70,7 @@ auto Engine::Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<v
         return MakeUnexpected(loadedSettings.error());
     FileSystem::ApplySettings(m_settings, settingsPath.Parent());
     log::applySettings(m_settings, settingsPath.Parent());
+    m_debugDraw = m_layer->GetDebugDraw();
 
     m_camera.SetAspect(static_cast<float>(desc.width) / static_cast<float>(desc.height));
     // Initialize the render backend and its command queue first.
@@ -187,7 +189,8 @@ auto Engine::Run() -> EngineResult<void>
         accumulator += deltaTime;
 
         // Before anything of this frame draws debug primitives, physics steps included
-        m_debugDraw.BeginFrame(deltaTime);
+        if (m_debugDraw)
+            m_debugDraw->BeginFrame(deltaTime);
         m_physicsSystem->ClearFrameLog();
 
         // ── 1. Process input (must be on main thread for GLFW) ────────
@@ -290,7 +293,7 @@ void Engine::StartProject(project::Project project)
     m_project = std::move(project);
 
     const script::EngineContext scriptEngine { &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get(),
-        MakePlayRequests(), &m_debugDraw.GetDebugDraw(), &*m_project };
+        MakePlayRequests(), m_debugDraw ? &m_debugDraw->GetDebugDraw() : nullptr, &*m_project };
     // In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
     if (auto scriptInit = m_scriptSystem->Init(scriptEngine, m_project->Scripts()); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, LogSource, "%s", scriptInit.error().message.c_str());
@@ -335,7 +338,8 @@ void Engine::SubmitFrame(render::FrameWriter& frame)
     if (const auto* drawn = m_scene.FindComponents<ModelComponent>())
         SubmitModels(*drawn, frame);
 
-    m_debugDraw.EndFrame(frame);
+    if (m_debugDraw)
+        m_debugDraw->EndFrame(frame);
 
     m_renderSystem->SubmitFrame(frame);
 }

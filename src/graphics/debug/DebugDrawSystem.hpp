@@ -13,7 +13,8 @@ namespace elm::graphics {
 
     /// The debug drawing of one scene view: the DebugDraw every source of the frame writes into
     /// (systems, scripts, editor windows) and the visualizers drawn into it once the scene is final.
-    /// Owned by the owner of the view (Engine for the engine viewport); update thread only.
+    /// Owned by the owner of the view (for the engine viewport the layer: EditorLayer, PlayerLayer built with
+    /// ELM_DEBUG_DRAW); update thread only.
     class DebugDrawSystem {
     public:
         explicit DebugDrawSystem(Settings& settings);

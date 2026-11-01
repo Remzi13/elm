@@ -7,6 +7,10 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(ELM_LOG_CONSOLE "Duplicate log messages to the system console" ON)
 option(ELM_BUILD_TRACY_PROFILER "Build the Tracy Profiler GUI (tracy-profiler) with the engine" ON)
+# For the whole build: core, which every program links, is compiled with or without Tracy
+option(ELM_PROFILING "Tracy zones and frames in elm, elm_editor and elm_tests (ELM_PROFILE_* macros)" ON)
+# For the game program elm only: the editor always draws them
+option(ELM_DEBUG_DRAW "Debug drawing in elm: collider, ray and contact visualizers and elm.debug of scripts" ON)
 
 # Include custom compile options
 include(cmake/CompileOptions.cmake)

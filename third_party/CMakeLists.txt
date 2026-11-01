@@ -98,7 +98,8 @@ FetchContent_MakeAvailable(JoltPhysics)
 # ------------------------------------------------------------------------------
 # Tracy Profiler
 # ------------------------------------------------------------------------------
-set(TRACY_ENABLE ON CACHE BOOL "" FORCE)
+# Off: TracyClient is still built, the ELM_PROFILE_* macros expand to nothing (core/Profiling.hpp)
+set(TRACY_ENABLE ${ELM_PROFILING} CACHE BOOL "" FORCE)
 set(TRACY_ON_DEMAND ON CACHE BOOL "" FORCE)
 
 FetchContent_Declare(

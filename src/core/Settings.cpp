@@ -119,15 +119,71 @@ namespace elm {
 
 		for (auto& [key, entry] : m_entries)
 			entry.value = std::move(loadedSettings.at(key));
+
+		// The keys registered later (debug channels, windows made on demand) find their values here
+		m_fileValues.clear();
+		for (const String& key : serializedSettings->Keys()) {
+			if (m_entries.contains(key))
+				continue;
+			// By the JSON kind: a failed As* conversion would log an error
+			const auto value = serializedSettings->Find(StringView(key.data(), key.size()));
+			switch (value->GetKind()) {
+			case resmgr::JsonValue::Kind::Boolean:
+				if (auto boolean = value->AsBoolean())
+					m_fileValues.emplace(key, *boolean);
+				break;
+			case resmgr::JsonValue::Kind::String:
+				if (auto text = value->AsString())
+					m_fileValues.emplace(key, std::move(*text));
+				break;
+			case resmgr::JsonValue::Kind::Number:
+				if (auto number = value->AsNumber(); number && std::isfinite(*number))
+					m_fileValues.emplace(key, *number);
+				break;
+			default:
+				break;
+			}
+		}
 		return {};
+	}
+
+	auto Settings::TakeFileValue(const String& key, const Value& defaultValue) -> std::optional<Value>
+	{
+		const auto found = m_fileValues.find(key);
+		if (found == m_fileValues.end())
+			return std::nullopt;
+		const FileValue fileValue = std::move(found->second);
+		m_fileValues.erase(found);
+
+		if (std::holds_alternative<bool>(defaultValue)) {
+			if (const auto* boolean = std::get_if<bool>(&fileValue))
+				return Value(*boolean);
+			return std::nullopt;
+		}
+		if (std::holds_alternative<String>(defaultValue)) {
+			if (const auto* text = std::get_if<String>(&fileValue))
+				return Value(*text);
+			return std::nullopt;
+		}
+		const auto* number = std::get_if<double>(&fileValue);
+		if (!number)
+			return std::nullopt;
+		if (std::holds_alternative<float>(defaultValue))
+			return Value(static_cast<float>(*number));
+		const bool unsignedInteger = *number >= 0.0 && *number <= std::numeric_limits<uint32_t>::max() && std::floor(*number) == *number;
+		if (!unsignedInteger)
+			return std::nullopt;
+		return Value(static_cast<uint32_t>(*number));
 	}
 
 	auto Settings::Save(const Path& path) const -> EngineResult<void>
 	{
 		UnorderedMap<String, Entry> settings;
+		UnorderedMap<String, FileValue> fileValues;
 		{
 			std::lock_guard<std::mutex> lock(m_mutex);
 			settings = m_entries;
+			fileValues = m_fileValues;
 		}
 
 		resmgr::JsonValue serializedSettings{ resmgr::JsonValue::Type::Object };
@@ -142,6 +198,18 @@ namespace elm {
 			else
 				serializedValue = resmgr::JsonValue(std::get<bool>(entry.value));
 
+			if (auto set = serializedSettings.Set(StringView(key.data(), key.size()), std::move(serializedValue)); !set)
+				return resmgr::UnexpectedSerializationError(set.error());
+		}
+		// Keys not registered in this run stay in the file
+		for (const auto& [key, fileValue] : fileValues) {
+			resmgr::JsonValue serializedValue;
+			if (const auto* boolean = std::get_if<bool>(&fileValue))
+				serializedValue = resmgr::JsonValue(*boolean);
+			else if (const auto* text = std::get_if<String>(&fileValue))
+				serializedValue = resmgr::JsonValue(StringView(text->data(), text->size()));
+			else
+				serializedValue = resmgr::JsonValue(std::get<double>(fileValue));
 			if (auto set = serializedSettings.Set(StringView(key.data(), key.size()), std::move(serializedValue)); !set)
 				return resmgr::UnexpectedSerializationError(set.error());
 		}

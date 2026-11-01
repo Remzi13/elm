@@ -5,6 +5,7 @@
 #include "core/FileSystem.hpp"
 
 #include <mutex>
+#include <optional>
 #include <variant>
 
 namespace elm
@@ -41,11 +42,15 @@ namespace elm
 
 			const auto entry = m_entries.find(key);
 			if (entry == m_entries.end()) {
+				// Registered after Load: the file's value wins over the default
+				Value value(std::move(defaultValue));
+				if (auto loaded = TakeFileValue(key, value))
+					value = std::move(*loaded);
 				m_entries.emplace(key, Entry{
 					category,
 					String(path.begin(), path.end()),
 					String(label.begin(), label.end()),
-					Value(std::move(defaultValue))
+					std::move(value)
 				});
 				return;
 			}
@@ -66,6 +71,7 @@ namespace elm
 				return;
 			}
 
+			m_fileValues.erase(key);
 			m_entries.emplace(key, Entry{
 				category,
 				String(path.begin(), path.end()),
@@ -95,10 +101,18 @@ namespace elm
 		[[nodiscard]] auto Save(const Path& path) const -> EngineResult<void>;
 
 	private:
+		/// A value of the settings file whose key nobody registered yet, as its JSON type.
+		using FileValue = std::variant<bool, String, double>;
+
 		static String MakeKey(Category category, StringView path);
+		/// The file's value of key as the type of defaultValue, taken out of m_fileValues; nothing when the
+		/// file has none or one of another type. Called with m_mutex held.
+		[[nodiscard]] std::optional<Value> TakeFileValue(const String& key, const Value& defaultValue);
 
 	private:
 		mutable std::mutex m_mutex;
 		UnorderedMap<String, Entry> m_entries;
+		/// Read by Load before their keys were registered: Register takes them, Save writes them back.
+		UnorderedMap<String, FileValue> m_fileValues;
 	};
 }

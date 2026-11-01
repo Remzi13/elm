@@ -3,13 +3,28 @@
 #include "engine/Engine.hpp"
 
 #include "graphics/GameView.hpp"
+#include "graphics/debug/DebugDrawSystem.hpp"
+
+#if defined(ELM_DEBUG_DRAW)
+#include "graphics/debug/ColliderVisualizer.hpp"
+#include "graphics/debug/PhysicsVisualizer.hpp"
+#endif
 
 namespace elm {
 
 	PlayerLayer::PlayerLayer(Engine& engine)
 		: m_engine(engine)
 	{
+#if defined(ELM_DEBUG_DRAW)
+		// The channels of the editor's physics visualizers: Physics/Colliders, Triggers, Raycasts, Contacts
+		m_debugDraw = MakeUnique<graphics::DebugDrawSystem>(engine.GetSettings());
+		graphics::DebugDraw& debugDraw = m_debugDraw->GetDebugDraw();
+		m_debugDraw->AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(engine.GetScene(), debugDraw));
+		m_debugDraw->AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(engine.GetPhysics().FrameLog(), debugDraw));
+#endif
 	}
+
+	PlayerLayer::~PlayerLayer() = default;
 
 	void PlayerLayer::RegisterSettings(Settings&)
 	{

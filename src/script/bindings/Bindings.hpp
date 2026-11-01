@@ -37,6 +37,7 @@ namespace elm::script::bindings {
 
     /// elm.debug: lines and wireframe shapes in the engine view, in the channel Script/Default or
     /// in a channel the scripts register (elm.debug.channel).
+    /// debugDraw null (a game built without ELM_DEBUG_DRAW): elm.debug draws nothing and fails no script.
     void RegisterDebug(lua::State& state, graphics::DebugDraw* debugDraw);
     /// Drops the timed debug primitives of every script channel: Play leaves none behind after Stop.
     void ClearScriptDebugDraw(lua::State& state);

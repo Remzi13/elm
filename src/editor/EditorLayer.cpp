@@ -37,6 +37,7 @@ namespace elm {
 	EditorLayer::EditorLayer(Engine& engine)
 		: m_engine(engine)
 		, m_settings(engine.GetSettings())
+		, m_debugDraw(m_settings)
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -166,7 +167,7 @@ namespace elm {
 	void EditorLayer::BuildOverlay(render::FrameWriter& frame)
 	{
 		m_imgui->BuildFrame({ m_engine.GetRenderSystem(), m_engine.GetScene(), m_engine.GetModels(), m_engine.GetCamera(),
-			m_engine.GetFrameStats(), m_engine.GetViewPort(), frame, m_engine.GetDebugDraw().GetDebugDraw() });
+			m_engine.GetFrameStats(), m_engine.GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
 	}
 
 	void EditorLayer::RequestStop()
@@ -181,11 +182,10 @@ namespace elm {
 
 	void EditorLayer::AddVisualizers()
 	{
-		graphics::DebugDrawSystem& debugDrawSystem = m_engine.GetDebugDraw();
-		graphics::DebugDraw& debugDraw = debugDrawSystem.GetDebugDraw();
-		debugDrawSystem.AddVisualizer(MakeUnique<graphics::WorldAxesVisualizer>(debugDraw));
-		debugDrawSystem.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_engine.GetScene(), debugDraw));
-		debugDrawSystem.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_engine.GetPhysics().FrameLog(), debugDraw));
+		graphics::DebugDraw& debugDraw = m_debugDraw.GetDebugDraw();
+		m_debugDraw.AddVisualizer(MakeUnique<graphics::WorldAxesVisualizer>(debugDraw));
+		m_debugDraw.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_engine.GetScene(), debugDraw));
+		m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_engine.GetPhysics().FrameLog(), debugDraw));
 	}
 
 	void EditorLayer::CreateProjectWindows(const project::Project& project, const Path& openedScene)
