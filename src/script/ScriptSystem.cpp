@@ -48,7 +48,7 @@ namespace elm::script {
     void ScriptSystem::RegisterSettings(Settings& settings)
     {
         settings.Register(Settings::Category::Script, EnabledSetting, "Run scripts", true);
-        settings.Register(Settings::Category::Script, HotReload::EnabledSetting, "Reload changed scripts", true);
+        settings.Register(Settings::Category::Script, HotReloadSetting, "Reload changed scripts", true);
     }
 
     auto ScriptSystem::Init(const EngineContext& engine, Path scriptRoot) -> EngineResult<void>
@@ -192,7 +192,7 @@ namespace elm::script {
 
     bool ScriptSystem::HotReloadEnabled() const
     {
-        return !m_engine.settings || m_engine.settings->Get<bool>(Settings::Category::Script, HotReload::EnabledSetting, true);
+        return !m_engine.settings || m_engine.settings->Get<bool>(Settings::Category::Script, HotReloadSetting, true);
     }
 
     void ScriptSystem::OnModuleReloaded(StringView name)

@@ -89,16 +89,20 @@ namespace {
     /// The game: Play Project, the scene in the whole window, until the window closes or the scripts stop it.
     void RunGame(elm::Engine& engine, elm::graphics::DebugDrawSystem* debugDraw)
     {
-        engine.GetPlayMode().RequestPlay(elm::script::PlayTarget::Project);
+        elm::script::PlayMode& play = engine.GetPlayMode();
+        play.RequestPlay(elm::script::PlayTarget::Project);
         while (!engine.ShouldClose()) {
+            // No Edit mode to go back to: Stop (on_stop still runs) or a Play that could not start ends the game
+            const bool stopRequested = play.GetRequest() == elm::script::PlayMode::Request::Stop;
+            play.ApplyRequest();
+            if (stopRequested || !play.IsPlaying())
+                return;
+
             const float deltaTime = engine.BeginFrame();
             // Before anything of the frame draws, physics steps included
             if (debugDraw)
                 debugDraw->BeginFrame(deltaTime);
             engine.Simulate(deltaTime);
-            // No Edit mode to go back to: Stop, or a Play that could not start, ends the game
-            if (!engine.GetPlayMode().IsPlaying())
-                return;
 
             elm::render::FrameWriter frame = engine.BeginRenderFrame();
             if (!frame)
@@ -135,6 +139,8 @@ int main(int argc, char** argv)
     }
 
     Engine engine;
+    // A game does not watch its script files unless its .settings asks for it (the editor's does)
+    engine.GetSettings().Set(Settings::Category::Script, script::ScriptSystem::HotReloadSetting, false);
     // Made before Init: the scripts get its DebugDraw. Shutdown below ends the scripts while it lives.
     const auto debugDraw = MakeDebugDraw(engine);
     EngineDesc desc { MainWindow };

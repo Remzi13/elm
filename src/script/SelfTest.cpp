@@ -1772,24 +1772,19 @@ namespace elm::script {
             frame();
             (void)SelfTestAccess::Console(system).Execute("elm.engine.stop()");
             frame();
-            report.Check(eval("local a = elm.scene.find('a') return a.position.x, elm.scene.find('b') ~= nil, elm.scene.find('c'), "
-                              "a:has('Collider'), a.color.y")
-                    == "0.0\ttrue\tnil\ttrue\t1.0",
-                "play::stop_brings_the_scene_back");
-            // Stop replaced the stores: the one taken before Play is gone
-            const auto* restoredModels = scene.FindComponents<ModelComponent>();
-            const ModelComponent* restoredA = restoredModels ? restoredModels->Find(nodeA) : nullptr;
-            report.Check(restoredA && models.Get(restoredA->model) && !models.Get(extra) && physics.GetNumBodies() == 0
-                    && SelfTestAccess::Entities(system).All().empty(),
-                "play::stop_restores_models_and_clears_runtime");
-            report.Check(eval("return elm.scene.find('z'), play_marker, log") == "nil\tnil\tnil", "play::stop_drops_the_game_lua_state");
-
+            // The engine's Stop ends the game; bringing the edited scene back is the editor's (EditMode)
+            report.Check(!playMode.IsPlaying() && eval("return elm.scene.find('b'), elm.scene.find('c') ~= nil, log[#log - 1], log[#log]")
+                    == "nil\ttrue\tdestroy a\tstop",
+                "play::stop_ends_the_game");
+            report.Check(models.Get(extra) && physics.GetNumBodies() == 0 && SelfTestAccess::Entities(system).All().empty(),
+                "play::stop_clears_runtime");
+            const String ticksAtStop = eval("return ticks");
             frame();
-            report.Check(eval("return ticks, elm.scene.find('a').position.x") == "nil\t0.0", "play::edit_mode_again");
+            report.Check(eval("return ticks") == ticksAtStop, "play::stopped_scripts_stand_still");
             playMode.Play({ .mainModule = "main" });
             frame();
-            report.Check(eval("return log[1], log[#log], elm.scene.find('a').position.x") == "main start\tstart a\t1.0",
-                "play::play_again_starts_main_again");
+            report.Check(eval("return log[1], play_marker, table.concat(log, ','):find('start a') ~= nil") == "main start\tnil\ttrue",
+                "play::play_again_starts_main_on_a_fresh_lua_state");
             playMode.Stop();
 
             // Play Project: the start scene replaces the edited one, Stop brings the edited one back
@@ -1804,8 +1799,9 @@ namespace elm::script {
                 "play::project_plays_the_start_scene");
             playMode.RequestStop();
             frame();
-            report.Check(!playMode.IsPlaying() && scene.NodeCount() == 2 && scene.IndexOf(nodeA) == 0 && scene.Find(nodeA)->name == "a",
-                "play::stop_brings_the_edited_scene_back");
+            // main.on_stop spawned z after the level
+            report.Check(!playMode.IsPlaying() && scene.NodeCount() == 2 && scene.Nodes()[0].name == "level",
+                "play::stop_leaves_the_start_scene");
 
             system.Shutdown();
             physics.Shutdown();

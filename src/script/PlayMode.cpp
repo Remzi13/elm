@@ -2,7 +2,7 @@
 
 #include "script/ScriptSystem.hpp"
 
-#include "Scene/SceneSnapshot.hpp"
+#include "Scene/Scene.hpp"
 #include "core/Debug.hpp"
 #include "graphics/ModelManager.hpp"
 #include "core/Log.hpp"
@@ -43,7 +43,6 @@ namespace elm::script {
         if (m_playing)
             return;
         ELM_ASSERT_THREAD(Update);
-        m_snapshot = MakeUnique<SceneSnapshot>(SceneSnapshot::Take(m_scene, m_models));
         // As a player starts the game: a fresh Lua state, the start scene, then the main module
         if (auto reset = m_scripts.Reset(); !reset)
             ERROR_MESSAGE(log::Category::Script, LogSource, "%s", reset.error().message.c_str());
@@ -52,7 +51,7 @@ namespace elm::script {
         m_playing = true;
         // A broken main module is reported, the scene still plays
         (void)m_scripts.Start(start.mainModule);
-        LOG_MESSAGE(log::Category::Script, LogSource, "Play: scripts and physics run, Stop brings the scene back");
+        LOG_MESSAGE(log::Category::Script, LogSource, "Play: scripts and physics run");
         // The entity scripts start on the next update
         m_scripts.OnPlay();
     }
@@ -60,7 +59,7 @@ namespace elm::script {
     void PlayMode::ReplaceScene(SceneAsset asset)
     {
         m_scene.Clear();
-        // Models of the edited scene stay: Stop puts its nodes back and removes the models nobody uses
+        // Models of the scene before stay: the editor puts its nodes back after Stop
         const auto handlers = m_models ? m_models->InsertAll(std::move(asset.models), asset.modelFiles)
                                        : Vector<graphics::ModelHandler> { };
         (void)m_scene.Append(std::move(asset), handlers);
@@ -76,13 +75,7 @@ namespace elm::script {
         m_playing = false;
         if (m_physics)
             m_physics->Clear();
-        if (m_snapshot)
-            std::move(*m_snapshot).Restore(m_scene, m_models);
-        m_snapshot.reset();
-        // The game's Lua state goes with it: Edit gets a fresh one, without the main module
-        if (auto reset = m_scripts.Reset(); !reset)
-            ERROR_MESSAGE(log::Category::Script, LogSource, "%s", reset.error().message.c_str());
-        LOG_MESSAGE(log::Category::Script, LogSource, "Stop: the scene is back as Play found it");
+        LOG_MESSAGE(log::Category::Script, LogSource, "Stop: scripts and physics stand still");
     }
 
     void PlayMode::RequestPlay(PlayTarget target) noexcept

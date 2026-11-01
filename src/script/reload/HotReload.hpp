@@ -22,9 +22,6 @@ namespace elm::script {
     /// Owner: ScriptSystem, thread: update. Who reacts to a reload is up to the owner (Init's callback).
     class HotReload {
     public:
-        /// Setting Script/HotReload: whether the owner polls the module files.
-        static constexpr StringView EnabledSetting = "HotReload";
-
         /// Called after a module reloaded: the new code is installed (its on_reload may have failed).
         using ModuleReloaded = std::function<void(StringView module)>;
 

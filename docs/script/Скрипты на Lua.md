@@ -56,8 +56,8 @@ local main = {}
 function main.on_start() end
 function main.on_update(dt) end        -- Play: после input, до пересчёта трансформов и culling
 function main.on_fixed_update(dt) end  -- Play: после шага физики
-function main.on_play() end            -- нажали Play: снимок сцены уже сделан
-function main.on_stop() end            -- нажали Stop: до того как сцена вернётся
+function main.on_play() end            -- нажали Play: в редакторе снимок сцены уже сделан
+function main.on_stop() end            -- Stop: в редакторе до того, как сцена вернётся; в игре перед выходом
 function main.on_shutdown() end        -- Lua-машина игры закрывается: Stop, смена проекта, выход
 return main
 ```

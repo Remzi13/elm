@@ -322,8 +322,6 @@ void Engine::Update(float deltaTime)
 
     m_inputSystem->Update();
 
-    // Play/Stop asked for by scripts and windows since the last update
-    m_playMode.ApplyRequest();
     m_scriptSystem->Update(deltaTime);
     // Scripts move nodes through local transforms
     m_scene.UpdateWorldTransforms();

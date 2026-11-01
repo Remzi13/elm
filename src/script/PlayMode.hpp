@@ -9,10 +9,6 @@
 #include <functional>
 #include <optional>
 
-namespace elm {
-    class SceneSnapshot;
-}
-
 namespace elm::script {
 
     class ScriptSystem;
@@ -32,14 +28,14 @@ namespace elm::script {
     /// the project: PlayMode knows no files.
     using PlayStartSource = std::function<std::optional<PlayStart>(PlayTarget)>;
 
-    /// Edit and Play modes of the engine (docs/editor/Редактор.md). Edit: the scene is data, physics,
-    /// entity scripts and the main module stand still. Play keeps a snapshot of the scene, gives the scripts
-    /// a fresh Lua state, puts in the start scene, starts the main module and lets everything run.
-    /// Stop ends the scripts, clears the physics bodies, brings the snapshot back with its node ids and
-    /// gives Edit a fresh Lua state. It lives next to the scripts because it coordinates them with the
-    /// scene and physics and the self-tests cover it there.
-    /// Owner: Engine, thread: update. Requests from Lua and the UI are applied by ApplyRequest,
-    /// at the start of the update.
+    /// Whether the game runs (docs/editor/Редактор.md). Stopped, physics, entity scripts and the main module
+    /// stand still. Play gives the scripts a fresh Lua state, puts in the start scene, starts the main module
+    /// and lets everything run, as a player starts the game. Stop ends the scripts and clears the physics
+    /// bodies; the scene stays as the game left it. What comes after Stop is the program's: the editor brings
+    /// the edited scene back (EditMode), the game ends. It lives next to the scripts because it coordinates
+    /// them with the scene and physics and the self-tests cover it there.
+    /// Owner: Engine, thread: update. Requests from Lua and the UI wait for the program: it looks at
+    /// GetRequest and applies it (ApplyRequest) before Engine::Simulate.
     class PlayMode {
     public:
         static constexpr StringView PlayOnStartSetting = "PlayOnStart";
@@ -62,13 +58,16 @@ namespace elm::script {
         void Stop();
         void RequestPlay(PlayTarget target) noexcept;
         void RequestStop() noexcept { m_request = Request::Stop; }
-        /// Play or Stop, as requested since the last update. A Play the start source gives no start for does not begin.
+        /// What was asked for since the last ApplyRequest.
+        enum class Request : uint8_t { None, Play, Stop };
+        [[nodiscard]] Request GetRequest() const noexcept { return m_request; }
+        /// Play or Stop, as requested. A Play the start source gives no start for does not begin; a Play while
+        /// playing and a Stop while stopped do nothing.
         void ApplyRequest();
         /// The requests for the scripts and the editor windows.
         [[nodiscard]] PlayRequests Requests();
 
     private:
-        enum class Request : uint8_t { None, Play, Stop };
 
         /// The start scene in place of the edited one: the snapshot keeps the edited one.
         void ReplaceScene(SceneAsset asset);
@@ -81,8 +80,6 @@ namespace elm::script {
         PlayTarget m_requestedTarget { PlayTarget::Project };
         PlayStartSource m_startSource;
         bool m_playing { false };
-        /// The scene as Play found it, null in Edit mode.
-        UniquePtr<SceneSnapshot> m_snapshot;
     };
 
 } // namespace elm::script

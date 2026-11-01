@@ -85,7 +85,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `CollisionEvent` | начало и конец контакта за шаг физики | `PhysicsSystem` |
 | `RayHit`, `RayQuery`, `PhysicsFrameLog` | попадание луча; вызов `CastRay` и его итог; журнал кадра `PhysicsSystem::FrameLog` (лучи и начавшиеся контакты всех шагов) (`Scene/PhysicsComponents.hpp`) | `PhysicsSystem` |
 | `SceneAsset`, `SceneAsset::Node` | сцена из файла до `Scene::Append`: узлы без id, родитель — индекс в ассете. Компоненты и ссылки на узлы — по `SceneAsset::NodeRef(index)`, модель в `ModelComponent` — `SceneAsset::ModelRef(index)` | вызывающий |
-| `SceneSnapshot` | снимок сцены и моделей: Play делает его, Stop восстанавливает | `PlayMode` |
+| `SceneSnapshot` | снимок сцены и моделей: редактор делает его перед Play и возвращает после Stop | `EditMode` |
 | `ScenePreset`, `TestScenes` | генераторы тестовых сцен | — |
 
 **Модели и редактор** (`src/graphics`, `elm::graphics` и `elm`)
@@ -106,7 +106,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
 | `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
-| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget` | режимы редактора: в Edit сцена — это данные, в Play работают физика, скрипты сущностей и главный модуль, каждый Play со свежей Lua-машиной. `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). `script::PlayMode`, владелец `Engine` |
+| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget`, `EditMode` | `script::PlayMode` (владелец `Engine`) — идёт ли игра: Play со свежей Lua-машиной, стартовой сценой и главным модулем, Stop останавливает скрипты и физику; запросы применяет программа (`GetRequest`/`ApplyRequest`). `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). Режим Edit — `EditMode` редактора (`editor/EditMode.*`): снимок сцены вокруг Play, возврат после Stop |
 
 **Рендер** (`src/render`, `elm::render`)
 

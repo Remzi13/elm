@@ -40,6 +40,7 @@ namespace elm {
 		: m_settings(m_engine.GetSettings())
 		, m_debugDraw(m_settings)
 		, m_cameraController(m_engine.GetCamera())
+		, m_editMode(m_engine.GetPlayMode(), m_engine.GetScene(), m_engine.GetModels(), m_engine.GetScripts())
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -86,6 +87,7 @@ namespace elm {
 			m_debugDraw.BeginFrame(deltaTime);
 			// Before Play/Stop: a project switch stops Play itself
 			ApplyProjectRequest();
+			m_editMode.ApplyRequest();
 			// Before Simulate, which culls from the camera. The viewport state comes from the previous UI
 			// frame, the keys from the input the last Simulate dispatched
 			m_cameraController.SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
@@ -126,6 +128,7 @@ namespace elm {
 		if (!project)
 			return MakeUnexpected(project.error());
 		if (m_engine.OpenedProject()) {
+			m_editMode.Stop();
 			CloseProjectWindows();
 			m_engine.CloseProject();
 		}

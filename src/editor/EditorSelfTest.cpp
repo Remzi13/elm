@@ -1,9 +1,28 @@
 #include "editor/EditorSelfTest.hpp"
 
+#include "editor/EditMode.hpp"
 #include "editor/script/CodeIndent.hpp"
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
 
+#include "graphics/ModelManager.hpp"
+
+#include "Scene/ModelComponent.hpp"
+#include "Scene/PhysicsComponents.hpp"
+#include "Scene/Scene.hpp"
+#include "Scene/ScriptComponent.hpp"
+
+#include "physics/PhysicsSystem.hpp"
+
+#include "render/api/RenderResources.hpp"
+
+#include "script/PlayMode.hpp"
+#include "script/ScriptSystem.hpp"
+
+#include "math/Primitivs.hpp"
+
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -12,6 +31,7 @@ namespace elm::editor {
     namespace {
 
         using namespace script;
+        using namespace math;
 
         // ── Reporting ───────────────────────────────────────────────────────────
 
@@ -122,6 +142,113 @@ line]] .. [==[a]]b]==])",
                 "editor::error_location");
         }
 
+        // ── Edit mode ───────────────────────────────────────────────────────────
+
+        /// Where node `a` is along x: the mover script walks it there in Play.
+        float PositionX(const Scene& scene, NodeId node)
+        {
+            const Scene::Node* found = scene.Find(node);
+            return found ? found->localTransform(0, 3) : -1.0f;
+        }
+
+        /// The editor's Edit mode around the engine's PlayMode: the edited scene comes back after Stop.
+        void RunEditModeTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_edit_mode_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root, error);
+            std::ofstream(root / "mover.lua") << "local Mover = {}\n"
+                "function Mover:on_update(dt) self.entity.position = self.entity.position + elm.math.Vector3(1, 0, 0) end\n"
+                "return Mover\n";
+
+            render::RenderResources resources;
+            graphics::ModelManager models(resources);
+            graphics::Model cubeModel("Cube");
+            cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            const auto cube = models.Insert(cubeModel);
+            PhysicsSystem physics;
+            if (!physics.Init()) {
+                report.Check(false, "edit::physics_init");
+                return;
+            }
+            Settings settings;
+            ScriptSystem::RegisterSettings(settings);
+            Scene scene;
+            ScriptSystem scripts;
+            PlayMode play(scene, &models, &physics, scripts);
+            bool hasStartScene = false;
+            play.SetStartSource([&](PlayTarget target) -> std::optional<PlayStart> {
+                PlayStart start;
+                if (target == PlayTarget::Project) {
+                    if (!hasStartScene)
+                        return std::nullopt;
+                    SceneAsset::Node level;
+                    level.name = "level";
+                    start.scene.emplace();
+                    start.scene->nodes.push_back(std::move(level));
+                }
+                return start;
+            });
+            const EngineContext engine { .scene = &scene, .models = &models, .settings = &settings, .physics = &physics, .play = play.Requests() };
+            if (!scripts.Init(engine, Path(String(root.generic_string().c_str())))) {
+                report.Check(false, "edit::script_init");
+                return;
+            }
+            EditMode editMode(play, scene, models, scripts);
+
+            const NodeId a = scene.AddNode("a");
+            const NodeId b = scene.AddNode("b");
+            ScriptComponent mover;
+            mover.module = "mover";
+            scene.Components<ScriptComponent>().Emplace(a, std::move(mover));
+            scene.Components<Collider>().Emplace(a);
+            scene.Components<ModelComponent>().Emplace(a, ModelComponent { .model = cube });
+            constexpr float Step = 1.0f / 60.0f;
+            // As Editor::Run: requests before the simulation, physics steps in Play only
+            auto frame = [&] {
+                editMode.ApplyRequest();
+                if (play.IsPlaying())
+                    physics.Step(scene, Step);
+                scripts.FixedUpdate(Step);
+                scripts.Update(Step);
+                scene.UpdateWorldTransforms();
+            };
+
+            play.RequestPlay(PlayTarget::Scene);
+            frame();
+            frame();
+            report.Check(play.IsPlaying() && PositionX(scene, a) > 0.0f, "edit::play_runs_the_edited_scene");
+            (void)scene.RemoveNode(b);
+            (void)scene.AddNode("spawned");
+            models.Remove(cube);
+
+            play.RequestStop();
+            frame();
+            const ModelComponent* model = scene.Components<ModelComponent>().Find(a);
+            report.Check(!play.IsPlaying() && scene.NodeCount() == 2 && scene.Find(a) && scene.Find(b) && PositionX(scene, a) == 0.0f
+                    && scene.Components<Collider>().Contains(a) && model && models.Get(model->model) && physics.GetNumBodies() == 0,
+                "edit::stop_brings_the_edited_scene_back");
+
+            play.RequestPlay(PlayTarget::Project);
+            frame();
+            report.Check(!play.IsPlaying() && scene.NodeCount() == 2 && PositionX(scene, a) == 0.0f,
+                "edit::play_without_a_start_leaves_the_scene");
+
+            hasStartScene = true;
+            play.RequestPlay(PlayTarget::Project);
+            frame();
+            report.Check(play.IsPlaying() && scene.NodeCount() == 1 && scene.Nodes()[0].name == "level", "edit::project_plays_the_start_scene");
+            editMode.Stop();
+            report.Check(!play.IsPlaying() && scene.NodeCount() == 2 && scene.IndexOf(a) == 0 && scene.Find(a)->name == "a",
+                "edit::stop_now_brings_the_edited_scene_back");
+
+            scripts.Shutdown();
+            physics.Shutdown();
+            fs::remove_all(root, error);
+        }
+
     } // namespace
 
     int RunSelfTests()
@@ -130,6 +257,7 @@ line]] .. [==[a]]b]==])",
         RunHighlighterTests(report);
         RunCodeIndentTests(report);
         RunErrorLocationTests(report);
+        RunEditModeTests(report);
         std::cout << "\nEditor self tests: " << report.passed << " passed, " << report.failed << " failed" << std::endl;
         return report.failed;
     }

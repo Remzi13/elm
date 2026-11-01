@@ -1,5 +1,6 @@
 #include "editor/script/ScriptStatusBar.hpp"
 
+#include "script/ScriptSystem.hpp"
 #include "script/entity/EntityScripts.hpp"
 #include "script/lua/State.hpp"
 #include "script/module/MainModule.hpp"
@@ -72,9 +73,9 @@ namespace elm::script {
 
     void ScriptStatusBar::DrawButtons()
     {
-        bool hotReload = m_settings.Get<bool>(Settings::Category::Script, HotReload::EnabledSetting, true);
+        bool hotReload = m_settings.Get<bool>(Settings::Category::Script, ScriptSystem::HotReloadSetting, true);
         if (ImGui::Checkbox("Hot reload", &hotReload))
-            m_settings.Set(Settings::Category::Script, HotReload::EnabledSetting, hotReload);
+            m_settings.Set(Settings::Category::Script, ScriptSystem::HotReloadSetting, hotReload);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("Reload a module as soon as its file is saved");
         ImGui::SameLine();

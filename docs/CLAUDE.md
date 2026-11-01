@@ -69,7 +69,7 @@ elm — 3D-движок с редактором на C++23: собственны
 | `CollisionEvent` | начало и конец контакта за шаг физики | `PhysicsSystem` |
 | `RayHit`, `RayQuery`, `PhysicsFrameLog` | попадание луча; вызов `CastRay` и его итог; журнал кадра `PhysicsSystem::FrameLog` (лучи и начавшиеся контакты всех шагов) (`Scene/PhysicsComponents.hpp`) | `PhysicsSystem` |
 | `SceneAsset`, `SceneAsset::Node` | сцена из файла до `Scene::Append`: узлы без id, родитель — индекс в ассете. Компоненты и ссылки на узлы — по `SceneAsset::NodeRef(index)`, модель в `ModelComponent` — `SceneAsset::ModelRef(index)` | вызывающий |
-| `SceneSnapshot` | снимок сцены и моделей: Play делает его, Stop восстанавливает | `PlayMode` |
+| `SceneSnapshot` | снимок сцены и моделей: редактор делает его перед Play и возвращает после Stop | `EditMode` |
 | `ScenePreset`, `TestScenes` | генераторы тестовых сцен | — |
 
 **Модели и редактор** (`src/graphics`, `elm::graphics` и `elm`)

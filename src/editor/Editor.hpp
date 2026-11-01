@@ -8,6 +8,7 @@
 #include "graphics/CameraController.hpp"
 #include "graphics/debug/DebugDrawSystem.hpp"
 
+#include "editor/EditMode.hpp"
 #include "editor/ui/ImGuiSystem.hpp"
 
 #include "project/Project.hpp"
@@ -103,6 +104,8 @@ namespace elm {
 		graphics::DebugDrawSystem m_debugDraw;
 		/// The fly camera of the engine view in Edit; off in Play, where the camera is the game's.
 		CameraController m_cameraController;
+		/// Edit and Play around the engine's PlayMode: the snapshot of the edited scene.
+		EditMode m_editMode;
 		UniquePtr<ImGuiSystem> m_imgui;
 		/// Owned by m_imgui: an editor window, it outlives projects.
 		editor::ProjectHubWindow* m_hub { nullptr };

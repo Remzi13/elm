@@ -1,6 +1,8 @@
 engine_add_library(editor
     Editor.hpp
     Editor.cpp
+    EditMode.hpp
+    EditMode.cpp
     EditorSelfTest.hpp
     EditorSelfTest.cpp
     ProjectWindow.hpp

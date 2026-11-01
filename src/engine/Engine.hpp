@@ -83,8 +83,8 @@ namespace elm {
 		/// The frame's time step (capped against the physics spiral of death), the input of the window,
 		/// the start of the physics frame log.
 		[[nodiscard]] float BeginFrame();
-		/// Play/Stop requests, the fixed physics steps, the scripts and culling from the camera as it is now
-		/// (the program moves its own camera before).
+		/// The fixed physics steps, the scripts and culling from the camera as it is now. Play/Stop requests
+		/// wait for the program (PlayMode::GetRequest, ApplyRequest), which also moves its own camera before.
 		void Simulate(float deltaTime);
 		/// Blocks only while the render thread is two frames behind; invalid once rendering is stopped.
 		[[nodiscard]] render::FrameWriter BeginRenderFrame();

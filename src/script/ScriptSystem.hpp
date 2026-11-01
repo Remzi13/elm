@@ -36,6 +36,8 @@ namespace elm::script {
     class ScriptSystem {
     public:
         static constexpr StringView EnabledSetting = "Enabled";
+        /// Reloads changed module files every update (HotReload). The game turns it off unless its .settings has it.
+        static constexpr StringView HotReloadSetting = "HotReload";
 
         ScriptSystem();
         ~ScriptSystem();
