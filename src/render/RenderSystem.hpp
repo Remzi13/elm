@@ -23,8 +23,6 @@ namespace elm::render {
     /// Result of one rendered frame, reported back to the update side.
     struct RenderedFrameInfo {
         uint64_t frameIndex { 0 };
-        /// Secondary UI surfaces destroyed while executing this frame.
-        uint64_t releasedSurfaceCount { 0 };
     };
 
     /// Render thread statistics of the last drawn frame, readable from any thread.
@@ -62,6 +60,8 @@ namespace elm::render {
 
         // --- Any thread ---
         [[nodiscard]] RenderResources& Resources() noexcept { return m_resources; }
+        /// Secondary UI surfaces the render thread destroyed so far: the UI frees their windows only then.
+        [[nodiscard]] uint64_t GetReleasedSurfaceCount() const noexcept { return m_releasedSurfaces.load(std::memory_order_acquire); }
 
         // --- Update thread ---
         /// Blocks while the render thread is two frames behind. Returns an invalid writer after StopRendering().
@@ -92,6 +92,7 @@ namespace elm::render {
         RenderResources m_resources;
         FrameRing m_frames;
         std::atomic<uint64_t> m_submittedFrames { 0 };
+        std::atomic<uint64_t> m_releasedSurfaces { 0 };
 
         UniquePtr<rhi::IRenderBackend> m_backend;
         RenderPipeline m_pipeline;

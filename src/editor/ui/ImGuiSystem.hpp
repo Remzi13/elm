@@ -48,8 +48,6 @@ namespace elm {
 		// Main thread: runs UI logic and captures viewport events and draw data into frame.
 		// Windows may add their own scene views (previews) to the frame.
 		void BuildFrame(const ImGuiWindowContext& context);
-		// Render thread: reports viewport surfaces released by the render graph
-		void NotifyViewportSurfacesReleased(uint64_t count);
 		void Shutdown();
 
 		// Scene viewport state of the last built frame: camera input goes to the scene only while it is active
@@ -148,8 +146,9 @@ namespace elm {
 		void (*m_platformDestroyWindow)(ImGuiViewport*) { nullptr };
 		bool m_destroyPlatformWindowsImmediately{ false };
 
-		// --- Shared: number of Destroy events applied by the render thread ---
-		std::atomic<uint64_t> m_releasedViewportCount{ 0 };
+		/// Counts the Destroy events the render thread applied (GetReleasedSurfaceCount), from this baseline.
+		const render::RenderSystem* m_renderSystem{ nullptr };
+		uint64_t m_releasedSurfaceBaseline{ 0 };
 	};
 
 } // namespace Engine

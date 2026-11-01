@@ -1,5 +1,4 @@
 engine_add_library(engine
-    IEngineLayer.hpp
     Engine.hpp
     Engine.cpp
 )
@@ -14,11 +13,9 @@ target_link_libraries(engine PUBLIC core math input render platform Scene graphi
 # elm: the game alone, without the editor and ImGui; a built game is a copy of it
 engine_add_executable(elm
     main.cpp
-    PlayerLayer.hpp
-    PlayerLayer.cpp
 )
 target_link_libraries(elm PRIVATE core platform project engine)
-# PlayerLayer is the program's own, so the option reaches elm only
+# The program's own code, so the option reaches elm only
 if(ELM_DEBUG_DRAW)
     target_compile_definitions(elm PRIVATE ELM_DEBUG_DRAW=1)
 endif()

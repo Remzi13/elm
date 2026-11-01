@@ -110,13 +110,15 @@ namespace elm {
 		ApplyEditorStyle();
 
 		// Register standard engine editor windows
-		// Scene Hierarchy, Model Editor and the script windows belong to the project: EditorLayer adds them
+		// Scene Hierarchy, Model Editor and the script windows belong to the project: Editor adds them
 		EmplaceWindow<SocLabWindow>( settings, cullingSystem );
 		EmplaceWindow<EngineViewportWindow>( settings );
 		EmplaceWindow<LogWindow>( settings );
 		EmplaceWindow<ProfilerWindow>( settings );
 		EmplaceWindow<SettingsWindow>( settings );
 
+		m_renderSystem = &renderSystem;
+		m_releasedSurfaceBaseline = renderSystem.GetReleasedSurfaceCount();
 		m_renderer = MakeUnique<render::ImGuiRenderer>( renderSystem.Resources() );
 		if ( !m_renderer->IsInitialized() ) {
 			m_renderer.reset();
@@ -356,7 +358,7 @@ namespace elm {
 	// --- Main thread ---
 
 	void ImGuiSystem::DestroyReleasedPlatformWindows( bool all ) {
-		const uint64_t released = m_releasedViewportCount.load( std::memory_order_acquire );
+		const uint64_t released = m_renderSystem ? m_renderSystem->GetReleasedSurfaceCount() - m_releasedSurfaceBaseline : 0;
 		size_t count = 0;
 		for ( const auto& pending : m_pendingPlatformWindows ) {
 			if ( !all && pending.releaseSequence > released ) break;
@@ -492,12 +494,6 @@ namespace elm {
 	}
 
 	// --- Render thread ---
-
-	void ImGuiSystem::NotifyViewportSurfacesReleased( uint64_t count ) {
-		if ( !m_initialized ) return;
-		const uint64_t releasedViewportCount = count;
-		m_releasedViewportCount.fetch_add( releasedViewportCount, std::memory_order_release );
-	}
 
 	// --- Main thread, render thread must be stopped ---
 

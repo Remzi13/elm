@@ -141,9 +141,9 @@ physics    → Scene           Jolt PRIVATE
 graphics   → render, platform, resmgr   без ImGui
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-engine     → Scene, physics, script, graphics, project, resmgr, input   Engine, PlayerLayer
-editor     → graphics, project, engine, script (+ ImGui, GLFW)   EditorLayer и весь UI редактора
-программы  elm — engine/main.cpp (engine + PlayerLayer), elm_editor — editor/main.cpp (engine + editor)
+engine     → Scene, physics, script, graphics, project, resmgr, input   Engine: системы и шаги кадра, без цикла
+editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (владеет Engine) и весь UI
+программы  elm — engine/main.cpp (свой цикл над Engine), elm_editor — editor/main.cpp (Editor)
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл

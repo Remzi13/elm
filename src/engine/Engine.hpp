@@ -29,23 +29,34 @@
 
 namespace elm {
 
-	class IEngineLayer;
 	struct ModelComponent;
 
 	namespace graphics {
-		class DebugDrawSystem;
+		class DebugDraw;
 	}
 
-	/// The main window the engine opens.
+	/// What the engine is started with.
 	struct EngineDesc {
 		uint32_t width { 1280 };
 		uint32_t height { 720 };
 		StringView title { "Elm" };
+		/// What the scripts' elm.debug draws into, owned by the program for as long as the engine runs.
+		/// Null: elm.debug draws nothing (a game built without ELM_DEBUG_DRAW).
+		graphics::DebugDraw* debugDraw { nullptr };
 	};
 
-	/// The engine: the systems of a running game, the open project and the frame loop. What the program
-	/// adds on top (the editor, or the game view of the player) is its IEngineLayer.
-	/// Owner: main. Thread: update (the main thread); the render thread is its own.
+	/// The engine: the systems of a running game (window and rendering, physics, input, scripts, scene,
+	/// models, culling, Play) and the open project. It has no loop of its own and calls nobody back: the
+	/// program (elm, elm_editor) runs the frame with its steps and adds what it needs between them.
+	///
+	///     const float deltaTime = engine.BeginFrame();
+	///     engine.Simulate(deltaTime);
+	///     render::FrameWriter frame = engine.BeginRenderFrame();   // the program writes its overlay
+	///     engine.DrawScene(frame);                                 // then its debug primitives
+	///     engine.SubmitFrame(frame);
+	///
+	/// After Shutdown it can be initialized again. Owner: the program. Thread: update (the main thread);
+	/// the render thread is the engine's own, between Init and StopRendering.
 	class Engine {
 	public:
 		Engine();
@@ -56,27 +67,47 @@ namespace elm {
 		Engine(Engine&&) noexcept = delete;
 		Engine& operator=(Engine&&) noexcept = delete;
 
-		/// The layer is kept until Shutdown and must outlive it.
-		[[nodiscard]] auto Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<void>;
-
-		[[nodiscard]] auto Run() -> EngineResult<void>;
+		/// Reads .settings (the program registers its own settings in GetSettings() before), opens the window,
+		/// starts rendering and its thread, physics and culling.
+		[[nodiscard]] auto Init(const EngineDesc& desc) -> EngineResult<void>;
+		/// Stops the render thread; the program then frees what it rendered with (UI) before Shutdown.
+		void StopRendering();
+		/// Ends the scripts and every system. Calls StopRendering if the program did not.
 		void Shutdown();
+		[[nodiscard]] bool IsRunning() const noexcept { return m_isRunning; }
+		/// The window was asked to close.
+		[[nodiscard]] bool ShouldClose() const;
 
-		void LoadTestScene(ScenePreset preset, uint32_t instanceCount = 1500);
+		// --- The frame, in this order ---
 
-		/// Opens a project from its folder or its .elmproject file (a relative path starts at the engine root):
-		/// its scripts start. The new project is read first: when it cannot be read the open one stays,
-		/// otherwise the open one is closed (Play stops, its scripts end, the scene is cleared).
-		[[nodiscard]] auto OpenProject(const Path& folderOrFile) -> EngineResult<void>;
+		/// The frame's time step (capped against the physics spiral of death), the input of the window,
+		/// the start of the physics frame log.
+		[[nodiscard]] float BeginFrame();
+		/// Play/Stop requests, the fixed physics steps, the scripts, the camera and culling.
+		void Simulate(float deltaTime);
+		/// Blocks only while the render thread is two frames behind; invalid once rendering is stopped.
+		[[nodiscard]] render::FrameWriter BeginRenderFrame();
+		/// The engine view: the shown models culling did not reject. It stays the current scene view of
+		/// frame, so the program's debug primitives go into it.
+		void DrawScene(render::FrameWriter& frame);
+		/// Hands the frame to the render thread.
+		void SubmitFrame(render::FrameWriter& frame);
+
+		// --- The project ---
+
+		/// The project of a project folder or its .elmproject file; a relative path starts at the engine root.
+		[[nodiscard]] static auto ReadProject(const Path& folderOrFile) -> EngineResult<project::Project>;
+		/// Makes the project the open one: its scripts start. Precondition: no project is open (CloseProject).
+		void OpenProject(project::Project project);
+		/// Stops Play, ends the scripts, clears the scene, models and bodies. Nothing when no project is open.
+		void CloseProject();
 		/// The open project; null until one is opened.
 		[[nodiscard]] const project::Project* OpenedProject() const;
 		/// The open project's entry in memory, what the next Play starts with; the file is the caller's.
 		void SetProjectEntry(project::ProjectEntry entry);
 		/// The startup scene of the open project from its file. Precondition: the entry has a startup scene.
 		[[nodiscard]] auto LoadStartupScene() const -> EngineResult<SceneAsset>;
-
-		/// The frame loop ends after this frame.
-		void RequestQuit() noexcept { m_quitRequested = true; }
+		void LoadTestScene(ScenePreset preset, uint32_t instanceCount = 1500);
 
 		[[nodiscard]] Settings& GetSettings() noexcept { return m_settings; }
 		[[nodiscard]] platform::Window& GetWindow() noexcept { return m_window; }
@@ -95,19 +126,12 @@ namespace elm {
 	private:
 		void FixedUpdate(float fixedDeltaTime);
 		void Update(float deltaTime);
-		void SubmitFrame(render::FrameWriter& frame);
 		/// Draws the shown models of the scene that culling did not reject.
 		void SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame);
 
 		/// Render thread entry point: draws submitted frames until rendering is stopped.
 		void RenderThreadFunc();
 
-		/// The Play requests the scripts get: Stop goes to the layer.
-		[[nodiscard]] script::PlayRequests MakePlayRequests();
-		/// Stops Play, ends the scripts, closes the project windows, clears the scene, models and bodies.
-		void CloseProject();
-		/// Makes the project the open one: its scripts start, the layer opens it.
-		void StartProject(project::Project project);
 		/// How Play starts for PlayMode: the startup scene for Play Project, the project's main module.
 		/// Nothing when the startup scene cannot be read: the Play does not begin.
 		[[nodiscard]] std::optional<script::PlayStart> MakePlayStart(script::PlayTarget target) const;
@@ -129,13 +153,15 @@ namespace elm {
 		script::PlayMode m_playMode;
 		/// The open project; none until one is opened.
 		std::optional<project::Project> m_project;
-		/// The editor or the player; set by Init.
-		IEngineLayer* m_layer { nullptr };
+		/// The program's, given to the scripts; null when they draw nothing.
+		graphics::DebugDraw* m_scriptDebugDraw { nullptr };
 
 		bool m_isRunning{ false };
-		/// Asked to stop: the program ends after this frame.
-		bool m_quitRequested{ false };
 		float m_fixedTimeStep{ 1.0f / 60.0f }; // 60 Hz physics step
+		/// Time not yet stepped by physics.
+		float m_physicsAccumulator{ 0.0f };
+		/// core::getTimeStamp() of the last BeginFrame.
+		uint64_t m_lastFrameTime{ 0 };
 
 		// FPS counter statistics
 		float m_frameCounterTime{ 0.0f };
@@ -143,10 +169,6 @@ namespace elm {
 		FrameStats m_currentStats;
 
 		OcclusionCullingSystem m_cullingSystem;
-
-		/// Debug primitives of the engine view, collected during the frame and copied into it; the layer's,
-		/// null when it has none.
-		graphics::DebugDrawSystem* m_debugDraw { nullptr };
 
 		// Update and render run in parallel: the update thread builds frame N+1 while the render
 		// thread draws frame N; RenderSystem's frame ring hands snapshots over (see render/frame/FrameRing.hpp).

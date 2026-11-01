@@ -8,7 +8,7 @@
 namespace elm {
 
 /// The open project as the Project menu shows it, and how the menu asks the engine to open one.
-/// Given by EditorLayer on every project switch.
+/// Given by Editor on every project switch.
 struct ProjectMenuDesc {
     String name;
     /// The project file: opening it again reloads the project.

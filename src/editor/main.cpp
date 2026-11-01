@@ -8,7 +8,7 @@
 
 #include "engine/Engine.hpp"
 
-#include "editor/EditorLayer.hpp"
+#include "editor/Editor.hpp"
 #include "editor/EditorSelfTest.hpp"
 
 #include "project/Project.hpp"
@@ -25,7 +25,6 @@
 
 namespace {
 
-    constexpr elm::EngineDesc MainWindow { 1280, 720, "C++23 3D Engine - Direct3D 12 & Jolt Physics" };
     constexpr const char* DefaultScriptApiFile = "projects/Sandbox/assets/scripts/.meta/elm.lua";
 
     /// Resolves the asset root from the settings file without starting the engine.
@@ -66,7 +65,7 @@ namespace {
     {
         using namespace elm;
         const auto project = resmgr::Serializer::LoadProject(project::Project::FindFile(FileSystem::Resolve(folderOrFile)));
-        const auto executable = EditorLayer::FindPlayerExecutable();
+        const auto executable = Editor::FindPlayerExecutable();
         if (!project || !executable) {
             std::cerr << (project ? executable.error().message : project.error().message) << std::endl;
             return 1;
@@ -111,32 +110,18 @@ namespace {
         return static_cast<int>(error.code);
     }
 
-    /// The frame loop, then Shutdown: it runs while the layer is still alive.
-    int RunAndShutdown(elm::Engine& engine)
-    {
-        const auto runResult = engine.Run();
-        engine.Shutdown();
-        if (!runResult)
-            return ReportFatal("Engine runtime failure", runResult.error());
-        LOG_MESSAGE( elm::log::Category::Core, "Main", "Application terminated gracefully." );
-        return 0;
-    }
-
     /// The editor with the --project argument, otherwise the project opened last time, otherwise the Project Hub.
     int RunEditor(const std::optional<elm::Path>& projectArgument, int argc, char** argv)
     {
         using namespace elm;
-        Engine engine;
-        EditorLayer editor(engine);
-        if (const auto init = engine.Init(MainWindow, editor); !init)
-            return ReportFatal("Failed to initialize engine", init.error());
+        Editor editor;
+        if (const auto init = editor.Init(); !init)
+            return ReportFatal("Failed to initialize the editor", init.error());
 
         const Path projectPath = projectArgument ? *projectArgument : editor.LastProject();
-        const auto opened = projectPath.Empty() ? EngineResult<void> { } : engine.OpenProject(projectPath);
-        if (!opened && projectArgument) {
-            engine.Shutdown();
+        const auto opened = projectPath.Empty() ? EngineResult<void> { } : editor.OpenProject(projectPath);
+        if (!opened && projectArgument)
             return ReportFatal("Failed to open the project", opened.error());
-        }
         if (!opened) {
             WARNING_MESSAGE(log::Category::Core, "Main", "Failed to open last project \"%s\": %s",
                 projectPath.string().c_str(), opened.error().message.c_str());
@@ -145,8 +130,11 @@ namespace {
         if (projectPath.Empty() || !opened)
             editor.ShowProjectHub();
 
-        LoadTestSceneArgument(engine, argc, argv);
-        return RunAndShutdown(engine);
+        LoadTestSceneArgument(editor.GetEngine(), argc, argv);
+        editor.Run();
+        editor.Shutdown();
+        LOG_MESSAGE( log::Category::Core, "Main", "Application terminated gracefully." );
+        return 0;
     }
 
 } // namespace

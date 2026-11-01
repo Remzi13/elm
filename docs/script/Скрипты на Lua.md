@@ -221,7 +221,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 `/`-команды консоли. Каждая панель работает только со своими частями модуля: `ScriptStatusBar` (панель сверху),
 `ConsolePanel` (`ScriptConsole`), `ScriptEditor`, `ModulesPanel` (`ModuleLoader`, `HotReload`), `ApiPanel` (`lua::State`).
 Окна создаёт `script::CreateEditorWindows(scripts, settings)` (`editor/script/ScriptEditorWindows.*`),
-`EditorLayer` только добавляет их в `ImGuiSystem`. Окна на ImGui лежат в модуле `editor`: у движка без
+`Editor` только добавляет их в `ImGuiSystem`. Окна на ImGui лежат в модуле `editor`: у движка без
 редактора ImGui нет. Части `ScriptSystem` окну отдаёт
 `EditorWindowsAccess` (друг `ScriptSystem`, как `SelfTestAccess` у тестов). Текстовая логика окна без
 ImGui — `CodeIndent`, `LuaHighlighter`, `ErrorLocation` (`FindErrorLocation`: файл и строка из сообщения

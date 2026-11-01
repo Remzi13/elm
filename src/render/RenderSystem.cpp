@@ -112,7 +112,7 @@ void RenderSystem::ExecuteFrame(FrameSnapshot& frame, RenderedFrameInfo& info)
         m_backend->ExecuteResourceCommands(frame.resourceCommands);
     }
     m_backend->ResizeSurface(MainSurface, frame.backbufferSize.width, frame.backbufferSize.height);
-    info.releasedSurfaceCount = ApplySurfaceEvents(frame.overlay);
+    m_releasedSurfaces.fetch_add(ApplySurfaceEvents(frame.overlay), std::memory_order_release);
 
     {
         // Equal meshes become neighbours, so passes can draw each run with one instanced call

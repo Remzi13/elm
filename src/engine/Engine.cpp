@@ -1,9 +1,5 @@
 #include "engine/Engine.hpp"
 
-#include "engine/IEngineLayer.hpp"
-
-#include "graphics/debug/DebugDrawSystem.hpp"
-
 #include "core/Timer.hpp"
 #include "core/Profiling.hpp"
 #include "core/Log.hpp"
@@ -16,6 +12,7 @@
 
 #include "resmgr/Serializer.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <utility>
 
@@ -24,17 +21,8 @@ namespace elm {
 namespace {
 
     constexpr const char* LogSource = "Engine";
-
-    /// The project of a project folder or a .elmproject file; a relative path starts at the engine root.
-    auto LoadProject(const Path& folderOrFile) -> EngineResult<project::Project>
-    {
-        const Path file = project::Project::FindFile(FileSystem::Resolve(folderOrFile));
-        auto loaded = resmgr::Serializer::LoadProject(file);
-        if (loaded && StringView(loaded->Name()) != StringView(file.Stem().string()))
-            WARNING_MESSAGE(log::Category::Core, LogSource, "Project \"%s\" is in %s: the name and the file should match",
-                loaded->Name().c_str(), file.Filename().string().c_str());
-        return loaded;
-    }
+    /// Longer frames are cut to this: physics does not spiral into ever more steps.
+    constexpr float MaxFrameSeconds = 0.25f;
 
 } // namespace
 
@@ -54,14 +42,13 @@ Engine::~Engine()
     Shutdown();
 }
 
-auto Engine::Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<void>
+auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
 {
     LOG_MESSAGE( log::Category::Core, LogSource, "Initializing 3D Engine Core (C++23)..." );
 
-    m_layer = &layer;
+    m_scriptDebugDraw = desc.debugDraw;
     FileSystem::RegisterSettings(m_settings);
     log::registerSettings(m_settings);
-    m_layer->RegisterSettings(m_settings);
     m_cullingSystem.RegisterSettings(m_settings);
     script::ScriptSystem::RegisterSettings(m_settings);
     script::PlayMode::RegisterSettings(m_settings);
@@ -70,11 +57,11 @@ auto Engine::Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<v
         return MakeUnexpected(loadedSettings.error());
     FileSystem::ApplySettings(m_settings, settingsPath.Parent());
     log::applySettings(m_settings, settingsPath.Parent());
-    m_debugDraw = m_layer->GetDebugDraw();
 
     m_camera.SetAspect(static_cast<float>(desc.width) / static_cast<float>(desc.height));
     // Initialize the render backend and its command queue first.
     core::registerThread(core::ThreadRole::Update);
+    ELM_PROFILE_THREAD("Main Thread");
     core::JobSystem::Get().Init();
     if (auto windowInit = m_window.Create(Size(desc.width, desc.height), desc.title); !windowInit) {
         return MakeUnexpected(windowInit.error());
@@ -88,12 +75,6 @@ auto Engine::Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<v
     m_engineViewPort = render::ViewPort(m_renderSystem->Resources(), Size(desc.width, desc.height));
     m_inputSystem->AttachWindow(m_window.GetHandle());
     m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
-
-    if (auto layerInit = m_layer->Init(); !layerInit) {
-        m_engineViewPort = {};
-        m_renderSystem->Shutdown();
-        return MakeUnexpected(layerInit.error());
-    }
 
     // Register UI input consumer for keyboard focus (e.g. typing in text fields)
     //m_inputSystem->AddListener([](InputEvent& event) -> bool {
@@ -119,7 +100,6 @@ auto Engine::Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<v
     // Initialize Physics System
     auto physicsInit = m_physicsSystem->Init();
     if (!physicsInit) {
-        m_layer->Shutdown();
         m_engineViewPort = {};
         m_renderSystem->Shutdown();
         return MakeUnexpected(physicsInit.error());
@@ -131,7 +111,10 @@ auto Engine::Init(const EngineDesc& desc, IEngineLayer& layer) -> EngineResult<v
     m_playMode.SetStartSource([this](script::PlayTarget target) { return MakePlayStart(target); });
 
     m_isRunning = true;
-    
+    m_physicsAccumulator = 0.0f;
+    m_lastFrameTime = core::getTimeStamp();
+    m_renderThread = std::thread(&Engine::RenderThreadFunc, this);
+
     LOG_MESSAGE( log::Category::Core, LogSource, "Engine initialization completed successfully." );
     
     return { };
@@ -147,96 +130,54 @@ void Engine::RenderThreadFunc()
     core::registerThread(core::ThreadRole::Render);
 
     render::RenderedFrameInfo info;
-    while (m_renderSystem->RenderNextFrame(info))
-        m_layer->OnFrameRendered(info);
+    while (m_renderSystem->RenderNextFrame(info)) {
+    }
 
     core::unregisterThread(core::ThreadRole::Render);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main loop — runs on the main thread (required for GLFW event polling).
-// ─────────────────────────────────────────────────────────────────────────────
-auto Engine::Run() -> EngineResult<void>
+bool Engine::ShouldClose() const
 {
-    if (!m_isRunning) {
-        return MakeUnexpected(ErrorCode::UnknownError,
-            "Engine::Run called without prior successful initialization", log::Category::Core, LogSource);
+    return m_window.ShouldClose();
+}
+
+float Engine::BeginFrame()
+{
+    ELM_PROFILE_FRAME();
+    const uint64_t now = core::getTimeStamp();
+    const float deltaTime = std::min(static_cast<float>(core::getMilliseconds(m_lastFrameTime, now)) / 1000.f, MaxFrameSeconds);
+    m_lastFrameTime = now;
+    m_physicsSystem->ClearFrameLog();
+    {
+        // GLFW events belong to the main thread
+        ELM_PROFILE_SCOPE_N("Process Input");
+        m_inputSystem->BeginFrame();
     }
+    return deltaTime;
+}
 
-    LOG_MESSAGE( log::Category::Core, LogSource, "Entering main loop with pipelined Update/Render." );
-    
-    ELM_PROFILE_THREAD("Main Thread");
-
-    // Start the render thread
-    m_renderThread = std::thread(&Engine::RenderThreadFunc, this);
-
-    auto lastTime = core::getTimeStamp();
-    float accumulator = 0.0f;
-
-    while (m_isRunning && !m_quitRequested && !m_window.ShouldClose()) {
-        ELM_PROFILE_FRAME();
-        ELM_PROFILE_SCOPE_N("Main Thread Loop");
-
-        auto currentTime = core::getTimeStamp();
-        float deltaTime = static_cast<float>(core::getMilliseconds(lastTime, currentTime)) / 1000.f;
-        lastTime = currentTime;
-
-        // Cap maximum deltaTime to prevent physics spiral of death
-        if (deltaTime > 0.25f) {
-            deltaTime = 0.25f;
-        }
-
-        accumulator += deltaTime;
-
-        // Before anything of this frame draws debug primitives, physics steps included
-        if (m_debugDraw)
-            m_debugDraw->BeginFrame(deltaTime);
-        m_physicsSystem->ClearFrameLog();
-
-        // ── 1. Process input (must be on main thread for GLFW) ────────
-        {
-            ELM_PROFILE_SCOPE_N("Process Input");
-            m_inputSystem->BeginFrame();
-        }
-
-        // ── 2. Fixed Timestep Physics Update ──────────────────────────
-        while (accumulator >= m_fixedTimeStep) {
-            FixedUpdate(m_fixedTimeStep);
-            accumulator -= m_fixedTimeStep;
-        }
-
-        // ── 3. Variable-rate game logic update ────────────────────────
-        Update(deltaTime);
-
-        // Update depth preview texture on the main thread
-        {
-            ELM_PROFILE_SCOPE_N("Update Depth Preview Texture");
-            m_cullingSystem.UpdateDepthPreviewTexture(m_settings);
-        }
-
-        // ── 4. Build and submit the frame snapshot ────────────────────
-        // Blocks only when the render thread is two frames behind
-        auto frame = m_renderSystem->BeginFrame();
-        if (!frame)
-            break;
-
-        {
-            // UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
-            ELM_PROFILE_SCOPE_N("Build Overlay");
-            m_layer->BuildOverlay(frame);
-        }
-        SubmitFrame(frame);
-        log::flushFile();
+void Engine::Simulate(float deltaTime)
+{
+    m_physicsAccumulator += deltaTime;
+    while (m_physicsAccumulator >= m_fixedTimeStep) {
+        FixedUpdate(m_fixedTimeStep);
+        m_physicsAccumulator -= m_fixedTimeStep;
     }
+    Update(deltaTime);
+    ELM_PROFILE_SCOPE_N("Update Depth Preview Texture");
+    m_cullingSystem.UpdateDepthPreviewTexture(m_settings);
+}
 
-    // ── Signal render thread to exit ──────────────────────────────────────
+render::FrameWriter Engine::BeginRenderFrame()
+{
+    return m_renderSystem->BeginFrame();
+}
+
+void Engine::StopRendering()
+{
     m_renderSystem->StopRendering();
-    if (m_renderThread.joinable()) {
+    if (m_renderThread.joinable())
         m_renderThread.join();
-    }
-
-    std::cout << "[Engine] Main loop exited." << std::endl;
-    return { };
 }
 
 void Engine::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
@@ -244,15 +185,14 @@ void Engine::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
     TestScenes::BuildScene(preset, instanceCount, m_scene, m_models);
 }
 
-auto Engine::OpenProject(const Path& folderOrFile) -> EngineResult<void>
+auto Engine::ReadProject(const Path& folderOrFile) -> EngineResult<project::Project>
 {
-    auto project = LoadProject(folderOrFile);
-    if (!project)
-        return MakeUnexpected(project.error());
-    if (m_project)
-        CloseProject();
-    StartProject(std::move(*project));
-    return { };
+    const Path file = project::Project::FindFile(FileSystem::Resolve(folderOrFile));
+    auto loaded = resmgr::Serializer::LoadProject(file);
+    if (loaded && StringView(loaded->Name()) != StringView(file.Stem().string()))
+        WARNING_MESSAGE(log::Category::Core, LogSource, "Project \"%s\" is in %s: the name and the file should match",
+            loaded->Name().c_str(), file.Filename().string().c_str());
+    return loaded;
 }
 
 const project::Project* Engine::OpenedProject() const
@@ -266,21 +206,14 @@ void Engine::SetProjectEntry(project::ProjectEntry entry)
     m_project->SetEntry(std::move(entry));
 }
 
-script::PlayRequests Engine::MakePlayRequests()
-{
-    script::PlayRequests requests = m_playMode.Requests();
-    // The editor goes back to Edit, the player has no Edit mode to go back to
-    requests.stop = [this] { m_layer->RequestStop(); };
-    return requests;
-}
-
 void Engine::CloseProject()
 {
+    if (!m_project)
+        return;
     if (m_playMode.IsPlaying())
         m_playMode.Stop();
     // on_shutdown still sees the scene
     m_scriptSystem->Shutdown();
-    m_layer->OnProjectClosed();
     m_physicsSystem->Clear();
     m_scene.Clear();
     m_models.Clear();
@@ -288,16 +221,16 @@ void Engine::CloseProject()
     m_project.reset();
 }
 
-void Engine::StartProject(project::Project project)
+void Engine::OpenProject(project::Project project)
 {
+    ELM_ASSERT(!m_project && "the open project is closed first (CloseProject)");
     m_project = std::move(project);
 
     const script::EngineContext scriptEngine { &m_scene, &m_models, m_inputSystem.get(), &m_camera, &m_settings, m_physicsSystem.get(),
-        MakePlayRequests(), m_debugDraw ? &m_debugDraw->GetDebugDraw() : nullptr, &*m_project };
+        m_playMode.Requests(), m_scriptDebugDraw, &*m_project };
     // In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
     if (auto scriptInit = m_scriptSystem->Init(scriptEngine, m_project->Scripts()); !scriptInit)
         ERROR_MESSAGE(log::Category::Script, LogSource, "%s", scriptInit.error().message.c_str());
-    m_layer->OnProjectOpened(*m_project);
     LOG_MESSAGE(log::Category::Core, LogSource, "Project %s opened from %s", m_project->Name().c_str(),
         m_project->File().string().c_str());
 }
@@ -324,7 +257,7 @@ std::optional<script::PlayStart> Engine::MakePlayStart(script::PlayTarget target
     return start;
 }
 
-void Engine::SubmitFrame(render::FrameWriter& frame)
+void Engine::DrawScene(render::FrameWriter& frame)
 {
     ELM_PROFILE_SCOPE_N("Build Frame Snapshot");
 
@@ -338,10 +271,12 @@ void Engine::SubmitFrame(render::FrameWriter& frame)
     if (const auto* drawn = m_scene.FindComponents<ModelComponent>())
         SubmitModels(*drawn, frame);
 
-    if (m_debugDraw)
-        m_debugDraw->EndFrame(frame);
+}
 
+void Engine::SubmitFrame(render::FrameWriter& frame)
+{
     m_renderSystem->SubmitFrame(frame);
+    log::flushFile();
 }
 
 void Engine::SubmitModels(const ComponentStore<ModelComponent>& drawn, render::FrameWriter& frame)
@@ -402,9 +337,6 @@ void Engine::Update(float deltaTime)
         m_frameCounterTime = 0.0f;
     }
 
-    // Before Play/Stop: a project switch of the editor stops Play itself
-    m_layer->Update();
-
     m_inputSystem->Update();
 
     // Play/Stop asked for by scripts and windows since the last update
@@ -433,10 +365,7 @@ void Engine::Shutdown()
     std::cout << "[Engine] Shutting down systems..." << std::endl;
 
     // Ensure the render thread is stopped before destroying resources
-    m_renderSystem->StopRendering();
-    if (m_renderThread.joinable()) {
-        m_renderThread.join();
-    }
+    StopRendering();
 
     // Scripts go first: they may still talk to the other systems in on_shutdown
     m_scriptSystem->Shutdown();
@@ -445,7 +374,7 @@ void Engine::Shutdown()
         m_physicsSystem->Shutdown();
     }
 
-    m_layer->Shutdown();
+    m_project.reset();
     m_scene.Clear();
     m_models.Clear();
     m_cullingSystem.Shutdown();

@@ -101,7 +101,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
 | `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
-| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; для вьюпорта движка — у слоя (`IEngineLayer::GetDebugDraw`), в игре без `ELM_DEBUG_DRAW` её нет |
+| `DebugDrawSystem` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; для вьюпорта движка — у программы (`Editor`, `elm` с `ELM_DEBUG_DRAW`), движок получает только `DebugDraw*` для скриптов |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
@@ -133,9 +133,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `InputSystem`, `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия | `input` |
 | `platform::Window` | главное окно GLFW | `platform` |
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
-| `Engine`, `EngineDesc`, `IEngineLayer` | движок и цикл кадра; его главное окно; слой программы поверх движка, который движок зовёт из кадра | `engine` |
-| `PlayerLayer` | слой игры: вид на всё окно, сразу Play Project, Stop завершает программу; визуализаторы по `ELM_DEBUG_DRAW`. Часть программы `elm` | `engine` |
-| `EditorLayer` | слой редактора: окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
+| `Engine`, `EngineDesc` | движок: системы игры и открытый проект; шаги кадра (`BeginFrame`, `Simulate`, `BeginRenderFrame`, `DrawScene`, `SubmitFrame`) вызывает программа, своего цикла и обратных вызовов нет; окно и `DebugDraw*` для скриптов | `engine` |
+| `Editor` | программа-редактор: владеет `Engine` и ведёт его кадр; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
 | `resmgr::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resmgr` |
 | `resmgr::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resmgr` |
 | `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `Engine`, update | `project` |
@@ -173,9 +172,9 @@ physics    → Scene           Jolt PRIVATE
 graphics   → render, platform, resmgr   без ImGui   о project не знает
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-engine     → Scene, physics, script, graphics, project, resmgr, input   Engine, PlayerLayer
-editor     → graphics, project, engine, script (+ ImGui, GLFW)   EditorLayer и весь UI редактора: ui/, script/
-программы  elm — engine/main.cpp (engine + PlayerLayer), elm_editor — editor/main.cpp (engine + editor)
+engine     → Scene, physics, script, graphics, project, resmgr, input   Engine: системы и шаги кадра, без цикла
+editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (владеет Engine) и весь UI: ui/, script/
+программы  elm — engine/main.cpp (свой цикл над Engine), elm_editor — editor/main.cpp (Editor)
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл

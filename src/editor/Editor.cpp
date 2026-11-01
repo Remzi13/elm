@@ -1,9 +1,8 @@
-#include "editor/EditorLayer.hpp"
+#include "editor/Editor.hpp"
 
 #include "core/Log.hpp"
+#include "core/Profiling.hpp"
 #include "core/Unexpected.hpp"
-
-#include "engine/Engine.hpp"
 
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
@@ -30,28 +29,37 @@ namespace elm {
 
 	namespace {
 
-		constexpr const char* LogSource = "EditorLayer";
+		constexpr const char* LogSource = "Editor";
+		constexpr StringView MainWindowTitle = "C++23 3D Engine - Direct3D 12 & Jolt Physics";
+		constexpr uint32_t MainWindowWidth = 1280;
+		constexpr uint32_t MainWindowHeight = 720;
 
 	} // namespace
 
-	EditorLayer::EditorLayer(Engine& engine)
-		: m_engine(engine)
-		, m_settings(engine.GetSettings())
+	Editor::Editor()
+		: m_settings(m_engine.GetSettings())
 		, m_debugDraw(m_settings)
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
 
-	EditorLayer::~EditorLayer() = default;
+	Editor::~Editor()
+	{
+		Shutdown();
+	}
 
-	void EditorLayer::RegisterSettings(Settings& settings)
+	void Editor::RegisterSettings(Settings& settings)
 	{
 		settings.Register(Settings::Category::Core, LastProjectSetting, "Last project", String { });
 		settings.Register(Settings::Category::Core, RecentProjectsSetting, "Recent projects", String { });
 	}
 
-	auto EditorLayer::Init() -> EngineResult<void>
+	auto Editor::Init() -> EngineResult<void>
 	{
+		RegisterSettings(m_settings);
+		const EngineDesc desc { MainWindowWidth, MainWindowHeight, MainWindowTitle, &m_debugDraw.GetDebugDraw() };
+		if (auto engineInit = m_engine.Init(desc); !engineInit)
+			return engineInit;
 		if (auto init = m_imgui->Init(m_engine.GetWindow(), m_engine.GetRenderSystem(), m_settings, "Engine Debug UI", &m_engine.GetCulling()); !init)
 			return init;
 		m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(m_settings, editor::ProjectHubDesc {
@@ -68,16 +76,57 @@ namespace elm {
 		return { };
 	}
 
-	void EditorLayer::Shutdown()
+	void Editor::Run()
 	{
+		while (!m_engine.ShouldClose()) {
+			const float deltaTime = m_engine.BeginFrame();
+			// Before anything of the frame draws, physics steps included
+			m_debugDraw.BeginFrame(deltaTime);
+			// The viewport state comes from the previous UI frame
+			m_engine.GetCameraController().SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
+			// Before Play/Stop: a project switch stops Play itself
+			ApplyProjectRequest();
+			m_engine.Simulate(deltaTime);
+
+			render::FrameWriter frame = m_engine.BeginRenderFrame();
+			if (!frame)
+				return;
+			BuildUi(frame);
+			m_engine.DrawScene(frame);
+			m_debugDraw.EndFrame(frame);
+			m_engine.SubmitFrame(frame);
+		}
+	}
+
+	void Editor::Shutdown()
+	{
+		if (!m_engine.IsRunning())
+			return;
 		// The settings are the editor's: the player only reads them
 		if (auto savedSettings = m_settings.Save(Settings::DefaultFilePath()); !savedSettings)
 			ERROR_MESSAGE(log::Category::Core, LogSource, "%s", savedSettings.error().message.c_str());
+		// The UI's surfaces and textures go before the render system, with its thread stopped
+		m_engine.StopRendering();
 		m_hub = nullptr;
 		m_imgui->Shutdown();
+		m_engine.Shutdown();
 	}
 
-	void EditorLayer::OnProjectOpened(const project::Project& project)
+	auto Editor::OpenProject(const Path& folderOrFile) -> EngineResult<void>
+	{
+		auto project = Engine::ReadProject(folderOrFile);
+		if (!project)
+			return MakeUnexpected(project.error());
+		if (m_engine.OpenedProject()) {
+			CloseProjectWindows();
+			m_engine.CloseProject();
+		}
+		m_engine.OpenProject(std::move(*project));
+		OpenProjectWindows(*m_engine.OpenedProject());
+		return { };
+	}
+
+	void Editor::OpenProjectWindows(const project::Project& project)
 	{
 		const Path openedScene = OpenStartupScene(project);
 		RememberProject(project.File());
@@ -87,13 +136,13 @@ namespace elm {
 			m_hub->SetVisible(false);
 	}
 
-	void EditorLayer::OnProjectClosed()
+	void Editor::CloseProjectWindows()
 	{
 		m_imgui->CloseProjectWindows();
 		UpdateProjectMenu(nullptr);
 	}
 
-	auto EditorLayer::FindPlayerExecutable() -> EngineResult<Path>
+	auto Editor::FindPlayerExecutable() -> EngineResult<Path>
 	{
 		const auto editor = platform::CurrentExecutable();
 		if (!editor)
@@ -106,7 +155,7 @@ namespace elm {
 		return player;
 	}
 
-	void EditorLayer::ShowProjectHub()
+	void Editor::ShowProjectHub()
 	{
 		if (m_hub)
 			m_hub->SetVisible(true);
@@ -149,7 +198,7 @@ namespace elm {
 
 	} // namespace
 
-	Path EditorLayer::LastProject() const
+	Path Editor::LastProject() const
 	{
 		const String text = m_settings.Get<String>(Settings::Category::Core, LastProjectSetting);
 		if (text.empty())
@@ -157,30 +206,15 @@ namespace elm {
 		return ResolveExistingProjectPath(Path(text));
 	}
 
-	void EditorLayer::Update()
+	void Editor::BuildUi(render::FrameWriter& frame)
 	{
-		// The viewport state comes from the previous UI frame
-		m_engine.GetCameraController().SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
-		ApplyProjectRequest();
-	}
-
-	void EditorLayer::BuildOverlay(render::FrameWriter& frame)
-	{
+		// UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
+		ELM_PROFILE_SCOPE_N("Build Overlay");
 		m_imgui->BuildFrame({ m_engine.GetRenderSystem(), m_engine.GetScene(), m_engine.GetModels(), m_engine.GetCamera(),
 			m_engine.GetFrameStats(), m_engine.GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
 	}
 
-	void EditorLayer::RequestStop()
-	{
-		m_engine.GetPlayMode().RequestStop();
-	}
-
-	void EditorLayer::OnFrameRendered(const render::RenderedFrameInfo& info)
-	{
-		m_imgui->NotifyViewportSurfacesReleased(info.releasedSurfaceCount);
-	}
-
-	void EditorLayer::AddVisualizers()
+	void Editor::AddVisualizers()
 	{
 		graphics::DebugDraw& debugDraw = m_debugDraw.GetDebugDraw();
 		m_debugDraw.AddVisualizer(MakeUnique<graphics::WorldAxesVisualizer>(debugDraw));
@@ -188,7 +222,7 @@ namespace elm {
 		m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_engine.GetPhysics().FrameLog(), debugDraw));
 	}
 
-	void EditorLayer::CreateProjectWindows(const project::Project& project, const Path& openedScene)
+	void Editor::CreateProjectWindows(const project::Project& project, const Path& openedScene)
 	{
 		const SceneHierarchyWindow::Folders folders { project.Assets(), project.Scenes(), project.Models(), project.Scripts() };
 		m_imgui->AddProjectWindow(MakeUnique<SceneHierarchyWindow>(m_settings, folders, openedScene));
@@ -199,7 +233,7 @@ namespace elm {
 			m_imgui->AddProjectWindow(std::move(window));
 	}
 
-	void EditorLayer::UpdateProjectMenu(const project::Project* project)
+	void Editor::UpdateProjectMenu(const project::Project* project)
 	{
 		ProjectMenuDesc menu { .fileExtension = String(project::Project::FileExtension),
 			.open = [this](const Path& file) { m_requestedProject = file; }, .recent = RecentProjects(),
@@ -212,7 +246,7 @@ namespace elm {
 		m_imgui->SetProjectMenu(std::move(menu));
 	}
 
-	Vector<Path> EditorLayer::RecentProjects() const
+	Vector<Path> Editor::RecentProjects() const
 	{
 		Vector<Path> projects;
 		const String lines = m_settings.Get<String>(Settings::Category::Core, RecentProjectsSetting);
@@ -228,7 +262,7 @@ namespace elm {
 		return projects;
 	}
 
-	void EditorLayer::RememberProject(const Path& file)
+	void Editor::RememberProject(const Path& file)
 	{
 		const Path normalized = NormalizeProjectPath(file);
 		const String text(normalized.generic_string().c_str());
@@ -245,17 +279,17 @@ namespace elm {
 		(void)m_settings.Save(Settings::DefaultFilePath());
 	}
 
-	void EditorLayer::ApplyProjectRequest()
+	void Editor::ApplyProjectRequest()
 	{
 		if (!m_requestedProject)
 			return;
 		const Path requested = std::move(*m_requestedProject);
 		m_requestedProject.reset();
 		// The error is logged; the open project stays
-		(void)m_engine.OpenProject(requested);
+		(void)OpenProject(requested);
 	}
 
-	auto EditorLayer::CreateProject(const Path& location, StringView name) -> EngineResult<void>
+	auto Editor::CreateProject(const Path& location, StringView name) -> EngineResult<void>
 	{
 		// The new project's scripts get the LuaLS description of the engine API
 		auto luaApi = script::ScriptSystem::GenerateApiMeta();
@@ -268,7 +302,7 @@ namespace elm {
 		return { };
 	}
 
-	auto EditorLayer::SetProjectEntry(project::ProjectEntry entry) -> EngineResult<void>
+	auto Editor::SetProjectEntry(project::ProjectEntry entry) -> EngineResult<void>
 	{
 		// The file first: a project that cannot be saved keeps the entry it had
 		project::Project changed = *m_engine.OpenedProject();
@@ -279,7 +313,7 @@ namespace elm {
 		return { };
 	}
 
-	void EditorLayer::RunStandalone()
+	void Editor::RunStandalone()
 	{
 		const project::Project* project = m_engine.OpenedProject();
 		if (!project)
@@ -293,7 +327,7 @@ namespace elm {
 			LOG_MESSAGE(log::Category::Core, LogSource, "Run Standalone: %s plays from its saved files", project->Name().c_str());
 	}
 
-	void EditorLayer::BuildGame()
+	void Editor::BuildGame()
 	{
 		const project::Project* project = m_engine.OpenedProject();
 		if (!project)
@@ -307,7 +341,7 @@ namespace elm {
 			LOG_MESSAGE(log::Category::Core, LogSource, "Build Game: %s is in %s", project->Name().c_str(), folder->string().c_str());
 	}
 
-	Path EditorLayer::OpenStartupScene(const project::Project& project)
+	Path Editor::OpenStartupScene(const project::Project& project)
 	{
 		if (!project.Desc().entry.startupScene)
 			return { };

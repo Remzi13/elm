@@ -5,7 +5,13 @@
 #include "core/Log.hpp"
 
 #include "engine/Engine.hpp"
-#include "engine/PlayerLayer.hpp"
+
+#include "graphics/GameView.hpp"
+#include "graphics/debug/DebugDrawSystem.hpp"
+#if defined(ELM_DEBUG_DRAW)
+#include "graphics/debug/ColliderVisualizer.hpp"
+#include "graphics/debug/PhysicsVisualizer.hpp"
+#endif
 
 #include "platform/Process.hpp"
 
@@ -14,7 +20,8 @@
 #include <optional>
 
 // elm: the game alone, without the editor (docs/project/Проекты.md#Плеер). `elm --project <folder or
-// .elmproject file>`; a built game plays the project next to it with no arguments.
+// .elmproject file>`; a built game plays the project next to it with no arguments. It runs the engine's
+// frame itself; with ELM_DEBUG_DRAW it has debug drawing.
 
 namespace {
 
@@ -64,15 +71,46 @@ namespace {
         return static_cast<int>(error.code);
     }
 
-    /// The frame loop, then Shutdown: it runs while the layer is still alive.
-    int RunAndShutdown(elm::Engine& engine)
+    /// The debug drawing of a build with ELM_DEBUG_DRAW, with the editor's physics visualizers (channels
+    /// Physics/Colliders, Triggers, Raycasts, Contacts, on and off in .settings); none without it.
+    elm::UniquePtr<elm::graphics::DebugDrawSystem> MakeDebugDraw([[maybe_unused]] elm::Engine& engine)
     {
-        const auto runResult = engine.Run();
-        engine.Shutdown();
-        if (!runResult)
-            return ReportFatal("Engine runtime failure", runResult.error());
-        LOG_MESSAGE( elm::log::Category::Core, "Main", "Application terminated gracefully." );
-        return 0;
+#if defined(ELM_DEBUG_DRAW)
+        using namespace elm::graphics;
+        auto debugDraw = elm::MakeUnique<DebugDrawSystem>(engine.GetSettings());
+        debugDraw->AddVisualizer(elm::MakeUnique<ColliderVisualizer>(engine.GetScene(), debugDraw->GetDebugDraw()));
+        debugDraw->AddVisualizer(elm::MakeUnique<PhysicsVisualizer>(engine.GetPhysics().FrameLog(), debugDraw->GetDebugDraw()));
+        return debugDraw;
+#else
+        return nullptr;
+#endif
+    }
+
+    /// The game: Play Project, the scene in the whole window, until the window closes or the scripts stop it.
+    void RunGame(elm::Engine& engine, elm::graphics::DebugDrawSystem* debugDraw)
+    {
+        engine.GetPlayMode().RequestPlay(elm::script::PlayTarget::Project);
+        while (!engine.ShouldClose()) {
+            const float deltaTime = engine.BeginFrame();
+            // Before anything of the frame draws, physics steps included
+            if (debugDraw)
+                debugDraw->BeginFrame(deltaTime);
+            engine.Simulate(deltaTime);
+            // No Edit mode to go back to: Stop, or a Play that could not start, ends the game
+            if (!engine.GetPlayMode().IsPlaying())
+                return;
+
+            elm::render::FrameWriter frame = engine.BeginRenderFrame();
+            if (!frame)
+                return;
+            const elm::Size framebuffer = engine.GetWindow().GetFramebufferSize();
+            elm::graphics::FitGameView(framebuffer, engine.GetViewPort(), engine.GetCamera());
+            elm::graphics::WriteGameOverlay(engine.GetViewPort(), framebuffer, frame.Overlay());
+            engine.DrawScene(frame);
+            if (debugDraw)
+                debugDraw->EndFrame(frame);
+            engine.SubmitFrame(frame);
+        }
     }
 
 } // namespace
@@ -97,13 +135,23 @@ int main(int argc, char** argv)
     }
 
     Engine engine;
-    PlayerLayer player(engine);
-    if (const auto init = engine.Init(MainWindow, player); !init)
+    // Made before Init: the scripts get its DebugDraw. Shutdown below ends the scripts while it lives.
+    const auto debugDraw = MakeDebugDraw(engine);
+    EngineDesc desc { MainWindow };
+    desc.debugDraw = debugDraw ? &debugDraw->GetDebugDraw() : nullptr;
+    if (const auto init = engine.Init(desc); !init)
         return ReportFatal("Failed to initialize engine", init.error());
-    if (const auto opened = engine.OpenProject(*project); !opened) {
+    auto opened = Engine::ReadProject(*project);
+    if (!opened) {
         engine.Shutdown();
         return ReportFatal("Failed to open the project", opened.error());
     }
+    engine.GetWindow().SetTitle(opened->Name());
+    engine.OpenProject(std::move(*opened));
     LoadTestSceneArgument(engine, argc, argv);
-    return RunAndShutdown(engine);
+
+    RunGame(engine, debugDraw.get());
+    engine.Shutdown();
+    LOG_MESSAGE( log::Category::Core, "Main", "Application terminated gracefully." );
+    return 0;
 }
