@@ -29,7 +29,7 @@ namespace elm::editor {
         ProjectHubWindow(Settings& settings, ProjectHubDesc desc);
 
         [[nodiscard]] StringView GetName() const override { return "Project Hub"; }
-        void Render(ImGuiWindowContext& context) override;
+        void Render(render::FrameWriter& frame) override;
 
     private:
         void DrawRecent();

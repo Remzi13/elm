@@ -13,8 +13,13 @@
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
 #include "graphics/debug/WorldAxesVisualizer.hpp"
+#include "editor/ui/EngineViewportWindow.hpp"
+#include "editor/ui/LogWindow.hpp"
 #include "editor/ui/ModelEditorWindow.hpp"
+#include "editor/ui/ProfilerWindow.hpp"
 #include "editor/ui/SceneHierarchyWindow.hpp"
+#include "editor/ui/SettingsWindow.hpp"
+#include "editor/ui/SocLabWindow.hpp"
 
 #include "editor/ProjectHubWindow.hpp"
 #include "editor/ProjectWindow.hpp"
@@ -27,6 +32,7 @@
 
 #include "script/ScriptSystem.hpp"
 #include "editor/script/ScriptEditorWindows.hpp"
+#include "editor/script/ScriptWindow.hpp"
 
 #include <algorithm>
 #include <utility>
@@ -49,6 +55,8 @@ namespace elm {
 			  .camera = &m_graphics.GetViewCamera(), .settings = &m_settings, .debugDraw = &m_debugDraw.GetDebugDraw() })
 		, m_cameraController(m_graphics.GetViewCamera())
 		, m_editMode(m_scene, m_scripts)
+		, m_playRequests(m_scripts.GetPlayMode().Requests())
+		, m_scriptInspection(script::MakeScriptInspection(m_scripts))
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -87,8 +95,9 @@ namespace elm {
 		m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
 		m_initialized = true;
 		m_platform.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
-		if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), m_settings, "Engine Debug UI", &m_graphics.GetCulling()); !init)
+		if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), m_settings, "Engine Debug UI"); !init)
 			return init;
+		CreateEditorWindows();
 		m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(m_settings, editor::ProjectHubDesc {
 			.recent = [this] { return RecentProjects(); },
 			.open = [this](const Path& file) { m_requestedProject = file; },
@@ -242,6 +251,9 @@ namespace elm {
 
 	void Editor::CloseProjectWindows()
 	{
+		// Nothing opens in the windows that go; the nodes of the next scene are others
+		m_files = { };
+		m_selection = { };
 		m_imgui->CloseProjectWindows();
 		UpdateProjectMenu(nullptr);
 	}
@@ -314,9 +326,8 @@ namespace elm {
 	{
 		// UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
 		ELM_PROFILE_SCOPE_N("Build Overlay");
-		const FrameStats stats { m_clock.GetFps(), m_clock.GetAverageFrameMs(), m_physics.GetNumBodies() };
-		m_imgui->BuildFrame({ m_graphics.GetRender(), m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(),
-			stats, m_graphics.GetViewPort(), frame, m_debugDraw.GetDebugDraw() });
+		m_frameStats = { m_clock.GetFps(), m_clock.GetAverageFrameMs(), m_physics.GetNumBodies() };
+		m_imgui->BuildFrame(frame);
 	}
 
 	void Editor::AddVisualizers()
@@ -327,15 +338,38 @@ namespace elm {
 		m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_physics.FrameLog(), debugDraw));
 	}
 
+	void Editor::CreateEditorWindows()
+	{
+		m_imgui->EmplaceWindow<SocLabWindow>(m_settings, &m_graphics.GetCulling());
+		m_imgui->EmplaceWindow<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_graphics.GetViewCamera(),
+			m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo });
+		m_imgui->EmplaceWindow<LogWindow>(m_settings);
+		m_imgui->EmplaceWindow<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats });
+		m_imgui->EmplaceWindow<SettingsWindow>(m_settings);
+	}
+
 	void Editor::CreateProjectWindows(const project::Project& project, const Path& openedScene)
 	{
+		Scene& scene = m_scene.EditScene();
+		ModelCatalog& models = m_resources.GetModels();
 		const SceneHierarchyWindow::Folders folders { project.Assets(), project.Scenes(), project.Models(), project.Scripts() };
-		m_imgui->AddProjectWindow(MakeUnique<SceneHierarchyWindow>(m_settings, folders, openedScene));
-		m_imgui->AddProjectWindow(MakeUnique<ModelEditorWindow>(m_settings, project.Assets(), project.Models()));
-		m_imgui->AddProjectWindow(MakeUnique<editor::ProjectWindow>(m_settings, project,
+		auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
+			SceneHierarchyDeps { scene, models, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files }, folders, openedScene);
+		auto modelEditor = MakeUnique<ModelEditorWindow>(m_settings,
+			ModelEditorDeps { m_graphics.GetRender().Resources(), scene, models, m_graphics.GetViewCamera() }, project.Assets(), project.Models());
+		auto scripts = script::CreateScriptWindow(m_scripts, m_settings);
+		// The windows that open files: destroyed with the project windows, emptied before (CloseProjectWindows)
+		m_files = FileOpener {
+			.scene = [window = hierarchy.get()](const Path& file) { window->OpenScene(file); },
+			.model = [window = modelEditor.get()](const Path& file) { window->OpenModelFile(file); },
+			.sceneModel = [window = modelEditor.get()](ModelHandler model) { window->OpenSceneModel(model); },
+			.script = [window = scripts.get()](const Path& file) { window->OpenFile(file); },
+		};
+		m_imgui->AddProjectWindow(std::move(hierarchy));
+		m_imgui->AddProjectWindow(std::move(modelEditor));
+		m_imgui->AddProjectWindow(MakeUnique<editor::ProjectWindow>(m_settings, project, m_files,
 			[this](project::ProjectEntry entry) { return SetProjectEntry(std::move(entry)); }));
-		for (auto& window : script::CreateEditorWindows(m_scripts, m_settings))
-			m_imgui->AddProjectWindow(std::move(window));
+		m_imgui->AddProjectWindow(std::move(scripts));
 	}
 
 	void Editor::UpdateProjectMenu(const project::Project* project)

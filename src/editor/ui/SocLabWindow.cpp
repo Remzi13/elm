@@ -34,7 +34,7 @@ namespace elm {
 		m_settings.Set(Settings::Category::Render, OcclusionCulling::ResolutionHeightSetting, height);
 	}
 
-	void SocLabWindow::Render(ImGuiWindowContext& /*context*/) {
+	void SocLabWindow::Render(render::FrameWriter&) {
 		if (!m_visible) return;
 
 		ImGui::SetNextWindowPos(ImVec2(10.0f, 10.0f), ImGuiCond_FirstUseEver);

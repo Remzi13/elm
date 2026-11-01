@@ -40,7 +40,7 @@ engine_add_library(editor
     ui/SettingsWindow.hpp
     ui/SocLabWindow.cpp
     ui/SocLabWindow.hpp
-    ui/WindowMessages.hpp
+    ui/EditorServices.hpp
 
     # The Scripts window, it shows the parts of ScriptSystem through EditorWindowsAccess;
     # its text logic without ImGui (CodeIndent, LuaHighlighter, ErrorLocation) is checked by --editor-selftest

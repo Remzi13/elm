@@ -18,7 +18,6 @@ engine_add_library(core
     Handler.hpp
     Handler.cpp
     Profiling.hpp
-    MessageBus.hpp
     Settings.hpp
     Settings.cpp
     FileSystem.hpp

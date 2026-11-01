@@ -1,7 +1,6 @@
 #pragma once
 
 #include "core/Error.hpp"
-#include "core/MessageBus.hpp"
 #include "core/Settings.hpp"
 
 #include "render/Render.hpp"
@@ -28,8 +27,6 @@ struct ImGuiTextBuffer;
 
 namespace elm {
 
-	class SocLabWindow;
-	class OcclusionCulling;
 
 	// Threading:
 	//  - main thread: Init, BuildFrame, Shutdown (render thread must be stopped), all ImGui/GLFW calls
@@ -43,11 +40,11 @@ namespace elm {
 		ImGuiSystem(const ImGuiSystem&) = delete;
 		ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
-		[[nodiscard]] auto Init(platform::Window& window, render::Render& renderer, Settings& settings, StringView title,
-			const OcclusionCulling* culling = nullptr) -> elm::EngineResult<void>;
+		/// ImGui and its renderer; the windows Editor adds after.
+		[[nodiscard]] auto Init(platform::Window& window, render::Render& renderer, Settings& settings, StringView title) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame.
 		// Windows may add their own scene views (previews) to the frame.
-		void BuildFrame(const ImGuiWindowContext& context);
+		void BuildFrame(render::FrameWriter& frame);
 		void Shutdown();
 
 		// Scene viewport state of the last built frame: camera input goes to the scene only while it is active
@@ -130,7 +127,6 @@ namespace elm {
 
 		DockSpaceView m_dockSpace;
 		ProjectMenu m_projectMenu;
-		MessageBus m_windowMessageBus;
 		Vector<UniquePtr<IImGuiWindow>> m_windows;
 		// The windows of m_windows that CloseProjectWindows destroys
 		Vector<const IImGuiWindow*> m_projectWindows;

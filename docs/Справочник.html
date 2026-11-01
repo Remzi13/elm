@@ -692,7 +692,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     platform: { x: 600, y: 222, dir: "src/platform", ns: "elm::platform", third: ["GLFW"], desc: "Главное окно. Рендер получает от него только `NativeWindow` и размер.", ents: ["platform::Window"], note: "render/бэкенд/Бэкенды.md", thread: "update" },
     Scene:    { x: 230, y: 318, dir: "src/Scene", ns: "elm", third: [], desc: "Узлы, `NodeId`, хранилища компонентов, `SceneAsset`, `SceneSnapshot`. Только update-поток, мутации проверяет `ELM_ASSERT_THREAD(Update)`.", ents: ["Scene", "NodeId", "NodeIdTable", "ComponentStores", "SceneAsset", "SceneSnapshot"], note: "scene/Сцена.md", thread: "update" },
     render:   { x: 480, y: 318, dir: "src/render", ns: "elm::render", third: ["Direct3D 12", "Vulkan"], desc: "Ресурсы по хэндлам, снимок кадра, кольцо кадров, render graph, нативные бэкенды.", ents: ["Render", "RenderResources", "FrameWriter", "FrameRing", "RenderGraph", "IRenderFeature"], note: "render/Рендер.md", thread: "update + render" },
-    core:     { x: 230, y: 420, dir: "src/core", ns: "elm::core, elm", third: ["Tracy"], desc: "Ошибки `EngineResult`, хэндлы, настройки, `MessageBus`, `JobSystem`, роли потоков, файловая система, лог, аллокатор.", ents: ["EngineResult", "core::Handle", "Settings", "MessageBus", "JobSystem", "ThreadRole"], note: "core/JobSystem.md", thread: "любой" },
+    core:     { x: 230, y: 420, dir: "src/core", ns: "elm::core, elm", third: ["Tracy"], desc: "Ошибки `EngineResult`, хэндлы, настройки, `JobSystem`, роли потоков, файловая система, лог, аллокатор.", ents: ["EngineResult", "core::Handle", "Settings", "JobSystem", "ThreadRole"], note: "core/JobSystem.md", thread: "любой" },
     math:     { x: 480, y: 420, dir: "src/math", ns: "math (корневой)", third: [], desc: "`Vector3`, `Vector4`, `Quaternion`, `Matrix4x4`, `Size`, `AABB`, `MeshData`.", ents: ["Vector3", "Quaternion", "Matrix4x4", "AABB"], note: null, thread: "любой" },
   };
   const edges = [
@@ -795,7 +795,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
       { t: "Трансформы и камера", s: "Scene::UpdateWorldTransforms · CameraController::Update", d: "Скрипты двигали узлы через локальные трансформы. Мировые пересчитываются одним линейным проходом, родитель всегда раньше детей." },
       { t: "Отсечение", s: "OcclusionCulling::ExecuteCulling", d: "CPU-отсечение: frustum и программный буфер глубины. Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Флаг `visible` не меняет." },
       { t: "BeginFrame", s: "Render::BeginFrame", d: "Берёт свободный слот `FrameRing`. Ждёт, только если render отстал на два кадра. Невалидный `FrameWriter` значит, что рендер остановлен." },
-      { t: "UI редактора", s: "ImGuiSystem::BuildFrame", d: "Окна Scene Hierarchy, Inspector, Scripts, вьюпорт с гизмо. Окна общаются через `MessageBus`, пишут в сцену её методами по `NodeId`." },
+      { t: "UI редактора", s: "ImGuiSystem::BuildFrame", d: "Окна Scene Hierarchy, Inspector, Scripts, вьюпорт с гизмо. Окна получают зависимости в конструкторе, связи между ними — сервисы редактора (`Selection`, `FileOpener`); в сцену пишут её методами по `NodeId`." },
       { t: "SubmitFrame", s: "UpdateWorldTransforms · BeginSceneView · Draw", d: "UI мог сдвинуть узлы, поэтому трансформы пересчитываются ещё раз. Обходится хранилище `ModelComponent`: видимые и не отсечённые узлы становятся draw-командами. Кадр и накопленные команды ресурсов уходят в кольцо." },
     ],
     R: [
@@ -1075,7 +1075,6 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Ядро", "EngineResult<T>, EngineError, ErrorCode", "результат операции, `std::expected<T, EngineError>`", "core/Error.hpp"],
     ["Ядро", "core::Handle<Tag>", "типизированный хэндл: 24 бита индекса + 8 бит поколения, 0 — невалидный", "core/Handler.hpp"],
     ["Ядро", "Settings", "настройки по ключу `Category/path`, хранятся в `.settings`", "core/Settings.hpp"],
-    ["Ядро", "MessageBus", "запросы между окнами редактора (`RegisterQuery`/`Request`)", "core/MessageBus.hpp"],
     ["Ядро", "core::JobSystem, TaskGroup, parallelFor", "пул воркеров и группы задач", "core/JobSystem.hpp"],
     ["Ядро", "core::ThreadRole (Update, Render)", "роль потока, проверяется `ELM_ASSERT_THREAD`", "core/Threading.hpp"],
     ["Ядро", "FileSystem, Path, AssetPaths", "пути относительно корня (`Core/FileSystem/RootPath`)", "core/FileSystem.hpp"],
@@ -1101,7 +1100,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Модели и редактор", "Camera, CameraController", "камера вида и её управление", "graphics"],
     ["Модели и редактор", "OcclusionCulling, SoftwareDepthBuffer", "CPU-отсечение, результат по `NodeId` (`FindOccludee`)", "graphics/culling"],
     ["Модели и редактор", "ImGuiSystem, IImGuiWindow, ImGuiWindowContext", "окна редактора и то, что им передаётся на кадр", "editor/ui"],
-    ["Модели и редактор", "SelectedSceneInstance, PlayControls, OpenModelEditor", "сообщения между окнами через `MessageBus`", "ui/WindowMessages.hpp"],
+    ["Модели и редактор", "Selection, FileOpener, ScriptInspection", "сервисы редактора для окон, владелец `Editor`", "ui/EditorServices.hpp"],
     ["Модели и редактор", "Edit / Play, PlayMode", "режимы редактора; `script::PlayMode`, владелец `Engine`", "script/PlayMode.hpp"],
     ["Рендер", "Render", "фасад подсистемы рендера", "update + render"],
     ["Рендер", "RenderResources", "создание, обновление и удаление ресурсов командами", "любой поток"],

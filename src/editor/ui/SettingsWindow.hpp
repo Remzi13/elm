@@ -9,7 +9,7 @@ namespace elm {
 		using IImGuiWindow::IImGuiWindow;
 
 		[[nodiscard]] StringView GetName() const override { return "Settings"; }
-		void Render(ImGuiWindowContext& context) override;
+		void Render(render::FrameWriter& frame) override;
 
 	private:
 		String m_status;

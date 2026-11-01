@@ -17,7 +17,7 @@ namespace elm {
 			: IImGuiWindow(settings), m_culling(culling) {}
 
 		[[nodiscard]] StringView GetName() const override { return "Software Occlusion Culling Lab"; }
-		void Render(ImGuiWindowContext& context) override;
+		void Render(render::FrameWriter& frame) override;
 
 		void SetCullingSystem(const OcclusionCulling* culling) noexcept { m_culling = culling; }
 

@@ -188,34 +188,27 @@ bool DrawScriptValue(const char* label, ScriptValue& value, Scene& scene)
 
 } // namespace
 
-SceneHierarchyWindow::SceneHierarchyWindow(Settings& settings, Folders folders, const Path& openedScene)
+SceneHierarchyWindow::SceneHierarchyWindow(Settings& settings, const SceneHierarchyDeps& deps, Folders folders, const Path& openedScene)
     : IImGuiWindow(settings)
+    , m_deps(deps)
     , m_folders(std::move(folders))
 {
     // Never a default name like scene.scene: Save would overwrite a scene the user did not open
     ShowSceneFile(openedScene.Empty() ? m_folders.scenes / UnusedSceneFileName() : openedScene);
 }
 
-void SceneHierarchyWindow::OnAttach()
+void SceneHierarchyWindow::OpenScene(const Path& file)
 {
-    m_querySubscriptions.push_back(RegisterQuery<SelectedSceneInstance>([this] {
-        return SelectedSceneInstance { m_selectedNode };
-    }));
-    m_querySubscriptions.push_back(RegisterQuery<OpenSceneFile>([this] {
-        return OpenSceneFile { [this](const Path& file) {
-            m_requestedScene = file;
-            m_visible = true;
-        } };
-    }));
-    m_querySubscriptions.push_back(RegisterQuery<GizmoSettings>([this] {
-        return GizmoSettings {
-            m_gizmoOperation,
-            m_useLocalSpace ? GizmoSpace::Local : GizmoSpace::World
-        };
-    }));
+    m_requestedScene = file;
+    m_visible = true;
 }
 
-void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
+bool SceneHierarchyWindow::IsPlaying() const
+{
+    return m_deps.play.isPlaying && m_deps.play.isPlaying();
+}
+
+void SceneHierarchyWindow::Render(render::FrameWriter&)
 {
     if (!m_visible)
         return;
@@ -231,21 +224,21 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     if (m_requestedScene) {
         const Path file = std::move(*m_requestedScene);
         m_requestedScene.reset();
-        LoadSceneFile(context, file);
+        LoadSceneFile(file);
     }
 
-    auto& scene = context.scene;
-    if (!scene.Find(m_selectedNode))
-        m_selectedNode = scene.IdOf(0);
+    auto& scene = m_deps.scene;
+    if (!scene.Find(m_deps.selection.node))
+        m_deps.selection.node = scene.IdOf(0);
 
-    DrawToolbar(context);
+    DrawToolbar();
 
     ImGui::Separator();
 
     const float availableWidth = ImGui::GetContentRegionAvail().x;
     m_hierarchyWidth = (std::clamp)(m_hierarchyWidth, 160.0f, (std::max)(160.0f, availableWidth - 200.0f));
 
-    DrawHierarchyTree(context);
+    DrawHierarchyTree();
 
     ImGui::SameLine();
 
@@ -268,17 +261,17 @@ void SceneHierarchyWindow::Render(ImGuiWindowContext& context)
     ImGui::SameLine();
 
     ImGui::BeginChild("NodeDetails", ImVec2(0.0f, 0.0f), true);
-    DrawNodeDetails(context, m_selectedNode);
+    DrawNodeDetails(m_deps.selection.node);
     ImGui::EndChild();
 
     ImGui::End();
 }
 
-void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
+void SceneHierarchyWindow::DrawToolbar()
 {
-    auto& scene = context.scene;
+    auto& scene = m_deps.scene;
 
-    if (const auto play = Request<PlayControls>(); play && play->playing) {
+    if (IsPlaying()) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.65f, 0.3f, 1.0f));
         ImGui::TextUnformatted("[Play Mode Active] Scene is simulated. Stop first to save or apply permanent edits.");
         ImGui::PopStyleColor();
@@ -293,10 +286,10 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
 
     const Path scenePath = Path(m_sceneFilePath).IsAbsolute() ? Path(m_sceneFilePath) : m_folders.scenes / m_sceneFilePath;
     if (ImGui::Button("Save")) {
-        if (const auto play = Request<PlayControls>(); play && play->playing) {
+        if (IsPlaying()) {
             m_sceneFileStatus = "Stop first: in Play mode the scene is the running game.";
         } else {
-            auto result = SaveScene(context, scenePath);
+            auto result = SaveScene(scenePath);
             m_sceneFileStatus = result ? "Scene saved to " + String(scenePath.string().c_str()) + "." : result.error().message;
         }
     }
@@ -307,7 +300,7 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     }
     ImGui::SameLine();
     if (ImGui::Button("Load"))
-        LoadSceneFile(context, scenePath);
+        LoadSceneFile(scenePath);
     ImGui::SameLine();
     if (ImGui::Button("Open...")) {
         m_sceneOpenFileDialog.Open("Open Scene", ".scene", m_folders.scenes);
@@ -324,8 +317,8 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     ImGui::SameLine();
     if (ImGui::Button("New")) {
         scene.Clear();
-        context.models.Clear();
-        m_selectedNode = NodeId { };
+        m_deps.models.Clear();
+        m_deps.selection.node = NodeId { };
         // A name no scene has yet: Save does not overwrite the scene that was open
         const String fileName = UnusedSceneFileName();
         std::snprintf(m_sceneFilePath, sizeof(m_sceneFilePath), "%s", fileName.c_str());
@@ -333,10 +326,10 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     }
 
     if (const auto path = m_sceneSaveFileDialog.Draw()) {
-        if (const auto play = Request<PlayControls>(); play && play->playing) {
+        if (IsPlaying()) {
             m_sceneFileStatus = "Stop first: in Play mode the scene is the running game.";
         } else {
-            auto result = SaveScene(context, *path);
+            auto result = SaveScene(*path);
             if (result) {
                 m_sceneFileStatus = "Scene saved to " + String(path->string().c_str()) + ".";
                 std::snprintf(m_sceneFilePath, sizeof(m_sceneFilePath), "%s", path->Filename().c_str());
@@ -347,10 +340,10 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     }
 
     if (const auto path = m_sceneOpenFileDialog.Draw())
-        LoadSceneFile(context, *path);
+        LoadSceneFile(*path);
 
     if (const auto path = m_gltfFileDialog.Draw()) {
-        auto result = resource::GltfExporter::Export(*path, scene, context.models);
+        auto result = resource::GltfExporter::Export(*path, scene, m_deps.models);
         m_sceneFileStatus = result ? "Scene exported to " + String(path->string().c_str()) + "." : result.error().message;
     }
 
@@ -368,10 +361,10 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
         // The original goes to the project's source folder, the models to its models folder
         auto result = resource::AssetImport::ImportScene(*path, m_folders.assets);
         if (result) {
-            const auto handlers = context.models.InsertAll(std::move(result->models), result->modelFiles);
+            const auto handlers = m_deps.models.InsertAll(std::move(result->models), result->modelFiles);
             const auto newIds = scene.Append(std::move(*result), handlers);
             if (!newIds.empty())
-                m_selectedNode = newIds.front();
+                m_deps.selection.node = newIds.front();
             m_sceneFileStatus = "glTF scene imported from " + String(path->Filename().c_str()) + ".";
         } else {
             m_sceneFileStatus = "Failed to import glTF scene: " + result.error().message;
@@ -385,7 +378,7 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
             m_sceneFileStatus = "Failed to load model: " + modelResult.error().message;
         } else {
             const String modelName = modelResult->model.name;
-            const auto handle = context.models.Insert(std::move(modelResult->model), std::move(modelResult->file));
+            const auto handle = m_deps.models.Insert(std::move(modelResult->model), std::move(modelResult->file));
 
             if (m_modelDialogAction == ModelDialogAction::AssignToComponent) {
                 if (auto* comp = scene.Components<ModelComponent>().Find(m_modelDialogTargetNode)) {
@@ -404,7 +397,7 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
                     .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
                     .visible = true,
                 });
-                m_selectedNode = newNode;
+                m_deps.selection.node = newNode;
                 m_sceneFileStatus = "Added node \"" + modelName + "\" with model from " + String(path->Filename().c_str()) + ".";
             }
         }
@@ -420,9 +413,9 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
     }
 }
 
-void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
+void SceneHierarchyWindow::DrawHierarchyTree()
 {
-    auto& scene = context.scene;
+    auto& scene = m_deps.scene;
     ImGui::BeginChild("SceneObjects", ImVec2(m_hierarchyWidth, 0.0f), true);
 
     ImGui::SetNextItemWidth(-1.0f);
@@ -433,7 +426,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
 
     if (ImGui::BeginPopup("AddObjectPopup")) {
         if (ImGui::MenuItem("Empty Node"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Empty Node", 0);
+            m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Empty Node", 0);
 
         if (ImGui::MenuItem("Model from Disk (.gltf, .glb, .model)...")) {
             m_modelDialogAction = ModelDialogAction::AddNewRootNode;
@@ -441,8 +434,8 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
             m_deferModelOpen = true;
         }
 
-        if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
-            context.models.ForEach([&](ModelHandler handle, const Model& m) {
+        if (m_deps.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
+            m_deps.models.ForEach([&](ModelHandler handle, const Model& m) {
                 String label = FormatModelLabel(&m, handle);
                 if (ImGui::MenuItem(label.c_str())) {
                     String name = m.name.empty() ? "Model" : m.name;
@@ -452,7 +445,7 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
                         .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
                         .visible = true,
                     });
-                    m_selectedNode = id;
+                    m_deps.selection.node = id;
                 }
             });
             ImGui::EndMenu();
@@ -460,11 +453,11 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
 
         if (ImGui::BeginMenu("3D Primitives")) {
             if (ImGui::MenuItem("Cube"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Cube", 1);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Cube", 1);
             if (ImGui::MenuItem("Wall"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Wall", 2);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Wall", 2);
             if (ImGui::MenuItem("Ground Plane"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Ground Plane", 3);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Ground Plane", 3);
             ImGui::EndMenu();
         }
 
@@ -472,30 +465,30 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
             m_deferGltfSceneImport = true;
         }
 
-        if (m_selectedNode && scene.Find(m_selectedNode)) {
+        if (m_deps.selection.node && scene.Find(m_deps.selection.node)) {
             ImGui::Separator();
             ImGui::TextDisabled("As Child of Selected:");
             if (ImGui::MenuItem("Empty Child Node"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Empty Child", 0);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, m_deps.selection.node, "Empty Child", 0);
 
             if (ImGui::MenuItem("Child Model from Disk...")) {
                 m_modelDialogAction = ModelDialogAction::AddNewChildNode;
-                m_modelDialogTargetNode = m_selectedNode;
+                m_modelDialogTargetNode = m_deps.selection.node;
                 m_deferModelOpen = true;
             }
 
-            if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model (as Child)")) {
-                context.models.ForEach([&](ModelHandler handle, const Model& m) {
+            if (m_deps.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model (as Child)")) {
+                m_deps.models.ForEach([&](ModelHandler handle, const Model& m) {
                     String label = FormatModelLabel(&m, handle);
                     if (ImGui::MenuItem(label.c_str())) {
                         String name = m.name.empty() ? "Model" : m.name;
-                        const NodeId id = scene.AddNode(name, math::Matrix4x4::Identity(), m_selectedNode);
+                        const NodeId id = scene.AddNode(name, math::Matrix4x4::Identity(), m_deps.selection.node);
                         scene.Components<ModelComponent>().Emplace(id, ModelComponent {
                             .model = handle,
                             .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
                             .visible = true,
                         });
-                        m_selectedNode = id;
+                        m_deps.selection.node = id;
                     }
                 });
                 ImGui::EndMenu();
@@ -503,31 +496,31 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
 
             if (ImGui::BeginMenu("3D Primitives (as Child)")) {
                 if (ImGui::MenuItem("Cube Child"))
-                    m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Cube", 1);
+                    m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, m_deps.selection.node, "Cube", 1);
                 if (ImGui::MenuItem("Wall Child"))
-                    m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Wall", 2);
+                    m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, m_deps.selection.node, "Wall", 2);
                 if (ImGui::MenuItem("Ground Plane Child"))
-                    m_selectedNode = AddPrimitiveNode(scene, context.models, m_selectedNode, "Ground Plane", 3);
+                    m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, m_deps.selection.node, "Ground Plane", 3);
                 ImGui::EndMenu();
             }
 
             ImGui::Separator();
             if (ImGui::MenuItem("Duplicate Selected"))
-                m_selectedNode = DuplicateNode(scene, m_selectedNode);
+                m_deps.selection.node = DuplicateNode(scene, m_deps.selection.node);
         }
         ImGui::EndPopup();
     }
 
 
     ImGui::SameLine();
-    ImGui::BeginDisabled(!m_selectedNode || !scene.Find(m_selectedNode));
+    ImGui::BeginDisabled(!m_deps.selection.node || !scene.Find(m_deps.selection.node));
     if (ImGui::Button("Duplicate"))
-        m_selectedNode = DuplicateNode(scene, m_selectedNode);
+        m_deps.selection.node = DuplicateNode(scene, m_deps.selection.node);
     ImGui::SameLine();
     if (ImGui::Button("Delete")) {
-        const size_t removedIndex = scene.IndexOf(m_selectedNode);
-        scene.RemoveNode(m_selectedNode);
-        m_selectedNode = scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
+        const size_t removedIndex = scene.IndexOf(m_deps.selection.node);
+        scene.RemoveNode(m_deps.selection.node);
+        m_deps.selection.node = scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
     }
     ImGui::EndDisabled();
 
@@ -544,20 +537,20 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
     ImGui::BeginChild("TreeScrollArea", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing()), false);
     for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
         if (!nodes[nodeIndex].parent)
-            DrawNodeItem(context, nodeIndex, nodeChildren);
+            DrawNodeItem(nodeIndex, nodeChildren);
     }
 
     // Context menu in empty space
     if (ImGui::BeginPopupContextWindow("TreeEmptyAreaContext", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems)) {
         if (ImGui::MenuItem("Add Empty Node"))
-            m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Empty Node", 0);
+            m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Empty Node", 0);
         if (ImGui::MenuItem("Add Model from Disk...")) {
             m_modelDialogAction = ModelDialogAction::AddNewRootNode;
             m_modelDialogTargetNode = NodeId { };
             m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
         }
-        if (context.models.Size() > 0 && ImGui::BeginMenu("Add from Loaded Model")) {
-            context.models.ForEach([&](ModelHandler handle, const Model& m) {
+        if (m_deps.models.Size() > 0 && ImGui::BeginMenu("Add from Loaded Model")) {
+            m_deps.models.ForEach([&](ModelHandler handle, const Model& m) {
                 String label = FormatModelLabel(&m, handle);
                 if (ImGui::MenuItem(label.c_str())) {
                     String name = m.name.empty() ? "Model" : m.name;
@@ -567,18 +560,18 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
                         .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
                         .visible = true,
                     });
-                    m_selectedNode = id;
+                    m_deps.selection.node = id;
                 }
             });
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Add 3D Primitive")) {
             if (ImGui::MenuItem("Cube"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Cube", 1);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Cube", 1);
             if (ImGui::MenuItem("Wall"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Wall", 2);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Wall", 2);
             if (ImGui::MenuItem("Ground Plane"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, NodeId { }, "Ground Plane", 3);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, NodeId { }, "Ground Plane", 3);
             ImGui::EndMenu();
         }
         if (ImGui::MenuItem("Import glTF Scene Hierarchy...")) {
@@ -604,12 +597,12 @@ void SceneHierarchyWindow::DrawHierarchyTree(ImGuiWindowContext& context)
     ImGui::TextDisabled("Objects: %zu", scene.NodeCount());
     ImGui::EndChild();
     // After EndChild the tree is the last item: it is where models are dropped
-    AcceptDroppedModel(context);
+    AcceptDroppedModel();
 }
 
-void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t nodeIndex, const Vector<Vector<size_t>>& nodeChildren)
+void SceneHierarchyWindow::DrawNodeItem(size_t nodeIndex, const Vector<Vector<size_t>>& nodeChildren)
 {
-    auto& scene = context.scene;
+    auto& scene = m_deps.scene;
     const auto nodes = scene.Nodes();
     if (nodeIndex >= nodes.size())
         return;
@@ -637,7 +630,7 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
     label += std::to_string(node.id.Raw()).c_str();
 
     const bool hasChildren = !nodeChildren[nodeIndex].empty();
-    const bool isSelected = (m_selectedNode == node.id);
+    const bool isSelected = (m_deps.selection.node == node.id);
 
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth;
     if (isSelected)
@@ -649,7 +642,7 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
 
     const bool isOpen = ImGui::TreeNodeEx(label.c_str(), flags);
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
-        m_selectedNode = node.id;
+        m_deps.selection.node = node.id;
 
     if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
         ImGui::SetDragDropPayload("SCENE_NODE_DRAG", &node.id, sizeof(NodeId));
@@ -675,19 +668,19 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
     }
 
     if (ImGui::BeginPopupContextItem()) {
-        m_selectedNode = node.id;
+        m_deps.selection.node = node.id;
         ImGui::TextDisabled("Node: %s", node.name.empty() ? "Unnamed" : node.name.c_str());
         ImGui::Separator();
         if (ImGui::BeginMenu("Add Child")) {
             if (ImGui::MenuItem("Empty Child Node"))
-                m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Empty Node", 0);
+                m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, node.id, "Empty Node", 0);
             if (ImGui::MenuItem("Child Model from Disk...")) {
                 m_modelDialogAction = ModelDialogAction::AddNewChildNode;
                 m_modelDialogTargetNode = node.id;
                 m_modelOpenFileDialog.Open("Select Model File", ".model;.gltf;.glb", m_folders.models);
             }
-            if (context.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
-                context.models.ForEach([&](ModelHandler handle, const Model& m) {
+            if (m_deps.models.Size() > 0 && ImGui::BeginMenu("From Loaded Model")) {
+                m_deps.models.ForEach([&](ModelHandler handle, const Model& m) {
                     String modelItemLabel = FormatModelLabel(&m, handle);
                     if (ImGui::MenuItem(modelItemLabel.c_str())) {
                         String name = m.name.empty() ? "Model" : m.name;
@@ -697,24 +690,24 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
                             .color = math::Vector4 { 0.8f, 0.8f, 0.8f, 1.0f },
                             .visible = true,
                         });
-                        m_selectedNode = id;
+                        m_deps.selection.node = id;
                     }
                 });
                 ImGui::EndMenu();
             }
             if (ImGui::BeginMenu("3D Primitives")) {
                 if (ImGui::MenuItem("Cube"))
-                    m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Cube", 1);
+                    m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, node.id, "Cube", 1);
                 if (ImGui::MenuItem("Wall"))
-                    m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Wall", 2);
+                    m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, node.id, "Wall", 2);
                 if (ImGui::MenuItem("Ground Plane"))
-                    m_selectedNode = AddPrimitiveNode(scene, context.models, node.id, "Ground Plane", 3);
+                    m_deps.selection.node = AddPrimitiveNode(scene, m_deps.models, node.id, "Ground Plane", 3);
                 ImGui::EndMenu();
             }
             ImGui::EndMenu();
         }
         if (ImGui::MenuItem("Duplicate")) {
-            m_selectedNode = DuplicateNode(scene, node.id);
+            m_deps.selection.node = DuplicateNode(scene, node.id);
         }
         if (node.parent) {
             if (ImGui::MenuItem("Unparent (Move to Root)")) {
@@ -725,21 +718,21 @@ void SceneHierarchyWindow::DrawNodeItem(ImGuiWindowContext& context, size_t node
         if (ImGui::MenuItem("Delete Node")) {
             const size_t removedIndex = scene.IndexOf(node.id);
             scene.RemoveNode(node.id);
-            m_selectedNode = scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
+            m_deps.selection.node = scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
         }
         ImGui::EndPopup();
     }
 
     if (isOpen && hasChildren) {
         for (const size_t childIndex : nodeChildren[nodeIndex])
-            DrawNodeItem(context, childIndex, nodeChildren);
+            DrawNodeItem(childIndex, nodeChildren);
         ImGui::TreePop();
     }
 }
 
-void SceneHierarchyWindow::DrawNodeDetails(ImGuiWindowContext& context, NodeId nodeId)
+void SceneHierarchyWindow::DrawNodeDetails(NodeId nodeId)
 {
-    auto& scene = context.scene;
+    auto& scene = m_deps.scene;
     const Scene::Node* selected = scene.Find(nodeId);
     if (!selected) {
         ImGui::TextDisabled("No node selected");
@@ -778,23 +771,23 @@ void SceneHierarchyWindow::DrawNodeDetails(ImGuiWindowContext& context, NodeId n
 
     ImGui::SameLine();
     if (ImGui::SmallButton("Duplicate"))
-        m_selectedNode = DuplicateNode(scene, nodeId);
+        m_deps.selection.node = DuplicateNode(scene, nodeId);
     ImGui::SameLine();
     if (ImGui::SmallButton("Delete Node")) {
         const size_t removedIndex = scene.IndexOf(nodeId);
         scene.RemoveNode(nodeId);
-        m_selectedNode = scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
+        m_deps.selection.node = scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
         return;
     }
 
     ImGui::Separator();
 
     DrawTransformSection(scene, nodeId);
-    DrawModelComponent(scene, nodeId, context.models);
+    DrawModelComponent(scene, nodeId, m_deps.models);
     DrawRigidBodyComponent(scene, nodeId);
-    DrawColliderComponent(scene, nodeId, context.models);
+    DrawColliderComponent(scene, nodeId, m_deps.models);
     DrawScriptComponent(scene, nodeId);
-    DrawAddComponentPopup(scene, nodeId, context.models);
+    DrawAddComponentPopup(scene, nodeId, m_deps.models);
 }
 
 void SceneHierarchyWindow::DrawTransformSection(Scene& scene, NodeId nodeId)
@@ -809,21 +802,21 @@ void SceneHierarchyWindow::DrawTransformSection(Scene& scene, NodeId nodeId)
     // Viewport gizmo settings
     ImGui::TextUnformatted("Gizmo:");
     ImGui::SameLine();
-    if (ImGui::RadioButton("Translate", m_gizmoOperation == GizmoOperation::Translate))
-        m_gizmoOperation = GizmoOperation::Translate;
+    if (ImGui::RadioButton("Translate", m_deps.gizmo.operation == GizmoOperation::Translate))
+        m_deps.gizmo.operation = GizmoOperation::Translate;
     ImGui::SameLine();
-    if (ImGui::RadioButton("Rotate", m_gizmoOperation == GizmoOperation::Rotate))
-        m_gizmoOperation = GizmoOperation::Rotate;
+    if (ImGui::RadioButton("Rotate", m_deps.gizmo.operation == GizmoOperation::Rotate))
+        m_deps.gizmo.operation = GizmoOperation::Rotate;
     ImGui::SameLine();
-    if (ImGui::RadioButton("Scale", m_gizmoOperation == GizmoOperation::Scale))
-        m_gizmoOperation = GizmoOperation::Scale;
+    if (ImGui::RadioButton("Scale", m_deps.gizmo.operation == GizmoOperation::Scale))
+        m_deps.gizmo.operation = GizmoOperation::Scale;
 
     ImGui::SameLine(0.0f, 16.0f);
-    if (ImGui::RadioButton("World##Gizmo", !m_useLocalSpace))
-        m_useLocalSpace = false;
+    if (ImGui::RadioButton("World##Gizmo", m_deps.gizmo.space == GizmoSpace::World))
+        m_deps.gizmo.space = GizmoSpace::World;
     ImGui::SameLine();
-    if (ImGui::RadioButton("Local##Gizmo", m_useLocalSpace))
-        m_useLocalSpace = true;
+    if (ImGui::RadioButton("Local##Gizmo", m_deps.gizmo.space == GizmoSpace::Local))
+        m_deps.gizmo.space = GizmoSpace::Local;
 
     ImGui::Spacing();
 
@@ -1004,8 +997,8 @@ void SceneHierarchyWindow::DrawModelComponent(Scene& scene, NodeId nodeId, Model
     if (model) {
         ImGui::SameLine();
         if (ImGui::Button("Open in Editor")) {
-            if (const auto editor = Request<OpenModelEditor>())
-                editor->open(comp.model);
+            if (m_deps.files.sceneModel)
+                m_deps.files.sceneModel(comp.model);
         }
     }
 }
@@ -1122,14 +1115,14 @@ void SceneHierarchyWindow::DrawScriptComponent(Scene& scene, NodeId nodeId)
 {
     if (!scene.Components<ScriptComponent>().Find(nodeId))
         return;
-    const auto scripts = Request<ScriptInspection>();
+    const ScriptInspection& scripts = m_deps.scripts;
 
     bool open = ImGui::CollapsingHeader("Script Component (Lua)", ImGuiTreeNodeFlags_DefaultOpen);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x + ImGui::GetCursorPosX() - 25.0f);
     if (ImGui::SmallButton("X##RemoveScript")) {
         // The instance ends first, as with entity:remove("Script")
-        if (scripts && scripts->endInstance)
-            scripts->endInstance(nodeId);
+        if (scripts.endInstance)
+            scripts.endInstance(nodeId);
         scene.Components<ScriptComponent>().Remove(nodeId);
         return;
     }
@@ -1137,13 +1130,9 @@ void SceneHierarchyWindow::DrawScriptComponent(Scene& scene, NodeId nodeId)
         return;
 
     DrawScriptModule(*scene.Components<ScriptComponent>().Find(nodeId));
-    if (!scripts) {
-        ImGui::TextDisabled("The scripts are not running: the props cannot be read");
-        return;
-    }
-    DrawScriptInstance(nodeId, *scripts);
+    DrawScriptInstance(nodeId, scripts);
     ImGui::Spacing();
-    DrawScriptProps(scene, nodeId, *scripts);
+    DrawScriptProps(scene, nodeId, scripts);
 }
 
 void SceneHierarchyWindow::DrawScriptModule(ScriptComponent& script)
@@ -1177,8 +1166,7 @@ void SceneHierarchyWindow::DrawScriptModule(ScriptComponent& script)
 
 void SceneHierarchyWindow::DrawScriptInstance(NodeId nodeId, const ScriptInspection& scripts)
 {
-    const auto play = Request<PlayControls>();
-    if (!play || !play->playing) {
+    if (!IsPlaying()) {
         ImGui::TextDisabled("Starts on Play");
         return;
     }
@@ -1444,18 +1432,18 @@ NodeId SceneHierarchyWindow::AddPrimitiveNode(Scene& scene, ModelCatalog& models
     return id;
 }
 
-void SceneHierarchyWindow::LoadSceneFile(ImGuiWindowContext& context, const Path& file)
+void SceneHierarchyWindow::LoadSceneFile(const Path& file)
 {
     auto result = resource::Serializer::LoadScene(file, m_folders.assets);
     if (!result) {
         m_sceneFileStatus = result.error().message;
         return;
     }
-    context.scene.Clear();
-    context.models.Clear();
-    const auto handlers = context.models.InsertAll(std::move(result->models), result->modelFiles);
-    (void)context.scene.Append(std::move(*result), handlers);
-    m_selectedNode = context.scene.IdOf(0);
+    m_deps.scene.Clear();
+    m_deps.models.Clear();
+    const auto handlers = m_deps.models.InsertAll(std::move(result->models), result->modelFiles);
+    (void)m_deps.scene.Append(std::move(*result), handlers);
+    m_deps.selection.node = m_deps.scene.IdOf(0);
     m_sceneFileStatus = "Scene loaded from " + String(file.string().c_str()) + ".";
     ShowSceneFile(file);
 }
@@ -1467,7 +1455,7 @@ void SceneHierarchyWindow::ShowSceneFile(const Path& file)
     std::snprintf(m_sceneFilePath, sizeof(m_sceneFilePath), "%s", shown.c_str());
 }
 
-void SceneHierarchyWindow::AcceptDroppedModel(ImGuiWindowContext& context)
+void SceneHierarchyWindow::AcceptDroppedModel()
 {
     if (!ImGui::BeginDragDropTarget())
         return;
@@ -1477,9 +1465,9 @@ void SceneHierarchyWindow::AcceptDroppedModel(ImGuiWindowContext& context)
         auto imported = resource::AssetImport::ImportModel(file, m_folders.assets);
         if (imported) {
             const String name = imported->model.name;
-            const auto model = context.models.Insert(std::move(imported->model), std::move(imported->file));
-            m_selectedNode = context.scene.AddNode(name);
-            context.scene.Components<ModelComponent>().Emplace(m_selectedNode, ModelComponent { .model = model });
+            const auto model = m_deps.models.Insert(std::move(imported->model), std::move(imported->file));
+            m_deps.selection.node = m_deps.scene.AddNode(name);
+            m_deps.scene.Components<ModelComponent>().Emplace(m_deps.selection.node, ModelComponent { .model = model });
             m_sceneFileStatus = "Added node \"" + name + "\".";
         } else {
             m_sceneFileStatus = "Failed to add the model: " + imported.error().message;
@@ -1496,11 +1484,11 @@ String SceneHierarchyWindow::UnusedSceneFileName() const
     return fileName;
 }
 
-EngineResult<void> SceneHierarchyWindow::SaveScene(ImGuiWindowContext& context, const Path& path)
+EngineResult<void> SceneHierarchyWindow::SaveScene(const Path& path)
 {
-    if (auto newModels = resource::Serializer::SaveNewModels(context.scene, context.models, m_folders.assets); !newModels)
+    if (auto newModels = resource::Serializer::SaveNewModels(m_deps.scene, m_deps.models, m_folders.assets); !newModels)
         return MakeUnexpected(newModels.error());
-    return resource::Serializer::SaveScene(context.scene, context.models, m_folders.assets, path);
+    return resource::Serializer::SaveScene(m_deps.scene, m_deps.models, m_folders.assets, path);
 }
 
 void SceneHierarchyWindow::RefreshScriptModules()

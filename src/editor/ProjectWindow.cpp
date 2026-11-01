@@ -1,6 +1,6 @@
 #include "editor/ProjectWindow.hpp"
 
-#include "editor/ui/WindowMessages.hpp"
+#include "editor/ui/EditorServices.hpp"
 
 #include "imgui.h"
 
@@ -38,16 +38,17 @@ namespace elm::editor {
 
     } // namespace
 
-    ProjectWindow::ProjectWindow(Settings& settings, const project::Project& project, SetProjectEntry setEntry)
+    ProjectWindow::ProjectWindow(Settings& settings, const project::Project& project, const FileOpener& files, SetProjectEntry setEntry)
         : IImGuiWindow(settings)
         , m_project(project)
+        , m_files(files)
         , m_setEntry(std::move(setEntry))
         , m_assets(project.Assets())
         , m_settingsPanel(project, m_setEntry, m_assets)
     {
     }
 
-    void ProjectWindow::Render(ImGuiWindowContext&)
+    void ProjectWindow::Render(render::FrameWriter&)
     {
         if (!m_visible)
             return;
@@ -212,16 +213,12 @@ namespace elm::editor {
     {
         const Path path = m_project.Resolve(file.path);
         std::function<void(const Path&)> open;
-        if (file.type == project::AssetType::Scene) {
-            if (const auto query = Request<OpenSceneFile>())
-                open = query->open;
-        } else if (file.type == project::AssetType::Model) {
-            if (const auto query = Request<OpenModelFile>())
-                open = query->open;
-        } else if (file.type == project::AssetType::Script) {
-            if (const auto query = Request<OpenScriptFile>())
-                open = query->open;
-        }
+        if (file.type == project::AssetType::Scene)
+            open = m_files.scene;
+        else if (file.type == project::AssetType::Model)
+            open = m_files.model;
+        else if (file.type == project::AssetType::Script)
+            open = m_files.script;
         if (!open) {
             m_status = "No editor opens " + file.name;
             return;

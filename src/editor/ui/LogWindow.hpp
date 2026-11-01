@@ -12,7 +12,7 @@ namespace elm {
         using IImGuiWindow::IImGuiWindow;
 
         [[nodiscard]] StringView GetName() const override { return "Log"; }
-        void Render(ImGuiWindowContext& context) override;
+        void Render(render::FrameWriter& frame) override;
 
     private:
         std::array<bool, 4> m_severityEnabled{ true, true, true, true };

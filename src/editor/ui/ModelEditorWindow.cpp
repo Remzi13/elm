@@ -1,12 +1,14 @@
 #include "editor/ui/ModelEditorWindow.hpp"
 
-#include "editor/ui/WindowMessages.hpp"
+#include "editor/ui/EditorServices.hpp"
+#include "graphics/Camera.hpp"
 #include "render/Render.hpp"
 #include "render/api/FrameWriter.hpp"
 #include "resource/AssetImport.hpp"
 #include "resource/GltfExporter.hpp"
 #include "resource/Serializer.hpp"
 #include "Scene/ModelComponent.hpp"
+#include "Scene/Scene.hpp"
 
 #include "imgui.h"
 
@@ -147,42 +149,39 @@ namespace {
 // Window
 // ─────────────────────────────────────────────────────────────────────────────
 
-ModelEditorWindow::ModelEditorWindow(Settings& settings, Path assetsFolder, Path modelsFolder)
+ModelEditorWindow::ModelEditorWindow(Settings& settings, const ModelEditorDeps& deps, Path assetsFolder, Path modelsFolder)
     : IImGuiWindow(settings)
+    , m_deps(deps)
     , m_assetsFolder(std::move(assetsFolder))
     , m_modelsFolder(std::move(modelsFolder))
 {
     m_visible = false;
 }
 
-void ModelEditorWindow::OnAttach()
+void ModelEditorWindow::OpenModelFile(const Path& file)
 {
-    m_querySubscriptions.push_back(RegisterQuery<OpenModelFile>([this] {
-        return OpenModelFile { [this](const Path& file) {
-            m_requestedFile = file;
-            m_visible = true;
-            m_focusRequested = true;
-        } };
-    }));
-    m_querySubscriptions.push_back(RegisterQuery<OpenModelEditor>([this] {
-        return OpenModelEditor { [this](ModelHandler handler) {
-            if (handler)
-                m_requestedSceneModel = handler;
-            m_visible = true;
-            m_focusRequested = true;
-        } };
-    }));
+    m_requestedFile = file;
+    m_visible = true;
+    m_focusRequested = true;
 }
 
-void ModelEditorWindow::Render(ImGuiWindowContext& context)
+void ModelEditorWindow::OpenSceneModel(ModelHandler handler)
+{
+    if (handler)
+        m_requestedSceneModel = handler;
+    m_visible = true;
+    m_focusRequested = true;
+}
+
+void ModelEditorWindow::Render(render::FrameWriter& frame)
 {
     if (!m_visible)
         return;
 
     if (!m_previewMeshes)
-        m_previewMeshes.emplace(context.renderer.Resources());
+        m_previewMeshes.emplace(m_deps.resources);
     if (!m_viewPort.IsValid())
-        m_viewPort = render::ViewPort(context.renderer.Resources(), Size(512, 512));
+        m_viewPort = render::ViewPort(m_deps.resources, Size(512, 512));
 
     // A widget interaction ends when nothing is active anymore: the next edit is a new undo step
     m_editInProgress = m_editInProgress && ImGui::IsAnyItemActive();
@@ -212,23 +211,23 @@ void ModelEditorWindow::Render(ImGuiWindowContext& context)
     if (m_requestedSceneModel) {
         const auto handler = *m_requestedSceneModel;
         m_requestedSceneModel.reset();
-        RunDiscarding([this, handler](ImGuiWindowContext& ctx) { OpenFromScene(ctx, handler); });
+        RunDiscarding([this, handler] { OpenFromScene(handler); });
     }
     if (m_requestedFile) {
         const Path file = std::move(*m_requestedFile);
         m_requestedFile.reset();
-        RunDiscarding([this, file](ImGuiWindowContext&) { OpenFile(file); });
+        RunDiscarding([this, file] { OpenFile(file); });
     }
 
-    DrawMenuBar(context);
-    DrawShortcuts(context);
+    DrawMenuBar();
+    DrawShortcuts();
 
     // Actions chosen in menus and popups run here, at window level, so the dialogs they open
     // live in the same ID scope as the place that draws them
     if (m_deferredAction) {
         auto action = std::move(m_deferredAction);
         m_deferredAction = {};
-        action(context);
+        action();
     }
 
     if (!m_status.empty())
@@ -238,22 +237,22 @@ void ModelEditorWindow::Render(ImGuiWindowContext& context)
         const float propertiesWidth = (std::min)(380.0f, ImGui::GetContentRegionAvail().x * 0.45f);
         ImGui::BeginChild("ModelProperties", ImVec2(propertiesWidth, 0.0f), true);
         if (m_import)
-            DrawImport(context);
+            DrawImport();
         else
-            DrawProperties(context);
+            DrawProperties();
         ImGui::EndChild();
         ImGui::SameLine();
 
         UpdatePreview();
         ImGui::BeginChild("ModelPreview", ImVec2(0.0f, 0.0f), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
-        DrawPreview(context);
+        DrawPreview(frame);
         ImGui::EndChild();
     } else {
         DrawEmptyState();
     }
 
-    HandleFileDialog(context);
-    DrawDiscardPopup(context);
+    HandleFileDialog();
+    DrawDiscardPopup();
     ImGui::End();
 }
 
@@ -383,18 +382,18 @@ void ModelEditorWindow::SaveImported(const Path& anyFileInDirectory)
     m_status = "Saved " + ToString(saved) + " models to " + String(directory.string().c_str()) + ".";
 }
 
-void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
+void ModelEditorWindow::AddImportedToScene()
 {
     const auto& session = *m_import;
     const auto& sourceNodes = session.asset.nodes;
-    auto& scene = context.scene;
+    auto& scene = m_deps.scene;
 
     // Every model goes to the scene once; the glTF nodes using them keep their hierarchy
     Vector<ModelHandler> nodeModels(sourceNodes.size());
     Vector<ModelHandler> originModels;
     for (size_t resultIndex = 0; resultIndex < session.results.size(); ++resultIndex) {
         const auto& imported = session.results[resultIndex];
-        const auto handler = context.models.Insert(imported.model,
+        const auto handler = m_deps.models.Insert(imported.model,
             resultIndex < session.savedFiles.size() ? session.savedFiles[resultIndex] : Path { });
         for (const size_t nodeIndex : imported.instanceNodes) {
             if (nodeIndex < sourceNodes.size())
@@ -420,7 +419,7 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
 
     size_t created = 0;
     for (const auto handler : originModels) {
-        const NodeId node = scene.AddNode(context.models.Get(handler)->name, math::Matrix4x4::Identity(), root);
+        const NodeId node = scene.AddNode(m_deps.models.Get(handler)->name, math::Matrix4x4::Identity(), root);
         sceneModels.Emplace(node, ModelComponent { .model = handler });
         ++created;
     }
@@ -444,16 +443,16 @@ void ModelEditorWindow::AddImportedToScene(ImGuiWindowContext& context)
         + " nodes under \"" + rootName + "\", with the glTF hierarchy.";
 }
 
-void ModelEditorWindow::OpenFromScene(ImGuiWindowContext& context, ModelHandler handler)
+void ModelEditorWindow::OpenFromScene(ModelHandler handler)
 {
-    const auto* model = context.models.Get(handler);
+    const auto* model = m_deps.models.Get(handler);
     if (!model) {
         m_status = "The scene model no longer exists.";
         return;
     }
     // A copy shares the geometry with the scene model, editing creates new geometry
     // Save writes the model's own file
-    const Path* file = context.models.FileOf(handler);
+    const Path* file = m_deps.models.FileOf(handler);
     const Path filePath = file ? *file : Path { };
     SetDocument(*model, filePath, handler, "Editing a scene model: Apply to Scene updates every node that uses it.");
 }
@@ -493,35 +492,35 @@ void ModelEditorWindow::Save()
         SaveTo(m_filePath);
 }
 
-bool ModelEditorWindow::IsSceneModelAlive(const ImGuiWindowContext& context) const
+bool ModelEditorWindow::IsSceneModelAlive() const
 {
-    return context.models.Get(m_sceneModel) != nullptr;
+    return m_deps.models.Get(m_sceneModel) != nullptr;
 }
 
-void ModelEditorWindow::ApplyToScene(ImGuiWindowContext& context)
+void ModelEditorWindow::ApplyToScene()
 {
-    if (!context.models.Replace(m_sceneModel, *m_model)) {
+    if (!m_deps.models.Replace(m_sceneModel, *m_model)) {
         m_status = "The scene model no longer exists, use Add to Scene.";
         return;
     }
-    RecordSceneFile(context);
+    RecordSceneFile();
     if (m_filePath.Empty())
         m_dirty = false;
     m_status = "Applied to the scene model.";
 }
 
-void ModelEditorWindow::AddToScene(ImGuiWindowContext& context)
+void ModelEditorWindow::AddToScene()
 {
     // Place the model in front of the scene camera, far enough to see it whole
     const AABB bounds = m_model->GetLocalBounds();
     const float radius = IsEmpty(bounds) ? 0.5f : (std::max)(bounds.GetExtent().Length(), 0.5f);
-    const Vector3 position = context.camera.GetPosition() + context.camera.GetForwardDirection() * (radius * 3.0f);
+    const Vector3 position = m_deps.camera.GetPosition() + m_deps.camera.GetForwardDirection() * (radius * 3.0f);
 
     const String name = m_model->name.empty() ? String("Model") : m_model->name;
-    m_sceneModel = context.models.Insert(*m_model);
-    RecordSceneFile(context);
-    const NodeId node = context.scene.AddNode( name, Matrix4x4::Translation(position) );
-    context.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = m_sceneModel });
+    m_sceneModel = m_deps.models.Insert(*m_model);
+    RecordSceneFile();
+    const NodeId node = m_deps.scene.AddNode( name, Matrix4x4::Translation(position) );
+    m_deps.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = m_sceneModel });
     m_status = "Added \"" + name + "\" to the scene, Apply to Scene now updates it.";
 }
 
@@ -723,7 +722,7 @@ void ModelEditorWindow::OpenFileDialog(DialogAction action)
     }
 }
 
-void ModelEditorWindow::HandleFileDialog(ImGuiWindowContext& context)
+void ModelEditorWindow::HandleFileDialog()
 {
     const auto selectedPath = m_fileDialog.Draw();
     if (!selectedPath)
@@ -752,12 +751,10 @@ void ModelEditorWindow::HandleFileDialog(ImGuiWindowContext& context)
             SaveImported(*selectedPath);
         break;
     }
-    (void)context;
 }
 
-void ModelEditorWindow::DrawDiscardPopup(ImGuiWindowContext& context)
+void ModelEditorWindow::DrawDiscardPopup()
 {
-    (void)context;
     constexpr const char* popupName = "Unsaved Model Changes";
     if (m_openDiscardPopup) {
         ImGui::OpenPopup(popupName);
@@ -780,7 +777,7 @@ void ModelEditorWindow::DrawDiscardPopup(ImGuiWindowContext& context)
     ImGui::EndPopup();
 }
 
-void ModelEditorWindow::DrawMenuBar(ImGuiWindowContext& context)
+void ModelEditorWindow::DrawMenuBar()
 {
     if (!ImGui::BeginMenuBar())
         return;
@@ -788,21 +785,21 @@ void ModelEditorWindow::DrawMenuBar(ImGuiWindowContext& context)
     const bool hasModel = m_model.has_value();
     if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("New"))
-            RunDiscarding([this](ImGuiWindowContext&) {
+            RunDiscarding([this] {
                 SetDocument(Model("New Model"), {}, {}, "New model.");
             });
         if (ImGui::MenuItem("Open .model..."))
-            RunDiscarding([this](ImGuiWindowContext&) { OpenFileDialog(DialogAction::Open); });
+            RunDiscarding([this] { OpenFileDialog(DialogAction::Open); });
         if (ImGui::MenuItem("Import glTF..."))
-            RunDiscarding([this](ImGuiWindowContext&) { OpenFileDialog(DialogAction::Import); });
+            RunDiscarding([this] { OpenFileDialog(DialogAction::Import); });
         ImGui::Separator();
         if (ImGui::MenuItem("Save", "Ctrl+S", false, hasModel))
-            m_deferredAction = [this](ImGuiWindowContext&) { Save(); };
+            m_deferredAction = [this] { Save(); };
         if (ImGui::MenuItem("Save As...", nullptr, false, hasModel))
-            m_deferredAction = [this](ImGuiWindowContext&) { OpenFileDialog(DialogAction::SaveAs); };
+            m_deferredAction = [this] { OpenFileDialog(DialogAction::SaveAs); };
         ImGui::Separator();
         if (ImGui::MenuItem("Close", nullptr, false, hasModel))
-            RunDiscarding([this](ImGuiWindowContext&) { CloseDocument(); });
+            RunDiscarding([this] { CloseDocument(); });
         ImGui::EndMenu();
     }
 
@@ -818,9 +815,9 @@ void ModelEditorWindow::DrawMenuBar(ImGuiWindowContext& context)
             m_selected = m_model->submeshes.size() - 1;
         }
         if (ImGui::MenuItem("Append from glTF..."))
-            m_deferredAction = [this](ImGuiWindowContext&) { OpenFileDialog(DialogAction::AppendGltf); };
+            m_deferredAction = [this] { OpenFileDialog(DialogAction::AppendGltf); };
         if (ImGui::MenuItem("Append from .model..."))
-            m_deferredAction = [this](ImGuiWindowContext&) { OpenFileDialog(DialogAction::AppendModel); };
+            m_deferredAction = [this] { OpenFileDialog(DialogAction::AppendModel); };
         ImGui::Separator();
         if (ImGui::MenuItem("Merge Submeshes by Color"))
             MergeByColor();
@@ -828,16 +825,16 @@ void ModelEditorWindow::DrawMenuBar(ImGuiWindowContext& context)
     }
 
     if (ImGui::BeginMenu("Scene", hasModel)) {
-        if (ImGui::MenuItem("Apply to Scene", nullptr, false, IsSceneModelAlive(context)))
-            ApplyToScene(context);
+        if (ImGui::MenuItem("Apply to Scene", nullptr, false, IsSceneModelAlive()))
+            ApplyToScene();
         if (ImGui::MenuItem("Add to Scene"))
-            AddToScene(context);
+            AddToScene();
         ImGui::EndMenu();
     }
     ImGui::EndMenuBar();
 }
 
-void ModelEditorWindow::DrawShortcuts(ImGuiWindowContext& context)
+void ModelEditorWindow::DrawShortcuts()
 {
     const auto& io = ImGui::GetIO();
     if (!m_model || !io.KeyCtrl || io.WantTextInput || !ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
@@ -851,8 +848,7 @@ void ModelEditorWindow::DrawShortcuts(ImGuiWindowContext& context)
     if (ImGui::IsKeyPressed(ImGuiKey_Y, false))
         Redo();
     if (ImGui::IsKeyPressed(ImGuiKey_S, false))
-        m_deferredAction = [this](ImGuiWindowContext&) { Save(); };
-    (void)context;
+        m_deferredAction = [this] { Save(); };
 }
 
 void ModelEditorWindow::DrawEmptyState()
@@ -872,7 +868,7 @@ void ModelEditorWindow::DrawEmptyState()
         OpenFileDialog(DialogAction::Import);
 }
 
-void ModelEditorWindow::DrawProperties(ImGuiWindowContext& context)
+void ModelEditorWindow::DrawProperties()
 {
     if (auto name = InputString("Name", m_model->name)) {
         RecordUndo("model name", true);
@@ -882,8 +878,8 @@ void ModelEditorWindow::DrawProperties(ImGuiWindowContext& context)
     if (!m_filePath.Empty())
         ImGui::TextDisabled("File: %s", m_filePath.string().c_str());
     if (m_sceneModel) {
-        if (IsSceneModelAlive(context)) {
-            const auto* nodeModels = context.scene.FindComponents<ModelComponent>();
+        if (IsSceneModelAlive()) {
+            const auto* nodeModels = m_deps.scene.FindComponents<ModelComponent>();
             const auto components = nodeModels ? nodeModels->Components() : std::span<const ModelComponent> { };
             const auto users = std::count_if(components.begin(), components.end(),
                 [&](const ModelComponent& component) { return component.model == m_sceneModel; });
@@ -904,15 +900,15 @@ void ModelEditorWindow::DrawProperties(ImGuiWindowContext& context)
     }
 
     if (ImGui::Button("Save"))
-        m_deferredAction = [this](ImGuiWindowContext&) { Save(); };
+        m_deferredAction = [this] { Save(); };
     ImGui::SameLine();
-    if (IsSceneModelAlive(context)) {
+    if (IsSceneModelAlive()) {
         if (ImGui::Button("Apply to Scene"))
-            ApplyToScene(context);
+            ApplyToScene();
         ImGui::SameLine();
     }
     if (ImGui::Button("Add to Scene"))
-        AddToScene(context);
+        AddToScene();
     ImGui::SameLine();
     ImGui::BeginDisabled(m_undo.empty());
     if (ImGui::Button("Undo"))
@@ -1032,7 +1028,7 @@ void ModelEditorWindow::DrawTransformTools()
     ImGui::PopID();
 }
 
-void ModelEditorWindow::DrawImport(ImGuiWindowContext& context)
+void ModelEditorWindow::DrawImport()
 {
     auto& session = *m_import;
     ImGui::TextDisabled("%s", session.path.string().c_str());
@@ -1097,17 +1093,17 @@ void ModelEditorWindow::DrawImport(ImGuiWindowContext& context)
     const bool hasResults = !session.results.empty();
     ImGui::BeginDisabled(!hasResults);
     if (ImGui::Button("Open in Editor"))
-        m_deferredAction = [this](ImGuiWindowContext&) { OpenImportedResult(); };
+        m_deferredAction = [this] { OpenImportedResult(); };
     ImGui::SameLine();
     if (ImGui::Button("Save All..."))
-        m_deferredAction = [this](ImGuiWindowContext&) { OpenFileDialog(DialogAction::SaveImported); };
+        m_deferredAction = [this] { OpenFileDialog(DialogAction::SaveImported); };
     ImGui::SameLine();
     if (ImGui::Button("Add All to Scene"))
-        AddImportedToScene(context);
+        AddImportedToScene();
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (ImGui::Button("Cancel"))
-        m_deferredAction = [this](ImGuiWindowContext&) { CloseDocument(); };
+        m_deferredAction = [this] { CloseDocument(); };
     ImGui::TextDisabled("Open in Editor edits the selected model and ends the import.");
 }
 
@@ -1174,7 +1170,7 @@ void ModelEditorWindow::DrawImportTree()
     ImGui::EndChild();
 }
 
-void ModelEditorWindow::DrawPreview(ImGuiWindowContext& context)
+void ModelEditorWindow::DrawPreview(render::FrameWriter& frame)
 {
     const ImVec2 available = ImGui::GetContentRegionAvail();
     const auto texture = ToTextureId(m_viewPort.GetColorTexture());
@@ -1241,7 +1237,6 @@ void ModelEditorWindow::DrawPreview(ImGuiWindowContext& context)
     const Matrix4x4 projection = Matrix4x4::PerspectiveVk(fov, available.x / available.y,
         (std::max)(distance - radius * 1.5f, distance * 0.01f), distance + radius * 1.5f);
 
-    auto& frame = context.frame;
     frame.BeginSceneView({ projection * view, eye }, m_viewPort.GetColorTexture(), m_viewPort.GetSize());
     m_previewMeshes->Sync(m_previewModels);
     m_previewMeshes->ForEachSubmesh(m_previewModels, m_previewModel, [&](const Model::Submesh& submesh, render::MeshHandle mesh) {
@@ -1249,10 +1244,10 @@ void ModelEditorWindow::DrawPreview(ImGuiWindowContext& context)
     });
 }
 
-void ModelEditorWindow::RecordSceneFile(ImGuiWindowContext& context) const
+void ModelEditorWindow::RecordSceneFile() const
 {
     // Unsaved edits are not what the file holds: the scene model is then a new one, written with the scene
-    context.models.SetFile(m_sceneModel, m_dirty ? Path { } : m_filePath);
+    m_deps.models.SetFile(m_sceneModel, m_dirty ? Path { } : m_filePath);
 }
 
 const Model* ModelEditorWindow::GetPreviewSource() const

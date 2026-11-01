@@ -80,7 +80,7 @@ namespace elm::script {
 
     private:
         friend struct SelfTestAccess;
-        /// The Scripts window of the editor (editor/script) shows the parts of this system (CreateEditorWindows).
+        /// The Scripts window of the editor (editor/script) shows the parts of this system (CreateScriptWindow, MakeScriptInspection).
         friend struct EditorWindowsAccess;
 
         /// The systems of ScriptDeps as the bindings see them, the project open now.

@@ -1,50 +1,23 @@
 #pragma once
 
 #include "core/Std.hpp"
-#include "core/MessageBus.hpp"
 #include "core/Settings.hpp"
-
-#include "graphics/Camera.hpp"
-#include "model/ModelCatalog.hpp"
-
-#include "Scene/Scene.hpp"
-
-#include <optional>
-#include <utility>
 
 namespace elm {
 
-	struct FrameStats;
-
 	namespace render {
-		class Render;
-		class ViewPort;
 		class FrameWriter;
 	}
 
-	namespace graphics {
-		class DebugDraw;
-	}
-
-	struct ImGuiWindowContext {
-		render::Render& renderer;
-		Scene& scene;
-        ModelCatalog& models;
-		Camera& camera;
-		const FrameStats& stats;
-		render::ViewPort& viewPort;
-		/// Frame being built: windows may add their own scene views to it.
-		render::FrameWriter& frame;
-		/// Debug primitives of the engine view and their channels.
-		graphics::DebugDraw& debugDraw;
-	};
-
+	/// An editor window. What it works with it gets at construction (its own dependency struct, see
+	/// docs/core/Системы.md#Окна редактора), the frame only in Render: a window may add its own scene views
+	/// (previews) to it. Owner: ImGuiSystem. Thread: update (UI).
 	class IImGuiWindow {
 	public:
 		IImGuiWindow(Settings& settings) : m_settings(settings) {}
 		virtual ~IImGuiWindow() = default;
 
-		virtual void Render(ImGuiWindowContext& context) = 0;
+		virtual void Render(render::FrameWriter& frame) = 0;
 		[[nodiscard]] virtual StringView GetName() const = 0;
 
 		[[nodiscard]] bool IsVisible() const noexcept { return m_visible; }
@@ -52,30 +25,8 @@ namespace elm {
 		bool* GetVisiblePtr() noexcept { return &m_visible; }
 
 	protected:
-		template <typename Query>
-		[[nodiscard]] std::optional<Query> Request() const {
-			return m_messageBus->Request<Query>();
-		}
-
-		template <typename Query, typename Handler>
-		[[nodiscard]] MessageBus::Subscription RegisterQuery(Handler&& handler) {
-			return m_messageBus->RegisterQuery<Query>(std::forward<Handler>(handler));
-		}
-
-		virtual void OnAttach() {}
-
 		Settings& m_settings;
 		bool m_visible{ true };
-
-	private:
-		friend class ImGuiSystem;
-
-		void Attach(MessageBus& messageBus) {
-			m_messageBus = &messageBus;
-			OnAttach();
-		}
-
-		MessageBus* m_messageBus{ nullptr };
 	};
 
-} // namespace Engine
+} // namespace elm

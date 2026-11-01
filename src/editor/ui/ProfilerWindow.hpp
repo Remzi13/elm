@@ -9,12 +9,27 @@
 
 namespace elm {
 
+	struct FrameStats;
+
+	namespace render {
+		class Render;
+	}
+
+	/// What the profiler shows; they outlive it (Editor).
+	struct ProfilerDeps {
+		/// Draw and memory statistics of rendering.
+		const render::Render& render;
+		/// The frame rate, updated by Editor every frame.
+		const FrameStats& stats;
+	};
+
+	/// Frame rate history, rendering and memory statistics. Owner: ImGuiSystem, thread: update (UI).
 	class ProfilerWindow final : public IImGuiWindow {
 	public:
-		ProfilerWindow(Settings& settings) : IImGuiWindow(settings) {}
+		ProfilerWindow(Settings& settings, const ProfilerDeps& deps);
 
 		[[nodiscard]] StringView GetName() const override { return "Profiler"; }
-		void Render(ImGuiWindowContext& context) override;
+		void Render(render::FrameWriter& frame) override;
 
 	private:
 		static constexpr size_t kHistorySize = 256;
@@ -32,6 +47,8 @@ namespace elm {
 		float m_frameTimeAvg{ 0.0f };
 
 		void UpdateHistory(float fps, float frameTimeMs);
+
+		ProfilerDeps m_deps;
 	};
 
 } // namespace elm

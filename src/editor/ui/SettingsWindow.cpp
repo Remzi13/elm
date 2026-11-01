@@ -131,7 +131,7 @@ namespace elm {
 
 	}
 
-	void SettingsWindow::Render(ImGuiWindowContext&)
+	void SettingsWindow::Render(render::FrameWriter&)
 	{
 		if (!m_visible)
 			return;

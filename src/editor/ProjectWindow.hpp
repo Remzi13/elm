@@ -2,6 +2,7 @@
 
 #include "core/Error.hpp"
 
+#include "editor/ui/EditorServices.hpp"
 #include "editor/ui/IImGuiWindow.hpp"
 
 #include "editor/ProjectSettingsPanel.hpp"
@@ -23,10 +24,11 @@ namespace elm::editor {
     /// Owner: ImGuiSystem (a project window: it lives as long as the project is open), thread: update.
     class ProjectWindow final : public IImGuiWindow {
     public:
-        ProjectWindow(Settings& settings, const project::Project& project, SetProjectEntry setEntry);
+        /// files: who opens a scene, a model, a script on a double click; it outlives the window (Editor).
+        ProjectWindow(Settings& settings, const project::Project& project, const FileOpener& files, SetProjectEntry setEntry);
 
         [[nodiscard]] StringView GetName() const override { return "Project"; }
-        void Render(ImGuiWindowContext& context) override;
+        void Render(render::FrameWriter& frame) override;
 
     private:
         void DrawAssets();
@@ -42,6 +44,7 @@ namespace elm::editor {
         [[nodiscard]] bool Matches(const project::AssetEntry& file) const;
 
         const project::Project& m_project;
+        const FileOpener& m_files;
         SetProjectEntry m_setEntry;
         project::ProjectAssets m_assets;
         /// After m_assets: it reads them.

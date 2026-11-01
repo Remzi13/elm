@@ -104,7 +104,7 @@ namespace elm {
 
     } // namespace
 
-    void LogWindow::Render(ImGuiWindowContext&)
+    void LogWindow::Render(render::FrameWriter&)
     {
         if (!m_visible)
             return;

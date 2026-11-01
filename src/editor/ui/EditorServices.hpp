@@ -4,7 +4,6 @@
 #include "core/FileSystem.hpp"
 
 #include "model/ModelHandler.hpp"
-#include "graphics/gizmo/GizmoSettings.hpp"
 
 #include "Scene/NodeId.hpp"
 #include "Scene/ScriptComponent.hpp"
@@ -14,24 +13,23 @@
 
 namespace elm {
 
-	/// Provided by the model editor: opens a model of the scene ModelCatalog for editing.
-	struct OpenModelEditor {
-		std::function<void(ModelHandler)> open;
+	/// The node Scene Hierarchy shows and the viewport's gizmo moves; invalid while the scene is empty.
+	/// Owner: Editor, which gives it to both windows. Thread: update (UI).
+	struct Selection {
+		NodeId node;
 	};
 
-	/// Provided by Scene Hierarchy: replaces the scene with a scene file (the Project window opens one).
-	struct OpenSceneFile {
-		std::function<void(const Path& file)> open;
-	};
-
-	/// Provided by the model editor: opens a .model file for editing.
-	struct OpenModelFile {
-		std::function<void(const Path& file)> open;
-	};
-
-	/// Provided by the Scripts window: opens a script file in its editor.
-	struct OpenScriptFile {
-		std::function<void(const Path& file)> open;
+	/// Opens files and models in the window that edits them. Editor fills it when it makes the project
+	/// windows and empties it before they close: an empty function opens nothing. Thread: update (UI).
+	struct FileOpener {
+		/// Scene Hierarchy: replaces the scene with a scene file.
+		std::function<void(const Path& file)> scene;
+		/// Model Editor: a .model file.
+		std::function<void(const Path& file)> model;
+		/// Model Editor: a model of the scene ModelCatalog.
+		std::function<void(ModelHandler model)> sceneModel;
+		/// The Scripts window: a script file in its editor.
+		std::function<void(const Path& file)> script;
 	};
 
 	/// ImGui drag and drop payload of a model file dragged from the Project window: its absolute path, a string.
@@ -55,7 +53,8 @@ namespace elm {
 		String module;
 	};
 
-	/// Provided by the Scripts window: what Scene Hierarchy shows and changes of the Lua scripts of a node.
+	/// Made from the script system (script::MakeScriptInspection): what Scene Hierarchy shows and changes of the
+	/// Lua scripts of a node. Valid while the script system lives.
 	struct ScriptInspection {
 		/// The props a module declares, with their defaults; the error when the module cannot be read.
 		std::function<EngineResult<ScriptProps>(StringView module)> defaults;
@@ -67,22 +66,6 @@ namespace elm {
 		/// Ends the node's instance (on_destroy): before its Script component is removed.
 		std::function<void(NodeId node)> endInstance;
 		std::function<void(StringView module)> reloadModule;
-	};
-
-	/// Provided by Scene Hierarchy: the node it shows; an invalid id while the scene is empty.
-	struct SelectedSceneInstance {
-		NodeId node;
-	};
-
-	/// Provided by the Scripts window: Edit or Play mode of the engine, see script::PlayMode.
-	/// The switches are requests, applied on the next update.
-	struct PlayControls {
-		bool playing;
-		/// Play as the game starts: the startup scene and the main module of the project.
-		std::function<void()> playProject;
-		/// Play the edited scene with the main module.
-		std::function<void()> playScene;
-		std::function<void()> stop;
 	};
 
 } // namespace elm

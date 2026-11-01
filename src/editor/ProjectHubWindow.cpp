@@ -17,7 +17,7 @@ namespace elm::editor {
         m_visible = false;
     }
 
-    void ProjectHubWindow::Render(ImGuiWindowContext&)
+    void ProjectHubWindow::Render(render::FrameWriter&)
     {
         if (!m_visible)
             return;

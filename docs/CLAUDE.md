@@ -45,7 +45,6 @@ elm — 3D-движок с редактором на C++23: собственны
 | `EngineResult<T>`, `EngineError`, `ErrorCode` | результат операции, `std::expected<T, EngineError>` | `core/Error.hpp` |
 | `core::Handle<Tag>` | типизированный хэндл: 24 бита индекса + 8 бит поколения, 0 значит невалидный | `core/Handler.hpp` |
 | `Settings` | настройки по ключу `Category/path`, хранятся в `.settings` | `core/Settings.hpp` |
-| `MessageBus` | запросы между окнами редактора (`RegisterQuery`/`Request`) | `core/MessageBus.hpp` |
 | `core::JobSystem`, `TaskGroup`, `parallelFor` | пул воркеров и группы задач | `core/JobSystem.hpp` |
 | `core::ThreadRole` (`Update`, `Render`) | роль потока, проверяется `ELM_ASSERT_THREAD` | `core/Threading.hpp` |
 | `FileSystem`, `Path`, `AssetPaths` | пути относительно корня (`Core/FileSystem/RootPath`) | `core/FileSystem.hpp` |
@@ -82,8 +81,8 @@ elm — 3D-движок с редактором на C++23: собственны
 | `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют |
 | `Camera`, `CameraController`, `ViewRay` | камера вида (у `GraphicsSystem`, `GetViewCamera`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCulling`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
-| `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
-| `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
+| `ImGuiSystem`, `IImGuiWindow`, `*Deps` окон | окна редактора; зависимости окно получает в конструкторе своей структурой, в кадре — только `FrameWriter` |
+| `Selection`, `FileOpener`, `ScriptInspection` | сервисы редактора для окон (`editor/ui/EditorServices.hpp`), владелец `Editor`. Выбранный узел — `NodeId` |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
 | `DebugDrawing` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец — программа (`Editor`, `Game` с `ELM_DEBUG_DRAW`) |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
@@ -157,7 +156,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (ко�
 (`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`) не подключаются вне `src/script/`:
 снаружи видны `ScriptSystem`, `ScriptDeps`, `EngineContext`, `PlayMode` и `RunSelfTests`. Исключение — окно Scripts редактора
 (`editor/script/`): оно показывает части `ScriptSystem` и подключает их заголовки, а сами части получает через
-`EditorWindowsAccess` (`CreateEditorWindows`).
+`EditorWindowsAccess` (`CreateScriptWindow`, `MakeScriptInspection`).
 
 Известные нарушения, их не расширяй: `Scene/Transform.hpp` подключает `graphics/culling/MathTypes.hpp`; `using namespace math;` в
 `math/Primitivs.hpp`, `Scene/TestScenes.hpp`, `graphics/culling/MathTypes.hpp`.
@@ -181,7 +180,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (ко�
 - Один класс, функция, файл = одна причина для изменения. Если в имени функции нужен «и»
   (`LoadAndApply`), раздели её.
 - Функция: желательно до 30 строк, не глубже 3 уровней вложенности, не больше 4 параметров.
-  Больше параметров собери в структуру (`ImGuiWindowContext`, `EngineContext`, `*Desc`).
+  Больше параметров собери в структуру (`*Deps`, `EngineContext`, `*Desc`).
 - Не смешивай в классе логику, ввод-вывод, UI и хранение. Окна (`*Window`) показывают и правят,
   системы (`*System`) считают, `resource` читает и пишет файлы.
 - Никаких `utils.h`/`helpers.h`/`common.h`: файл называется по назначению. Исключение — уже
@@ -248,8 +247,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (ко�
 - API движка возвращает `EngineResult<T>`. Ошибку создавай через
   `MakeUnexpected(ErrorCode, message, log::Category, source)` из `core/Unexpected.hpp`: она сразу
   пишет в лог. Ожидаемое отсутствие: `nullptr`/`std::optional`/`false` (`Find`, `Get`, `Remove`).
-- Исключения только в двух местах: ошибки Lua (`luaL_error` в биндингах) и ошибки программиста
-  в инфраструктуре (`std::logic_error` в `MessageBus`). Через render-поток и воркеры исключения не идут.
+- Исключения только для ошибок Lua (`luaL_error` в биндингах). Через render-поток и воркеры исключения не идут.
 - Инварианты: `ELM_ASSERT(cond && "почему")`, принадлежность потоку: `ELM_ASSERT_THREAD(Role)`.
   `<cassert>` не используй.
 - Предусловия проверяй на границе модуля: в публичном API, в биндингах (`RequireSystem`).

@@ -6,7 +6,9 @@
 #include "engine/FrameClock.hpp"
 
 #include "graphics/CameraController.hpp"
+#include "graphics/FrameStats.hpp"
 #include "graphics/GraphicsSystem.hpp"
+#include "graphics/gizmo/GizmoSettings.hpp"
 #include "graphics/debug/DebugDrawing.hpp"
 
 #include "physics/PhysicsSystem.hpp"
@@ -21,6 +23,7 @@
 #include "script/ScriptSystem.hpp"
 
 #include "editor/EditMode.hpp"
+#include "editor/ui/EditorServices.hpp"
 #include "editor/ui/ImGuiSystem.hpp"
 
 #include "project/Project.hpp"
@@ -97,6 +100,8 @@ namespace elm {
 		void EndProject();
 		/// The project's windows close, the menu shows no project.
 		void CloseProjectWindows();
+		/// The windows that outlive projects: SocLab, the viewport, Log, Profiler, Settings.
+		void CreateEditorWindows();
 		/// The project's windows open with its startup scene, the menu shows it, it becomes the last project.
 		void OpenProjectWindows(const project::Project& project);
 		void CreateProjectWindows(const project::Project& project, const Path& openedScene);
@@ -136,6 +141,17 @@ namespace elm {
 		CameraController m_cameraController;
 		/// Edit and Play around PlayMode: the snapshot of the edited scene.
 		EditMode m_editMode;
+
+		// The editor's services for its windows (docs/core/Системы.md#Окна редактора)
+		script::PlayRequests m_playRequests;
+		ScriptInspection m_scriptInspection;
+		Selection m_selection;
+		GizmoSettings m_gizmo { GizmoOperation::Translate, GizmoSpace::World };
+		/// Filled while the project windows are open.
+		FileOpener m_files;
+		/// The Profiler's, updated every frame.
+		FrameStats m_frameStats;
+
 		UniquePtr<ImGuiSystem> m_imgui;
 		/// Owned by m_imgui: an editor window, it outlives projects.
 		editor::ProjectHubWindow* m_hub { nullptr };

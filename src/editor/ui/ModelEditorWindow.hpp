@@ -13,19 +13,34 @@
 
 namespace elm {
 
+class Camera;
+class Scene;
+
+/// What the Model Editor works with. Valid while the window lives: Editor destroys the project windows
+/// before the project closes.
+struct ModelEditorDeps {
+    /// For the preview's meshes and view.
+    render::RenderResources& resources;
+    Scene& scene;
+    ModelCatalog& models;
+    /// Add to Scene puts the model in front of it.
+    const Camera& camera;
+};
+
 /// Model editor: creates, imports (glTF), opens and saves engine models (.model) and edits models
 /// of the current scene. Every edit works on a CPU copy of the model with undo/redo; the scene
 /// sees the result only on "Apply to Scene" or "Add to Scene".
 class ModelEditorWindow final : public IImGuiWindow {
 public:
     /// The project's assets folder (imports are copied into it) and its models folder (where dialogs start).
-    ModelEditorWindow(Settings& settings, Path assetsFolder, Path modelsFolder);
+    ModelEditorWindow(Settings& settings, const ModelEditorDeps& deps, Path assetsFolder, Path modelsFolder);
 
     [[nodiscard]] StringView GetName() const override { return "Model Editor"; }
-    void Render(ImGuiWindowContext& context) override;
-
-protected:
-    void OnAttach() override;
+    void Render(render::FrameWriter& frame) override;
+    /// Opens a .model file in the next Render (FileOpener::model).
+    void OpenModelFile(const Path& file);
+    /// Opens a model of the scene ModelCatalog in the next Render (FileOpener::sceneModel).
+    void OpenSceneModel(ModelHandler handler);
 
 private:
     enum class DialogAction {
@@ -51,7 +66,7 @@ private:
         bool resultsDirty { true };
     };
 
-    using Action = std::function<void(ImGuiWindowContext&)>;
+    using Action = std::function<void()>;
 
     // Documents
     void SetDocument(Model model, Path filePath, ModelHandler sceneModel, String status);
@@ -61,13 +76,13 @@ private:
     void ImportGltf(const Path& file);
     void OpenImportedResult();
     void SaveImported(const Path& anyFileInDirectory);
-    void AddImportedToScene(ImGuiWindowContext& context);
-    void OpenFromScene(ImGuiWindowContext& context, ModelHandler handler);
+    void AddImportedToScene();
+    void OpenFromScene(ModelHandler handler);
     void Append(const Path& path, bool gltf);
     bool SaveTo(const Path& path);
     void Save();
-    void ApplyToScene(ImGuiWindowContext& context);
-    void AddToScene(ImGuiWindowContext& context);
+    void ApplyToScene();
+    void AddToScene();
     /// Runs the action (deferred to window level), after the user agreed to drop unsaved changes if any.
     void RunDiscarding(Action action);
 
@@ -88,17 +103,17 @@ private:
     void MoveSelected(int direction);
 
     // UI
-    void DrawMenuBar(ImGuiWindowContext& context);
-    void DrawShortcuts(ImGuiWindowContext& context);
+    void DrawMenuBar();
+    void DrawShortcuts();
     void DrawEmptyState();
-    void DrawProperties(ImGuiWindowContext& context);
+    void DrawProperties();
     void DrawSubmeshes();
     void DrawTransformTools();
-    void DrawPreview(ImGuiWindowContext& context);
-    void DrawImport(ImGuiWindowContext& context);
+    void DrawPreview(render::FrameWriter& frame);
+    void DrawImport();
     void DrawImportTree();
-    void DrawDiscardPopup(ImGuiWindowContext& context);
-    void HandleFileDialog(ImGuiWindowContext& context);
+    void DrawDiscardPopup();
+    void HandleFileDialog();
     void OpenFileDialog(DialogAction action);
 
     /// Uploads the previewed model (document or selected import result) when it changed.
@@ -106,9 +121,10 @@ private:
     /// Model shown in the preview: the selected import result or the document.
     [[nodiscard]] const Model* GetPreviewSource() const;
     /// The file of the scene model the document was applied to: the document's file unless it has unsaved edits.
-    void RecordSceneFile(ImGuiWindowContext& context) const;
-    [[nodiscard]] bool IsSceneModelAlive(const ImGuiWindowContext& context) const;
+    void RecordSceneFile() const;
+    [[nodiscard]] bool IsSceneModelAlive() const;
 
+    ModelEditorDeps m_deps;
     Path m_assetsFolder;
     Path m_modelsFolder;
     // The preview model lives in its own catalog, apart from the scene models; its meshes once rendering is up
@@ -159,7 +175,6 @@ private:
     std::optional<Path> m_requestedFile;
     bool m_focusRequested { false };
     String m_status;
-    Vector<MessageBus::Subscription> m_querySubscriptions;
 };
 
 } // namespace elm

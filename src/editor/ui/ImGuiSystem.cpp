@@ -3,10 +3,6 @@
 
 #include "editor/ui/EditorStyle.hpp"
 #include "editor/ui/EngineViewportWindow.hpp"
-#include "editor/ui/LogWindow.hpp"
-#include "editor/ui/SocLabWindow.hpp"
-#include "editor/ui/ProfilerWindow.hpp"
-#include "editor/ui/SettingsWindow.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -52,7 +48,6 @@ namespace elm {
 	void ImGuiSystem::AddWindow( UniquePtr<IImGuiWindow> window ) {
 		if ( window ) {
 			ApplySavedVisibility( *window );
-			window->Attach(m_windowMessageBus);
 			m_windows.push_back( std::move( window ) );
 		}
 	}
@@ -94,8 +89,7 @@ namespace elm {
 		return window && window->IsFocused();
 	}
 
-	auto ImGuiSystem::Init( platform::Window& window, render::Render& renderer, Settings& settings, StringView title,
-		const OcclusionCulling* culling ) -> elm::EngineResult<void> {
+	auto ImGuiSystem::Init( platform::Window& window, render::Render& renderer, Settings& settings, StringView title ) -> elm::EngineResult<void> {
 		m_window = window.GetHandle();
 		m_title = title;
 
@@ -108,14 +102,6 @@ namespace elm {
 		// Before the renderer builds the font atlas
 		LoadEditorFonts();
 		ApplyEditorStyle();
-
-		// Register standard engine editor windows
-		// Scene Hierarchy, Model Editor and the script windows belong to the project: Editor adds them
-		EmplaceWindow<SocLabWindow>( settings, culling );
-		EmplaceWindow<EngineViewportWindow>( settings );
-		EmplaceWindow<LogWindow>( settings );
-		EmplaceWindow<ProfilerWindow>( settings );
-		EmplaceWindow<SettingsWindow>( settings );
 
 		m_render = &renderer;
 		m_releasedSurfaceBaseline = renderer.GetReleasedSurfaceCount();
@@ -374,8 +360,8 @@ namespace elm {
 		m_pendingPlatformWindows.erase( m_pendingPlatformWindows.begin(), m_pendingPlatformWindows.begin() + count );
 	}
 
-	void ImGuiSystem::BuildFrame( const ImGuiWindowContext& context ) {
-		auto& frame = context.frame.Overlay();
+	void ImGuiSystem::BuildFrame( render::FrameWriter& frameWriter ) {
+		auto& frame = frameWriter.Overlay();
 		frame.Clear();
 		if ( !m_initialized ) return;
 		if ( m_renderer ) {
@@ -391,8 +377,7 @@ namespace elm {
 		m_dockSpace.Render( m_windows, m_projectMenu );
 		for ( const auto& window : m_windows ) {
 			if ( window && window->IsVisible() ) {
-				ImGuiWindowContext windowContext = context;
-				window->Render( windowContext );
+				window->Render( frameWriter );
 			}
 		}
 		ImGui::Render();

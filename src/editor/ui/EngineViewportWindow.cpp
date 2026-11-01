@@ -1,9 +1,11 @@
 #include "editor/ui/EngineViewportWindow.hpp"
 
 #include "core/Log.hpp"
+#include "graphics/Camera.hpp"
 #include "graphics/debug/DebugDraw.hpp"
 #include "render/ViewPort.hpp"
 #include "Scene/ModelComponent.hpp"
+#include "Scene/Scene.hpp"
 
 #include "imgui.h"
 
@@ -27,12 +29,12 @@ namespace elm {
 
 		/// Play Project and Play Scene in Edit mode, Stop in Play mode. F5 plays the project, Shift+F5 the
 		/// edited scene, either stops.
-		void DrawPlayControls(const PlayControls& play) {
+		void DrawPlayControls(const script::PlayRequests& play) {
 			const ImGuiIO& io = ImGui::GetIO();
 			// Ctrl+F5 is Run Standalone of the Project menu
 			const bool f5 = !io.WantTextInput && !io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F5, false);
 			// The buttons come first: they are drawn whether a key was pressed or not
-			if (play.playing) {
+			if (play.isPlaying && play.isPlaying()) {
 				if ((ImGui::Button("Stop") || f5) && play.stop)
 					play.stop();
 				ImGui::SameLine();
@@ -111,10 +113,16 @@ namespace elm {
 
 	}
 
-	void EngineViewportWindow::Render(ImGuiWindowContext& context) {
-		auto& scene = context.scene;
-		auto& camera = context.camera;
-		auto& viewPort = context.viewPort;
+	EngineViewportWindow::EngineViewportWindow(Settings& settings, const EngineViewportDeps& deps)
+		: IImGuiWindow(settings)
+		, m_deps(deps)
+	{
+	}
+
+	void EngineViewportWindow::Render(render::FrameWriter&) {
+		Scene& scene = m_deps.scene;
+		Camera& camera = m_deps.camera;
+		render::ViewPort& viewPort = m_deps.viewPort;
 		m_hovered = false;
 		m_focused = false;
 		if (!m_visible) return;
@@ -127,18 +135,13 @@ namespace elm {
 		}
 		m_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 
-		// Edit / Play mode, provided by the Scripts window
-		if (const auto play = Request<PlayControls>()) {
-			DrawPlayControls(*play);
-			ImGui::SameLine();
-		}
+		DrawPlayControls(m_deps.play);
+		ImGui::SameLine();
 		if (ImGui::Button("Debug"))
 			ImGui::OpenPopup(DebugChannelsPopup);
-		DrawDebugChannelsPopup(context.debugDraw);
+		DrawDebugChannelsPopup(m_deps.debugDraw);
 
-		const auto selectedInstance = Request<SelectedSceneInstance>();
-		const auto gizmoSettings = Request<GizmoSettings>();
-		const Scene::Node* selected = selectedInstance ? scene.Find(selectedInstance->node) : nullptr;
+		const Scene::Node* selected = scene.Find(m_deps.selection.node);
 		// A node the user hid gets no gizmo; a node without a model is not hidden
 		const auto* nodeModels = scene.FindComponents<ModelComponent>();
 		const ModelComponent* selectedModel = selected && nodeModels ? nodeModels->Find(selected->id) : nullptr;
@@ -161,10 +164,10 @@ namespace elm {
 				ImGui::InvisibleButton("##ViewportCanvas", available, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
 				// Popups and other windows on top of the image block the hover
 				m_hovered = ImGui::IsItemHovered();
-				DrawDebugLabels(context.debugDraw.GetPublishedLabels(), camera, imagePosition, available);
+				DrawDebugLabels(m_deps.debugDraw.GetPublishedLabels(), camera, imagePosition, available);
 
-				if (selectedShown && gizmoSettings)
-					UpdateGizmo(context, selected->id, *gizmoSettings, ReadGizmoInput(camera, imagePosition, available, m_hovered));
+				if (selectedShown)
+					UpdateGizmo(selected->id, ReadGizmoInput(camera, imagePosition, available, m_hovered));
 				else if (m_gizmo)
 					m_gizmo->Reset();
 			}
@@ -172,22 +175,21 @@ namespace elm {
 		ImGui::End();
 	}
 
-	void EngineViewportWindow::UpdateGizmo(ImGuiWindowContext& context, NodeId node, const GizmoSettings& settings,
-		const graphics::GizmoInput& input) {
+	void EngineViewportWindow::UpdateGizmo(NodeId node, const graphics::GizmoInput& input) {
 		if (!m_gizmo)
-			m_gizmo.emplace(context.debugDraw);
+			m_gizmo.emplace(m_deps.debugDraw);
 		// A gizmo switched off in the Debug menu is not there to grab either
-		if (!context.debugDraw.IsEnabled(m_gizmo->Channel())) {
+		if (!m_deps.debugDraw.IsEnabled(m_gizmo->Channel())) {
 			m_gizmo->Reset();
 			return;
 		}
-		Scene& scene = context.scene;
+		Scene& scene = m_deps.scene;
 		const Matrix4x4& world = scene.WorldTransforms()[scene.IndexOf(node)];
-		if (const auto moved = m_gizmo->Update(world, settings, input); moved && !scene.SetWorldTransform(node, *moved)) {
+		if (const auto moved = m_gizmo->Update(world, m_deps.gizmo, input); moved && !scene.SetWorldTransform(node, *moved)) {
 			ERROR_MESSAGE(log::Category::Core, "EngineViewportWindow",
 				"Unable to update the selected node transform because its parent transform is singular");
 		}
-		m_gizmo->Draw(context.debugDraw);
+		m_gizmo->Draw(m_deps.debugDraw);
 	}
 
 } // namespace Engine

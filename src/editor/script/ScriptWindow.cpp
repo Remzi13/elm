@@ -1,6 +1,5 @@
 #include "editor/script/ScriptWindow.hpp"
 
-#include "editor/ui/WindowMessages.hpp"
 
 #include "script/entity/EntityScripts.hpp"
 #include "script/entity/ScriptDefaults.hpp"
@@ -41,9 +40,6 @@ namespace elm::script {
         : IImGuiWindow(settings)
         , m_loader(desc.loader)
         , m_hotReload(desc.hotReload)
-        , m_entityScripts(desc.entityScripts)
-        , m_defaults(desc.defaults)
-        , m_play(desc.play)
         , m_mainModule(desc.mainModule)
         , m_console(desc.console, [this](StringView command) { RunCommand(command); })
         , m_editor(desc.paths, desc.loader, desc.hotReload, desc.mainModule)
@@ -58,45 +54,15 @@ namespace elm::script {
         Print(ConsoleLineKind::Info, "Lua console. /help lists the commands, Tab completes names.");
     }
 
-    void ScriptWindow::OnAttach()
+    void ScriptWindow::OpenFile(const Path& file)
     {
-        m_querySubscriptions.push_back(RegisterQuery<OpenScriptFile>([this] {
-            return OpenScriptFile { [this](const Path& file) {
-                m_editor.Open(file);
-                m_selectEditor = true;
-                m_visible = true;
-                m_focusRequested = true;
-            } };
-        }));
-        m_querySubscriptions.push_back(RegisterQuery<PlayControls>([this] { return MakePlayControls(); }));
-        m_querySubscriptions.push_back(RegisterQuery<ScriptInspection>([this] { return MakeInspection(); }));
+        m_editor.Open(file);
+        m_selectEditor = true;
+        m_visible = true;
+        m_focusRequested = true;
     }
 
-    PlayControls ScriptWindow::MakePlayControls() const
-    {
-        return PlayControls { m_play.isPlaying && m_play.isPlaying(), m_play.playProject, m_play.playScene, m_play.stop };
-    }
-
-    ScriptInspection ScriptWindow::MakeInspection()
-    {
-        return ScriptInspection {
-            .defaults = [this](StringView module) { return m_defaults.Get(module); },
-            .forgetDefaults = [this] { m_defaults.Forget(); },
-            .instance = [this](NodeId node) {
-                const EntityScript* instance = m_entityScripts.Find(node);
-                if (!instance)
-                    return ScriptInstanceState { };
-                if (instance->faulted)
-                    return ScriptInstanceState { ScriptInstanceState::Kind::Faulted, instance->error, instance->module };
-                return ScriptInstanceState { instance->started ? ScriptInstanceState::Kind::Running : ScriptInstanceState::Kind::Starting };
-            },
-            .setField = [this](NodeId node, StringView name, const ScriptValue& value) { m_entityScripts.SetField(node, name, value); },
-            .endInstance = [this](NodeId node) { m_entityScripts.Destroy({ &node, 1 }); },
-            .reloadModule = [this](StringView module) { (void)m_hotReload.Reload(module); },
-        };
-    }
-
-    void ScriptWindow::Render(ImGuiWindowContext&)
+    void ScriptWindow::Render(render::FrameWriter&)
     {
         if (!m_visible)
             return;
