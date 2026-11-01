@@ -1,4 +1,4 @@
-cbuffer CameraConstants
+cbuffer CameraConstants : register(b0)
 {
     row_major float4x4 g_ViewProj;
 };

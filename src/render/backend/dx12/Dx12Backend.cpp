@@ -397,8 +397,11 @@ public:
         m_pipeline = m_backend.m_pipelines.Find(command.pipeline);
         m_texture = {};
         m_fallbackTexture = {};
-        if (!m_pipeline || !m_pipeline->state || !m_passActive)
+        // Without a pass the root signature is not set: later root arguments must not reach the command list
+        if (!m_pipeline || !m_pipeline->state || !m_passActive) {
+            m_pipeline = nullptr;
             return;
+        }
         m_commands->SetPipelineState(m_pipeline->state.Get());
         m_commands->SetGraphicsRootSignature(m_pipeline->rootSignature.Get());
         m_commands->IASetPrimitiveTopology(m_pipeline->topology);
@@ -1084,6 +1087,8 @@ PipelineHandle Dx12Backend::CreatePipeline(const PipelineDesc& desc)
         pipeline.vertexStrides[attribute.bufferSlot] += VertexFormatSize(attribute.format);
         pipeline.vertexBufferCount = (std::max)(pipeline.vertexBufferCount, attribute.bufferSlot + 1);
     }
+    // Registers follow the order of bindings within each stage (b0, b1.., t0.., s0..); the HLSL declares them
+    // explicitly with register(...), so they do not depend on how DXC assigns unbound resources
     Vector<D3D12_ROOT_PARAMETER> rootParameters(desc.bindings.size());
     Vector<D3D12_DESCRIPTOR_RANGE> ranges;
     Vector<D3D12_STATIC_SAMPLER_DESC> samplers;
