@@ -5,7 +5,7 @@
 #include <optional>
 #include <variant>
 
-namespace elm::resmgr {
+namespace elm::resource {
     class JsonValue {
         struct Storage;
         using PathElement = std::variant<String, size_t>;

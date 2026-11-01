@@ -8,7 +8,7 @@
 #include "Scene/Scene.hpp"
 #include "Scene/SceneAsset.hpp"
 
-namespace elm::resmgr {
+namespace elm::resource {
     class GltfExporter {
     public:
         [[nodiscard]] static auto ExportModel(const graphics::Model& model, const Path& path) -> EngineResult<void>;

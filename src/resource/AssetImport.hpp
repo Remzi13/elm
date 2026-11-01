@@ -7,7 +7,7 @@
 
 #include "Scene/SceneAsset.hpp"
 
-namespace elm::resmgr {
+namespace elm::resource {
 
     /// A model kept in the project: the model and its .model file in the assets folder.
     struct ProjectModel {
@@ -32,4 +32,4 @@ namespace elm::resmgr {
         [[nodiscard]] static auto ImportScene(const Path& gltf, const Path& assetsFolder) -> EngineResult<SceneAsset>;
     };
 
-} // namespace elm::resmgr
+} // namespace elm::resource

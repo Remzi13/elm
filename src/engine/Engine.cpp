@@ -10,7 +10,7 @@
 
 #include "Scene/ModelComponent.hpp"
 
-#include "resmgr/Serializer.hpp"
+#include "resource/Serializer.hpp"
 
 #include <algorithm>
 #include <iostream>
@@ -171,7 +171,7 @@ void Engine::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
 auto Engine::ReadProject(const Path& folderOrFile) -> EngineResult<project::Project>
 {
     const Path file = project::Project::FindFile(FileSystem::Resolve(folderOrFile));
-    auto loaded = resmgr::Serializer::LoadProject(file);
+    auto loaded = resource::Serializer::LoadProject(file);
     if (loaded && StringView(loaded->Name()) != StringView(file.Stem().string()))
         WARNING_MESSAGE(log::Category::Core, LogSource, "Project \"%s\" is in %s: the name and the file should match",
             loaded->Name().c_str(), file.Filename().string().c_str());
@@ -221,7 +221,7 @@ void Engine::OpenProject(project::Project project)
 auto Engine::LoadStartupScene() const -> EngineResult<SceneAsset>
 {
     const project::AssetPath& startupScene = *m_project->Desc().entry.startupScene;
-    return resmgr::Serializer::LoadScene(m_project->Resolve(startupScene), m_project->Assets());
+    return resource::Serializer::LoadScene(m_project->Resolve(startupScene), m_project->Assets());
 }
 
 std::optional<script::PlayStart> Engine::MakePlayStart(script::PlayTarget target) const

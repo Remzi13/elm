@@ -12,7 +12,7 @@ namespace elm::project {
     class Project;
 }
 
-namespace elm::resmgr {
+namespace elm::resource {
     class Serializer {
     public:
         [[nodiscard]] static auto SaveModel(const graphics::Model& model, const Path& path) -> EngineResult<void>;

@@ -1,11 +1,11 @@
-#include "resmgr/Serializer.hpp"
+#include "resource/Serializer.hpp"
 
 #include "core/Std.hpp"
 
-#include "resmgr/JsonValue.hpp"
+#include "resource/JsonValue.hpp"
 
 #include "project/Project.hpp"
-#include "resmgr/SerializationError.hpp"
+#include "resource/SerializationError.hpp"
 
 #include "Scene/ComponentTypes.hpp"
 #include "Scene/ModelComponent.hpp"
@@ -24,7 +24,7 @@
 #include <type_traits>
 #include <variant>
 
-namespace elm::resmgr {
+namespace elm::resource {
     namespace {
         auto SetField(JsonValue& object, StringView key, JsonValue value) -> EngineResult<void>
         {

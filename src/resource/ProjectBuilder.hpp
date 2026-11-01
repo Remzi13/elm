@@ -7,7 +7,7 @@ namespace elm::project {
     class Project;
 }
 
-namespace elm::resmgr {
+namespace elm::resource {
 
     /// The engine's own files a game is built with.
     struct BuildDesc {
@@ -32,4 +32,4 @@ namespace elm::resmgr {
         [[nodiscard]] static auto Build(const project::Project& project, const BuildDesc& desc) -> EngineResult<Path>;
     };
 
-} // namespace elm::resmgr
+} // namespace elm::resource

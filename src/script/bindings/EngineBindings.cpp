@@ -5,7 +5,7 @@
 #include "project/Project.hpp"
 #include "graphics/ModelManager.hpp"
 #include "Scene/TestScenes.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/Serializer.hpp"
 
 namespace elm::script::bindings {
 
@@ -60,9 +60,9 @@ namespace elm::script::bindings {
         {
             const Path path = ScenePath(L, file);
             const Path assets = ProjectOf(L).Assets();
-            if (auto newModels = resmgr::Serializer::SaveNewModels(SceneOf(L), ModelsOf(L), assets); !newModels)
+            if (auto newModels = resource::Serializer::SaveNewModels(SceneOf(L), ModelsOf(L), assets); !newModels)
                 return MakeUnexpected(newModels.error());
-            return resmgr::Serializer::SaveScene(SceneOf(L), ModelsOf(L), assets, path);
+            return resource::Serializer::SaveScene(SceneOf(L), ModelsOf(L), assets, path);
         }
 
         /// Replaces the scene with a scene file; returns how many nodes it has.
@@ -70,7 +70,7 @@ namespace elm::script::bindings {
         {
             auto& scene = SceneOf(L);
             auto& models = ModelsOf(L);
-            auto loaded = resmgr::Serializer::LoadScene(ScenePath(L, file), ProjectOf(L).Assets());
+            auto loaded = resource::Serializer::LoadScene(ScenePath(L, file), ProjectOf(L).Assets());
             if (!loaded)
                 return MakeUnexpected(loaded.error());
             EndEntityScripts(L);

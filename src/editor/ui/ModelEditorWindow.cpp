@@ -3,9 +3,9 @@
 #include "editor/ui/WindowMessages.hpp"
 #include "render/RenderSystem.hpp"
 #include "render/api/FrameWriter.hpp"
-#include "resmgr/AssetImport.hpp"
-#include "resmgr/GltfExporter.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/AssetImport.hpp"
+#include "resource/GltfExporter.hpp"
+#include "resource/Serializer.hpp"
 #include "Scene/ModelComponent.hpp"
 
 #include "imgui.h"
@@ -294,7 +294,7 @@ void ModelEditorWindow::CloseDocument()
 
 void ModelEditorWindow::OpenFile(const Path& path)
 {
-    auto model = resmgr::Serializer::LoadModel(path);
+    auto model = resource::Serializer::LoadModel(path);
     if (!model) {
         m_status = model.error().message;
         return;
@@ -307,12 +307,12 @@ void ModelEditorWindow::OpenFile(const Path& path)
 void ModelEditorWindow::ImportGltf(const Path& file)
 {
     // The import works on the project's copy: the original stays in the source folder for a later import
-    const auto path = resmgr::AssetImport::CopyIntoProject(file, m_assetsFolder);
+    const auto path = resource::AssetImport::CopyIntoProject(file, m_assetsFolder);
     if (!path) {
         m_status = path.error().message;
         return;
     }
-    auto asset = resmgr::GltfExporter::LoadScene(*path);
+    auto asset = resource::GltfExporter::LoadScene(*path);
     if (!asset) {
         m_status = asset.error().message;
         return;
@@ -372,7 +372,7 @@ void ModelEditorWindow::SaveImported(const Path& anyFileInDirectory)
         for (size_t suffix = 1; !fileNames.insert(fileName).second; ++suffix)
             fileName = stem + "_" + ToString(suffix) + ".model";
 
-        auto result = resmgr::Serializer::SaveModel(imported.model, directory / fileName);
+        auto result = resource::Serializer::SaveModel(imported.model, directory / fileName);
         if (!result) {
             m_status = result.error().message;
             return;
@@ -461,7 +461,7 @@ void ModelEditorWindow::OpenFromScene(ImGuiWindowContext& context, graphics::Mod
 
 void ModelEditorWindow::Append(const Path& path, bool gltf)
 {
-    auto source = gltf ? resmgr::GltfExporter::LoadModel(path) : resmgr::Serializer::LoadModel(path);
+    auto source = gltf ? resource::GltfExporter::LoadModel(path) : resource::Serializer::LoadModel(path);
     if (!source) {
         m_status = source.error().message;
         return;
@@ -475,7 +475,7 @@ void ModelEditorWindow::Append(const Path& path, bool gltf)
 
 bool ModelEditorWindow::SaveTo(const Path& path)
 {
-    auto result = resmgr::Serializer::SaveModel(*m_model, path);
+    auto result = resource::Serializer::SaveModel(*m_model, path);
     if (!result) {
         m_status = result.error().message;
         return false;

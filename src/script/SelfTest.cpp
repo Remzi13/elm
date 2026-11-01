@@ -36,10 +36,10 @@
 #include "project/Project.hpp"
 #include "project/ProjectAssets.hpp"
 #include "render/api/FrameWriter.hpp"
-#include "resmgr/AssetImport.hpp"
-#include "resmgr/ProjectBuilder.hpp"
-#include "resmgr/ProjectTemplate.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/AssetImport.hpp"
+#include "resource/ProjectBuilder.hpp"
+#include "resource/ProjectTemplate.hpp"
+#include "resource/Serializer.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -1231,7 +1231,7 @@ namespace elm::script {
             auto pathOf = [&](const char* name) { return Path(String((root / name).generic_string().c_str())); };
             // Model files go to the project's assets folder, root/assets
             const project::Project project(pathOf("selftest.elmproject"), project::ProjectDesc { .name = "selftest" });
-            auto loadScene = [&](const Path& file) { return resmgr::Serializer::LoadScene(file, project.Assets()); };
+            auto loadScene = [&](const Path& file) { return resource::Serializer::LoadScene(file, project.Assets()); };
 
             render::RenderResources resources;
             graphics::ModelManager models(resources);
@@ -1268,11 +1268,11 @@ namespace elm::script {
             scene.RemoveNode(gone);
             scene.UpdateWorldTransforms();
 
-            const auto newModels = resmgr::Serializer::SaveNewModels(scene, models, project.Assets());
+            const auto newModels = resource::Serializer::SaveNewModels(scene, models, project.Assets());
             report.Check(newModels && *newModels == 1 && assetPathOf(guardModel.model) == "models/Cube.model"
                     && fs::exists(root / "assets" / "models" / "Cube.model"),
                 "scene_file::new_models_get_files");
-            const auto saved = resmgr::Serializer::SaveScene(scene, models, project.Assets(), pathOf("components.scene"));
+            const auto saved = resource::Serializer::SaveScene(scene, models, project.Assets(), pathOf("components.scene"));
             report.Check(saved.has_value(), "scene_file::save_with_components", saved ? "" : saved.error().message);
             {
                 // Component floats are written in their shortest form, for people who edit the file
@@ -1297,7 +1297,7 @@ namespace elm::script {
             (void)Place(restored, "existing", { });
             const auto handlers = models.InsertAll(std::move(loaded->models), loaded->modelFiles);
             const Vector<NodeId> ids = restored.Append(std::move(*loaded), handlers);
-            const auto savedAgain = resmgr::Serializer::SaveNewModels(restored, models, project.Assets());
+            const auto savedAgain = resource::Serializer::SaveNewModels(restored, models, project.Assets());
             report.Check(savedAgain && *savedAgain == 0 && assetPathOf(handlers.front()) == "models/Cube.model",
                 "scene_file::loaded_models_keep_their_files");
             {
@@ -1306,7 +1306,7 @@ namespace elm::script {
                 const NodeId node = other.AddNode("other");
                 const auto otherModel = models.Insert(cubeModel);
                 other.Components<ModelComponent>().Emplace(node, ModelComponent { .model = otherModel });
-                report.Check(resmgr::Serializer::SaveNewModels(other, models, project.Assets()).has_value()
+                report.Check(resource::Serializer::SaveNewModels(other, models, project.Assets()).has_value()
                         && assetPathOf(otherModel) == "models/Cube_1.model",
                     "scene_file::new_model_file_does_not_overwrite");
             }
@@ -1452,7 +1452,7 @@ namespace elm::script {
         void RunAssetImportTests(Report& report, const Path& scriptRoot)
         {
             namespace fs = std::filesystem;
-            using resmgr::AssetImport;
+            using resource::AssetImport;
             std::error_code error;
             const fs::path root = fs::temp_directory_path(error) / "elm_asset_import_selftest";
             fs::remove_all(root, error);
@@ -1508,7 +1508,7 @@ namespace elm::script {
 
             WriteScript(root / "Game" / "Game.elmproject",
                 R"({ "formatVersion": 1, "name": "Game", "entry": { "startupScene": "scenes/level.scene", "mainModule": "game.main" } })");
-            const auto loaded = resmgr::Serializer::LoadProject(file);
+            const auto loaded = resource::Serializer::LoadProject(file);
             report.Check(loaded && loaded->Name() == "Game" && loaded->Desc().entry.mainModule == "game.main" && loaded->File() == file
                     && loaded->Desc().entry.startupScene == project::AssetPath::FromString("scenes/level.scene"),
                 "project::load_reads_the_entry");
@@ -1529,21 +1529,21 @@ namespace elm::script {
                 "project::asset_path_of_a_file");
 
             WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game", "entry": { "startupScene": "scenes/a.scene" } })");
-            const auto sceneOnly = resmgr::Serializer::LoadProject(file);
+            const auto sceneOnly = resource::Serializer::LoadProject(file);
             report.Check(sceneOnly && sceneOnly->Desc().entry.startupScene && sceneOnly->Desc().entry.mainModule.empty(),
                 "project::entry_without_main_module");
             WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game" })");
-            report.Check(!resmgr::Serializer::LoadProject(file), "project::entry_is_required");
+            report.Check(!resource::Serializer::LoadProject(file), "project::entry_is_required");
             WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game", "entry": { } })");
-            report.Check(!resmgr::Serializer::LoadProject(file), "project::entry_needs_a_scene_or_a_module");
+            report.Check(!resource::Serializer::LoadProject(file), "project::entry_needs_a_scene_or_a_module");
             WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1, "name": "Game", "entry": { "startupScene": "../a.scene" } })");
-            report.Check(!resmgr::Serializer::LoadProject(file), "project::startup_scene_is_an_asset_path");
+            report.Check(!resource::Serializer::LoadProject(file), "project::startup_scene_is_an_asset_path");
 
             WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 1 })");
-            report.Check(!resmgr::Serializer::LoadProject(file), "project::name_is_required");
+            report.Check(!resource::Serializer::LoadProject(file), "project::name_is_required");
             WriteScript(root / "Game" / "Game.elmproject", R"({ "formatVersion": 2, "name": "Game" })");
-            report.Check(!resmgr::Serializer::LoadProject(file), "project::unknown_version_is_an_error");
-            report.Check(!resmgr::Serializer::LoadProject(pathOf("Missing/Missing.elmproject")), "project::missing_file_is_an_error");
+            report.Check(!resource::Serializer::LoadProject(file), "project::unknown_version_is_an_error");
+            report.Check(!resource::Serializer::LoadProject(pathOf("Missing/Missing.elmproject")), "project::missing_file_is_an_error");
         }
 
         /// The files of an assets folder, a project file written back, a project made from the template.
@@ -1579,23 +1579,23 @@ namespace elm::script {
 
             project::Project saved(pathOf("Game/Game.elmproject"), project::ProjectDesc { .name = "Game", .entry = { .mainModule = "main" } });
             saved.SetEntry({ .startupScene = project::AssetPath::FromString("scenes/level.scene"), .mainModule = "game.main" });
-            const bool written = resmgr::Serializer::SaveProject(saved).has_value();
-            const auto readBack = resmgr::Serializer::LoadProject(saved.File());
+            const bool written = resource::Serializer::SaveProject(saved).has_value();
+            const auto readBack = resource::Serializer::LoadProject(saved.File());
             report.Check(written && readBack && readBack->Name() == "Game" && readBack->Desc().entry.mainModule == "game.main"
                     && readBack->Desc().entry.startupScene == project::AssetPath::FromString("scenes/level.scene"),
                 "project::save_and_load_round_trip");
 
-            report.Check(resmgr::ProjectTemplate::IsValidName("My_Game-2") && !resmgr::ProjectTemplate::IsValidName("")
-                    && !resmgr::ProjectTemplate::IsValidName("a/b") && !resmgr::ProjectTemplate::IsValidName("my game"),
+            report.Check(resource::ProjectTemplate::IsValidName("My_Game-2") && !resource::ProjectTemplate::IsValidName("")
+                    && !resource::ProjectTemplate::IsValidName("a/b") && !resource::ProjectTemplate::IsValidName("my game"),
                 "project::template_names");
-            const auto created = resmgr::ProjectTemplate::Create(pathOf("new"), "Fresh", "-- api");
-            const auto opened = created ? resmgr::Serializer::LoadProject(*created) : std::unexpected(created.error());
+            const auto created = resource::ProjectTemplate::Create(pathOf("new"), "Fresh", "-- api");
+            const auto opened = created ? resource::Serializer::LoadProject(*created) : std::unexpected(created.error());
             report.Check(opened && opened->Name() == "Fresh" && opened->Desc().entry.mainModule == "main"
                     && fs::exists(root / "new" / "Fresh" / "assets" / "scripts" / "main.lua")
                     && fs::exists(root / "new" / "Fresh" / "assets" / "scripts" / ".meta" / "elm.lua")
                     && fs::is_directory(root / "new" / "Fresh" / "assets" / "scenes"),
                 "project::template_creates_a_project", created ? "" : created.error().message);
-            report.Check(!resmgr::ProjectTemplate::Create(pathOf("new"), "Fresh", "-- api"), "project::template_does_not_overwrite");
+            report.Check(!resource::ProjectTemplate::Create(pathOf("new"), "Fresh", "-- api"), "project::template_does_not_overwrite");
 
             // A build of the new project, with a stand-in program and library
             fs::create_directories(root / "bin", error);
@@ -1605,8 +1605,8 @@ namespace elm::script {
             WriteScript(root / "shaders" / "mesh.vert.hlsl", "shader");
             fs::create_directories(root / "new" / "Fresh" / "assets" / "source" / "raw", error);
             WriteScript(root / "new" / "Fresh" / "assets" / "source" / "raw" / "original.gltf", "{}");
-            const resmgr::BuildDesc buildDesc { pathOf("bin/elm.exe"), pathOf("shaders") };
-            const auto game = opened ? resmgr::ProjectBuilder::Build(*opened, buildDesc) : std::unexpected(opened.error());
+            const resource::BuildDesc buildDesc { pathOf("bin/elm.exe"), pathOf("shaders") };
+            const auto game = opened ? resource::ProjectBuilder::Build(*opened, buildDesc) : std::unexpected(opened.error());
             const fs::path built = root / "new" / "Fresh" / "Build" / "Fresh";
             report.Check(game && fs::exists(built / "Fresh.exe") && fs::exists(built / "helper.dll") && fs::exists(built / "shaders" / "mesh.vert.hlsl")
                     && fs::exists(built / "Fresh.elmproject") && fs::exists(built / "assets" / "scripts" / "main.lua")
@@ -1617,9 +1617,9 @@ namespace elm::script {
             const bool settingsLoaded = builtSettings.Load(pathOf("new/Fresh/Build/Fresh/.settings")).has_value();
             report.Check(settingsLoaded && builtSettings.Get<String>(Settings::Category::Core, log::FileSetting) == "Logs/Fresh.log",
                 "project::build_turns_on_the_log_file");
-            report.Check(opened && resmgr::ProjectBuilder::Build(*opened, buildDesc).has_value(), "project::build_replaces_its_own_build");
-            fs::remove(built / resmgr::ProjectBuilder::BuildMarkFile, error);
-            report.Check(opened && !resmgr::ProjectBuilder::Build(*opened, buildDesc) && fs::exists(built / "Fresh.exe"),
+            report.Check(opened && resource::ProjectBuilder::Build(*opened, buildDesc).has_value(), "project::build_replaces_its_own_build");
+            fs::remove(built / resource::ProjectBuilder::BuildMarkFile, error);
+            report.Check(opened && !resource::ProjectBuilder::Build(*opened, buildDesc) && fs::exists(built / "Fresh.exe"),
                 "project::build_leaves_other_folders_alone");
             fs::remove_all(root, error);
         }

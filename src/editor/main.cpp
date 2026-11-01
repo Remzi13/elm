@@ -13,8 +13,8 @@
 
 #include "project/Project.hpp"
 
-#include "resmgr/ProjectBuilder.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/ProjectBuilder.hpp"
+#include "resource/Serializer.hpp"
 
 #include "script/ScriptSystem.hpp"
 
@@ -64,13 +64,13 @@ namespace {
     int BuildGame(const char* folderOrFile)
     {
         using namespace elm;
-        const auto project = resmgr::Serializer::LoadProject(project::Project::FindFile(FileSystem::Resolve(folderOrFile)));
+        const auto project = resource::Serializer::LoadProject(project::Project::FindFile(FileSystem::Resolve(folderOrFile)));
         const auto executable = Editor::FindPlayerExecutable();
         if (!project || !executable) {
             std::cerr << (project ? executable.error().message : project.error().message) << std::endl;
             return 1;
         }
-        const auto folder = resmgr::ProjectBuilder::Build(*project, { *executable, FileSystem::Resolve("shaders") });
+        const auto folder = resource::ProjectBuilder::Build(*project, { *executable, FileSystem::Resolve("shaders") });
         if (!folder) {
             std::cerr << folder.error().message << std::endl;
             return 1;

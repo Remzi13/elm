@@ -5,8 +5,8 @@
 #include "project/Project.hpp"
 #include "math/Primitivs.hpp"
 #include "graphics/ModelManager.hpp"
-#include "resmgr/GltfExporter.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/GltfExporter.hpp"
+#include "resource/Serializer.hpp"
 
 namespace elm::script::bindings {
 
@@ -68,7 +68,7 @@ namespace elm::script::bindings {
                 luaL_error(L, "'%s' is not a path in the assets folder (like \"models/crate.model\")", String(file).c_str());
             const Path path = RequireSystem(L, ContextOf<ModelsContext>(L).project, "the project").Resolve(*asset);
             const bool gltf = path.Extension().string() == ".gltf";
-            auto model = gltf ? resmgr::GltfExporter::LoadModel(path) : resmgr::Serializer::LoadModel(path);
+            auto model = gltf ? resource::GltfExporter::LoadModel(path) : resource::Serializer::LoadModel(path);
             if (!model)
                 return MakeUnexpected(model.error());
             return Insert(L, std::move(*model), gltf ? Path { } : path);

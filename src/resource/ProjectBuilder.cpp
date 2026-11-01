@@ -1,6 +1,6 @@
-#include "resmgr/ProjectBuilder.hpp"
+#include "resource/ProjectBuilder.hpp"
 
-#include "resmgr/SerializationError.hpp"
+#include "resource/SerializationError.hpp"
 
 #include "core/Log.hpp"
 #include "core/Settings.hpp"
@@ -9,7 +9,7 @@
 
 #include <cctype>
 
-namespace elm::resmgr {
+namespace elm::resource {
 
     namespace {
 
@@ -143,4 +143,4 @@ namespace elm::resmgr {
         return folder;
     }
 
-} // namespace elm::resmgr
+} // namespace elm::resource

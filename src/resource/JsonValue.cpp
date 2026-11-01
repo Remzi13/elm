@@ -1,11 +1,11 @@
-#include "resmgr/JsonValue.hpp"
-#include "resmgr/SerializationError.hpp"
+#include "resource/JsonValue.hpp"
+#include "resource/SerializationError.hpp"
 
 #include <utility>
 
 #include <glaze/glaze.hpp>
 
-namespace elm::resmgr {
+namespace elm::resource {
     struct JsonValue::Storage {
         glz::json_t value;
     };

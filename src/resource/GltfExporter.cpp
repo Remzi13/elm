@@ -1,7 +1,7 @@
-#include "resmgr/GltfExporter.hpp"
+#include "resource/GltfExporter.hpp"
 
-#include "resmgr/JsonValue.hpp"
-#include "resmgr/SerializationError.hpp"
+#include "resource/JsonValue.hpp"
+#include "resource/SerializationError.hpp"
 
 #include "Scene/ModelComponent.hpp"
 
@@ -16,7 +16,7 @@
 #include <span>
 #include <tuple>
 
-namespace elm::resmgr {
+namespace elm::resource {
     namespace {
         struct BufferView {
             size_t buffer { 0 };

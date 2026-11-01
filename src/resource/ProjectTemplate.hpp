@@ -3,7 +3,7 @@
 #include "core/Error.hpp"
 #include "core/FileSystem.hpp"
 
-namespace elm::resmgr {
+namespace elm::resource {
 
     /// A new project on disk (docs/project/Проекты.md#Проект на диске): <location>/<name>/<name>.elmproject
     /// with main as its main module, assets/scenes, assets/models and assets/scripts with main.lua and
@@ -19,4 +19,4 @@ namespace elm::resmgr {
         [[nodiscard]] static auto Create(const Path& location, StringView name, StringView luaApi) -> EngineResult<Path>;
     };
 
-} // namespace elm::resmgr
+} // namespace elm::resource

@@ -99,4 +99,4 @@ source_group("Values" FILES
 
 target_link_libraries(script PUBLIC core lua)
 # The engine systems the bindings expose
-target_link_libraries(script PRIVATE math input Scene graphics resmgr physics project)
+target_link_libraries(script PRIVATE math input Scene graphics resource physics project)

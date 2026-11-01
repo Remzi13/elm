@@ -1,4 +1,4 @@
-engine_add_library(resmgr
+engine_add_library(resource
     JsonValue.hpp
     JsonValue.cpp
     AssetImport.hpp
@@ -14,8 +14,8 @@ engine_add_library(resmgr
     GltfExporter.cpp
 )
 
-target_include_directories(resmgr PUBLIC
+target_include_directories(resource PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/..
 )
 
-target_link_libraries(resmgr PUBLIC core Scene PRIVATE project glaze::glaze)
+target_link_libraries(resource PUBLIC core Scene PRIVATE project glaze::glaze)

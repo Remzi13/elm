@@ -4,7 +4,7 @@
 
 #include "project/Project.hpp"
 
-#include "resmgr/Serializer.hpp"
+#include "resource/Serializer.hpp"
 
 #include "script/SelfTest.hpp"
 
@@ -38,7 +38,7 @@ int main()
     core::registerThread(core::ThreadRole::Update);
 
     const Path file = project::Project::FindFile(FileSystem::Resolve(SelfTestProject));
-    const auto project = resmgr::Serializer::LoadProject(file);
+    const auto project = resource::Serializer::LoadProject(file);
     if (!project) {
         std::cerr << project.error().message << std::endl;
         return 1;

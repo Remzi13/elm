@@ -8,7 +8,7 @@ target_include_directories(engine PUBLIC
 )
 
 # The engine: the systems of a running game, the project and the frame loop
-target_link_libraries(engine PUBLIC core math input render platform Scene graphics physics project resmgr script)
+target_link_libraries(engine PUBLIC core math input render platform Scene graphics physics project resource script)
 
 # elm: the game alone, without the editor and ImGui; a built game is a copy of it
 engine_add_executable(elm

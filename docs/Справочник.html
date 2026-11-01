@@ -449,7 +449,7 @@ UseWorldPosition(scene.WorldTransforms()[scene.IndexOf(lamp)]);</code></pre>
         <div class="tbl-wrap"><table><thead><tr><th>Шаг</th><th>Где</th></tr></thead><tbody>
           <tr><td>Простой <code>struct</code> без логики со <code>static constexpr ComponentType Type</code></td><td><code>src/Scene/</code></td></tr>
           <tr><td>Значение в <code>ComponentType</code>, <code>AllComponentTypes</code>, <code>ComponentTypeName</code></td><td><code>Scene/ComponentTypes.hpp</code></td></tr>
-          <tr><td>Запись и чтение: <code>MakeComponent</code>, <code>ReadComponents</code></td><td><code>resmgr/Serializer.cpp</code></td></tr>
+          <tr><td>Запись и чтение: <code>MakeComponent</code>, <code>ReadComponents</code></td><td><code>resource/Serializer.cpp</code></td></tr>
           <tr><td><code>bindings::ComponentKind</code>, строка в <code>LuaKinds</code>, раздел Inspector</td><td><code>script/bindings/</code>, <code>editor/script/</code></td></tr>
           <tr><td>Строка в глоссарии и раздел в «Файл сцены»</td><td><code>CLAUDE.md</code>, <code>docs/scene/</code></td></tr>
         </tbody></table></div>
@@ -687,7 +687,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     graphics: { x: 120, y: 128, dir: "src/graphics", ns: "elm::graphics, elm", third: ["ImGui", "ImGuizmo"], desc: "Модели и их GPU-меши, камера, CPU-отсечение, окна редактора на ImGui.", ents: ["ModelManager", "ModelHandler", "Camera", "OcclusionCullingSystem", "ImGuiSystem", "IImGuiWindow"], note: "editor/Редактор.md", thread: "update" },
     script:   { x: 400, y: 128, dir: "src/script", ns: "elm::script", third: ["Lua 5.4.7"], desc: "Lua-машина, главный модуль, скрипты сущностей, hot reload, консоль, `PlayMode`. Остальные модули линкуются PRIVATE, наружу видны `ScriptSystem`, `EngineContext`, `PlayMode`.", ents: ["ScriptSystem", "EngineContext", "PlayMode", "EntityScripts", "HotReload", "lua::State"], note: "script/Скрипты на Lua.md", thread: "update" },
     input:    { x: 610, y: 128, dir: "src/input", ns: "elm", third: ["GLFW"], desc: "Ввод с приоритетами подписчиков, действия и оси.", ents: ["InputSystem", "IInputSubscriber", "InputContext", "ActionBinding", "AxisBinding"], note: null, thread: "update" },
-    resmgr:   { x: 120, y: 222, dir: "src/resmgr", ns: "elm::resmgr", third: ["glaze"], desc: "Читает и пишет `.model` и `.scene` (JSON через glaze), экспорт glTF.", ents: ["Serializer", "GltfExporter", "JsonValue"], note: "scene/Файл сцены.md", thread: "любой (SceneAsset)" },
+    resource:   { x: 120, y: 222, dir: "src/resource", ns: "elm::resource", third: ["glaze"], desc: "Читает и пишет `.model` и `.scene` (JSON через glaze), экспорт glTF.", ents: ["Serializer", "GltfExporter", "JsonValue"], note: "scene/Файл сцены.md", thread: "любой (SceneAsset)" },
     physics:  { x: 300, y: 222, dir: "src/physics", ns: "elm", third: ["Jolt 5.2"], desc: "Тела Jolt для узлов с `Collider`, по `NodeId`. Jolt линкуется PRIVATE: он выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.", ents: ["PhysicsSystem", "RayHit", "CollisionEvent"], note: "physics/Физика.md", thread: "update" },
     platform: { x: 600, y: 222, dir: "src/platform", ns: "elm::platform", third: ["GLFW"], desc: "Главное окно. Рендер получает от него только `NativeWindow` и размер.", ents: ["platform::Window"], note: "render/бэкенд/Бэкенды.md", thread: "update" },
     Scene:    { x: 230, y: 318, dir: "src/Scene", ns: "elm", third: [], desc: "Узлы, `NodeId`, хранилища компонентов, `SceneAsset`, `SceneSnapshot`. Только update-поток, мутации проверяет `ELM_ASSERT_THREAD(Update)`.", ents: ["Scene", "NodeId", "NodeIdTable", "ComponentStores", "SceneAsset", "SceneSnapshot"], note: "scene/Сцена.md", thread: "update" },
@@ -699,11 +699,11 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["render", "core"], ["render", "math"],
     ["platform", "render"],
     ["Scene", "core"], ["Scene", "math"], ["Scene", "render"],
-    ["resmgr", "Scene"],
+    ["resource", "Scene"],
     ["physics", "Scene"],
-    ["graphics", "render"], ["graphics", "platform"], ["graphics", "resmgr"],
+    ["graphics", "render"], ["graphics", "platform"], ["graphics", "resource"],
     ["script", "core"],
-    ["script", "Scene", "private"], ["script", "physics", "private"], ["script", "graphics", "private"], ["script", "resmgr", "private"], ["script", "input", "private"],
+    ["script", "Scene", "private"], ["script", "physics", "private"], ["script", "graphics", "private"], ["script", "resource", "private"], ["script", "input", "private"],
     ["Scene", "graphics", "violation"],
   ];
   for (const m of Object.keys(mods)) if (m !== "Engine") edges.push(["Engine", m, "engine"]);
@@ -779,7 +779,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
           <dt>сущности</dt><dd class="taglist">${m.ents.map(t => `<code>${esc(t)}</code>`).join(" ")}</dd>
           ${m.note ? `<dt>заметка</dt><dd><code>docs/${esc(m.note)}</code></dd>` : ""}
         </dl>
-        ${name === "Scene" ? '<p class="muted" style="font-size:.85rem">Заголовки Scene подключают заголовки graphics (<code>ModelHandler.hpp</code>, <code>Model.hpp</code>, <code>ModelManager.hpp</code>). Это известный цикл Scene ↔ graphics через resmgr: не расширяйте его.</p>' : ""}
+        ${name === "Scene" ? '<p class="muted" style="font-size:.85rem">Заголовки Scene подключают заголовки graphics (<code>ModelHandler.hpp</code>, <code>Model.hpp</code>, <code>ModelManager.hpp</code>). Это известный цикл Scene ↔ graphics через resource: не расширяйте его.</p>' : ""}
       </div>`;
     store.set("elm.mod", name);
   }
@@ -1115,7 +1115,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Системы", "PhysicsSystem, RayHit", "тела Jolt для узлов с `Collider`, по `NodeId`, только update", "physics"],
     ["Системы", "InputSystem, IInputSubscriber, InputContext, ActionBinding, AxisBinding", "ввод с приоритетами подписчиков и действия", "input"],
     ["Системы", "platform::Window", "главное окно GLFW", "platform"],
-    ["Системы", "resmgr::Serializer, GltfExporter, JsonValue", "`.model`/`.scene` (JSON через glaze), экспорт glTF", "resmgr"],
+    ["Системы", "resource::Serializer, GltfExporter, JsonValue", "`.model`/`.scene` (JSON через glaze), экспорт glTF", "resource"],
     ["Скрипты", "script::ScriptSystem", "менеджер скриптов: Lua-машина, части, биндинги, порядок в кадре", "script"],
     ["Скрипты", "EngineContext, ScriptTime, PlayRequests", "системы движка для скриптов, время кадра, запросы Play/Stop", "script"],
     ["Скрипты", "ModulePaths, ModuleLoader, LoadedModule", "имя модуля ↔ файл; `require` и загруженные модули", "script/module"],

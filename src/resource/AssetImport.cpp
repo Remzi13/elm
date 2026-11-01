@@ -1,9 +1,9 @@
-#include "resmgr/AssetImport.hpp"
+#include "resource/AssetImport.hpp"
 
-#include "resmgr/GltfExporter.hpp"
-#include "resmgr/JsonValue.hpp"
-#include "resmgr/SerializationError.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/GltfExporter.hpp"
+#include "resource/JsonValue.hpp"
+#include "resource/SerializationError.hpp"
+#include "resource/Serializer.hpp"
 
 #include "project/AssetPath.hpp"
 #include "project/Project.hpp"
@@ -12,7 +12,7 @@
 #include <string>
 #include <utility>
 
-namespace elm::resmgr {
+namespace elm::resource {
 
     namespace {
 
@@ -148,4 +148,4 @@ namespace elm::resmgr {
         return asset;
     }
 
-} // namespace elm::resmgr
+} // namespace elm::resource

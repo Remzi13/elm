@@ -1,13 +1,13 @@
-#include "resmgr/ProjectTemplate.hpp"
+#include "resource/ProjectTemplate.hpp"
 
-#include "resmgr/SerializationError.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/SerializationError.hpp"
+#include "resource/Serializer.hpp"
 
 #include "project/Project.hpp"
 
 #include <cctype>
 
-namespace elm::resmgr {
+namespace elm::resource {
 
     namespace {
 
@@ -88,4 +88,4 @@ namespace elm::resmgr {
         return file;
     }
 
-} // namespace elm::resmgr
+} // namespace elm::resource

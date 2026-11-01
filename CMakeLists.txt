@@ -66,7 +66,7 @@ add_subdirectory(src/input)
 add_subdirectory(src/render)
 add_subdirectory(src/Scene)
 add_subdirectory(src/project)
-add_subdirectory(src/resmgr)
+add_subdirectory(src/resource)
 add_subdirectory(src/graphics)
 add_subdirectory(src/physics)
 add_subdirectory(src/platform)
@@ -83,5 +83,5 @@ add_subdirectory(src/editor)
 engine_add_executable(elm_tests
     src/tests/main.cpp
 )
-target_link_libraries(elm_tests PRIVATE core project resmgr script)
+target_link_libraries(elm_tests PRIVATE core project resource script)
 

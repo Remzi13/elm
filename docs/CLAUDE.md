@@ -113,7 +113,7 @@ elm — 3D-движок с редактором на C++23: собственны
 | `PhysicsSystem` | тела Jolt для узлов с `Collider`, по `NodeId`, только update | `physics` |
 | `InputSystem`, `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия | `input` |
 | `platform::Window` | главное окно GLFW | `platform` |
-| `resmgr::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene` (JSON через glaze), экспорт glTF | `resmgr` |
+| `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene` (JSON через glaze), экспорт glTF | `resource` |
 | `script::ScriptSystem` | менеджер скриптов: Lua-машина, сборка частей и биндингов, порядок в кадре, Shutdown. Части внутренние для модуля | `script` |
 | `EngineContext`, `ScriptTime`, `PlayRequests` | системы движка для скриптов, время кадра, запросы Play/Stop | `script` |
 | `ModulePaths`, `ModuleLoader`, `LoadedModule` | имя модуля ↔ файл; `require` и загруженные модули | `script/module` |
@@ -136,12 +136,12 @@ core, math                   основа, ни от кого не завися�
 render     → core, math      Vulkan / D3D12 только PRIVATE
 platform   → render          GLFW
 Scene      → core, math, render
-resmgr     → Scene           glaze PRIVATE
+resource   → Scene           glaze PRIVATE
 physics    → Scene           Jolt PRIVATE
-graphics   → render, platform, resmgr   без ImGui
+graphics   → render, platform, resource   без ImGui
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-engine     → Scene, physics, script, graphics, project, resmgr, input   Engine: системы и шаги кадра, без цикла
+engine     → Scene, physics, script, graphics, project, resource, input   Engine: системы и шаги кадра, без цикла
 editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (владеет Engine) и весь UI
 программы  elm — engine/main.cpp (свой цикл над Engine), elm_editor — editor/main.cpp (Editor)
 ```
@@ -158,7 +158,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
 
 Известные нарушения, их не расширяй: заголовки модуля Scene подключают заголовки `graphics` (`Scene.hpp` и
 `ModelComponent.hpp` — `ModelHandler.hpp`, `SceneAsset.hpp` — `Model.hpp`, `SceneSnapshot.hpp` и `TestScenes.hpp` — `ModelManager.hpp`,
-`Transform.hpp` — `culling/MathTypes.hpp`; цикл Scene ↔ graphics через resmgr); `using namespace math;` в
+`Transform.hpp` — `culling/MathTypes.hpp`; цикл Scene ↔ graphics через resource); `using namespace math;` в
 `math/Primitivs.hpp`, `Scene/TestScenes.hpp`, `graphics/culling/MathTypes.hpp`.
 
 ### Границы, которые нельзя нарушать
@@ -182,7 +182,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
 - Функция: желательно до 30 строк, не глубже 3 уровней вложенности, не больше 4 параметров.
   Больше параметров собери в структуру (`ImGuiWindowContext`, `EngineContext`, `*Desc`).
 - Не смешивай в классе логику, ввод-вывод, UI и хранение. Окна (`*Window`) показывают и правят,
-  системы (`*System`) считают, `resmgr` читает и пишет файлы.
+  системы (`*System`) считают, `resource` читает и пишет файлы.
 - Никаких `utils.h`/`helpers.h`/`common.h`: файл называется по назначению. Исключение — уже
   `render/backend/dx12/` и `render/backend/vulkan/` остаются изолированными внутри `render`.
 - Зависимости приходят снаружи: через конструктор (`ModelManager(RenderResources&)`), `Init`
@@ -214,7 +214,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (вл�
   без определения.
 - Макросы: только с префиксом `ELM_` и только для логов, ассертов и платформы.
 - Namespace: всё в `elm` (`elm::core`, `elm::render`, `elm::render::rhi`, `elm::graphics`,
-  `elm::platform`, `elm::resmgr`, `elm::script`, `elm::script::lua`, `elm::script::bindings`).
+  `elm::platform`, `elm::resource`, `elm::script`, `elm::script::lua`, `elm::script::bindings`).
   Математика исторически в корневом `math`. Закрывающий комментарий называет namespace верно:
   `} // namespace elm::render`. Встречающееся `// namespace Engine` не копируй.
 - Lua-сторона: `snake_case` (`elm.scene.spawn`, `on_start`, `props`). Имена компонентов в Lua и

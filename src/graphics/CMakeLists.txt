@@ -33,4 +33,4 @@ engine_add_library(graphics
     gizmo/TransformGizmo.cpp
 )
 
-target_link_libraries(graphics PUBLIC core render platform resmgr)
+target_link_libraries(graphics PUBLIC core render platform resource)

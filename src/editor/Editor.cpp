@@ -15,9 +15,9 @@
 
 #include "platform/Process.hpp"
 
-#include "resmgr/ProjectBuilder.hpp"
-#include "resmgr/ProjectTemplate.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/ProjectBuilder.hpp"
+#include "resource/ProjectTemplate.hpp"
+#include "resource/Serializer.hpp"
 
 #include "script/ScriptSystem.hpp"
 #include "editor/script/ScriptEditorWindows.hpp"
@@ -306,7 +306,7 @@ namespace elm {
 		auto luaApi = script::ScriptSystem::GenerateApiMeta();
 		if (!luaApi)
 			return MakeUnexpected(luaApi.error());
-		auto file = resmgr::ProjectTemplate::Create(FileSystem::Resolve(location), name, *luaApi);
+		auto file = resource::ProjectTemplate::Create(FileSystem::Resolve(location), name, *luaApi);
 		if (!file)
 			return MakeUnexpected(file.error());
 		m_requestedProject = std::move(*file);
@@ -318,7 +318,7 @@ namespace elm {
 		// The file first: a project that cannot be saved keeps the entry it had
 		project::Project changed = *m_engine.OpenedProject();
 		changed.SetEntry(entry);
-		if (auto saved = resmgr::Serializer::SaveProject(changed); !saved)
+		if (auto saved = resource::Serializer::SaveProject(changed); !saved)
 			return saved;
 		m_engine.SetProjectEntry(std::move(entry));
 		return { };
@@ -347,7 +347,7 @@ namespace elm {
 		const auto executable = FindPlayerExecutable();
 		if (!executable)
 			return;
-		const auto folder = resmgr::ProjectBuilder::Build(*project, { *executable, FileSystem::Resolve("shaders") });
+		const auto folder = resource::ProjectBuilder::Build(*project, { *executable, FileSystem::Resolve("shaders") });
 		if (folder)
 			LOG_MESSAGE(log::Category::Core, LogSource, "Build Game: %s is in %s", project->Name().c_str(), folder->string().c_str());
 	}

@@ -5,7 +5,7 @@
 
 #include "core/Unexpected.hpp"
 
-namespace elm::resmgr {
+namespace elm::resource {
     inline auto UnexpectedSerializationError(EngineError error)
         -> std::unexpected<EngineError>
     {

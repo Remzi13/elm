@@ -8,9 +8,9 @@
 #include "math/Rotation.hpp"
 #include "math/Vector.hpp"
 #include "render/RenderSystem.hpp"
-#include "resmgr/AssetImport.hpp"
-#include "resmgr/GltfExporter.hpp"
-#include "resmgr/Serializer.hpp"
+#include "resource/AssetImport.hpp"
+#include "resource/GltfExporter.hpp"
+#include "resource/Serializer.hpp"
 #include "Scene/ComponentTypes.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -350,7 +350,7 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
         LoadSceneFile(context, *path);
 
     if (const auto path = m_gltfFileDialog.Draw()) {
-        auto result = resmgr::GltfExporter::Export(*path, scene, context.models);
+        auto result = resource::GltfExporter::Export(*path, scene, context.models);
         m_sceneFileStatus = result ? "Scene exported to " + String(path->string().c_str()) + "." : result.error().message;
     }
 
@@ -366,7 +366,7 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
 
     if (const auto path = m_gltfSceneImportFileDialog.Draw()) {
         // The original goes to the project's source folder, the models to its models folder
-        auto result = resmgr::AssetImport::ImportScene(*path, m_folders.assets);
+        auto result = resource::AssetImport::ImportScene(*path, m_folders.assets);
         if (result) {
             const auto handlers = context.models.InsertAll(std::move(result->models), result->modelFiles);
             const auto newIds = scene.Append(std::move(*result), handlers);
@@ -380,7 +380,7 @@ void SceneHierarchyWindow::DrawToolbar(ImGuiWindowContext& context)
 
     if (const auto path = m_modelOpenFileDialog.Draw()) {
         // A .model of the project stays its file; anything else is imported into the project
-        auto modelResult = resmgr::AssetImport::ImportModel(*path, m_folders.assets);
+        auto modelResult = resource::AssetImport::ImportModel(*path, m_folders.assets);
         if (!modelResult) {
             m_sceneFileStatus = "Failed to load model: " + modelResult.error().message;
         } else {
@@ -1446,7 +1446,7 @@ NodeId SceneHierarchyWindow::AddPrimitiveNode(Scene& scene, graphics::ModelManag
 
 void SceneHierarchyWindow::LoadSceneFile(ImGuiWindowContext& context, const Path& file)
 {
-    auto result = resmgr::Serializer::LoadScene(file, m_folders.assets);
+    auto result = resource::Serializer::LoadScene(file, m_folders.assets);
     if (!result) {
         m_sceneFileStatus = result.error().message;
         return;
@@ -1474,7 +1474,7 @@ void SceneHierarchyWindow::AcceptDroppedModel(ImGuiWindowContext& context)
     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(ModelFilePayload)) {
         const Path file(StringView(static_cast<const char*>(payload->Data), static_cast<size_t>(payload->DataSize)));
         // A model of the project stays its file, anything else is imported
-        auto imported = resmgr::AssetImport::ImportModel(file, m_folders.assets);
+        auto imported = resource::AssetImport::ImportModel(file, m_folders.assets);
         if (imported) {
             const String name = imported->model.name;
             const auto model = context.models.Insert(std::move(imported->model), std::move(imported->file));
@@ -1498,9 +1498,9 @@ String SceneHierarchyWindow::UnusedSceneFileName() const
 
 EngineResult<void> SceneHierarchyWindow::SaveScene(ImGuiWindowContext& context, const Path& path)
 {
-    if (auto newModels = resmgr::Serializer::SaveNewModels(context.scene, context.models, m_folders.assets); !newModels)
+    if (auto newModels = resource::Serializer::SaveNewModels(context.scene, context.models, m_folders.assets); !newModels)
         return MakeUnexpected(newModels.error());
-    return resmgr::Serializer::SaveScene(context.scene, context.models, m_folders.assets, path);
+    return resource::Serializer::SaveScene(context.scene, context.models, m_folders.assets, path);
 }
 
 void SceneHierarchyWindow::RefreshScriptModules()
