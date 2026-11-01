@@ -5,7 +5,7 @@
 
 namespace elm {
     class Camera;
-    class InputSystem;
+    class Input;
     class PhysicsSystem;
     class Scene;
     class Settings;
@@ -37,7 +37,7 @@ namespace elm::script {
     struct EngineContext {
         Scene* scene { nullptr };
         ModelCatalog* models { nullptr };
-        InputSystem* input { nullptr };
+        Input* input { nullptr };
         Camera* camera { nullptr };
         Settings* settings { nullptr };
         PhysicsSystem* physics { nullptr };

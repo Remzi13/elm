@@ -26,7 +26,7 @@ namespace elm::script::bindings {
     /// elm.script: reloads, restarts, persist, memory.
     void RegisterScriptModule(lua::State& state, ModuleLoader& modules, HotReload& hotReload, std::function<void()> requestRestart);
     void RegisterMath(lua::State& state);
-    void RegisterInput(lua::State& state, InputSystem* input);
+    void RegisterInput(lua::State& state, Input* input);
     /// elm.scene, the Entity class and the Script component.
     void RegisterScene(lua::State& state, Scene* scene, ModelCatalog* models, EntityScripts& entityScripts);
     /// elm.models and the Model class; model files are taken from the project's assets folder.

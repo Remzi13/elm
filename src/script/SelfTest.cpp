@@ -2522,7 +2522,7 @@ namespace elm::script {
         {
             // Engine systems the bindings can reach without a window; models need the renderer
             Scene scene;
-            InputSystem input;
+            Input input;
             Camera camera;
             Settings settings;
             ScriptSystem::RegisterSettings(settings);

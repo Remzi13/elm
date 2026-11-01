@@ -56,15 +56,15 @@ public:
 using EventCallback = std::function<bool(InputEvent&)>;
 using SubscriptionId = uint64_t;
 
-class InputSystem;
+class Input;
 
 /**
- * @brief RAII subscription handle that automatically unregisters from InputSystem when destroyed.
+ * @brief RAII subscription handle that automatically unregisters from Input when destroyed.
  */
 class ScopedInputSubscription {
 public:
     ScopedInputSubscription() noexcept = default;
-    ScopedInputSubscription(InputSystem* system, SubscriptionId id) noexcept
+    ScopedInputSubscription(Input* system, SubscriptionId id) noexcept
         : m_system(system), m_id(id) {}
 
     ~ScopedInputSubscription();
@@ -94,7 +94,7 @@ public:
     void Reset();
 
 private:
-    InputSystem* m_system{nullptr};
+    Input* m_system{nullptr};
     SubscriptionId m_id{0};
 };
 

@@ -112,8 +112,9 @@ elm — 3D-движок с редактором на C++23: собственны
 | Сущность | Что это | Модуль |
 |---|---|---|
 | `PhysicsSystem` | тела Jolt для узлов с `Collider`, по `NodeId`, только update | `physics` |
-| `InputSystem`, `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия | `input` |
-| `platform::Window` | главное окно GLFW | `platform` |
+| `Input` (бывший `InputSystem`), `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия; часть `PlatformSystem` | `input` |
+| `platform::PlatformSystem` | связь с ОС: главное окно и его ввод (`Input`), оси по умолчанию для скриптов; `PollEvents`, `DispatchInput` | `platform` |
+| `platform::Window` | главное окно GLFW; часть `PlatformSystem` | `platform` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene` (JSON через glaze), экспорт glTF | `resource` |
 | `script::ScriptSystem` | менеджер скриптов: Lua-машина, сборка частей и биндингов, порядок в кадре, Shutdown. Части внутренние для модуля | `script` |
 | `EngineContext`, `ScriptTime`, `PlayRequests` | системы движка для скриптов, время кадра, запросы Play/Stop | `script` |
@@ -135,7 +136,7 @@ elm — 3D-движок с редактором на C++23: собственны
 ```
 core, math                   основа, ни от кого не зависят (core: Tracy)
 render     → core, math      Vulkan / D3D12 только PRIVATE
-platform   → render          GLFW
+platform   → render, input   GLFW
 model      → core, math      модели на CPU: Model, ModelHandler, ModelCatalog
 Scene      → core, math, render, model
 resource   → Scene           glaze PRIVATE

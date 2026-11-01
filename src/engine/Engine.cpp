@@ -28,7 +28,6 @@ namespace {
 
 Engine::Engine()
     : m_physicsSystem(MakeUnique<PhysicsSystem>())
-    , m_inputSystem(MakeUnique<InputSystem>())
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
     , m_scene(m_resources.GetModels())
     , m_graphics(m_settings, m_scene, m_resources.GetModels())
@@ -60,23 +59,14 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
     core::registerThread(core::ThreadRole::Update);
     ELM_PROFILE_THREAD("Main Thread");
     core::JobSystem::Get().Init();
-    if (auto windowInit = m_window.Create(Size(desc.width, desc.height), desc.title); !windowInit) {
-        return MakeUnexpected(windowInit.error());
-    }
-    if (auto graphicsInit = m_graphics.Init(m_window.GetNativeWindow(), m_window.GetFramebufferSize(), Size(desc.width, desc.height));
+    if (auto platformInit = m_platform.Init(Size(desc.width, desc.height), desc.title); !platformInit)
+        return MakeUnexpected(platformInit.error());
+    const platform::Window& window = m_platform.GetWindow();
+    if (auto graphicsInit = m_graphics.Init(window.GetNativeWindow(), window.GetFramebufferSize(), Size(desc.width, desc.height));
         !graphicsInit) {
-        m_window.Destroy();
+        m_platform.Shutdown();
         return MakeUnexpected(graphicsInit.error());
     }
-    m_inputSystem->AttachWindow(m_window.GetHandle());
-
-    // Default axes for the scripts (elm.input.axis): WASD moves, E and Q go up and down
-    m_inputSystem->AddAxisMapping("MoveForward", Key::W, 1.0f);
-    m_inputSystem->AddAxisMapping("MoveForward", Key::S, -1.0f);
-    m_inputSystem->AddAxisMapping("MoveRight", Key::D, 1.0f);
-    m_inputSystem->AddAxisMapping("MoveRight", Key::A, -1.0f);
-    m_inputSystem->AddAxisMapping("MoveUp", Key::E, 1.0f);
-    m_inputSystem->AddAxisMapping("MoveUp", Key::Q, -1.0f);
 
     // Initialize Physics System
     auto physicsInit = m_physicsSystem->Init();
@@ -100,7 +90,7 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
 
 bool Engine::ShouldClose() const
 {
-    return m_window.ShouldClose();
+    return m_platform.ShouldClose();
 }
 
 float Engine::BeginFrame()
@@ -110,11 +100,7 @@ float Engine::BeginFrame()
     const float deltaTime = std::min(static_cast<float>(core::getMilliseconds(m_lastFrameTime, now)) / 1000.f, MaxFrameSeconds);
     m_lastFrameTime = now;
     m_physicsSystem->ClearFrameLog();
-    {
-        // GLFW events belong to the main thread
-        ELM_PROFILE_SCOPE_N("Process Input");
-        m_inputSystem->BeginFrame();
-    }
+    m_platform.PollEvents();
     return deltaTime;
 }
 
@@ -161,7 +147,7 @@ void Engine::OpenProject(project::Project project)
     m_resources.Open(std::move(project));
     const project::Project& opened = *m_resources.GetProject();
 
-    const script::EngineContext scriptEngine { &m_scene.EditScene(), &m_resources.GetModels(), m_inputSystem.get(), &m_graphics.GetViewCamera(), &m_settings,
+    const script::EngineContext scriptEngine { &m_scene.EditScene(), &m_resources.GetModels(), &m_platform.GetInput(), &m_graphics.GetViewCamera(), &m_settings,
         m_physicsSystem.get(), m_playMode.Requests(), m_scriptDebugDraw, &opened };
     // In Edit the main module waits for Play: the Lua state serves the script props of Scene Hierarchy and the console
     if (auto scriptInit = m_scriptSystem->Init(scriptEngine, opened.Scripts()); !scriptInit)
@@ -189,7 +175,7 @@ void Engine::DrawScene(render::FrameWriter& frame)
 {
     // The UI may have moved nodes since the update; graphics only reads the scene
     m_scene.UpdateTransforms();
-    m_graphics.DrawWorld(frame, m_window.GetFramebufferSize());
+    m_graphics.DrawWorld(frame, m_platform.GetWindow().GetFramebufferSize());
 }
 
 void Engine::SubmitFrame(render::FrameWriter& frame)
@@ -225,7 +211,7 @@ void Engine::Update(float deltaTime)
         m_frameCounterTime = 0.0f;
     }
 
-    m_inputSystem->Update();
+    m_platform.DispatchInput();
 
     m_scriptSystem->Update(deltaTime);
     // Scripts move nodes through local transforms
@@ -258,7 +244,7 @@ void Engine::Shutdown()
     m_scene.Clear();
     m_resources.Close();
     m_graphics.Shutdown();
-    m_window.Destroy();
+    m_platform.Shutdown();
     core::JobSystem::Get().Shutdown();
 
     m_isRunning = false;

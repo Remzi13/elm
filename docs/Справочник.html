@@ -686,7 +686,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     Engine:   { x: 360, y: 34,  dir: "src/engine/*, src/editor/Editor.*, main.cpp", ns: "elm", third: [], desc: "Собирает всё: владеет сценой, системами, `PlayMode` и главным циклом. Запускает render-поток.", ents: ["Engine", "PlayMode", "Scene"], note: "render/Главный цикл.md", thread: "update (главный поток)" },
     graphics: { x: 120, y: 128, dir: "src/graphics", ns: "elm::graphics, elm", third: ["ImGui", "ImGuizmo"], desc: "Модели и их GPU-меши, камера, CPU-отсечение, окна редактора на ImGui.", ents: ["ModelManager", "ModelHandler", "Camera", "OcclusionCulling", "ImGuiSystem", "IImGuiWindow"], note: "editor/Редактор.md", thread: "update" },
     script:   { x: 400, y: 128, dir: "src/script", ns: "elm::script", third: ["Lua 5.4.7"], desc: "Lua-машина, главный модуль, скрипты сущностей, hot reload, консоль, `PlayMode`. Остальные модули линкуются PRIVATE, наружу видны `ScriptSystem`, `EngineContext`, `PlayMode`.", ents: ["ScriptSystem", "EngineContext", "PlayMode", "EntityScripts", "HotReload", "lua::State"], note: "script/Скрипты на Lua.md", thread: "update" },
-    input:    { x: 610, y: 128, dir: "src/input", ns: "elm", third: ["GLFW"], desc: "Ввод с приоритетами подписчиков, действия и оси.", ents: ["InputSystem", "IInputSubscriber", "InputContext", "ActionBinding", "AxisBinding"], note: null, thread: "update" },
+    input:    { x: 610, y: 128, dir: "src/input", ns: "elm", third: ["GLFW"], desc: "Ввод с приоритетами подписчиков, действия и оси.", ents: ["Input", "IInputSubscriber", "InputContext", "ActionBinding", "AxisBinding"], note: null, thread: "update" },
     resource:   { x: 120, y: 222, dir: "src/resource", ns: "elm::resource", third: ["glaze"], desc: "Читает и пишет `.model` и `.scene` (JSON через glaze), экспорт glTF.", ents: ["Serializer", "GltfExporter", "JsonValue"], note: "scene/Файл сцены.md", thread: "любой (SceneAsset)" },
     physics:  { x: 300, y: 222, dir: "src/physics", ns: "elm", third: ["Jolt 5.2"], desc: "Тела Jolt для узлов с `Collider`, по `NodeId`. Jolt линкуется PRIVATE: он выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.", ents: ["PhysicsSystem", "RayHit", "CollisionEvent"], note: "physics/Физика.md", thread: "update" },
     platform: { x: 600, y: 222, dir: "src/platform", ns: "elm::platform", third: ["GLFW"], desc: "Главное окно. Рендер получает от него только `NativeWindow` и размер.", ents: ["platform::Window"], note: "render/бэкенд/Бэкенды.md", thread: "update" },
@@ -788,9 +788,9 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
   /* ---------- Frame stepper ---------- */
   const steps = {
     U: [
-      { t: "Время и ввод", s: "accumulator += dt · InputSystem::BeginFrame", d: "Считается `deltaTime`, он копится в накопителе фиксированного шага. Ввод начинает новый кадр." },
+      { t: "Время и ввод", s: "accumulator += dt · Input::BeginFrame", d: "Считается `deltaTime`, он копится в накопителе фиксированного шага. Ввод начинает новый кадр." },
       { t: "FixedUpdate × N", s: "PhysicsSystem::Step → ScriptSystem::FixedUpdate", mode: "partial", d: "Пока накопитель ≥ 1/60 с, выполняется фиксированный шаг.", li: ["`PhysicsSystem::Step(scene, dt)` — только в Play", "`CollisionEvent` раздаются скриптам: `on_collision_*`, `on_trigger_*`", "`main.on_fixed_update`, затем `on_fixed_update` сущностей — только в Play"] },
-      { t: "Ввод и смена режима", s: "InputSystem::Update · PlayMode::ApplyRequest", d: "Play/Stop, которые попросили скрипты (`elm.engine.play()`), окна или F5, применяются здесь, до скриптов. Поэтому их безопасно вызывать из Lua." },
+      { t: "Ввод и смена режима", s: "Input::Update · PlayMode::ApplyRequest", d: "Play/Stop, которые попросили скрипты (`elm.engine.play()`), окна или F5, применяются здесь, до скриптов. Поэтому их безопасно вызывать из Lua." },
       { t: "Скрипты", s: "ScriptSystem::Update", mode: "partial", d: "Менеджер скриптов ведёт части по кадру.", li: ["`HotReload::Poll`: перезагрузка изменённых модулей вне хуков", "`main.on_update(dt)` — только в Play", "`on_start` новых экземпляров, затем `on_update` сущностей — только в Play"] },
       { t: "Трансформы и камера", s: "Scene::UpdateWorldTransforms · CameraController::Update", d: "Скрипты двигали узлы через локальные трансформы. Мировые пересчитываются одним линейным проходом, родитель всегда раньше детей." },
       { t: "Отсечение", s: "OcclusionCulling::ExecuteCulling", d: "CPU-отсечение: frustum и программный буфер глубины. Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Флаг `visible` не меняет." },
@@ -1113,7 +1113,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Рендер", "RenderGraph, PassBuilder, PassContext, FrameBlackboard", "граф пасов, зависимости, барьеры", "render / воркер"],
     ["Рендер", "rhi::IRenderBackend (Dx12Backend, VulkanBackend, NullBackend), CommandList, UploadAllocator", "абстракция графического API", "render"],
     ["Системы", "PhysicsSystem, RayHit", "тела Jolt для узлов с `Collider`, по `NodeId`, только update", "physics"],
-    ["Системы", "InputSystem, IInputSubscriber, InputContext, ActionBinding, AxisBinding", "ввод с приоритетами подписчиков и действия", "input"],
+    ["Системы", "Input, IInputSubscriber, InputContext, ActionBinding, AxisBinding", "ввод с приоритетами подписчиков и действия", "input"],
     ["Системы", "platform::Window", "главное окно GLFW", "platform"],
     ["Системы", "resource::Serializer, GltfExporter, JsonValue", "`.model`/`.scene` (JSON через glaze), экспорт glTF", "resource"],
     ["Скрипты", "script::ScriptSystem", "менеджер скриптов: Lua-машина, части, биндинги, порядок в кадре", "script"],

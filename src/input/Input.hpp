@@ -10,15 +10,15 @@
 
 namespace elm {
 
-	class InputSystem {
+	class Input {
 	public:
-		InputSystem();
-		~InputSystem();
+		Input();
+		~Input();
 
-		InputSystem(const InputSystem&) = delete;
-		InputSystem& operator=(const InputSystem&) = delete;
-		InputSystem(InputSystem&&) noexcept;
-		InputSystem& operator=(InputSystem&&) noexcept;
+		Input(const Input&) = delete;
+		Input& operator=(const Input&) = delete;
+		Input(Input&&) noexcept;
+		Input& operator=(Input&&) noexcept;
 
 		// Window management
 		void AttachWindow(void* window);

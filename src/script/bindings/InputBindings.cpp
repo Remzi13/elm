@@ -10,32 +10,32 @@ namespace elm::script::bindings {
 
         /// What elm.input reaches.
         struct InputContext {
-            InputSystem* input { nullptr };
+            Input* input { nullptr };
         };
 
-        InputSystem& Input(lua_State* L) { return RequireSystem(L, ContextOf<InputContext>(L).input, "elm.input"); }
+        Input& InputOf(lua_State* L) { return RequireSystem(L, ContextOf<InputContext>(L).input, "elm.input"); }
 
-        bool IsDown(lua_State* L, Key key) { return Input(L).IsKeyDown(key); }
-        bool IsPressed(lua_State* L, Key key) { return Input(L).IsKeyPressed(key); }
-        bool IsReleased(lua_State* L, Key key) { return Input(L).IsKeyReleased(key); }
-        bool IsMouseDown(lua_State* L, MouseButton button) { return Input(L).IsMouseButtonDown(button); }
-        bool IsMousePressed(lua_State* L, MouseButton button) { return Input(L).IsMouseButtonPressed(button); }
-        bool IsMouseReleased(lua_State* L, MouseButton button) { return Input(L).IsMouseButtonReleased(button); }
-        float Axis(lua_State* L, StringView name) { return Input(L).GetAxisValue(name); }
+        bool IsDown(lua_State* L, Key key) { return InputOf(L).IsKeyDown(key); }
+        bool IsPressed(lua_State* L, Key key) { return InputOf(L).IsKeyPressed(key); }
+        bool IsReleased(lua_State* L, Key key) { return InputOf(L).IsKeyReleased(key); }
+        bool IsMouseDown(lua_State* L, MouseButton button) { return InputOf(L).IsMouseButtonDown(button); }
+        bool IsMousePressed(lua_State* L, MouseButton button) { return InputOf(L).IsMouseButtonPressed(button); }
+        bool IsMouseReleased(lua_State* L, MouseButton button) { return InputOf(L).IsMouseButtonReleased(button); }
+        float Axis(lua_State* L, StringView name) { return InputOf(L).GetAxisValue(name); }
 
         std::tuple<double, double> MousePosition(lua_State* L)
         {
-            const auto [x, y] = Input(L).GetMousePosition();
+            const auto [x, y] = InputOf(L).GetMousePosition();
             return { x, y };
         }
         std::tuple<double, double> MouseDelta(lua_State* L)
         {
-            const auto [x, y] = Input(L).GetMouseDelta();
+            const auto [x, y] = InputOf(L).GetMouseDelta();
             return { x, y };
         }
         std::tuple<double, double> ScrollDelta(lua_State* L)
         {
-            const auto [x, y] = Input(L).GetScrollDelta();
+            const auto [x, y] = InputOf(L).GetScrollDelta();
             return { x, y };
         }
 
@@ -73,7 +73,7 @@ namespace elm::script::bindings {
 
     } // namespace
 
-    void RegisterInput(lua::State& state, InputSystem* input)
+    void RegisterInput(lua::State& state, Input* input)
     {
         state.SetContext(InputContext { input });
         lua::Module(state, "elm.input")

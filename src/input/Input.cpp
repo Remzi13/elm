@@ -199,17 +199,17 @@ namespace elm {
 		}
 	};
 
-	InputSystem::InputSystem() : m_impl(MakeUnique<InputSystemImpl>()) {
+	Input::Input() : m_impl(MakeUnique<InputSystemImpl>()) {
 		m_impl->rawEvents = &m_rawEvents;
 	}
 
-	InputSystem::~InputSystem() {
+	Input::~Input() {
 		if (m_impl) {
 			m_impl->Detach();
 		}
 	}
 
-	InputSystem::InputSystem(InputSystem&& other) noexcept
+	Input::Input(Input&& other) noexcept
 		: m_rawEvents(std::move(other.m_rawEvents)),
 		m_allEvents(std::move(other.m_allEvents)),
 		m_unhandledEvents(std::move(other.m_unhandledEvents)),
@@ -219,7 +219,7 @@ namespace elm {
 		}
 	}
 
-	InputSystem& InputSystem::operator=(InputSystem&& other) noexcept {
+	Input& Input::operator=(Input&& other) noexcept {
 		if (this != &other) {
 			if (m_impl) m_impl->Detach();
 			m_rawEvents = std::move(other.m_rawEvents);
@@ -233,7 +233,7 @@ namespace elm {
 		return *this;
 	}
 
-	void InputSystem::AttachWindow(void* nativeWindow) {
+	void Input::AttachWindow(void* nativeWindow) {
 		auto* window = static_cast<GLFWwindow*>(nativeWindow);
 		if (m_impl->window == window) return;
 
@@ -258,11 +258,11 @@ namespace elm {
 		m_impl->hasInitialMousePos = true;
 	}
 
-	void* InputSystem::GetAttachedWindow() const noexcept {
+	void* Input::GetAttachedWindow() const noexcept {
 		return m_impl ? m_impl->window : nullptr;
 	}
 
-	void InputSystem::BeginFrame() noexcept {
+	void Input::BeginFrame() noexcept {
 		if (m_impl) {
 			m_impl->previousKeys = m_impl->currentKeys;
 			m_impl->previousMouseButtons = m_impl->currentMouseButtons;
@@ -279,7 +279,7 @@ namespace elm {
 		glfwPollEvents();
 	}
 
-	bool InputSystem::DispatchEvent(InputEvent& event) {
+	bool Input::DispatchEvent(InputEvent& event) {
 		if (!m_impl) return false;
 
 		for (auto& subscriber : m_impl->subscribers) {
@@ -294,7 +294,7 @@ namespace elm {
 		return false;
 	}
 
-	void InputSystem::Update(bool allowInput) {
+	void Input::Update(bool allowInput) {
 		if (!allowInput || !m_impl) {
 			m_rawEvents.clear();
 			return;
@@ -351,7 +351,7 @@ namespace elm {
 		m_rawEvents.clear();
 	}
 
-	SubscriptionId InputSystem::AddSubscriber(SharedPtr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
+	SubscriptionId Input::AddSubscriber(SharedPtr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
 		if (!m_impl || !subscriber) return 0;
 		const SubscriptionId id = s_nextSubscriptionId.fetch_add(1, std::memory_order_relaxed);
 		RegisteredSubscriber sub;
@@ -364,7 +364,7 @@ namespace elm {
 		return id;
 	}
 
-	SubscriptionId InputSystem::AddSubscriber(IInputSubscriber* subscriber, int32_t priority, StringView name) {
+	SubscriptionId Input::AddSubscriber(IInputSubscriber* subscriber, int32_t priority, StringView name) {
 		if (!m_impl || !subscriber) return 0;
 		const SubscriptionId id = s_nextSubscriptionId.fetch_add(1, std::memory_order_relaxed);
 		RegisteredSubscriber sub;
@@ -377,7 +377,7 @@ namespace elm {
 		return id;
 	}
 
-	SubscriptionId InputSystem::AddListener(EventCallback callback, int32_t priority, StringView name) {
+	SubscriptionId Input::AddListener(EventCallback callback, int32_t priority, StringView name) {
 		if (!m_impl || !callback) return 0;
 		const SubscriptionId id = s_nextSubscriptionId.fetch_add(1, std::memory_order_relaxed);
 		RegisteredSubscriber sub;
@@ -390,29 +390,29 @@ namespace elm {
 		return id;
 	}
 
-	ScopedInputSubscription InputSystem::SubscribeScoped(SharedPtr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
+	ScopedInputSubscription Input::SubscribeScoped(SharedPtr<IInputSubscriber> subscriber, int32_t priority, StringView name) {
 		SubscriptionId id = AddSubscriber(std::move(subscriber), priority, name);
 		return ScopedInputSubscription(this, id);
 	}
 
-	ScopedInputSubscription InputSystem::SubscribeScoped(IInputSubscriber* subscriber, int32_t priority, StringView name) {
+	ScopedInputSubscription Input::SubscribeScoped(IInputSubscriber* subscriber, int32_t priority, StringView name) {
 		SubscriptionId id = AddSubscriber(subscriber, priority, name);
 		return ScopedInputSubscription(this, id);
 	}
 
-	ScopedInputSubscription InputSystem::SubscribeScoped(EventCallback callback, int32_t priority, StringView name) {
+	ScopedInputSubscription Input::SubscribeScoped(EventCallback callback, int32_t priority, StringView name) {
 		SubscriptionId id = AddListener(std::move(callback), priority, name);
 		return ScopedInputSubscription(this, id);
 	}
 
-	void InputSystem::RemoveSubscriber(SubscriptionId id) {
+	void Input::RemoveSubscriber(SubscriptionId id) {
 		if (!m_impl || id == 0) return;
 		auto it = std::remove_if(m_impl->subscribers.begin(), m_impl->subscribers.end(),
 			[id](const RegisteredSubscriber& sub) noexcept { return sub.id == id; });
 		m_impl->subscribers.erase(it, m_impl->subscribers.end());
 	}
 
-	void InputSystem::RemoveSubscriber(IInputSubscriber* subscriber) {
+	void Input::RemoveSubscriber(IInputSubscriber* subscriber) {
 		if (!m_impl || !subscriber) return;
 		auto it = std::remove_if(m_impl->subscribers.begin(), m_impl->subscribers.end(),
 			[subscriber](const RegisteredSubscriber& sub) noexcept {
@@ -422,110 +422,110 @@ namespace elm {
 	}
 
 	// Immediate state polling
-	bool InputSystem::IsKeyDown(Key key) const noexcept {
+	bool Input::IsKeyDown(Key key) const noexcept {
 		if (!m_impl) return false;
 		const auto idx = static_cast<int>(key);
 		if (idx < 0 || static_cast<size_t>(idx) >= m_impl->currentKeys.size()) return false;
 		return m_impl->currentKeys[static_cast<size_t>(idx)];
 	}
 
-	bool InputSystem::IsKeyPressed(Key key) const noexcept {
+	bool Input::IsKeyPressed(Key key) const noexcept {
 		if (!m_impl) return false;
 		const auto idx = static_cast<int>(key);
 		if (idx < 0 || static_cast<size_t>(idx) >= m_impl->currentKeys.size()) return false;
 		return m_impl->currentKeys[static_cast<size_t>(idx)] && !m_impl->previousKeys[static_cast<size_t>(idx)];
 	}
 
-	bool InputSystem::IsKeyReleased(Key key) const noexcept {
+	bool Input::IsKeyReleased(Key key) const noexcept {
 		if (!m_impl) return false;
 		const auto idx = static_cast<int>(key);
 		if (idx < 0 || static_cast<size_t>(idx) >= m_impl->currentKeys.size()) return false;
 		return !m_impl->currentKeys[static_cast<size_t>(idx)] && m_impl->previousKeys[static_cast<size_t>(idx)];
 	}
 
-	bool InputSystem::IsMouseButtonDown(MouseButton button) const noexcept {
+	bool Input::IsMouseButtonDown(MouseButton button) const noexcept {
 		if (!m_impl) return false;
 		const auto idx = static_cast<size_t>(button);
 		if (idx >= m_impl->currentMouseButtons.size()) return false;
 		return m_impl->currentMouseButtons[idx];
 	}
 
-	bool InputSystem::IsMouseButtonPressed(MouseButton button) const noexcept {
+	bool Input::IsMouseButtonPressed(MouseButton button) const noexcept {
 		if (!m_impl) return false;
 		const auto idx = static_cast<size_t>(button);
 		if (idx >= m_impl->currentMouseButtons.size()) return false;
 		return m_impl->currentMouseButtons[idx] && !m_impl->previousMouseButtons[idx];
 	}
 
-	bool InputSystem::IsMouseButtonReleased(MouseButton button) const noexcept {
+	bool Input::IsMouseButtonReleased(MouseButton button) const noexcept {
 		if (!m_impl) return false;
 		const auto idx = static_cast<size_t>(button);
 		if (idx >= m_impl->currentMouseButtons.size()) return false;
 		return !m_impl->currentMouseButtons[idx] && m_impl->previousMouseButtons[idx];
 	}
 
-	double InputSystem::GetMouseX() const noexcept {
+	double Input::GetMouseX() const noexcept {
 		return m_impl ? m_impl->mouseX : 0.0;
 	}
 
-	double InputSystem::GetMouseY() const noexcept {
+	double Input::GetMouseY() const noexcept {
 		return m_impl ? m_impl->mouseY : 0.0;
 	}
 
-	std::pair<double, double> InputSystem::GetMousePosition() const noexcept {
+	std::pair<double, double> Input::GetMousePosition() const noexcept {
 		return m_impl ? std::make_pair(m_impl->mouseX, m_impl->mouseY) : std::make_pair(0.0, 0.0);
 	}
 
-	std::pair<double, double> InputSystem::GetMouseDelta() const noexcept {
+	std::pair<double, double> Input::GetMouseDelta() const noexcept {
 		return m_impl ? std::make_pair(m_impl->mouseDeltaX, m_impl->mouseDeltaY) : std::make_pair(0.0, 0.0);
 	}
 
-	std::pair<double, double> InputSystem::GetScrollDelta() const noexcept {
+	std::pair<double, double> Input::GetScrollDelta() const noexcept {
 		return m_impl ? std::make_pair(m_impl->scrollDeltaX, m_impl->scrollDeltaY) : std::make_pair(0.0, 0.0);
 	}
 
 	// Action & Axis contexts
-	void InputSystem::PushContext(SharedPtr<InputContext> context) {
+	void Input::PushContext(SharedPtr<InputContext> context) {
 		if (m_impl && context) {
 			m_impl->contextStack.push_back(std::move(context));
 		}
 	}
 
-	void InputSystem::PopContext() {
+	void Input::PopContext() {
 		if (m_impl && !m_impl->contextStack.empty()) {
 			m_impl->contextStack.pop_back();
 		}
 	}
 
-	InputContext& InputSystem::GetDefaultContext() noexcept {
+	InputContext& Input::GetDefaultContext() noexcept {
 		return *m_impl->defaultContext;
 	}
 
-	void InputSystem::AddActionMapping(StringView actionName, Key key, KeyAction triggerAction, KeyModifiers modifiers) {
+	void Input::AddActionMapping(StringView actionName, Key key, KeyAction triggerAction, KeyModifiers modifiers) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->AddActionMapping(actionName, key, triggerAction, modifiers);
 		}
 	}
 
-	void InputSystem::AddActionMapping(StringView actionName, MouseButton button, KeyAction triggerAction, KeyModifiers modifiers) {
+	void Input::AddActionMapping(StringView actionName, MouseButton button, KeyAction triggerAction, KeyModifiers modifiers) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->AddActionMapping(actionName, button, triggerAction, modifiers);
 		}
 	}
 
-	void InputSystem::AddAxisMapping(StringView axisName, Key key, float scale) {
+	void Input::AddAxisMapping(StringView axisName, Key key, float scale) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->AddAxisMapping(axisName, key, scale);
 		}
 	}
 
-	void InputSystem::BindAction(StringView actionName, ActionCallback callback) {
+	void Input::BindAction(StringView actionName, ActionCallback callback) {
 		if (m_impl && m_impl->defaultContext) {
 			m_impl->defaultContext->BindAction(actionName, std::move(callback));
 		}
 	}
 
-	float InputSystem::GetAxisValue(StringView axisName) const {
+	float Input::GetAxisValue(StringView axisName) const {
 		if (!m_impl) return 0.0f;
 
 		auto evaluateContext = [this, axisName](const InputContext& ctx) -> std::pair<bool, float> {

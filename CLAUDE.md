@@ -133,8 +133,9 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | Сущность | Что это | Модуль |
 |---|---|---|
 | `PhysicsSystem` | тела Jolt для узлов с `Collider`, по `NodeId`, только update | `physics` |
-| `InputSystem`, `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия | `input` |
-| `platform::Window` | главное окно GLFW | `platform` |
+| `Input` (бывший `InputSystem`), `IInputSubscriber`, `InputContext`, `ActionBinding`, `AxisBinding` | ввод с приоритетами подписчиков и действия; часть `PlatformSystem` | `input` |
+| `platform::PlatformSystem` | связь с ОС: главное окно и его ввод (`Input`), оси по умолчанию для скриптов; `PollEvents`, `DispatchInput` | `platform` |
+| `platform::Window` | главное окно GLFW; часть `PlatformSystem` | `platform` |
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
 | `Engine`, `EngineDesc` | движок: системы игры и открытый проект; шаги кадра (`BeginFrame`, `Simulate`, `BeginRenderFrame`, `DrawScene`, `SubmitFrame`) вызывает программа, своего цикла и обратных вызовов нет; окно и `DebugDraw*` для скриптов | `engine` |
 | `Editor` | программа-редактор: владеет `Engine` и ведёт его кадр; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
@@ -168,7 +169,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 ```
 core, math                   основа, ни от кого не зависят (core: Tracy)
 render     → core, math      Vulkan / D3D12 только PRIVATE
-platform   → render          GLFW
+platform   → render, input   GLFW
 model      → core, math      модели на CPU: Model, ModelHandler, ModelCatalog
 Scene      → core, math, render, model
 project    → core

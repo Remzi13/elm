@@ -3,7 +3,7 @@
 #include "core/Error.hpp"
 #include "core/Settings.hpp"
 
-#include "platform/Window.hpp"
+#include "platform/PlatformSystem.hpp"
 
 
 #include "graphics/FrameStats.hpp"
@@ -102,12 +102,12 @@ namespace elm {
 		void LoadTestScene(ScenePreset preset, uint32_t instanceCount = 1500);
 
 		[[nodiscard]] Settings& GetSettings() noexcept { return m_settings; }
-		[[nodiscard]] platform::Window& GetWindow() noexcept { return m_window; }
+		[[nodiscard]] platform::Window& GetWindow() noexcept { return m_platform.GetWindow(); }
 		[[nodiscard]] graphics::GraphicsSystem& GetGraphics() noexcept { return m_graphics; }
 		[[nodiscard]] Scene& GetScene() noexcept { return m_scene.EditScene(); }
 		[[nodiscard]] SceneSystem& GetSceneSystem() noexcept { return m_scene; }
 		[[nodiscard]] resource::ResourceSystem& GetResources() noexcept { return m_resources; }
-		[[nodiscard]] InputSystem& GetInput() noexcept { return *m_inputSystem; }
+		[[nodiscard]] Input& GetInput() noexcept { return m_platform.GetInput(); }
 		[[nodiscard]] PhysicsSystem& GetPhysics() noexcept { return *m_physicsSystem; }
 		[[nodiscard]] script::ScriptSystem& GetScripts() noexcept { return *m_scriptSystem; }
 		[[nodiscard]] script::PlayMode& GetPlayMode() noexcept { return m_playMode; }
@@ -124,9 +124,9 @@ namespace elm {
 
 	private:
 		Settings m_settings;
-		platform::Window m_window;
+		/// The window and its input.
+		platform::PlatformSystem m_platform;
 		UniquePtr<PhysicsSystem> m_physicsSystem;
-		UniquePtr<InputSystem> m_inputSystem;
 		UniquePtr<script::ScriptSystem> m_scriptSystem;
 
 		/// The open project and its models; before the scene, which keeps its models there.
