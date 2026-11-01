@@ -5,6 +5,7 @@
 
 #include "engine/Engine.hpp"
 
+#include "graphics/CameraController.hpp"
 #include "graphics/debug/DebugDrawSystem.hpp"
 
 #include "editor/ui/ImGuiSystem.hpp"
@@ -100,6 +101,8 @@ namespace elm {
 		Settings& m_settings;
 		/// The engine view's debug drawing: the gizmo, the visualizers, elm.debug of the scripts.
 		graphics::DebugDrawSystem m_debugDraw;
+		/// The fly camera of the engine view in Edit; off in Play, where the camera is the game's.
+		CameraController m_cameraController;
 		UniquePtr<ImGuiSystem> m_imgui;
 		/// Owned by m_imgui: an editor window, it outlives projects.
 		editor::ProjectHubWindow* m_hub { nullptr };

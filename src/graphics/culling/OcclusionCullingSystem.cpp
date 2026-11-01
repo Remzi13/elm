@@ -29,8 +29,6 @@ void OcclusionCullingSystem::Init(render::RenderResources& resources, const Sett
 {
     m_resources = &resources;
     ApplySettings(settings);
-    if (!m_depthPreviewTexture.IsValid())
-        CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
 }
 
 void OcclusionCullingSystem::Shutdown()
@@ -45,7 +43,8 @@ void OcclusionCullingSystem::SetResolution(uint32_t width, uint32_t height)
         return;
 
     m_depthBuffer.Resize(width, height);
-    CreateDepthPreviewTexture(width, height);
+    if (m_depthPreviewTexture.IsValid())
+        CreateDepthPreviewTexture(width, height);
 }
 
 void OcclusionCullingSystem::ApplySettings(const Settings& settings)
@@ -86,6 +85,8 @@ void OcclusionCullingSystem::CreateDepthPreviewTexture(uint32_t width, uint32_t 
 
 void OcclusionCullingSystem::UpdateDepthPreviewTexture(const Settings& settings)
 {
+    if (!m_depthPreviewTexture.IsValid())
+        CreateDepthPreviewTexture(m_depthBuffer.GetWidth(), m_depthBuffer.GetHeight());
     if (!m_depthPreviewTexture.IsValid())
         return;
     Vector<uint8_t> depthPreviewPixels;

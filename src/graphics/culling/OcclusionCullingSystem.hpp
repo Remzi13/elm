@@ -57,6 +57,8 @@ public:
     void RegisterSettings(Settings& settings) const;
     void SetResolution(uint32_t width, uint32_t height);
     void CreateDepthPreviewTexture(uint32_t width, uint32_t height);
+    /// The depth buffer as an image for a viewer (the editor's SocLab window); the first call makes the
+    /// texture, a program that never calls it (the game) has none.
     void UpdateDepthPreviewTexture(const Settings& settings);
 
     /// Reads the scene only: ModelComponent::visible is the user's flag, the result stays here.
@@ -67,6 +69,7 @@ public:
     /// Result of the last ExecuteCulling for a node; nullptr for a node it did not see (hidden, without
     /// a model, added or removed since).
     [[nodiscard]] const OccludeeInstance* FindOccludee(NodeId node) const noexcept { return m_occludees.Find(node); }
+    /// Invalid until UpdateDepthPreviewTexture.
     [[nodiscard]] const render::Texture& GetDepthPreviewTexture() const { return m_depthPreviewTexture; }
     [[nodiscard]] uint32_t GetWidth() const noexcept { return m_depthBuffer.GetWidth(); }
     [[nodiscard]] uint32_t GetHeight() const noexcept { return m_depthBuffer.GetHeight(); }

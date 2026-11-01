@@ -39,6 +39,7 @@ namespace elm {
 	Editor::Editor()
 		: m_settings(m_engine.GetSettings())
 		, m_debugDraw(m_settings)
+		, m_cameraController(m_engine.GetCamera())
 		, m_imgui(MakeUnique<ImGuiSystem>())
 	{
 	}
@@ -60,6 +61,7 @@ namespace elm {
 		const EngineDesc desc { MainWindowWidth, MainWindowHeight, MainWindowTitle, &m_debugDraw.GetDebugDraw() };
 		if (auto engineInit = m_engine.Init(desc); !engineInit)
 			return engineInit;
+		m_engine.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 		if (auto init = m_imgui->Init(m_engine.GetWindow(), m_engine.GetRenderSystem(), m_settings, "Engine Debug UI", &m_engine.GetCulling()); !init)
 			return init;
 		m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(m_settings, editor::ProjectHubDesc {
@@ -82,11 +84,16 @@ namespace elm {
 			const float deltaTime = m_engine.BeginFrame();
 			// Before anything of the frame draws, physics steps included
 			m_debugDraw.BeginFrame(deltaTime);
-			// The viewport state comes from the previous UI frame
-			m_engine.GetCameraController().SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
 			// Before Play/Stop: a project switch stops Play itself
 			ApplyProjectRequest();
+			// Before Simulate, which culls from the camera. The viewport state comes from the previous UI
+			// frame, the keys from the input the last Simulate dispatched
+			m_cameraController.SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
+			m_cameraController.SetEnabled(!m_engine.GetPlayMode().IsPlaying());
+			m_cameraController.Update(deltaTime);
 			m_engine.Simulate(deltaTime);
+			// The SocLab window shows the culling depth buffer; the game never makes the texture
+			m_engine.GetCulling().UpdateDepthPreviewTexture(m_settings);
 
 			render::FrameWriter frame = m_engine.BeginRenderFrame();
 			if (!frame)
@@ -109,6 +116,7 @@ namespace elm {
 		m_engine.StopRendering();
 		m_hub = nullptr;
 		m_imgui->Shutdown();
+		m_engine.GetInput().RemoveSubscriber(&m_cameraController);
 		m_engine.Shutdown();
 	}
 

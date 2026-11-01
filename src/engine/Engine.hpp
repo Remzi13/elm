@@ -9,7 +9,7 @@
 #include "render/ViewPort.hpp"
 
 #include "graphics/FrameStats.hpp"
-#include "graphics/CameraController.hpp"
+#include "graphics/Camera.hpp"
 #include "graphics/culling/OcclusionCullingSystem.hpp"
 #include "graphics/ModelManager.hpp"
 
@@ -83,7 +83,8 @@ namespace elm {
 		/// The frame's time step (capped against the physics spiral of death), the input of the window,
 		/// the start of the physics frame log.
 		[[nodiscard]] float BeginFrame();
-		/// Play/Stop requests, the fixed physics steps, the scripts, the camera and culling.
+		/// Play/Stop requests, the fixed physics steps, the scripts and culling from the camera as it is now
+		/// (the program moves its own camera before).
 		void Simulate(float deltaTime);
 		/// Blocks only while the render thread is two frames behind; invalid once rendering is stopped.
 		[[nodiscard]] render::FrameWriter BeginRenderFrame();
@@ -116,8 +117,8 @@ namespace elm {
 		[[nodiscard]] Scene& GetScene() noexcept { return m_scene; }
 		[[nodiscard]] graphics::ModelManager& GetModels() noexcept { return m_models; }
 		[[nodiscard]] Camera& GetCamera() noexcept { return m_camera; }
-		[[nodiscard]] CameraController& GetCameraController() noexcept { return m_cameraController; }
-		[[nodiscard]] const OcclusionCullingSystem& GetCulling() const noexcept { return m_cullingSystem; }
+		[[nodiscard]] OcclusionCullingSystem& GetCulling() noexcept { return m_cullingSystem; }
+		[[nodiscard]] InputSystem& GetInput() noexcept { return *m_inputSystem; }
 		[[nodiscard]] PhysicsSystem& GetPhysics() noexcept { return *m_physicsSystem; }
 		[[nodiscard]] script::ScriptSystem& GetScripts() noexcept { return *m_scriptSystem; }
 		[[nodiscard]] script::PlayMode& GetPlayMode() noexcept { return m_playMode; }
@@ -144,7 +145,6 @@ namespace elm {
 		UniquePtr<script::ScriptSystem> m_scriptSystem;
 
 		Camera m_camera;
-		CameraController m_cameraController;
 		Scene m_scene;
 		graphics::ModelManager m_models;
 		Settings m_settings;

@@ -31,7 +31,6 @@ Engine::Engine()
     , m_physicsSystem(MakeUnique<PhysicsSystem>())
     , m_inputSystem(MakeUnique<InputSystem>())
     , m_scriptSystem(MakeUnique<script::ScriptSystem>())
-    , m_cameraController(m_camera)
     , m_models(m_renderSystem->Resources())
     , m_playMode(m_scene, &m_models, m_physicsSystem.get(), *m_scriptSystem)
 {
@@ -74,22 +73,8 @@ auto Engine::Init(const EngineDesc& desc) -> EngineResult<void>
 
     m_engineViewPort = render::ViewPort(m_renderSystem->Resources(), Size(desc.width, desc.height));
     m_inputSystem->AttachWindow(m_window.GetHandle());
-    m_inputSystem->AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 
-    // Register UI input consumer for keyboard focus (e.g. typing in text fields)
-    //m_inputSystem->AddListener([](InputEvent& event) -> bool {
-    //    ImGuiIO& io = ImGui::GetIO();
-    //    if (event.type == InputEventType::Key || event.type == InputEventType::Character) {
-    //        if (io.WantCaptureKeyboard) {
-    //            return true;
-    //        }
-    //    }
-    //    return false;
-    //},
-    //    static_cast<int32_t>(InputPriority::UI), "ImGuiKeyboardFilter");
-
-    // TODO - why it is here ?
-    // Register default AAA Action & Axis Mappings (Unreal Engine Enhanced Input style)
+    // Default axes for the scripts (elm.input.axis): WASD moves, E and Q go up and down
     m_inputSystem->AddAxisMapping("MoveForward", Key::W, 1.0f);
     m_inputSystem->AddAxisMapping("MoveForward", Key::S, -1.0f);
     m_inputSystem->AddAxisMapping("MoveRight", Key::D, 1.0f);
@@ -164,8 +149,6 @@ void Engine::Simulate(float deltaTime)
         m_physicsAccumulator -= m_fixedTimeStep;
     }
     Update(deltaTime);
-    ELM_PROFILE_SCOPE_N("Update Depth Preview Texture");
-    m_cullingSystem.UpdateDepthPreviewTexture(m_settings);
 }
 
 render::FrameWriter Engine::BeginRenderFrame()
@@ -341,13 +324,9 @@ void Engine::Update(float deltaTime)
 
     // Play/Stop asked for by scripts and windows since the last update
     m_playMode.ApplyRequest();
-    // In Play the camera is the game's (elm.camera); the editor's fly camera waits for Stop
-    m_cameraController.SetEnabled(!m_playMode.IsPlaying());
     m_scriptSystem->Update(deltaTime);
     // Scripts move nodes through local transforms
     m_scene.UpdateWorldTransforms();
-
-    m_cameraController.Update(deltaTime);
 
     const Matrix4x4 cullingVP = m_camera.GetCullingViewProjection();
     m_cullingSystem.ExecuteCulling(m_scene, m_models, cullingVP, m_settings);

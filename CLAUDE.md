@@ -95,8 +95,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком. О файлах и проекте модель не знает |
 | `ModelHandler` | хэндл модели в `ModelManager` (`graphics/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
 | `graphics::ModelManager` | владеет моделями сцены, их GPU-мешами (`render::Mesh`) и путями их файлов (`FileOf`, пусто у модели только в памяти) |
-| `Camera`, `CameraController`, `ViewRay` | камера вида и её управление; `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
-| `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`) |
+| `Camera`, `CameraController`, `ViewRay` | камера вида (у `Engine`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
+| `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр; `editor/ui/`, только редактор |
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
 | `SelectedSceneInstance`, `PlayControls`, `ScriptInspection`, `OpenModelEditor`, `OpenSceneFile`, `OpenModelFile`, `OpenScriptFile` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId`; `ModelFilePayload` — перетаскиваемый файл модели |

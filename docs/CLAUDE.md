@@ -79,8 +79,8 @@ elm — 3D-движок с редактором на C++23: собственны
 | `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком |
 | `ModelHandler` | хэндл модели в `ModelManager` (`graphics/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
 | `graphics::ModelManager` | владеет моделями сцены и их GPU-мешами (`render::Mesh`) |
-| `Camera`, `CameraController`, `ViewRay` | камера вида и её управление; `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
-| `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`) |
+| `Camera`, `CameraController`, `ViewRay` | камера вида (у `Engine`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
+| `OcclusionCullingSystem`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
 | `ImGuiSystem`, `IImGuiWindow`, `ImGuiWindowContext` | окна редактора и то, что им передаётся на кадр |
 | `SelectedSceneInstance`, `PlayControls`, `OpenModelEditor` | сообщения между окнами через `MessageBus` (`editor/ui/WindowMessages.hpp`). Выбранный узел — `NodeId` |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
