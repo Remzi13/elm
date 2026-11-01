@@ -1,4 +1,4 @@
-engine_add_library(editor
+engine_add_executable(editor
     Editor.hpp
     Editor.cpp
     EditMode.hpp
@@ -66,6 +66,7 @@ engine_add_library(editor
     script/ScriptWindow.hpp
     script/ScriptWindowActions.hpp
     script/ScriptWindowStyle.hpp
+    main.cpp
 )
 
 target_include_directories(editor PUBLIC
@@ -77,10 +78,3 @@ target_link_libraries(editor PUBLIC imgui_glfw imgui_core core graphics project 
 # GLFW for the ImGui backend; new projects, Build Game, Run Standalone; the Scripts window
 target_link_libraries(editor PRIVATE glfw platform render Scene resource script)
 
-# elm_editor: the editor; Run Standalone and Build Game use elm next to it
-engine_add_executable(elm_editor
-    main.cpp
-)
-target_link_libraries(elm_editor PRIVATE core resource project script engine editor)
-set_target_properties(elm_editor PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
-add_dependencies(elm_editor elm)
