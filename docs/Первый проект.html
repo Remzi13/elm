@@ -184,20 +184,20 @@ details > div { padding: 0 14px 14px; display: flex; flex-direction: column; gap
   <!-- 0 -->
   <section class="step" data-title="Подготовка">
     <div class="step-head"><span class="eyebrow">Шаг 1</span><h2>Подготовка: собрать и запустить редактор</h2></div>
-    <p>Редактор — программа <code>elm_editor.exe</code>, игра без редактора — <code>elm.exe</code>, они собираются вместе. Соберите их один раз; первая конфигурация
+    <p>Редактор — программа <code>editor.exe</code>, игра без редактора — <code>elm.exe</code>, они собираются вместе. Соберите их один раз; первая конфигурация
       долго качает зависимости в <code>../elm_deps</code>.</p>
     <ol class="do">
       <li><div><span>Сконфигурируйте и соберите движок из корня репозитория:</span>
         <div class="code"><pre><code>cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
 cmake --build build --config Debug -j</code></pre></div></div></li>
       <li><div><span>Запустите редактор без аргументов:</span>
-        <div class="code"><pre><code>build/Debug/elm_editor.exe</code></pre></div>
+        <div class="code"><pre><code>build/Debug/editor.exe</code></pre></div>
         <p class="muted">Без <code>--project</code> редактор открывает проект, с которым работал в прошлый раз. Если такого нет, он покажет окно <b>Project Hub</b> — оно и нужно.</p></div></li>
     </ol>
     <details><summary>Что важно знать о запуске</summary><div>
       <p>Файл <code>.settings</code> ищется вверх от текущей папки, поэтому запускать можно из корня или из <code>build/</code>.
         В нём хранятся настройки редактора: недавние проекты, каналы отладочной отрисовки, корень движка.</p>
-      <p>Открыть конкретный проект сразу: <code>elm_editor.exe --project projects/MyGame</code>. Проверить движок без окна: <code>elm_tests.exe</code>.</p>
+      <p>Открыть конкретный проект сразу: <code>editor.exe --project projects/MyGame</code>. Проверить движок без окна: <code>elm_tests.exe</code>.</p>
     </div></details>
   </section>
 
@@ -353,7 +353,7 @@ cmake --build build --config Debug -j</code></pre></div></div></li>
       <li><div><span>Соберите игру:</span>
         <span class="path"><span class="win">меню Project</span><i>→</i><span>Build Game</span></span>
         <p class="muted">Путь к сборке появится в окне Log. Без редактора то же самое делает команда:</p>
-        <div class="code"><pre><code>build/Debug/elm_editor.exe --build projects/MyGame</code></pre></div></div></li>
+        <div class="code"><pre><code>build/Debug/editor.exe --build projects/MyGame</code></pre></div></div></li>
       <li><div><span>Запустите <code>projects/MyGame/Build/MyGame/MyGame.exe</code> — двойным кликом, без аргументов.</span>
         <p class="muted">Программа находит рядом с собой <code>MyGame.elmproject</code>, переходит в свою папку и играет проект. Папку можно скопировать на другой компьютер целиком.</p></div></li>
     </ol>

@@ -8,7 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(ELM_LOG_CONSOLE "Duplicate log messages to the system console" ON)
 option(ELM_BUILD_TRACY_PROFILER "Build the Tracy Profiler GUI (tracy-profiler) with the engine" ON)
 # For the whole build: core, which every program links, is compiled with or without Tracy
-option(ELM_PROFILING "Tracy zones and frames in elm, elm_editor and elm_tests (ELM_PROFILE_* macros)" ON)
+option(ELM_PROFILING "Tracy zones and frames in elm, editor and elm_tests (ELM_PROFILE_* macros)" ON)
 # For the game program elm only: the editor always draws them
 option(ELM_DEBUG_DRAW "Debug drawing in elm: collider, ray and contact visualizers and elm.debug of scripts" ON)
 
@@ -43,7 +43,7 @@ function(engine_add_library target_name)
     target_set_warnings(${target_name})
 endfunction()
 
-# Common helper for the programs: elm, elm_editor, elm_tests
+# Common helper for the programs: elm, editor, elm_tests
 function(engine_add_executable target_name)
     add_executable(${target_name} ${ARGN})
     target_include_directories(${target_name} PUBLIC ${ENGINE_INCLUDE_DIRS})
@@ -78,7 +78,7 @@ add_subdirectory(src/editor)
 # ------------------------------------------------------------------------------
 # Programs
 # ------------------------------------------------------------------------------
-# elm (src/engine/main.cpp) and elm_editor (src/editor/main.cpp) are made by their modules
+# elm (src/engine/main.cpp) and editor (src/editor/main.cpp) are made by their modules
 
 # Self tests: binding checks and Lua tests without a window or GPU (CI)
 engine_add_executable(elm_tests

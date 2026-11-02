@@ -26,7 +26,7 @@ target_link_libraries(elm PRIVATE core platform project engine)
 if(ELM_DEBUG_DRAW)
     target_compile_definitions(elm PRIVATE ELM_DEBUG_DRAW=1)
 endif()
-# In the build root next to elm_editor, which runs and copies it (MSVC adds the config folder)
+# In the build root next to editor, which runs and copies it (MSVC adds the config folder)
 set_target_properties(elm PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 add_custom_command(TARGET elm POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

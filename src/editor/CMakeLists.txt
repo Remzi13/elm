@@ -82,3 +82,7 @@ target_link_libraries(editor PUBLIC imgui_glfw imgui_core core graphics project 
 # GLFW for the ImGui backend; new projects, Build Game, Run Standalone; the Scripts window
 target_link_libraries(editor PRIVATE glfw platform render Scene resource script)
 
+
+# In the build root next to elm: Run Standalone and Build Game use it (MSVC adds the config folder)
+set_target_properties(editor PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+add_dependencies(editor elm)

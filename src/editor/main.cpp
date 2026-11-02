@@ -18,7 +18,7 @@
 
 #include <optional>
 
-// elm_editor: the editor (docs/editor/Редактор.md), and its tools without a window: --build, --dump-script-api,
+// editor: the editor (docs/editor/Редактор.md), and its tools without a window: --build, --dump-script-api,
 // --editor-selftest. The game alone is the program elm next to it.
 
 namespace {
@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
         return DumpScriptApi(i + 1 < argc ? argv[i + 1] : DefaultScriptApiFile);
     }
 
-    LOG_MESSAGE( log::Category::Core, "Main", "Starting elm_editor..." );
+    LOG_MESSAGE( log::Category::Core, "Main", "Starting editor..." );
 
     const auto projectFlag = FindArgument(argc, argv, "--project");
     const std::optional<Path> projectArgument = projectFlag ? std::optional<Path>(Path(*projectFlag)) : std::nullopt;
