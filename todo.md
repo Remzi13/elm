@@ -1,8 +1,12 @@
 # Main
-* разделить EngineApp на Editor и Engine. 
-* selftest вынести в отдельне приложение 
 * убрать std::cout и std::err
 * убрать scenePreset and test scenes 
+
+# Core
+* отказатся от filestream и заменить File()
+
+# Scripts 
+* проблема с tab в редакторе 
 
 # Render
 * добавить поддержку источников света
