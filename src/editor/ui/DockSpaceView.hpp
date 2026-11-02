@@ -8,10 +8,12 @@
 namespace elm  {
 
 class ProjectMenu;
+class SceneMenu;
+class EditorToolbar;
 
 class DockSpaceView {
 public:
-    void Render(std::span<const UniquePtr<IImGuiWindow>> windows, ProjectMenu& projectMenu);
+    void Render(std::span<const UniquePtr<IImGuiWindow>> windows, ProjectMenu& projectMenu, SceneMenu& sceneMenu, EditorToolbar& toolbar);
 };
 
 } // namespace Engine

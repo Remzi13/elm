@@ -27,16 +27,20 @@ struct EngineViewportDeps {
     /// The engine view: the window sizes it to the image and shows it.
     render::ViewPort& viewPort;
     graphics::DebugDraw& debugDraw;
-    /// Play and Stop over the image.
+    /// In Play the keys are the game's.
     const script::PlayRequests& play;
     /// The node the gizmo moves.
     const Selection& selection;
-    const GizmoSettings& gizmo;
+    /// The gizmo mode: Inspector and the keys W, E, R pick it.
+    GizmoSettings& gizmo;
     /// Ctrl+Z and Ctrl+Y while the viewport has the focus.
     SceneEdits& edits;
+    /// Ctrl+S while the viewport has the focus.
+    const SceneFileRequests& sceneFile;
 };
 
-/// The engine view with Play/Stop, the debug channels, the debug labels and the gizmo of the selected node.
+/// The engine view alone, with no controls over it: its image, the debug labels and the gizmo of the selected
+/// node. What runs and what is drawn is picked in EditorToolbar, the gizmo mode in Inspector.
 /// Owner: ImGuiSystem, thread: update (UI).
 class EngineViewportWindow final : public IImGuiWindow {
 public:

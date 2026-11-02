@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <system_error>
+#include <utility>
 
 namespace elm::ui {
 
@@ -22,7 +23,7 @@ void FileDialog::Open(StringView title, StringView extension, const Path& direct
     m_selectedPath.Clear();
     m_limit.Clear();
     SetStartDirectory(directory);
-    ImGui::OpenPopup(m_title.c_str());
+    m_openRequested = true;
 }
 
 void FileDialog::SaveAs(StringView title, StringView extension, StringView defaultFileName, const Path& directory)
@@ -35,7 +36,7 @@ void FileDialog::SaveAs(StringView title, StringView extension, StringView defau
     std::snprintf(m_saveFileName.data(), m_saveFileName.size(), "%.*s",
         static_cast<int>(defaultFileName.size()), defaultFileName.data());
     SetStartDirectory(directory);
-    ImGui::OpenPopup(m_title.c_str());
+    m_openRequested = true;
 }
 
 void FileDialog::LimitTo(const Path& folder)
@@ -149,6 +150,8 @@ void FileDialog::RefreshEntries()
 
 auto FileDialog::Draw() -> std::optional<Path>
 {
+    if (std::exchange(m_openRequested, false))
+        ImGui::OpenPopup(m_title.c_str());
     if (!ImGui::BeginPopupModal(m_title.c_str(), nullptr, ImGuiWindowFlags_AlwaysAutoResize))
         return std::nullopt;
 

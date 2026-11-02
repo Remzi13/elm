@@ -13,8 +13,8 @@
 
 namespace elm {
 
-	/// The node Scene Hierarchy shows and the viewport's gizmo moves; invalid while the scene is empty.
-	/// Owner: Editor, which gives it to both windows. Thread: update (UI).
+	/// The node Scene Hierarchy marks, Inspector shows and the viewport's gizmo moves. Invalid when nothing is
+	/// selected; a node that went finds nothing, like any stale NodeId. Owner: Editor. Thread: update (UI).
 	struct Selection {
 		NodeId node;
 	};
@@ -22,7 +22,7 @@ namespace elm {
 	/// Opens files and models in the window that edits them. Editor fills it when it makes the project
 	/// windows and empties it before they close: an empty function opens nothing. Thread: update (UI).
 	struct FileOpener {
-		/// Scene Hierarchy: replaces the scene with a scene file.
+		/// Replaces the scene with a scene file, asking first when it has unsaved changes.
 		std::function<void(const Path& file)> scene;
 		/// Model Editor: a .model file.
 		std::function<void(const Path& file)> model;
@@ -30,6 +30,12 @@ namespace elm {
 		std::function<void(ModelHandler model)> sceneModel;
 		/// The Scripts window: a script file in its editor.
 		std::function<void(const Path& file)> script;
+	};
+
+	/// What a window asks of the open scene's file by a key. Editor fills it while a project is open: an empty
+	/// function does nothing. Thread: update (UI).
+	struct SceneFileRequests {
+		std::function<void()> save;
 	};
 
 	/// ImGui drag and drop payload of a model file dragged from the Project window: its absolute path, a string.

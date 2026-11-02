@@ -9,6 +9,9 @@
 
 namespace elm::ui {
 
+/// A modal dialog that picks a file. Open and SaveAs may be called anywhere in the frame, also inside a menu
+/// or a child window: the dialog opens in the next Draw, the ImGui popup has to share its ID scope.
+/// Draw belongs in one place of every frame. Owner: the window that shows it, thread: update (UI).
 class FileDialog {
 public:
     void Open(StringView title, StringView extension, const Path& directory = { });
@@ -38,6 +41,8 @@ private:
     Path m_selectedPath;
     Vector<Entry> m_entries;
     bool m_saveMode { false };
+    /// Open or SaveAs waits for the next Draw.
+    bool m_openRequested { false };
 };
 
 } // namespace elm::ui

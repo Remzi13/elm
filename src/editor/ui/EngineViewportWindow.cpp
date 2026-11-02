@@ -26,50 +26,17 @@ namespace elm {
             return reinterpret_cast<ImTextureID>(value);
 		}
 
-		constexpr const char* DebugChannelsPopup = "DebugChannels";
-		const ImVec4 PlayingColor { 1.0f, 0.62f, 0.25f, 1.0f };
-
-		/// Play Project and Play Scene in Edit mode, Stop in Play mode. F5 plays the project, Shift+F5 the
-		/// edited scene, either stops.
-		void DrawPlayControls(const script::PlayRequests& play) {
+		/// W, E, R. Not with the right mouse button: the fly camera has WASD and QE then.
+		void HandleGizmoKeys(GizmoSettings& gizmo) {
 			const ImGuiIO& io = ImGui::GetIO();
-			// Ctrl+F5 is Run Standalone of the Project menu
-			const bool f5 = !io.WantTextInput && !io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F5, false);
-			// The buttons come first: they are drawn whether a key was pressed or not
-			if (play.isPlaying && play.isPlaying()) {
-				if ((ImGui::Button("Stop") || f5) && play.stop)
-					play.stop();
-				ImGui::SameLine();
-				ImGui::TextColored(PlayingColor, "Playing: changes are undone on Stop (F5)");
+			if (io.WantTextInput || io.KeyCtrl || ImGui::IsMouseDown(ImGuiMouseButton_Right))
 				return;
-			}
-			if ((ImGui::Button("Play Project") || (f5 && !io.KeyShift)) && play.playProject)
-				play.playProject();
-			ImGui::SameLine();
-			if ((ImGui::Button("Play Scene") || (f5 && io.KeyShift)) && play.playScene)
-				play.playScene();
-			ImGui::SameLine();
-			ImGui::TextDisabled("Edit mode (F5 project, Shift+F5 scene)");
-		}
-
-		/// Checkbox per debug draw channel, grouped by the part of the name before the first '/'.
-		void DrawDebugChannelsPopup(graphics::DebugDraw& debugDraw) {
-			if (!ImGui::BeginPopup(DebugChannelsPopup))
-				return;
-			String group;
-			for (const auto& channel : debugDraw.GetChannels()) {
-				const String channelGroup = channel.name.substr(0, channel.name.find('/'));
-				if (channelGroup != group) {
-					ImGui::SeparatorText(channelGroup.c_str());
-					group = channelGroup;
-				}
-				bool enabled = channel.enabled;
-				ImGui::PushID(channel.name.c_str());
-				if (ImGui::Checkbox(channel.label.c_str(), &enabled))
-					debugDraw.SetEnabled(channel.channel, enabled);
-				ImGui::PopID();
-			}
-			ImGui::EndPopup();
+			if (ImGui::IsKeyPressed(ImGuiKey_W, false))
+				gizmo.operation = GizmoOperation::Translate;
+			else if (ImGui::IsKeyPressed(ImGuiKey_E, false))
+				gizmo.operation = GizmoOperation::Rotate;
+			else if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+				gizmo.operation = GizmoOperation::Scale;
 		}
 
 		/// Under every label, one pixel down and right: readable on light and dark scenes.
@@ -137,13 +104,11 @@ namespace elm {
 		}
 		m_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
 		if (m_focused)
-			HandleSceneEditShortcuts(m_deps.edits);
-
-		DrawPlayControls(m_deps.play);
-		ImGui::SameLine();
-		if (ImGui::Button("Debug"))
-			ImGui::OpenPopup(DebugChannelsPopup);
-		DrawDebugChannelsPopup(m_deps.debugDraw);
+			HandleSceneEditShortcuts(m_deps.edits, m_deps.sceneFile);
+		// In Play the keys are the game's
+		const bool playing = m_deps.play.isPlaying && m_deps.play.isPlaying();
+		if (m_focused && !playing)
+			HandleGizmoKeys(m_deps.gizmo);
 
 		const Scene::Node* selected = scene.Find(m_deps.selection.node);
 		// A node the user hid gets no gizmo; a node without a model is not hidden

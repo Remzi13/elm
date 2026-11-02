@@ -25,7 +25,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 - Запуск с тестовой сценой: `editor --scene <0..3> [--instances N]` (`ScenePreset`).
 - Тесты: `build/elm_tests` (`build/Debug/elm_tests.exe` в MSVC), отдельная программа без окна и GPU. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все
   `projects/Sandbox/assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
-  Логику редактора (подсветка, отступы, место ошибки в окне Scripts) проверяет `editor --editor-selftest`,
+  Логику редактора (подсветка, отступы, место ошибки в окне Scripts, история правок, `SceneDocument`, окна сцены на ImGui без окна) проверяет `editor --editor-selftest`,
   тоже без окна, код возврата — число падений. Оба набора гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
 - Lua API для LuaLS: `editor --dump-script-api` перегенерирует `projects/Sandbox/assets/scripts/.meta/elm.lua`. Это сгенерированный файл, руками его не правь.
 - `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
@@ -98,9 +98,9 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют; часть `GraphicsSystem` |
 | `Camera`, `CameraController`, `ViewRay` | камера вида (у `GraphicsSystem`, `GetViewCamera`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCulling`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
-| `ImGuiSystem`, `IImGuiWindow`, `*Deps` окон | окна редактора; что окну нужно, оно получает в конструкторе своей структурой (`SceneHierarchyDeps`, `ModelEditorDeps`, `EngineViewportDeps`, `ProfilerDeps`), в кадре — только `FrameWriter`; `editor/ui/`, только редактор |
+| `ImGuiSystem`, `IImGuiWindow`, `*Deps` окон | окна редактора; что окну нужно, оно получает в конструкторе своей структурой (`SceneHierarchyDeps`, `NodeInspectorDeps`, `ModelEditorDeps`, `EngineViewportDeps`, `ProfilerDeps`), в кадре — только `FrameWriter`; `editor/ui/`, только редактор |
 | `GameView` (`FitGameView`, `WriteGameOverlay`) | вид сцены плеера на всё окно через overlay-пас |
-| `Selection`, `FileOpener`, `ScriptInspection` | сервисы редактора для окон (`editor/ui/EditorServices.hpp`), владелец `Editor`: выбранный узел (`NodeId`) Scene Hierarchy и гизмо вьюпорта; кто открывает сцену, модель, скрипт (заполняется с окнами проекта); скрипты узла для Scene Hierarchy (`script::MakeScriptInspection`). Режим Play окна получают как `script::PlayRequests`, режим гизмо — `GizmoSettings`. `ModelFilePayload` — перетаскиваемый файл модели |
+| `Selection`, `FileOpener`, `SceneFileRequests`, `ScriptInspection` | сервисы редактора для окон (`editor/ui/EditorServices.hpp`), владелец `Editor`: выбранный узел (`NodeId`) для Scene Hierarchy, Inspector и гизмо вьюпорта; кто открывает сцену, модель, скрипт (заполняется с окнами проекта); Ctrl+S; скрипты узла для Inspector (`script::MakeScriptInspection`). Режим Play окна получают как `script::PlayRequests`, режим гизмо — `GizmoSettings`. `ModelFilePayload` — перетаскиваемый файл модели |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
 | `DebugDrawing` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; для вьюпорта движка — у программы (`Editor`, `elm` с `ELM_DEBUG_DRAW`), движок получает только `DebugDraw*` для скриптов |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
@@ -140,7 +140,13 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `FrameClock`, `LoadProgramSettings` | общее двух программ: время кадра, фиксированные шаги физики и FPS; настройки файлов и лога и чтение `.settings` | `core` |
 | `script::MakeProjectPlayStart` | `PlayStart` открытого проекта для `PlayMode::SetStartSource` | `script` |
 | `Editor` | программа-редактор, корень композиции: те же системы полями и кадр `RunFrame`; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
-| `SceneEdits` | история правок сцены в редакторе (`editor/SceneEdits.*`): шаг узла (выбранный узел до и после кадра UI, жест — один шаг) и шаг структуры (вся сцена до правки, по `Scene::StructureRevision`); Undo/Redo, замирает в Play, очищается при смене сцены и проекта | `editor` |
+| `SceneEdits` | история правок сцены в редакторе (`editor/SceneEdits.*`): шаг узла (выбранный узел до и после кадра UI, жест — один шаг) и шаг структуры (вся сцена до правки, по `Scene::StructureRevision`); Undo/Redo, замирает в Play, очищается при смене сцены и проекта; знает, изменена ли сцена с последнего сохранения (`MarkSaved`, `IsModified`) | `editor` |
+| `SceneDocument`, `SceneStatus` | открытая сцена как файл (`editor/SceneDocument.*`): какой файл, есть ли несохранённые правки, New, Open, Save, Save As, glTF, в Play ничего не сохраняет и не заменяет; последнее сообщение для строки статуса. Владелец `Editor`, пока открыт проект | `editor` |
+| `EditorToolbar`, `EditorToolbarDesc` | верхняя панель в строке меню: меню Debug, Play и Stop. Вьюпорт только показывает, режим гизмо — в Inspector | `editor/ui` |
+| `SceneMenu` | меню Scene и Edit и имя файла сцены в строке меню, вопрос о несохранённых правках | `editor/ui` |
+| `SceneHierarchyWindow`, `NodeInspectorWindow` | окна сцены: дерево узлов; выбранный узел и его компоненты (заголовок Inspector) | `editor/ui` |
+| `ModelPrimitive`, `NodeEditing` | модели без файла; что окна делают с узлами и компонентами без UI (`editor/NodeEditing.*`) | `editor` |
+| `ui::InputString`, `ui::ToggleButton`, `ui::BeginPropertyGrid`, `ui::DragAxes` | общие виджеты окон (`editor/ui/EditorWidgets.*`) | `editor/ui` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resource` |
@@ -157,7 +163,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | главный модуль (`MainModule`, `MainState`) | модуль с хуками `main.on_*`, задаётся `entry.mainModule` проекта | `script/module` |
 | `HotReload` | перезагрузка изменённых модулей с патчем таблицы | `script/reload` |
 | скрипт сущности (`EntityScript`, `EntityScripts`, `EntityScriptList`) | экземпляр класса на узле с `ScriptComponent` и их проходы | `script/entity` |
-| `ScriptClass`, `ScriptDefaults` | модуль как класс скрипта; props по умолчанию для Scene Hierarchy | `script/entity` |
+| `ScriptClass`, `ScriptDefaults` | модуль как класс скрипта; props по умолчанию для Inspector | `script/entity` |
 | `ScriptConsole` | Lua-консоль окна Scripts | `script/console` |
 | `Entity`, `ModelRef`, `ScriptProps` | как узлы, модели и props видны из Lua | `script/values` |
 | `lua::State`, `lua::Module`, `lua::Class`, `ApiRegistry` | своя обёртка над Lua C API и реестр API для LuaLS | `script/lua` |
@@ -327,7 +333,7 @@ editor     → graphics, physics, project, script (+ ImGui, GLFW)   Editor (ко
 - C++-проверки биндингов и тестовый модуль `elm_test` лежат в `script/SelfTest.cpp`; проверки редактора — в
   `editor/EditorSelfTest.cpp`. Тест кода редактора идёт туда, а не в `elm_tests`: движок о редакторе не знает.
 - Изменил биндинги или Lua API: добавь тест и перегенерируй `projects/Sandbox/assets/scripts/.meta/elm.lua`.
-- Для рендера, culling и UI автотестов нет. Проверяй запуском (`editor --scene N`) и прямо пиши,
+- Для рендера, culling и UI, кроме окон сцены (`WindowsFixture` в `EditorSelfTest.cpp`: ImGui без окна, мышь двигает тест), автотестов нет. Проверяй запуском (`editor --scene N`) и прямо пиши,
   что проверено вручную, а что нет.
 - Исправление бага: сначала тест, который его воспроизводит, если это достижимо через self-test.
 

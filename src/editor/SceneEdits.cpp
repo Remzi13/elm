@@ -68,6 +68,9 @@ namespace elm {
 	{
 		NodeStep* last = m_undo.empty() ? nullptr : std::get_if<NodeStep>(&m_undo.back());
 		if (m_gestureOpen && last && last->node == m_watched) {
+			// The step that was saved changes: nothing leads back to the saved scene
+			if (m_savedDepth == m_undo.size())
+				m_savedDepth.reset();
 			last->after = after;
 		} else {
 			Push(NodeStep { m_watched, *m_watchedBefore, after });
@@ -79,10 +82,18 @@ namespace elm {
 
 	void SceneEdits::Push(Step step)
 	{
+		// The saved scene was among the steps undone, they go now
+		if (m_savedDepth && *m_savedDepth > m_undo.size())
+			m_savedDepth.reset();
 		m_redo.clear();
 		m_undo.push_back(std::move(step));
-		if (m_undo.size() > MaxSteps)
+		if (m_undo.size() > MaxSteps) {
 			m_undo.pop_front();
+			if (m_savedDepth == size_t { 0 })
+				m_savedDepth.reset();
+			else if (m_savedDepth)
+				--*m_savedDepth;
+		}
 	}
 
 	bool SceneEdits::Undo()
@@ -126,7 +137,13 @@ namespace elm {
 	{
 		m_undo.clear();
 		m_redo.clear();
+		m_savedDepth = 0;
 		Rebaseline();
+	}
+
+	void SceneEdits::MarkSaved()
+	{
+		m_savedDepth = m_undo.size();
 	}
 
 	void SceneEdits::Rebaseline()

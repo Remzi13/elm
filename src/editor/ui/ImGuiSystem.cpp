@@ -3,6 +3,8 @@
 
 #include "editor/ui/EditorStyle.hpp"
 #include "editor/ui/EngineViewportWindow.hpp"
+#include "editor/ui/NodeInspectorWindow.hpp"
+#include "editor/ui/SceneHierarchyWindow.hpp"
 
 #include <GLFW/glfw3.h>
 
@@ -70,6 +72,37 @@ namespace elm {
 
 	void ImGuiSystem::SetProjectMenu( ProjectMenuDesc project ) {
 		m_projectMenu.SetProject( std::move( project ) );
+	}
+
+	void ImGuiSystem::SetSceneMenu( SceneDocument* document, SceneEdits* edits ) {
+		m_sceneMenu.SetDocument( document, edits );
+	}
+
+	void ImGuiSystem::SetToolbar( const EditorToolbarDesc& desc ) {
+		m_toolbar.SetDesc( desc );
+	}
+
+	void ImGuiSystem::OpenSceneFile( const Path& file ) {
+		m_sceneMenu.RequestOpen( file );
+	}
+
+	void ImGuiSystem::DockInspectorOnFirstUse() {
+		if ( m_inspectorPlaced || !GetWindow<NodeInspectorWindow>() )
+			return;
+		const ImGuiWindowSettings* saved = ImGui::FindWindowSettingsByID( ImHashStr( NodeInspectorWindow::Name ) );
+		const ImGuiWindow* hierarchy = ImGui::FindWindowByName( SceneHierarchyWindow::Name );
+		if ( !saved && !hierarchy )
+			return;
+		m_inspectorPlaced = true;
+		if ( saved || !hierarchy->DockId )
+			return;
+		constexpr float InspectorShare = 0.58f;
+		const ImGuiID node = hierarchy->DockId;
+		ImGuiID inspectorNode = 0;
+		ImGuiID hierarchyNode = 0;
+		ImGui::DockBuilderSplitNode( node, ImGuiDir_Right, InspectorShare, &inspectorNode, &hierarchyNode );
+		ImGui::DockBuilderDockWindow( NodeInspectorWindow::Name, inspectorNode );
+		ImGui::DockBuilderFinish( node );
 	}
 
 	//ImTextureID ImGuiSystem::ToTextureId( render::TextureHandle texture ) {
@@ -378,7 +411,8 @@ namespace elm {
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		m_dockSpace.Render( m_windows, m_projectMenu );
+		m_dockSpace.Render( m_windows, m_projectMenu, m_sceneMenu, m_toolbar );
+		DockInspectorOnFirstUse();
 		for ( const auto& window : m_windows ) {
 			if ( window && window->IsVisible() ) {
 				window->Render( frameWriter );

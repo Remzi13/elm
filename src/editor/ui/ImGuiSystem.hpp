@@ -10,8 +10,10 @@
 
 #include "editor/ui/ImGuiRenderer.hpp"
 #include "editor/ui/DockSpaceView.hpp"
+#include "editor/ui/EditorToolbar.hpp"
 #include "editor/ui/IImGuiWindow.hpp"
 #include "editor/ui/ProjectMenu.hpp"
+#include "editor/ui/SceneMenu.hpp"
 
 
 #include <atomic>
@@ -61,6 +63,13 @@ namespace elm {
 		void CloseProjectWindows();
 		/// The open project the Project menu shows and how it asks the engine for another one.
 		void SetProjectMenu(ProjectMenuDesc project);
+		/// The open scene the Scene and Edit menus work on; nullptrs without a project.
+		void SetSceneMenu(SceneDocument* document, SceneEdits* edits);
+		/// What Play, Stop, the Debug menu and the gizmo mode of the menu bar work on.
+		void SetToolbar(const EditorToolbarDesc& desc);
+		/// Replaces the scene with a scene file at the start of the next frame, outside of any window; asks
+		/// first when the scene has unsaved changes.
+		void OpenSceneFile(const Path& file);
 		template <typename T, typename... Args>
 		[[nodiscard]] T& EmplaceWindow(Settings& settings, Args&&... args) {
 			static_assert(std::is_base_of_v<IImGuiWindow, T>);
@@ -98,6 +107,9 @@ namespace elm {
 		void CaptureViewports(render::OverlayFrame& frame);
 		void DestroyReleasedPlatformWindows(bool all);
 		void ApplySavedVisibility(IImGuiWindow& window) const;
+		/// A layout saved before Inspector existed: it opens beside Scene Hierarchy instead of floating over it.
+		/// Before the windows of the frame, when Scene Hierarchy is docked already.
+		void DockInspectorOnFirstUse();
 		void ApplyMainWindowPlacement();
 		void TrackMainWindowPlacement();
 
@@ -129,6 +141,9 @@ namespace elm {
 
 		DockSpaceView m_dockSpace;
 		ProjectMenu m_projectMenu;
+		SceneMenu m_sceneMenu;
+		EditorToolbar m_toolbar;
+		bool m_inspectorPlaced{ false };
 		Vector<UniquePtr<IImGuiWindow>> m_windows;
 		// The windows of m_windows that CloseProjectWindows destroys
 		Vector<const IImGuiWindow*> m_projectWindows;

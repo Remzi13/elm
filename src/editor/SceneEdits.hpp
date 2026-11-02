@@ -50,8 +50,14 @@ namespace elm {
 		/// False when there is nothing to undo or the history is frozen.
 		bool Undo();
 		bool Redo();
-		/// The steps go: another scene or project. The scene as it is now is the start of the next step.
+		/// The steps go: another scene or project. The scene as it is now is the start of the next step, and
+		/// counts as its file.
 		void Clear();
+		/// The scene as it is now is what its file has (Save).
+		void MarkSaved();
+		/// The steps done since MarkSaved: undoing back to that point makes the scene unmodified again. Edits
+		/// that are not steps (scripts, Play) do not count.
+		[[nodiscard]] bool IsModified() const noexcept { return m_savedDepth != m_undo.size(); }
 
 	private:
 		/// What a node step keeps of a node.
@@ -99,6 +105,8 @@ namespace elm {
 		/// The last node step takes the next edits of its node: the widget that made it is still held.
 		bool m_gestureOpen { false };
 		bool m_frozen { false };
+		/// How many undo steps lead to the saved scene; nothing when no steps lead there any more.
+		std::optional<size_t> m_savedDepth { 0 };
 	};
 
 } // namespace elm

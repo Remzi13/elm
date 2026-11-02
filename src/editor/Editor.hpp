@@ -23,6 +23,7 @@
 #include "script/ScriptSystem.hpp"
 
 #include "editor/EditMode.hpp"
+#include "editor/SceneDocument.hpp"
 #include "editor/SceneEdits.hpp"
 #include "editor/ui/EditorServices.hpp"
 #include "editor/ui/ImGuiSystem.hpp"
@@ -152,6 +153,9 @@ namespace elm {
 		GizmoSettings m_gizmo { GizmoOperation::Translate, GizmoSpace::World };
 		/// Filled while the project windows are open.
 		FileOpener m_files;
+		SceneFileRequests m_sceneFile;
+		/// The open scene as a file; there while the project windows are open.
+		std::optional<SceneDocument> m_sceneDocument;
 		/// The Profiler's, updated every frame.
 		FrameStats m_frameStats;
 

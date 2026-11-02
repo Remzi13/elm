@@ -17,6 +17,7 @@
 #include "editor/ui/LogWindow.hpp"
 #include "editor/ui/ModelEditorWindow.hpp"
 #include "editor/ui/ProfilerWindow.hpp"
+#include "editor/ui/NodeInspectorWindow.hpp"
 #include "editor/ui/SceneHierarchyWindow.hpp"
 #include "editor/ui/SettingsWindow.hpp"
 #include "editor/ui/SocLabWindow.hpp"
@@ -259,8 +260,11 @@ namespace elm {
 	{
 		// Nothing opens in the windows that go; the nodes of the next scene are others
 		m_files = { };
+		m_sceneFile = { };
 		m_selection = { };
+		m_imgui->SetSceneMenu(nullptr, nullptr);
 		m_imgui->CloseProjectWindows();
+		m_sceneDocument.reset();
 		UpdateProjectMenu(nullptr);
 	}
 
@@ -350,9 +354,10 @@ namespace elm {
 
 	void Editor::CreateEditorWindows()
 	{
+		m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .debugDraw = &m_debugDraw.GetDebugDraw() });
 		m_imgui->AddWindow(MakeUnique<SocLabWindow>(m_settings, &m_graphics.GetCulling()));
 		m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_graphics.GetViewCamera(),
-			m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits }));
+			m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
 		m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
 		m_imgui->AddWindow(MakeUnique<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats }));
 		m_imgui->AddWindow(MakeUnique<SettingsWindow>(m_settings));
@@ -362,20 +367,26 @@ namespace elm {
 	{
 		Scene& scene = m_scene.EditScene();
 		ModelCatalog& models = m_resources.GetModels();
-		const SceneHierarchyWindow::Folders folders { project.Assets(), project.Scenes(), project.Models(), project.Scripts() };
+		m_sceneDocument.emplace(SceneDocumentDeps { scene, models, m_edits, m_selection, m_playRequests }, project.Assets(), project.Scenes(), openedScene);
+		m_sceneFile = SceneFileRequests { .save = [this] { (void)m_sceneDocument->Save(); } };
+		m_imgui->SetSceneMenu(&*m_sceneDocument, &m_edits);
 		auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
-			SceneHierarchyDeps { scene, models, m_edits, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files }, folders, openedScene);
+			SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile }, project.Assets(), project.Models());
+		auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
+			NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files, m_sceneFile },
+			NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });
 		auto modelEditor = MakeUnique<ModelEditorWindow>(m_settings,
 			ModelEditorDeps { m_graphics.GetRender().Resources(), scene, models, m_graphics.GetViewCamera() }, project.Assets(), project.Models());
 		auto scripts = script::CreateScriptWindow(m_scripts, m_settings);
 		// The windows that open files: destroyed with the project windows, emptied before (CloseProjectWindows)
 		m_files = FileOpener {
-			.scene = [window = hierarchy.get()](const Path& file) { window->OpenScene(file); },
+			.scene = [this](const Path& file) { m_imgui->OpenSceneFile(file); },
 			.model = [window = modelEditor.get()](const Path& file) { window->OpenModelFile(file); },
 			.sceneModel = [window = modelEditor.get()](ModelHandler model) { window->OpenSceneModel(model); },
 			.script = [window = scripts.get()](const Path& file) { window->OpenFile(file); },
 		};
 		m_imgui->AddProjectWindow(std::move(hierarchy));
+		m_imgui->AddProjectWindow(std::move(inspector));
 		m_imgui->AddProjectWindow(std::move(modelEditor));
 		m_imgui->AddProjectWindow(MakeUnique<editor::ProjectWindow>(m_settings, project, m_files,
 			[this](project::ProjectEntry entry) { return SetProjectEntry(std::move(entry)); }));

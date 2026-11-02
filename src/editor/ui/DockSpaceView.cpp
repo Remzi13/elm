@@ -1,12 +1,14 @@
 #include "editor/ui/DockSpaceView.hpp"
 
+#include "editor/ui/EditorToolbar.hpp"
 #include "editor/ui/ProjectMenu.hpp"
+#include "editor/ui/SceneMenu.hpp"
 
 #include "imgui.h"
 
 namespace elm {
 
-	void DockSpaceView::Render(std::span<const UniquePtr<IImGuiWindow>> windows, ProjectMenu& projectMenu) {
+	void DockSpaceView::Render(std::span<const UniquePtr<IImGuiWindow>> windows, ProjectMenu& projectMenu, SceneMenu& sceneMenu, EditorToolbar& toolbar) {
 		const ImGuiViewport* mainViewport = ImGui::GetMainViewport();
 		ImGui::SetNextWindowPos(mainViewport->WorkPos);
 		ImGui::SetNextWindowSize(mainViewport->WorkSize);
@@ -25,6 +27,7 @@ namespace elm {
 
 		if (ImGui::BeginMenuBar()) {
 			projectMenu.DrawMenu();
+			sceneMenu.DrawMenus();
 			if (ImGui::BeginMenu("Windows")) {
 				if (ImGui::MenuItem("Show All")) {
 					for (const auto& window : windows) {
@@ -46,10 +49,13 @@ namespace elm {
 				}
 				ImGui::EndMenu();
 			}
+			toolbar.Draw();
+			sceneMenu.DrawFileName();
 			ImGui::EndMenuBar();
 		}
 		// Outside of the menu bar: the menu closes when an item is clicked
 		projectMenu.DrawPopups();
+		sceneMenu.DrawPopups();
 
 		ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
 		ImGui::End();

@@ -5,6 +5,10 @@ engine_add_executable(editor
     EditMode.cpp
     SceneEdits.hpp
     SceneEdits.cpp
+    SceneDocument.hpp
+    SceneDocument.cpp
+    NodeEditing.hpp
+    NodeEditing.cpp
     EditorSelfTest.hpp
     EditorSelfTest.cpp
     ProjectWindow.hpp
@@ -19,6 +23,10 @@ engine_add_executable(editor
     ui/DockSpaceView.hpp
     ui/EditorStyle.cpp
     ui/EditorStyle.hpp
+    ui/EditorToolbar.cpp
+    ui/EditorToolbar.hpp
+    ui/EditorWidgets.cpp
+    ui/EditorWidgets.hpp
     ui/EngineViewportWindow.cpp
     ui/EngineViewportWindow.hpp
     ui/FileDialog.cpp
@@ -32,6 +40,8 @@ engine_add_executable(editor
     ui/LogWindow.hpp
     ui/ModelEditorWindow.cpp
     ui/ModelEditorWindow.hpp
+    ui/NodeInspectorWindow.cpp
+    ui/NodeInspectorWindow.hpp
     ui/ProfilerWindow.cpp
     ui/ProfilerWindow.hpp
     ui/ProjectMenu.cpp
@@ -40,6 +50,8 @@ engine_add_executable(editor
     ui/SceneEditShortcuts.hpp
     ui/SceneHierarchyWindow.cpp
     ui/SceneHierarchyWindow.hpp
+    ui/SceneMenu.cpp
+    ui/SceneMenu.hpp
     ui/SettingsWindow.cpp
     ui/SettingsWindow.hpp
     ui/SocLabWindow.cpp
