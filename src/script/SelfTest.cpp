@@ -2437,7 +2437,11 @@ namespace elm::script {
             report.Check(closed.find("buffered when closing") != String::npos, "log::close_writes_the_buffer");
             report.Check(closed.find("after the file closes") == String::npos, "log::close_stops_writing");
 
+            report.Check(log::openFile(logFile), "log::open_file_after_close");
             report.Check(!log::openFile(Path(String((root / "Logs").generic_string().c_str()))), "log::folder_is_not_a_log_file");
+            LOG_MESSAGE(log::Category::Core, "SelfTest", "after the failed open");
+            log::flushFile();
+            report.Check(ReadLogFile(file).find("after the failed open") == String::npos, "log::failed_open_goes_on_without_a_file");
             fs::remove_all(root, error);
         }
 

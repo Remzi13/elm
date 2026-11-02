@@ -196,12 +196,13 @@ namespace elm::log {
             /// The kept messages go first: the file starts with what was logged before it was opened.
             bool OpenFile(const Path& file)
             {
-                std::ofstream stream = openRotated(file);
-                if (!stream)
-                    return false;
                 std::lock_guard<std::mutex> lock(m_mutex);
                 WriteFileBuffer();
-                m_file = std::move(stream);
+                // Before the rotation: Windows does not rename a file that is still open
+                m_file.close();
+                m_file = openRotated(file);
+                if (!m_file)
+                    return false;
                 m_fileBuffer.reserve(FileBufferSize);
                 m_file << formatFileHeader() << '\n';
                 for (Entry const& entry : m_messages)
