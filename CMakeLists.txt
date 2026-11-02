@@ -86,3 +86,5 @@ engine_add_executable(elm_tests
 )
 target_link_libraries(elm_tests PRIVATE core project resource script)
 
+include(cmake/EditorPackage.cmake)
+

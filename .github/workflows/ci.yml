@@ -1,0 +1,103 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    name: ${{ matrix.platform.name }} ${{ matrix.config }}
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      # A failure on one platform says nothing about the other
+      fail-fast: false
+      matrix:
+        platform:
+          - { name: linux, os: ubuntu-24.04, generator: -G Ninja }
+          # The default generator: Visual Studio
+          - { name: windows, os: windows-2025, generator: "" }
+        config: [Debug, Release]
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Visual Studio adds the config folder
+      PROGRAMS: ${{ matrix.platform.name == 'windows' && format('build/{0}', matrix.config) || 'build' }}
+      PACKAGE: elm-editor-${{ matrix.platform.name }}-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      # Vulkan headers and loader for the render module, X11 / Wayland headers for GLFW
+      - name: Install packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libvulkan-dev xorg-dev \
+            libwayland-dev libxkbcommon-dev wayland-protocols
+
+      # FetchContent sources and builds live next to the repository (third_party/CMakeLists.txt)
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/../elm_deps
+          key: elm-deps-${{ runner.os }}-${{ matrix.config }}-${{ hashFiles('third_party/CMakeLists.txt') }}
+
+      # Release is the package: a built game is a copy of its elm, so it has the options of a game for release
+      - name: Configure
+        run: >
+          cmake -S . -B build ${{ matrix.platform.generator }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.config }} -DELM_BUILD_TRACY_PROFILER=OFF
+          ${{ matrix.config == 'Release' && '-DELM_PROFILING=OFF -DELM_DEBUG_DRAW=OFF' || '' }}
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.config }} --target elm_tests editor --parallel
+
+      # Exit code is the number of failures; the timeout stops a failed assert that waits on a dialog on Windows
+      - name: Self tests
+        timeout-minutes: 10
+        run: ./$PROGRAMS/elm_tests
+
+      - name: Editor self tests
+        timeout-minutes: 10
+        run: ./$PROGRAMS/editor --editor-selftest
+
+      - name: Package
+        if: matrix.config == 'Release'
+        run: cmake --install build --config Release --component EditorPackage --prefix "dist/$PACKAGE"
+
+      # On a copy, without the repository above it, and what the checks write stays out of the package
+      - name: Check the package
+        if: matrix.config == 'Release'
+        timeout-minutes: 10
+        run: |
+          cp -r "dist/$PACKAGE" "$RUNNER_TEMP/package"
+          cd "$RUNNER_TEMP/package"
+          ./editor --editor-selftest
+          ./editor --build projects/Test
+          # The runner has the Visual C++ runtime installed, so only this shows that the package carries it
+          if [ "$RUNNER_OS" = Windows ]; then test -f vcruntime140.dll -a -f msvcp140.dll; fi
+
+      # An artifact zip loses the executable bit, so Linux uploads its own archive as it is
+      - name: Archive the package
+        if: matrix.config == 'Release' && runner.os == 'Linux'
+        run: tar czf "$PACKAGE.tar.gz" -C dist "$PACKAGE"
+
+      - name: Upload the package
+        if: matrix.config == 'Release' && runner.os == 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ env.PACKAGE }}.tar.gz
+          archive: false
+          if-no-files-found: error
+
+      # Hidden files: .settings of the package, .meta and .luarc.json of the projects
+      - name: Upload the package
+        if: matrix.config == 'Release' && runner.os == 'Windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PACKAGE }}
+          path: dist/
+          include-hidden-files: true
+          if-no-files-found: error

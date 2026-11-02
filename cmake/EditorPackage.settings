@@ -1,0 +1,7 @@
+{
+   "settings": {
+      "Core/FileSystem/RootPath": ".",
+      "Core/Project/Recent": "projects/Sandbox/Sandbox.elmproject\nprojects/Race/Race.elmproject\nprojects/Test/Test.elmproject"
+   },
+   "version": 1
+}

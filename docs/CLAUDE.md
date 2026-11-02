@@ -14,7 +14,7 @@ elm — 3D-движок с редактором на C++23: собственны
 - Запуск с тестовой сценой: `editor --scene <0..3> [--instances N]` (`ScenePreset`).
 - Тесты: `build/elm_tests` (`build/Debug/elm_tests.exe` в MSVC), отдельная программа без окна и GPU. Запускает C++-проверки биндингов (`script/SelfTest.cpp`) и все `assets/scripts/tests/*_test.lua`. Код возврата равен числу падений. ctest в проекте нет.
   Логику редактора (подсветка, отступы, место ошибки в окне Scripts) проверяет `editor --editor-selftest`,
-  тоже без окна, код возврата — число падений. Оба набора гоняет CI на GitHub (`.github/workflows/tests.yml`, Linux, `-DELM_BUILD_TRACY_PROFILER=OFF`).
+  тоже без окна, код возврата — число падений. Оба набора гоняет CI на GitHub (`.github/workflows/ci.yml`: Linux и Windows, Debug и Release, `-DELM_BUILD_TRACY_PROFILER=OFF`). Задания Release ещё публикуют пакет редактора артефактом.
 - Lua API для LuaLS: `editor --dump-script-api` перегенерирует `assets/scripts/.meta/elm.lua`.  Это сгенерированный файл, руками его не правь.
 - `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
   отступ табом или 4 пробелами, как уже в файле. Посторонние строки не переформатируй.
