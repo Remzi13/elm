@@ -68,7 +68,7 @@ namespace {
         void QueueJob(Job* job) override
         {
             job->AddRef();
-            elm::core::JobSystem::Get().Submit([job] {
+            m_queuedJobs.Run([job] {
                 job->Execute();
                 job->Release();
             });
@@ -80,6 +80,14 @@ namespace {
                 QueueJob(jobs[index]);
         }
 
+        /// The end of a step. The barrier can run a job while its worker task is still queued, and that task holds
+        /// the job: left there, such tasks use up the job pool over the steps and outlive this object.
+        void WaitForJobs(Barrier* barrier) override
+        {
+            JobSystemWithBarrier::WaitForJobs(barrier);
+            m_queuedJobs.Wait();
+        }
+
     protected:
         void FreeJob(Job* job) override
         {
@@ -88,6 +96,7 @@ namespace {
 
     private:
         JPH::FixedSizeFreeList<Job> m_jobs;
+        elm::core::TaskGroup m_queuedJobs;
     };
     /// Smallest shape size: Jolt rejects empty shapes, a flat model still gets a thin body.
     constexpr float MinExtent = 0.01f;

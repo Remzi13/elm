@@ -12,6 +12,7 @@
 #include "script/module/ModulePaths.hpp"
 #include "script/reload/HotReload.hpp"
 
+#include "core/JobSystem.hpp"
 #include "core/Log.hpp"
 #include "core/Memory.hpp"
 #include "core/Settings.hpp"
@@ -45,6 +46,7 @@
 #include "resource/Serializer.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -2088,6 +2090,43 @@ namespace elm::script {
             physics.Shutdown();
         }
 
+        /// The update thread can finish a step by itself while the worker tasks of its jobs still wait in the queue:
+        /// here every worker is busy, so all of them do. They hold their jobs, so they must not outlive the step:
+        /// they would use up the job pool over many steps and touch freed jobs after Shutdown.
+        void RunPhysicsQueuedJobsTests(Report& report)
+        {
+            PhysicsSystem physics;
+            if (!physics.Init()) {
+                report.Check(false, "physics::init_for_queued_jobs");
+                return;
+            }
+            Scene scene;
+            const NodeId box = Place(scene, "box", { 0.0f, 1.0f, 0.0f });
+            scene.Components<Collider>().Emplace(box);
+            scene.Components<RigidBody>().Emplace(box);
+
+            core::JobSystem& jobs = core::JobSystem::Get();
+            std::atomic<uint32_t> busyWorkers { 0 };
+            std::atomic<bool> workersReleased { false };
+            core::TaskGroup workerBlockers(jobs);
+            for (uint32_t worker = 0; worker < jobs.GetWorkerCount(); ++worker) {
+                workerBlockers.Run([&busyWorkers, &workersReleased] {
+                    busyWorkers.fetch_add(1);
+                    while (!workersReleased.load())
+                        std::this_thread::yield();
+                });
+            }
+            while (busyWorkers.load() != jobs.GetWorkerCount())
+                std::this_thread::yield();
+
+            constexpr int StepsOverJobPool = 300;
+            for (int step = 0; step < StepsOverJobPool; ++step)
+                physics.Step(scene, 1.0f / 60.0f);
+            report.Check(!jobs.TryRunOne(), "physics::step_waits_for_queued_jobs");
+            workersReleased.store(true);
+            physics.Shutdown();
+        }
+
         void RunPhysicsVisualizerTests(Report& report)
         {
             Settings settings;
@@ -2520,6 +2559,7 @@ namespace elm::script {
         RunWorldAxesVisualizerTests(report);
         RunColliderVisualizerTests(report);
         RunPhysicsFrameLogTests(report);
+        RunPhysicsQueuedJobsTests(report);
         RunPhysicsVisualizerTests(report);
         RunDebugDrawSystemTests(report);
         RunTransformGizmoTests(report);
