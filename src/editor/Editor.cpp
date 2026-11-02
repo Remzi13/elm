@@ -55,6 +55,7 @@ namespace elm {
 			  .camera = &m_graphics.GetViewCamera(), .settings = &m_settings, .debugDraw = &m_debugDraw.GetDebugDraw() })
 		, m_cameraController(m_graphics.GetViewCamera())
 		, m_editMode(m_scene, m_scripts)
+		, m_edits(m_scene.EditScene())
 		, m_playRequests(m_scripts.GetPlayMode().Requests())
 		, m_scriptInspection(script::MakeScriptInspection(m_scripts))
 		, m_imgui(MakeUnique<ImGuiSystem>())
@@ -95,7 +96,7 @@ namespace elm {
 		m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
 		m_initialized = true;
 		m_platform.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
-		if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), m_settings, "Engine Debug UI"); !init)
+		if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), "Engine Debug UI"); !init)
 			return init;
 		CreateEditorWindows();
 		m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(m_settings, editor::ProjectHubDesc {
@@ -237,11 +238,15 @@ namespace elm {
 	void Editor::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
 	{
 		TestScenes::BuildScene(preset, instanceCount, m_scene.EditScene(), m_resources.GetModels());
+		// Another scene: the steps were about the nodes before
+		m_edits.Clear();
 	}
 
 	void Editor::OpenProjectWindows(const project::Project& project)
 	{
 		const Path openedScene = OpenStartupScene(project);
+		// The steps were about the scene of the project before
+		m_edits.Clear();
 		RememberProject(project.File());
 		CreateProjectWindows(project, openedScene);
 		UpdateProjectMenu(&project);
@@ -327,7 +332,11 @@ namespace elm {
 		// UI logic (GLFW backend, widgets, platform windows) belongs to the main thread
 		ELM_PROFILE_SCOPE_N("Build Overlay");
 		m_frameStats = { m_clock.GetFps(), m_clock.GetAverageFrameMs(), m_physics.GetNumBodies() };
+		// Edits of the selected node and of the structure become history steps; Play freezes it
+		m_edits.SetFrozen(m_scripts.GetPlayMode().IsPlaying());
+		m_edits.BeginFrame(m_selection.node);
 		m_imgui->BuildFrame(frame);
+		m_edits.EndFrame(m_imgui->IsWidgetHeld());
 	}
 
 	void Editor::AddVisualizers()
@@ -340,12 +349,12 @@ namespace elm {
 
 	void Editor::CreateEditorWindows()
 	{
-		m_imgui->EmplaceWindow<SocLabWindow>(m_settings, &m_graphics.GetCulling());
-		m_imgui->EmplaceWindow<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_graphics.GetViewCamera(),
-			m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo });
-		m_imgui->EmplaceWindow<LogWindow>(m_settings);
-		m_imgui->EmplaceWindow<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats });
-		m_imgui->EmplaceWindow<SettingsWindow>(m_settings);
+		m_imgui->AddWindow(MakeUnique<SocLabWindow>(m_settings, &m_graphics.GetCulling()));
+		m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_graphics.GetViewCamera(),
+			m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits }));
+		m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
+		m_imgui->AddWindow(MakeUnique<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats }));
+		m_imgui->AddWindow(MakeUnique<SettingsWindow>(m_settings));
 	}
 
 	void Editor::CreateProjectWindows(const project::Project& project, const Path& openedScene)
@@ -354,7 +363,7 @@ namespace elm {
 		ModelCatalog& models = m_resources.GetModels();
 		const SceneHierarchyWindow::Folders folders { project.Assets(), project.Scenes(), project.Models(), project.Scripts() };
 		auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
-			SceneHierarchyDeps { scene, models, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files }, folders, openedScene);
+			SceneHierarchyDeps { scene, models, m_edits, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files }, folders, openedScene);
 		auto modelEditor = MakeUnique<ModelEditorWindow>(m_settings,
 			ModelEditorDeps { m_graphics.GetRender().Resources(), scene, models, m_graphics.GetViewCamera() }, project.Assets(), project.Models());
 		auto scripts = script::CreateScriptWindow(m_scripts, m_settings);

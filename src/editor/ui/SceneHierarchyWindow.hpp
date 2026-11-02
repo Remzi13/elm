@@ -14,12 +14,15 @@ namespace elm {
 
 class ModelCatalog;
 class Scene;
+class SceneEdits;
 
 /// What Scene Hierarchy works with. Valid while the window lives: Editor destroys the project windows
 /// before the project closes.
 struct SceneHierarchyDeps {
     Scene& scene;
     ModelCatalog& models;
+    /// Undo and redo; the window empties it when it replaces the scene (New, Load).
+    SceneEdits& edits;
     /// The node the window shows, written by it.
     Selection& selection;
     /// The gizmo mode the window picks for the viewport.

@@ -89,7 +89,11 @@ namespace elm {
 		return window && window->IsFocused();
 	}
 
-	auto ImGuiSystem::Init( platform::Window& window, render::Render& renderer, Settings& settings, StringView title ) -> elm::EngineResult<void> {
+	bool ImGuiSystem::IsWidgetHeld() const {
+		return m_initialized && ImGui::IsAnyItemActive();
+	}
+
+	auto ImGuiSystem::Init( platform::Window& window, render::Render& renderer, StringView title ) -> elm::EngineResult<void> {
 		m_window = window.GetHandle();
 		m_title = title;
 

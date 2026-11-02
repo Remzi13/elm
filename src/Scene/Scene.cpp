@@ -55,6 +55,7 @@ bool Scene::RemoveNode(NodeId node)
     if (nodeIndex == NoNode)
         return false;
 
+    ++m_structureRevision;
     m_components.Remove(node);
     m_ids.Free(node);
     const Node removed = std::move(m_nodes[nodeIndex]);
@@ -78,6 +79,7 @@ Scene::SetParentResult Scene::SetParent(NodeId node, NodeId parent)
         Node& target = m_nodes[nodeIndex];
         target.parent = { };
         target.localTransform = world;
+        ++m_structureRevision;
         return SetParentResult::Done;
     }
 
@@ -92,6 +94,7 @@ Scene::SetParentResult Scene::SetParent(NodeId node, NodeId parent)
     Node& target = m_nodes[IndexOf(node)];
     target.parent = parent;
     target.localTransform = *parentInverse * world;
+    ++m_structureRevision;
     return SetParentResult::Done;
 }
 
@@ -181,6 +184,7 @@ void Scene::Clear()
     m_worldTransforms.clear();
     m_components.Clear();
     m_transformsDirty = false;
+    ++m_structureRevision;
 }
 
 void Scene::ReserveNodes(size_t capacity)
@@ -214,6 +218,7 @@ void Scene::RestoreFrom(Scene&& snapshot)
     // The stores of the snapshot take over: references to the current ones end here
     m_components = std::move(snapshot.m_components);
     m_transformsDirty = true;
+    ++m_structureRevision;
 }
 
 const Scene::Node* Scene::Find(NodeId id) const
@@ -230,6 +235,7 @@ Scene::Node* Scene::MutableNode(NodeId id)
 
 NodeId Scene::PushNode(Node node, const math::Matrix4x4& worldTransform)
 {
+    ++m_structureRevision;
     node.id = m_ids.Allocate(m_nodes.size());
     m_nodes.push_back(std::move(node));
     m_worldTransforms.push_back(worldTransform);

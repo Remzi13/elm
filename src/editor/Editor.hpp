@@ -23,6 +23,7 @@
 #include "script/ScriptSystem.hpp"
 
 #include "editor/EditMode.hpp"
+#include "editor/SceneEdits.hpp"
 #include "editor/ui/EditorServices.hpp"
 #include "editor/ui/ImGuiSystem.hpp"
 
@@ -141,6 +142,8 @@ namespace elm {
 		CameraController m_cameraController;
 		/// Edit and Play around PlayMode: the snapshot of the edited scene.
 		EditMode m_editMode;
+		/// Undo and redo of the user's edits of the scene.
+		SceneEdits m_edits;
 
 		// The editor's services for its windows (docs/core/Системы.md#Окна редактора)
 		script::PlayRequests m_playRequests;

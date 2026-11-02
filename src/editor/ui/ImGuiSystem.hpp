@@ -41,7 +41,7 @@ namespace elm {
 		ImGuiSystem& operator=(const ImGuiSystem&) = delete;
 
 		/// ImGui and its renderer; the windows Editor adds after.
-		[[nodiscard]] auto Init(platform::Window& window, render::Render& renderer, Settings& settings, StringView title) -> elm::EngineResult<void>;
+		[[nodiscard]] auto Init(platform::Window& window, render::Render& renderer, StringView title) -> elm::EngineResult<void>;
 		// Main thread: runs UI logic and captures viewport events and draw data into frame.
 		// Windows may add their own scene views (previews) to the frame.
 		void BuildFrame(render::FrameWriter& frame);
@@ -50,6 +50,8 @@ namespace elm {
 		// Scene viewport state of the last built frame: camera input goes to the scene only while it is active
 		[[nodiscard]] bool IsSceneViewportHovered() const noexcept;
 		[[nodiscard]] bool IsSceneViewportFocused() const noexcept;
+		/// A widget of the last built frame is held: a drag, typing, the viewport under the mouse button.
+		[[nodiscard]] bool IsWidgetHeld() const;
 
 		// Window management
 		void AddWindow(UniquePtr<IImGuiWindow> window);

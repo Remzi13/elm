@@ -19,6 +19,8 @@ struct ModelComponent {
     math::Vector4 color { 1.0f, 1.0f, 1.0f, 1.0f };
     /// Hidden by the user (editor, scripts). Culling keeps its own result and never changes it.
     bool visible { true };
+
+    bool operator==(const ModelComponent&) const = default;
 };
 
 } // namespace elm

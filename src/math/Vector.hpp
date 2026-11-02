@@ -124,6 +124,7 @@ struct Vector4 {
     {
     }
 
+    [[nodiscard]] constexpr bool operator==(const Vector4& o) const noexcept = default;
     [[nodiscard]] constexpr Vector4 operator+(const Vector4& o) const noexcept
     {
         return { x + o.x, y + o.y, z + o.z, w + o.w };

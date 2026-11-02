@@ -24,6 +24,8 @@ struct ScriptComponent {
     String module;
     /// Props that differ from the defaults of the module (its `props` table).
     Vector<std::pair<String, ScriptValue>> props;
+
+    bool operator==(const ScriptComponent&) const = default;
 };
 
 } // namespace elm

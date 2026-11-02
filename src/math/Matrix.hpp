@@ -24,6 +24,7 @@ namespace math {
 			return m[row * 4 + col];
 		}
 
+		[[nodiscard]] bool operator==( const Matrix4x4& o ) const noexcept = default;
 		[[nodiscard]] Matrix4x4 operator*( const Matrix4x4& o ) const noexcept {
 			Matrix4x4 res{};
 			for ( size_t r = 0; r < 4; ++r ) {

@@ -1,5 +1,8 @@
 #include "editor/ui/SceneHierarchyWindow.hpp"
 
+#include "editor/SceneEdits.hpp"
+#include "editor/ui/SceneEditShortcuts.hpp"
+
 #include "core/FileSystem.hpp"
 #include "core/Log.hpp"
 #include "core/Unexpected.hpp"
@@ -218,6 +221,8 @@ void SceneHierarchyWindow::Render(render::FrameWriter&)
         ImGui::End();
         return;
     }
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
+        HandleSceneEditShortcuts(m_deps.edits);
 
     if (!m_scriptModulesLoaded)
         RefreshScriptModules();
@@ -278,6 +283,16 @@ void SceneHierarchyWindow::DrawToolbar()
         ImGui::Separator();
     }
 
+    ImGui::BeginDisabled(!m_deps.edits.CanUndo());
+    if (ImGui::Button("Undo"))
+        (void)m_deps.edits.Undo();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!m_deps.edits.CanRedo());
+    if (ImGui::Button("Redo"))
+        (void)m_deps.edits.Redo();
+    ImGui::EndDisabled();
+    ImGui::SameLine();
     ImGui::TextUnformatted("Scene File:");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(180.0f);
@@ -318,6 +333,8 @@ void SceneHierarchyWindow::DrawToolbar()
     if (ImGui::Button("New")) {
         scene.Clear();
         m_deps.models.Clear();
+        // The steps are about the nodes and models that went
+        m_deps.edits.Clear();
         m_deps.selection.node = NodeId { };
         // A name no scene has yet: Save does not overwrite the scene that was open
         const String fileName = UnusedSceneFileName();
@@ -1443,6 +1460,8 @@ void SceneHierarchyWindow::LoadSceneFile(const Path& file)
     m_deps.models.Clear();
     const auto handlers = m_deps.models.InsertAll(std::move(result->models), result->modelFiles);
     (void)m_deps.scene.Append(std::move(*result), handlers);
+    // The steps are about the nodes and models of the scene before
+    m_deps.edits.Clear();
     m_deps.selection.node = m_deps.scene.IdOf(0);
     m_sceneFileStatus = "Scene loaded from " + String(file.string().c_str()) + ".";
     ShowSceneFile(file);

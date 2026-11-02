@@ -83,6 +83,7 @@ elm — 3D-движок с редактором на C++23: собственны
 | `OcclusionCulling`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
 | `ImGuiSystem`, `IImGuiWindow`, `*Deps` окон | окна редактора; зависимости окно получает в конструкторе своей структурой, в кадре — только `FrameWriter` |
 | `Selection`, `FileOpener`, `ScriptInspection` | сервисы редактора для окон (`editor/ui/EditorServices.hpp`), владелец `Editor`. Выбранный узел — `NodeId` |
+| `SceneEdits` | история правок сцены в редакторе (`editor/SceneEdits.*`): шаг узла (выбранный узел до и после кадра UI, жест — один шаг) и шаг структуры (вся сцена до правки, по `Scene::StructureRevision`); Undo/Redo, замирает в Play, очищается при смене сцены и проекта |
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
 | `DebugDrawing` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; владелец — программа (`Editor`, `Game` с `ELM_DEBUG_DRAW`) |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |

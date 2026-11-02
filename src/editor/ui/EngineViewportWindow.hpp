@@ -13,6 +13,7 @@ namespace elm  {
 
 class Camera;
 class Scene;
+class SceneEdits;
 
 namespace render {
     class ViewPort;
@@ -31,6 +32,8 @@ struct EngineViewportDeps {
     /// The node the gizmo moves.
     const Selection& selection;
     const GizmoSettings& gizmo;
+    /// Ctrl+Z and Ctrl+Y while the viewport has the focus.
+    SceneEdits& edits;
 };
 
 /// The engine view with Play/Stop, the debug channels, the debug labels and the gizmo of the selected node.

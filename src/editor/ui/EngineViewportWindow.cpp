@@ -1,5 +1,7 @@
 #include "editor/ui/EngineViewportWindow.hpp"
 
+#include "editor/ui/SceneEditShortcuts.hpp"
+
 #include "core/Log.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/debug/DebugDraw.hpp"
@@ -134,6 +136,8 @@ namespace elm {
 			return;
 		}
 		m_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+		if (m_focused)
+			HandleSceneEditShortcuts(m_deps.edits);
 
 		DrawPlayControls(m_deps.play);
 		ImGui::SameLine();

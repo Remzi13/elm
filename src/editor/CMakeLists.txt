@@ -3,6 +3,8 @@ engine_add_executable(editor
     Editor.cpp
     EditMode.hpp
     EditMode.cpp
+    SceneEdits.hpp
+    SceneEdits.cpp
     EditorSelfTest.hpp
     EditorSelfTest.cpp
     ProjectWindow.hpp
@@ -34,6 +36,8 @@ engine_add_executable(editor
     ui/ProfilerWindow.hpp
     ui/ProjectMenu.cpp
     ui/ProjectMenu.hpp
+    ui/SceneEditShortcuts.cpp
+    ui/SceneEditShortcuts.hpp
     ui/SceneHierarchyWindow.cpp
     ui/SceneHierarchyWindow.hpp
     ui/SettingsWindow.cpp

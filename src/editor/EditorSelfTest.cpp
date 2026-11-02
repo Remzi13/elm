@@ -1,6 +1,7 @@
 #include "editor/EditorSelfTest.hpp"
 
 #include "editor/EditMode.hpp"
+#include "editor/SceneEdits.hpp"
 #include "editor/script/CodeIndent.hpp"
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
@@ -251,6 +252,67 @@ line]] .. [==[a]]b]==])",
             fs::remove_all(root, error);
         }
 
+        /// The history of the user's edits: node steps found around a UI frame, gestures, structure steps.
+        void RunSceneEditsTests(Report& report)
+        {
+            Scene scene;
+            const NodeId a = scene.AddNode("a");
+            SceneEdits edits(scene);
+            // One UI frame that moved the node, as a window would
+            auto frame = [&](NodeId watched, bool held, const auto& edit) {
+                edits.BeginFrame(watched);
+                edit();
+                edits.EndFrame(held);
+            };
+            auto x = [&](NodeId node) { return scene.Find(node)->localTransform(0, 3); };
+
+            frame(a, false, [&] { (void)scene.SetLocalTransform(a, Matrix4x4::Translation({ 1.0f, 0.0f, 0.0f })); });
+            report.Check(edits.CanUndo() && edits.Undo() && x(a) == 0.0f && edits.CanRedo(), "edits::undo_a_move");
+            report.Check(edits.Redo() && x(a) == 1.0f, "edits::redo_a_move");
+
+            // A drag: every frame of it moves the node while the widget is held, it is one step
+            for (int step = 2; step <= 4; ++step)
+                frame(a, true, [&] { (void)scene.SetLocalTransform(a, Matrix4x4::Translation({ static_cast<float>(step), 0.0f, 0.0f })); });
+            frame(a, false, [] { });
+            report.Check(edits.Undo() && x(a) == 1.0f, "edits::a_gesture_is_one_step");
+            (void)edits.Redo();
+            // Released between two edits: two steps
+            frame(a, false, [&] { (void)scene.SetName(a, "renamed"); });
+            frame(a, false, [&] { scene.Components<RigidBody>().Emplace(a); });
+            report.Check(edits.Undo() && !scene.Components<RigidBody>().Contains(a) && scene.Find(a)->name == "renamed",
+                "edits::undo_takes_the_component_away");
+            report.Check(edits.Undo() && scene.Find(a)->name == "a" && x(a) == 4.0f, "edits::separate_edits_are_separate_steps");
+            frame(a, false, [&] { (void)scene.SetName(a, "other"); });
+            report.Check(!edits.CanRedo(), "edits::a_new_edit_drops_redo");
+
+            // Structure: undo brings a removed node back with its id
+            const NodeId b = scene.AddNode("b");
+            frame(a, false, [] { });
+            frame(b, false, [&] { scene.Components<Collider>().Emplace(b); });
+            frame(b, false, [&] { (void)scene.RemoveNode(b); });
+            report.Check(edits.Undo() && scene.Find(b) && scene.Components<Collider>().Contains(b), "edits::undo_a_removal_keeps_the_node_id");
+            report.Check(edits.Redo() && !scene.Find(b), "edits::redo_a_removal");
+            report.Check(edits.Undo() && edits.Undo() && scene.Find(b) && !scene.Components<Collider>().Contains(b),
+                "edits::node_steps_fit_a_restored_node");
+
+            // Play freezes the history; Stop gives the scene back and the steps go on
+            edits.SetFrozen(true);
+            frame(a, false, [&] { (void)scene.SetName(a, "played"); });
+            report.Check(!edits.CanUndo() && !edits.Undo(), "edits::frozen_in_play");
+            (void)scene.SetName(a, "other");
+            edits.SetFrozen(false);
+            report.Check(edits.CanUndo(), "edits::steps_after_play");
+
+            edits.Clear();
+            report.Check(!edits.CanUndo() && !edits.CanRedo(), "edits::clear");
+            for (size_t step = 0; step < SceneEdits::MaxSteps + 5; ++step)
+                frame(a, false, [&] { (void)scene.SetName(a, "n" + String(std::to_string(step))); });
+            size_t undone = 0;
+            while (edits.Undo())
+                ++undone;
+            report.Check(undone == SceneEdits::MaxSteps, "edits::the_oldest_steps_go");
+        }
+
     } // namespace
 
     int RunSelfTests()
@@ -260,6 +322,7 @@ line]] .. [==[a]]b]==])",
         RunCodeIndentTests(report);
         RunErrorLocationTests(report);
         RunEditModeTests(report);
+        RunSceneEditsTests(report);
         std::cout << "\nEditor self tests: " << report.passed << " passed, " << report.failed << " failed" << std::endl;
         return report.failed;
     }

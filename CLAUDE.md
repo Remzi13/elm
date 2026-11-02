@@ -139,6 +139,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `Game`, `GameDesc` | программа `elm`, корень композиции (`docs/core/Системы.md`): системы полями, зависимости в конструкторах, кадр `RunFrame`; Play Project одного проекта, вид на всё окно, `DebugDrawing` с `ELM_DEBUG_DRAW`. Объекта «движок» нет | `engine` |
 | `FrameClock`, `LoadEngineSettings`, `MakeProjectPlayStart` | общее двух программ: время кадра, фиксированные шаги физики и FPS; настройки, которые читают обе, и `.settings`; `PlayStart` открытого проекта | `engine` |
 | `Editor` | программа-редактор, корень композиции: те же системы полями и кадр `RunFrame`; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
+| `SceneEdits` | история правок сцены в редакторе (`editor/SceneEdits.*`): шаг узла (выбранный узел до и после кадра UI, жест — один шаг) и шаг структуры (вся сцена до правки, по `Scene::StructureRevision`); Undo/Redo, замирает в Play, очищается при смене сцены и проекта | `editor` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resource` |
