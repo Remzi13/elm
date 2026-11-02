@@ -144,9 +144,8 @@ physics    → Scene           Jolt PRIVATE
 graphics   → render, platform, model, resource   без ImGui
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-engine     → Scene, physics, script, graphics, project, resource, input   общее программ: FrameClock, LoadEngineSettings, MakeProjectPlayStart
-editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (корень композиции) и весь UI
-программы  elm — engine/Game.* и main.cpp (Game), editor — editor/main.cpp (Editor); обе — корни композиции, системы у них полями
+editor     → graphics, physics, project, script (+ ImGui, GLFW)   Editor (корень композиции) и весь UI
+программы  elm — engine/Game.* и main.cpp (Game; `src/engine` — код программы, библиотеки там нет), editor — editor/main.cpp (Editor); обе — корни композиции, системы у них полями
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл
@@ -155,7 +154,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (ко�
 Внутри `script` действуют слои (`docs/script/Скрипты на Lua.md`): зависимость только вниз, части
 одного слоя друг о друге не знают, связи между ними задаёт `ScriptSystem`. Внутренние части модуля
 (`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`) не подключаются вне `src/script/`:
-снаружи видны `ScriptSystem`, `ScriptDeps`, `EngineContext`, `PlayMode` и `RunSelfTests`. Исключение — окно Scripts редактора
+снаружи видны `ScriptSystem`, `ScriptDeps`, `EngineContext`, `PlayMode`, `MakeProjectPlayStart` и `RunSelfTests`. Исключение — окно Scripts редактора
 (`editor/script/`): оно показывает части `ScriptSystem` и подключает их заголовки, а сами части получает через
 `EditorWindowsAccess` (`CreateScriptWindow`, `MakeScriptInspection`).
 

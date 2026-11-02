@@ -137,7 +137,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `platform::Window` | главное окно GLFW; часть `PlatformSystem` | `platform` |
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
 | `Game`, `GameDesc` | программа `elm`, корень композиции (`docs/core/Системы.md`): системы полями, зависимости в конструкторах, кадр `RunFrame`; Play Project одного проекта, вид на всё окно, `DebugDrawing` с `ELM_DEBUG_DRAW`. Объекта «движок» нет | `engine` |
-| `FrameClock`, `LoadEngineSettings`, `MakeProjectPlayStart` | общее двух программ: время кадра, фиксированные шаги физики и FPS; настройки, которые читают обе, и `.settings`; `PlayStart` открытого проекта | `engine` |
+| `FrameClock`, `LoadProgramSettings` | общее двух программ: время кадра, фиксированные шаги физики и FPS; настройки файлов и лога и чтение `.settings` | `core` |
+| `script::MakeProjectPlayStart` | `PlayStart` открытого проекта для `PlayMode::SetStartSource` | `script` |
 | `Editor` | программа-редактор, корень композиции: те же системы полями и кадр `RunFrame`; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
 | `SceneEdits` | история правок сцены в редакторе (`editor/SceneEdits.*`): шаг узла (выбранный узел до и после кадра UI, жест — один шаг) и шаг структуры (вся сцена до правки, по `Scene::StructureRevision`); Undo/Redo, замирает в Play, очищается при смене сцены и проекта | `editor` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
@@ -179,9 +180,8 @@ physics    → Scene           Jolt PRIVATE
 graphics   → render, platform, model, resource   без ImGui   о project не знает
 input      → glfw
 script     → core, lua       остальные модули PRIVATE
-engine     → Scene, physics, script, graphics, project, resource, input   общее программ: FrameClock, LoadEngineSettings, MakeProjectPlayStart
-editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (корень композиции) и весь UI: ui/, script/
-программы  elm — engine/Game.* и main.cpp (Game), editor — editor/main.cpp (Editor); обе — корни композиции, системы у них полями
+editor     → graphics, physics, project, script (+ ImGui, GLFW)   Editor (корень композиции) и весь UI: ui/, script/
+программы  elm — engine/Game.* и main.cpp (Game; `src/engine` — код программы, библиотеки там нет), editor — editor/main.cpp (Editor); обе — корни композиции, системы у них полями
 ```
 
 Каждый модуль собирается своим `engine_add_library` в `src/<module>/CMakeLists.txt`. Новый файл
@@ -190,7 +190,7 @@ editor     → graphics, project, engine, script (+ ImGui, GLFW)   Editor (ко�
 Внутри `script` действуют слои (`docs/script/Скрипты на Lua.md`): зависимость только вниз, части
 одного слоя друг о друге не знают, связи между ними задаёт `ScriptSystem`. Внутренние части модуля
 (`module/`, `reload/`, `entity/`, `console/`, `values/`, `bindings/`) не подключаются вне `src/script/`:
-снаружи видны `ScriptSystem`, `ScriptDeps`, `EngineContext`, `PlayMode` и `RunSelfTests`. Исключение — окно Scripts редактора
+снаружи видны `ScriptSystem`, `ScriptDeps`, `EngineContext`, `PlayMode`, `MakeProjectPlayStart` и `RunSelfTests`. Исключение — окно Scripts редактора
 (`editor/script/`): оно показывает части `ScriptSystem` и подключает их заголовки, а сами части получает через
 `EditorWindowsAccess` (`CreateScriptWindow`, `MakeScriptInspection`).
 

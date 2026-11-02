@@ -1,4 +1,4 @@
-#include "engine/ProjectPlayStart.hpp"
+#include "script/ProjectPlayStart.hpp"
 
 #include "core/Log.hpp"
 
@@ -6,7 +6,7 @@
 
 #include "resource/ResourceSystem.hpp"
 
-namespace elm {
+namespace elm::script {
 
     namespace {
 
@@ -14,14 +14,14 @@ namespace elm {
 
     } // namespace
 
-    std::optional<script::PlayStart> MakeProjectPlayStart(const resource::ResourceSystem& resources, script::PlayTarget target)
+    std::optional<PlayStart> MakeProjectPlayStart(const resource::ResourceSystem& resources, PlayTarget target)
     {
         const project::Project* project = resources.GetProject();
         if (!project)
             return std::nullopt;
-        script::PlayStart start;
+        PlayStart start;
         start.mainModule = project->Desc().entry.mainModule;
-        if (target == script::PlayTarget::Scene || !project->Desc().entry.startupScene)
+        if (target == PlayTarget::Scene || !project->Desc().entry.startupScene)
             return start;
         auto scene = resources.LoadStartupScene();
         if (!scene) {
@@ -32,4 +32,4 @@ namespace elm {
         return start;
     }
 
-} // namespace elm
+} // namespace elm::script

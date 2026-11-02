@@ -54,6 +54,7 @@ namespace elm::script {
 
     void ScriptSystem::RegisterSettings(Settings& settings)
     {
+        PlayMode::RegisterSettings(settings);
         settings.Register(Settings::Category::Script, EnabledSetting, "Run scripts", true);
         settings.Register(Settings::Category::Script, HotReloadSetting, "Reload changed scripts", true);
     }

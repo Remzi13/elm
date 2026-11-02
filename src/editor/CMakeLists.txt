@@ -78,7 +78,7 @@ target_include_directories(editor PUBLIC
 )
 
 # The editor and all of its UI: the engine without it has no ImGui
-target_link_libraries(editor PUBLIC imgui_glfw imgui_core core graphics project engine)
+target_link_libraries(editor PUBLIC imgui_glfw imgui_core core graphics physics project)
 # GLFW for the ImGui backend; new projects, Build Game, Run Standalone; the Scripts window
 target_link_libraries(editor PRIVATE glfw platform render Scene resource script)
 

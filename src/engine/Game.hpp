@@ -3,7 +3,7 @@
 #include "core/Error.hpp"
 #include "core/Settings.hpp"
 
-#include "engine/FrameClock.hpp"
+#include "core/FrameClock.hpp"
 
 #include "graphics/GraphicsSystem.hpp"
 #include "graphics/debug/DebugDrawing.hpp"

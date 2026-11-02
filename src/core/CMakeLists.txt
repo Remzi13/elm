@@ -9,6 +9,10 @@ engine_add_library(core
     Error.cpp
     Error.hpp
     Unexpected.hpp
+    FrameClock.hpp
+    FrameClock.cpp
+    ProgramSettings.hpp
+    ProgramSettings.cpp
     Timer.hpp
     Timer.cpp
     Threading.hpp

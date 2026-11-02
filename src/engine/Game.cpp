@@ -3,11 +3,11 @@
 #include "core/JobSystem.hpp"
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
+#include "core/ProgramSettings.hpp"
 #include "core/Threading.hpp"
 #include "core/Unexpected.hpp"
 
-#include "engine/EngineSettings.hpp"
-#include "engine/ProjectPlayStart.hpp"
+#include "script/ProjectPlayStart.hpp"
 
 #if defined(ELM_DEBUG_DRAW)
 #include "graphics/debug/ColliderVisualizer.hpp"
@@ -55,7 +55,8 @@ namespace elm {
     {
         // A game does not watch its script files (the editor does)
         m_settings.Set(Settings::Category::Script, script::ScriptSystem::HotReloadSetting, false);
-        if (auto loaded = LoadEngineSettings(m_settings); !loaded)
+        script::ScriptSystem::RegisterSettings(m_settings);
+        if (auto loaded = LoadProgramSettings(m_settings); !loaded)
             return loaded;
         core::registerThread(core::ThreadRole::Update);
         ELM_PROFILE_THREAD("Main Thread");
@@ -75,7 +76,7 @@ namespace elm {
 #if defined(ELM_DEBUG_DRAW)
         AddVisualizers();
 #endif
-        m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
+        m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return script::MakeProjectPlayStart(m_resources, target); });
         m_initialized = true;
         return { };
     }

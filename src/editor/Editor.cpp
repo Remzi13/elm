@@ -4,10 +4,10 @@
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
 #include "core/Threading.hpp"
+#include "core/ProgramSettings.hpp"
 #include "core/Unexpected.hpp"
 
-#include "engine/EngineSettings.hpp"
-#include "engine/ProjectPlayStart.hpp"
+#include "script/ProjectPlayStart.hpp"
 
 #include "graphics/FrameStats.hpp"
 #include "graphics/debug/ColliderVisualizer.hpp"
@@ -76,7 +76,8 @@ namespace elm {
 	auto Editor::Init() -> EngineResult<void>
 	{
 		RegisterSettings(m_settings);
-		if (auto loaded = LoadEngineSettings(m_settings); !loaded)
+		script::ScriptSystem::RegisterSettings(m_settings);
+		if (auto loaded = LoadProgramSettings(m_settings); !loaded)
 			return loaded;
 		core::registerThread(core::ThreadRole::Update);
 		ELM_PROFILE_THREAD("Main Thread");
@@ -93,7 +94,7 @@ namespace elm {
 			m_platform.Shutdown();
 			return physicsInit;
 		}
-		m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return MakeProjectPlayStart(m_resources, target); });
+		m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return script::MakeProjectPlayStart(m_resources, target); });
 		m_initialized = true;
 		m_platform.GetInput().AddSubscriber(&m_cameraController, static_cast<int32_t>(InputPriority::Gameplay), "CameraController");
 		if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), "Engine Debug UI"); !init)

@@ -61,6 +61,8 @@ set(ALL_SRC
     ScriptSystem.cpp
     PlayMode.hpp
     PlayMode.cpp
+    ProjectPlayStart.hpp
+    ProjectPlayStart.cpp
     SelfTest.hpp
     SelfTest.cpp
 
