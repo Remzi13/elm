@@ -5,6 +5,7 @@
 
 #include "project/Project.hpp"
 
+#include "resource/SettingsFile.hpp"
 #include "resource/Serializer.hpp"
 
 #include "script/SelfTest.hpp"
@@ -22,7 +23,7 @@ namespace {
         elm::Settings settings;
         elm::FileSystem::RegisterSettings(settings);
         const elm::Path settingsPath = elm::Settings::DefaultFilePath();
-        if (auto loaded = settings.Load(settingsPath); !loaded)
+        if (auto loaded = elm::resource::ReadSettingsFile(settings, settingsPath); !loaded)
             std::cerr << "[Warning] " << loaded.error().message << std::endl;
         elm::FileSystem::ApplySettings(settings, settingsPath.Parent());
     }

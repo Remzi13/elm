@@ -1,15 +1,63 @@
 #include "core/Settings.hpp"
 
-#include "core/File.hpp"
-
-#include "resource/JsonValue.hpp"
-#include "resource/SerializationError.hpp"
+#include "core/Unexpected.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
 namespace elm {
+
+    namespace {
+
+        constexpr const char* LogSource = "Settings";
+
+        /// A value of a file as the type of current; nothing when it has another type or does not fit.
+        auto ConvertFileValue(const Settings::FileValue& fileValue, const Settings::Value& current) -> std::optional<Settings::Value>
+        {
+            if (std::holds_alternative<bool>(current)) {
+                if (const auto* boolean = std::get_if<bool>(&fileValue))
+                    return Settings::Value(*boolean);
+                return std::nullopt;
+            }
+            if (std::holds_alternative<String>(current)) {
+                if (const auto* text = std::get_if<String>(&fileValue))
+                    return Settings::Value(*text);
+                return std::nullopt;
+            }
+            const auto* number = std::get_if<double>(&fileValue);
+            if (!number || !std::isfinite(*number))
+                return std::nullopt;
+            if (std::holds_alternative<uint32_t>(current)) {
+                if (*number < 0.0 || *number > std::numeric_limits<uint32_t>::max() || std::floor(*number) != *number)
+                    return std::nullopt;
+                return Settings::Value(static_cast<uint32_t>(*number));
+            }
+            if (*number < -std::numeric_limits<float>::max() || *number > std::numeric_limits<float>::max())
+                return std::nullopt;
+            return Settings::Value(static_cast<float>(*number));
+        }
+
+        auto ToFileValue(const Settings::Value& value) -> Settings::FileValue
+        {
+            if (const auto* integer = std::get_if<uint32_t>(&value))
+                return static_cast<double>(*integer);
+            if (const auto* number = std::get_if<float>(&value))
+                return static_cast<double>(*number);
+            if (const auto* text = std::get_if<String>(&value))
+                return *text;
+            return std::get<bool>(value);
+        }
+
+        /// Only what could become a value when its key is registered.
+        [[nodiscard]] bool CanBeKept(const Settings::FileValue& fileValue)
+        {
+            if (const auto* number = std::get_if<double>(&fileValue))
+                return std::isfinite(*number);
+            return !std::holds_alternative<std::monostate>(fileValue);
+        }
+
+    } // namespace
 
     Settings::Settings() = default;
 
@@ -42,103 +90,39 @@ namespace elm {
         return (directory.Empty() ? currentPath : directory) / fileName;
     }
 
-    auto Settings::Load(const Path& path) -> EngineResult<void>
+    auto Settings::ApplyFileValues(const FileValues& fileValues) -> EngineResult<void>
     {
-        std::error_code fileError;
-        const bool fileExists = FileSystem::Exists(path, fileError);
-        if (fileError)
-            return resource::UnexpectedSerializationError(
-                String("Failed to inspect settings file: ") + fileError.message().c_str(), "Settings");
-        if (!fileExists)
-            return {};
-
-        File file;
-        if (auto opened = file.Open(path, FileMode::Read); !opened)
-            return resource::UnexpectedSerializationError(opened.error().message, "Settings");
-        const auto serialized = file.ReadAll();
-        if (!serialized)
-            return resource::UnexpectedSerializationError(serialized.error().message, "Settings");
-
-        resource::JsonValue document;
-        if (auto parsed = document.Parse(*serialized->ReadText(0, serialized->Size())); !parsed)
-            return resource::UnexpectedSerializationError(parsed.error());
-        if (!document.IsObject())
-            return resource::UnexpectedSerializationError("Settings document must be a JSON object", "Settings");
-
-        const auto serializedSettings = document.Find("settings");
-        if (!serializedSettings || !serializedSettings->IsObject())
-            return resource::UnexpectedSerializationError("Settings document is missing its settings object", "Settings");
-
         std::lock_guard<std::mutex> lock(m_mutex);
-        UnorderedMap<String, Value> loadedSettings;
-        loadedSettings.reserve(m_entries.size());
-        for (const auto& [key, entry] : m_entries) {
-            loadedSettings.emplace(key, entry.value);
-        }
-
-        for (const auto& [key, currentValue] : loadedSettings) {
-            const auto serializedValue = serializedSettings->Find(StringView(key.data(), key.size()));
-            if (!serializedValue)
+        UnorderedMap<String, Value> converted;
+        FileValues kept;
+        for (const auto& [key, fileValue] : fileValues) {
+            const auto entry = m_entries.find(key);
+            if (entry == m_entries.end()) {
+                // The keys registered later (debug channels, windows made on demand) find their values here
+                if (CanBeKept(fileValue))
+                    kept.emplace(key, fileValue);
                 continue;
-
-            Value loadedValue;
-            if (std::holds_alternative<bool>(currentValue)) {
-                auto value = serializedValue->AsBoolean();
-                if (!value)
-                    return resource::UnexpectedSerializationError("Boolean setting has an invalid value", "Settings");
-                loadedValue = *value;
-            } else if (std::holds_alternative<String>(currentValue)) {
-                auto value = serializedValue->AsString();
-                if (!value)
-                    return resource::UnexpectedSerializationError("String setting has an invalid value", "Settings");
-                loadedValue = std::move(*value);
-            } else {
-                auto value = serializedValue->AsNumber();
-                if (!value || !std::isfinite(*value))
-                    return resource::UnexpectedSerializationError("Numeric setting has an invalid value", "Settings");
-
-                if (std::holds_alternative<uint32_t>(currentValue)) {
-                    if (*value < 0.0 || *value > std::numeric_limits<uint32_t>::max() || std::floor(*value) != *value)
-                        return resource::UnexpectedSerializationError("Unsigned setting is out of range", "Settings");
-                    loadedValue = static_cast<uint32_t>(*value);
-                } else {
-                    if (*value < -std::numeric_limits<float>::max() || *value > std::numeric_limits<float>::max())
-                        return resource::UnexpectedSerializationError("Floating-point setting is out of range", "Settings");
-                    loadedValue = static_cast<float>(*value);
-                }
             }
-
-            loadedSettings[key] = std::move(loadedValue);
+            auto value = ConvertFileValue(fileValue, entry->second.value);
+            if (!value)
+                return MakeUnexpected(ErrorCode::SerializationFailed, "Setting " + key + " has an invalid value", log::Category::Core, LogSource);
+            converted.emplace(key, std::move(*value));
         }
 
-        for (auto& [key, entry] : m_entries)
-            entry.value = std::move(loadedSettings.at(key));
-
-        // The keys registered later (debug channels, windows made on demand) find their values here
-        m_fileValues.clear();
-        for (const String& key : serializedSettings->Keys()) {
-            if (m_entries.contains(key))
-                continue;
-            // By the JSON kind: a failed As* conversion would log an error
-            const auto value = serializedSettings->Find(StringView(key.data(), key.size()));
-            switch (value->GetKind()) {
-            case resource::JsonValue::Kind::Boolean:
-                if (auto boolean = value->AsBoolean())
-                    m_fileValues.emplace(key, *boolean);
-                break;
-            case resource::JsonValue::Kind::String:
-                if (auto text = value->AsString())
-                    m_fileValues.emplace(key, std::move(*text));
-                break;
-            case resource::JsonValue::Kind::Number:
-                if (auto number = value->AsNumber(); number && std::isfinite(*number))
-                    m_fileValues.emplace(key, *number);
-                break;
-            default:
-                break;
-            }
-        }
+        for (auto& [key, value] : converted)
+            m_entries.at(key).value = std::move(value);
+        m_fileValues = std::move(kept);
         return {};
+    }
+
+    auto Settings::GetFileValues() const -> FileValues
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        // Keys not registered in this run stay in the file
+        FileValues fileValues = m_fileValues;
+        for (const auto& [key, entry] : m_entries)
+            fileValues.insert_or_assign(key, ToFileValue(entry.value));
+        return fileValues;
     }
 
     auto Settings::TakeFileValue(const String& key, const Value& defaultValue) -> std::optional<Value>
@@ -148,84 +132,7 @@ namespace elm {
             return std::nullopt;
         const FileValue fileValue = std::move(found->second);
         m_fileValues.erase(found);
-
-        if (std::holds_alternative<bool>(defaultValue)) {
-            if (const auto* boolean = std::get_if<bool>(&fileValue))
-                return Value(*boolean);
-            return std::nullopt;
-        }
-        if (std::holds_alternative<String>(defaultValue)) {
-            if (const auto* text = std::get_if<String>(&fileValue))
-                return Value(*text);
-            return std::nullopt;
-        }
-        const auto* number = std::get_if<double>(&fileValue);
-        if (!number)
-            return std::nullopt;
-        if (std::holds_alternative<float>(defaultValue))
-            return Value(static_cast<float>(*number));
-        const bool unsignedInteger = *number >= 0.0 && *number <= std::numeric_limits<uint32_t>::max() && std::floor(*number) == *number;
-        if (!unsignedInteger)
-            return std::nullopt;
-        return Value(static_cast<uint32_t>(*number));
-    }
-
-    auto Settings::Save(const Path& path) const -> EngineResult<void>
-    {
-        UnorderedMap<String, Entry> settings;
-        UnorderedMap<String, FileValue> fileValues;
-        {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            settings = m_entries;
-            fileValues = m_fileValues;
-        }
-
-        resource::JsonValue serializedSettings { resource::JsonValue::Type::Object };
-        for (const auto& [key, entry] : settings) {
-            resource::JsonValue serializedValue;
-            if (const auto* integerValue = std::get_if<uint32_t>(&entry.value))
-                serializedValue = resource::JsonValue(*integerValue);
-            else if (const auto* floatValue = std::get_if<float>(&entry.value))
-                serializedValue = resource::JsonValue(static_cast<double>(*floatValue));
-            else if (const auto* stringValue = std::get_if<String>(&entry.value))
-                serializedValue = resource::JsonValue(StringView(stringValue->data(), stringValue->size()));
-            else
-                serializedValue = resource::JsonValue(std::get<bool>(entry.value));
-
-            if (auto set = serializedSettings.Set(StringView(key.data(), key.size()), std::move(serializedValue)); !set)
-                return resource::UnexpectedSerializationError(set.error());
-        }
-        // Keys not registered in this run stay in the file
-        for (const auto& [key, fileValue] : fileValues) {
-            resource::JsonValue serializedValue;
-            if (const auto* boolean = std::get_if<bool>(&fileValue))
-                serializedValue = resource::JsonValue(*boolean);
-            else if (const auto* text = std::get_if<String>(&fileValue))
-                serializedValue = resource::JsonValue(StringView(text->data(), text->size()));
-            else
-                serializedValue = resource::JsonValue(std::get<double>(fileValue));
-            if (auto set = serializedSettings.Set(StringView(key.data(), key.size()), std::move(serializedValue)); !set)
-                return resource::UnexpectedSerializationError(set.error());
-        }
-
-        resource::JsonValue document { resource::JsonValue::Type::Object };
-        if (auto set = document.Set("version", resource::JsonValue(1)); !set)
-            return resource::UnexpectedSerializationError(set.error());
-        if (auto set = document.Set("settings", std::move(serializedSettings)); !set)
-            return resource::UnexpectedSerializationError(set.error());
-
-        auto json = document.ToString();
-        if (!json)
-            return resource::UnexpectedSerializationError(json.error());
-
-        File file;
-        if (auto opened = file.Open(path, FileMode::Write); !opened)
-            return resource::UnexpectedSerializationError(opened.error().message, "Settings");
-        if (auto written = file.Write(*json); !written)
-            return resource::UnexpectedSerializationError(written.error().message, "Settings");
-        if (auto closed = file.Close(); !closed)
-            return resource::UnexpectedSerializationError(closed.error().message, "Settings");
-        return {};
+        return ConvertFileValue(fileValue, defaultValue);
     }
 
     String Settings::MakeKey(Category category, StringView path)

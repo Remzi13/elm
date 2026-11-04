@@ -1,6 +1,7 @@
 #include "resource/ProjectBuilder.hpp"
 
 #include "resource/SerializationError.hpp"
+#include "resource/SettingsFile.hpp"
 
 #include "core/File.hpp"
 #include "core/Log.hpp"
@@ -118,7 +119,7 @@ namespace elm::resource {
             logFile += name;
             logFile += LogExtension;
             settings.Set(Settings::Category::Core, log::FileSetting, std::move(logFile));
-            return settings.Save(folder / ".settings");
+            return WriteSettingsFile(settings, folder / ".settings");
         }
 
     } // namespace

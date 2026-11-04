@@ -41,6 +41,7 @@
 #include "project/Project.hpp"
 #include "project/ProjectAssets.hpp"
 #include "render/api/FrameWriter.hpp"
+#include "resource/SettingsFile.hpp"
 #include "resource/AssetImport.hpp"
 #include "resource/ProjectBuilder.hpp"
 #include "resource/ResourceSystem.hpp"
@@ -2072,7 +2073,7 @@ namespace elm::script {
                 "project::build_makes_the_game_folder", game ? "" : game.error().message);
             Settings builtSettings;
             log::registerSettings(builtSettings);
-            const bool settingsLoaded = builtSettings.Load(pathOf("new/Fresh/Build/Fresh/.settings")).has_value();
+            const bool settingsLoaded = resource::ReadSettingsFile(builtSettings, pathOf("new/Fresh/Build/Fresh/.settings")).has_value();
             report.Check(settingsLoaded && builtSettings.Get<String>(Settings::Category::Core, log::FileSetting) == "Logs/Fresh.log",
                 "project::build_turns_on_the_log_file");
             report.Check(opened && resource::ProjectBuilder::Build(*opened, buildDesc).has_value(), "project::build_replaces_its_own_build");
@@ -2899,7 +2900,7 @@ namespace elm::script {
                 "Core/Late/Count": 3, "Core/Late/Name": "kept", "Core/Late/Wrong": "text" } })");
 
             Settings settings;
-            report.Check(settings.Load(pathOf("first.settings")).has_value(), "settings::load_keeps_unregistered_keys");
+            report.Check(resource::ReadSettingsFile(settings, pathOf("first.settings")).has_value(), "settings::load_keeps_unregistered_keys");
             settings.Register(Settings::Category::Render, "Late/Flag", "Flag", true);
             settings.Register(Settings::Category::Core, "Late/Count", "Count", uint32_t { 1 });
             settings.Register(Settings::Category::Core, "Late/Wrong", "Wrong", true);
@@ -2908,12 +2909,16 @@ namespace elm::script {
                 "settings::late_register_gets_the_file_value");
             report.Check(settings.Get<bool>(Settings::Category::Core, "Late/Wrong", false), "settings::late_register_of_other_type_keeps_default");
 
-            report.Check(settings.Save(pathOf("second.settings")).has_value(), "settings::save_with_unregistered_keys");
+            report.Check(resource::WriteSettingsFile(settings, pathOf("second.settings")).has_value(), "settings::save_with_unregistered_keys");
             Settings reloaded;
-            const bool loaded = reloaded.Load(pathOf("second.settings")).has_value();
+            const bool loaded = resource::ReadSettingsFile(reloaded, pathOf("second.settings")).has_value();
             reloaded.Register(Settings::Category::Core, "Late/Name", "Name", String {});
             report.Check(loaded && reloaded.Get<String>(Settings::Category::Core, "Late/Name") == "kept",
                 "settings::save_keeps_unregistered_keys");
+
+            WriteScript(root / "wrong.settings", R"({ "version": 1, "settings": { "Core/Late/Count": 7, "Render/Late/Flag": [] } })");
+            report.Check(!resource::ReadSettingsFile(settings, pathOf("wrong.settings")) && settings.Get<uint32_t>(Settings::Category::Core, "Late/Count") == 3,
+                "settings::value_that_does_not_fit_changes_nothing");
             fs::remove_all(root, error);
         }
 

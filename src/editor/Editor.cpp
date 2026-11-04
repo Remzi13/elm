@@ -4,7 +4,6 @@
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
 #include "core/Threading.hpp"
-#include "core/ProgramSettings.hpp"
 #include "core/Unexpected.hpp"
 
 #include "script/ProjectPlayStart.hpp"
@@ -27,6 +26,8 @@
 
 #include "platform/Process.hpp"
 
+#include "resource/ProgramSettings.hpp"
+#include "resource/SettingsFile.hpp"
 #include "resource/ProjectBuilder.hpp"
 #include "resource/ProjectTemplate.hpp"
 #include "resource/Serializer.hpp"
@@ -77,7 +78,7 @@ namespace elm {
     {
         RegisterSettings(m_settings);
         script::ScriptSystem::RegisterSettings(m_settings);
-        if (auto loaded = LoadProgramSettings(m_settings); !loaded)
+        if (auto loaded = resource::LoadProgramSettings(m_settings); !loaded)
             return loaded;
         core::registerThread(core::ThreadRole::Update);
         ELM_PROFILE_THREAD("Main Thread");
@@ -184,7 +185,7 @@ namespace elm {
         if (!m_initialized)
             return;
         // The settings are the editor's: the player only reads them
-        if (auto savedSettings = m_settings.Save(Settings::DefaultFilePath()); !savedSettings)
+        if (auto savedSettings = resource::WriteSettingsFile(m_settings, Settings::DefaultFilePath()); !savedSettings)
             ERROR_MESSAGE(log::Category::Core, LogSource, "%s", savedSettings.error().message.c_str());
         // The UI's surfaces and textures go before rendering, with its thread stopped
         m_graphics.StopRendering();
@@ -437,7 +438,7 @@ namespace elm {
         }
         m_settings.Set(Settings::Category::Core, RecentProjectsSetting, std::move(lines));
         m_settings.Set(Settings::Category::Core, LastProjectSetting, text);
-        (void)m_settings.Save(Settings::DefaultFilePath());
+        (void)resource::WriteSettingsFile(m_settings, Settings::DefaultFilePath());
     }
 
     void Editor::ApplyProjectRequest()

@@ -3,9 +3,10 @@
 #include "core/JobSystem.hpp"
 #include "core/Log.hpp"
 #include "core/Profiling.hpp"
-#include "core/ProgramSettings.hpp"
 #include "core/Threading.hpp"
 #include "core/Unexpected.hpp"
+
+#include "resource/ProgramSettings.hpp"
 
 #include "script/ProjectPlayStart.hpp"
 
@@ -54,7 +55,7 @@ namespace elm {
         // A game does not watch its script files (the editor does)
         m_settings.Set(Settings::Category::Script, script::ScriptSystem::HotReloadSetting, false);
         script::ScriptSystem::RegisterSettings(m_settings);
-        if (auto loaded = LoadProgramSettings(m_settings); !loaded)
+        if (auto loaded = resource::LoadProgramSettings(m_settings); !loaded)
             return loaded;
         core::registerThread(core::ThreadRole::Update);
         ELM_PROFILE_THREAD("Main Thread");

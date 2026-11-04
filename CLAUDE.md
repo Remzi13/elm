@@ -61,7 +61,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 |---|---|---|
 | `EngineResult<T>`, `EngineError`, `ErrorCode` | результат операции, `std::expected<T, EngineError>` | `core/Error.hpp` |
 | `core::Handle<Tag>` | типизированный хэндл: 24 бита индекса + 8 бит поколения, 0 значит невалидный | `core/Handler.hpp` |
-| `Settings` | настройки по ключу `Category/path`, хранятся в `.settings`; ключ, зарегистрированный после `Load`, получает значение из файла | `core/Settings.hpp` |
+| `Settings` | настройки по ключу `Category/path` в памяти; ключ, зарегистрированный после чтения файла, получает значение из него. Файл `.settings` читает и пишет `resource/SettingsFile` | `core/Settings.hpp` |
 | `core::JobSystem`, `TaskGroup`, `parallelFor` | пул воркеров и группы задач | `core/JobSystem.hpp` |
 | `core::ThreadRole` (`Update`, `Render`) | роль потока, проверяется `ELM_ASSERT_THREAD` | `core/Threading.hpp` |
 | `FileSystem`, `Path` | пути относительно корня движка (`Core/FileSystem/RootPath`): шейдеры, `resources/` редактора. Пути игры — у `Project` | `core/FileSystem.hpp` |
@@ -140,7 +140,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `platform::Window` | главное окно GLFW; часть `PlatformSystem` | `platform` |
 | `platform::StartProcess`, `CurrentExecutable` | запуск программы без оболочки (Run Standalone) | `platform` |
 | `Game`, `GameDesc` | программа `elm`, корень композиции (`docs/core/Системы.md`): системы полями, зависимости в конструкторах, кадр `RunFrame`; Play Project одного проекта, вид на всё окно, `DebugDrawing` с `ELM_DEBUG_DRAW`. Объекта «движок» нет | `engine` |
-| `FrameClock`, `LoadProgramSettings` | общее двух программ: время кадра, фиксированные шаги физики и FPS; настройки файлов и лога и чтение `.settings` | `core` |
+| `FrameClock` | время кадра двух программ, фиксированные шаги физики и FPS | `core` |
+| `resource::LoadProgramSettings` | общее двух программ: настройки файлов и лога и чтение `.settings` | `resource` |
 | `script::MakeProjectPlayStart` | `PlayStart` открытого проекта для `PlayMode::SetStartSource` | `script` |
 | `Editor` | программа-редактор, корень композиции: те же системы полями и кадр `RunFrame`; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
 | `SceneEdits` | история правок сцены в редакторе (`editor/SceneEdits.*`): шаг узла (выбранный узел до и после кадра UI, жест — один шаг) и шаг структуры (вся сцена до правки, по `Scene::StructureRevision`); Undo/Redo, замирает в Play, очищается при смене сцены и проекта; знает, изменена ли сцена с последнего сохранения (`MarkSaved`, `IsModified`) | `editor` |
@@ -152,6 +153,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ui::InputString`, `ui::ToggleButton`, `ui::BeginPropertyGrid`, `ui::DragAxes` | общие виджеты окон (`editor/ui/EditorWidgets.*`) | `editor/ui` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model` (двоичный), `.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
+| `resource::ReadSettingsFile`, `WriteSettingsFile` | файл `.settings` (JSON): значения `Settings` на диске и обратно | `resource` |
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели `.model` в `assets/models/`, тот же файл по содержимому не добавляет ничего нового; модель вместе с её файлом | `resource` |
 | `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `ResourceSystem`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |

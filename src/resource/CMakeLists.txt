@@ -9,6 +9,10 @@ engine_add_library(resource
     ProjectTemplate.cpp
     ProjectBuilder.hpp
     ProjectBuilder.cpp
+    ProgramSettings.hpp
+    ProgramSettings.cpp
+    SettingsFile.hpp
+    SettingsFile.cpp
     SerializationError.hpp
     Serializer.hpp
     Serializer.cpp

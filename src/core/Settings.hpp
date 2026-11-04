@@ -9,6 +9,8 @@
 #include <variant>
 
 namespace elm {
+    /// The settings of a program by the key Category/path, with their values in memory: reading and writing the
+    /// .settings file is the job of resource/SettingsFile. Owner: the program. Any thread, under its own lock.
     class Settings {
     public:
         enum class Category {
@@ -19,6 +21,10 @@ namespace elm {
         };
 
         using Value = std::variant<uint32_t, float, String, bool>;
+
+        /// A value of a settings file as its JSON type; monostate for any other kind.
+        using FileValue = std::variant<std::monostate, bool, String, double>;
+        using FileValues = UnorderedMap<String, FileValue>;
 
         struct Entry {
             Category category;
@@ -83,13 +89,13 @@ namespace elm {
 
         [[nodiscard]] auto GetEntries() const -> Vector<Entry>;
         [[nodiscard]] static auto DefaultFilePath() -> Path;
-        [[nodiscard]] auto Load(const Path& path) -> EngineResult<void>;
-        [[nodiscard]] auto Save(const Path& path) const -> EngineResult<void>;
+        /// What a file holds, by key. A registered key takes its value; one that does not fit is an error and
+        /// changes nothing. The others replace the kept values: Register takes them, GetFileValues returns them.
+        [[nodiscard]] auto ApplyFileValues(const FileValues& fileValues) -> EngineResult<void>;
+        /// What a file should hold: the registered values and the kept ones.
+        [[nodiscard]] auto GetFileValues() const -> FileValues;
 
     private:
-        /// A value of the settings file whose key nobody registered yet, as its JSON type.
-        using FileValue = std::variant<bool, String, double>;
-
         static String MakeKey(Category category, StringView path);
         /// The file's value of key as the type of defaultValue, taken out of m_fileValues; nothing when the
         /// file has none or one of another type. Called with m_mutex held.
@@ -98,7 +104,7 @@ namespace elm {
     private:
         mutable std::mutex m_mutex;
         UnorderedMap<String, Entry> m_entries;
-        /// Read by Load before their keys were registered: Register takes them, Save writes them back.
+        /// Applied before their keys were registered: Register takes them, GetFileValues returns them.
         UnorderedMap<String, FileValue> m_fileValues;
     };
 } // namespace elm

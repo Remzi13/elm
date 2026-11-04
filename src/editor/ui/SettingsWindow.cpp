@@ -2,6 +2,8 @@
 
 #include "graphics/culling/OcclusionCulling.hpp"
 
+#include "resource/SettingsFile.hpp"
+
 #include "imgui.h"
 
 #include <algorithm>
@@ -141,13 +143,13 @@ namespace elm {
 
         ImGui::Separator();
         if (ImGui::Button("Save .settings")) {
-            auto result = m_settings.Save(Settings::DefaultFilePath());
+            auto result = resource::WriteSettingsFile(m_settings, Settings::DefaultFilePath());
             m_statusIsError = !result;
             m_status = result ? String("Settings saved.") : result.error().message;
         }
         ImGui::SameLine();
         if (ImGui::Button("Reload .settings")) {
-            auto result = m_settings.Load(Settings::DefaultFilePath());
+            auto result = resource::ReadSettingsFile(m_settings, Settings::DefaultFilePath());
             m_statusIsError = !result;
             m_status = result ? String("Settings loaded.") : result.error().message;
         }
