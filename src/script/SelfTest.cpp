@@ -50,6 +50,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <thread>
 #include <cmath>
 #include <iostream>
@@ -569,6 +570,21 @@ namespace elm::script {
             const ModelComponent* restored = withModel.Components<ModelComponent>().Find(node);
             const Path* file = restored ? models.FileOf(restored->model) : nullptr;
             report.Check(restored && restored->model != model && file && *file == cubeFile, "snapshot::restored_model_keeps_its_file");
+
+            // The file was read again meanwhile: the node comes back to that model, the file stays one model
+            auto secondSnapshot = SceneSnapshot::Take(withModel, &models);
+            (void)models.Remove(restored->model);
+            const auto readAgain = models.Insert(cube, cubeFile);
+            std::move(secondSnapshot).Restore(withModel, &models);
+            const ModelComponent* restoredAgain = withModel.Components<ModelComponent>().Find(node);
+            report.Check(restoredAgain && restoredAgain->model == readAgain && models.Size() == 1,
+                "snapshot::restored_model_goes_to_the_model_of_its_file");
+
+            // The same file read in Play is the model of the edited scene: Stop does not take it away
+            auto playSnapshot = SceneSnapshot::Take(withModel, &models);
+            const auto readInPlay = models.Insert(cube, cubeFile);
+            std::move(playSnapshot).Restore(withModel, &models);
+            report.Check(readInPlay == readAgain && models.Get(readAgain) && models.Size() == 1, "snapshot::model_of_a_file_read_in_play_stays");
         }
 
         // ── Component stores ────────────────────────────────────────────────────
@@ -1446,6 +1462,17 @@ namespace elm::script {
             report.Check(Evaluate(system, "local m = elm.models.load('models/Cube.model') return m.file, elm.models.cube().file")
                     == "models/Cube.model	nil",
                 "scene_file::lua_model_keeps_its_file");
+            // The same file is one model: the nodes that use it share its GPU meshes
+            const size_t loadedModels = resources.GetModels().Size();
+            const String sameModel = Evaluate(system, "return elm.models.load('models/Cube.model') == elm.models.load('models/Cube.model')");
+            report.Check(sameModel == "true" && resources.GetModels().Size() == loadedModels, "models::load_of_a_loaded_file_is_the_same_model",
+                sameModel + ", catalog " + std::to_string(loadedModels).c_str() + " -> " + std::to_string(resources.GetModels().Size()).c_str());
+            // A model edited in memory no longer has the file: what the file holds is another model
+            ModelCatalog& liveModels = resources.GetModels();
+            liveModels.SetFile(liveModels.FindByFile(project.Resolve(*project::AssetPath::FromString("models/Cube.model"))), Path { });
+            report.Check(Evaluate(system, "return elm.models.load('models/Cube.model').file") == "models/Cube.model"
+                    && liveModels.Size() == loadedModels + 1,
+                "models::load_reads_the_file_of_a_model_edited_in_memory");
             system.Update(Step);
             physics.Step(live, Step);
             const String restarted = Evaluate(system, "local a = elm.scene.find('a') return started, seen, a.rigidbody.mass, a.collider.shape");
@@ -1477,10 +1504,31 @@ namespace elm::script {
                     && fs::exists(root / "assets" / "source" / "village" / "village.bin"),
                 "import::gltf_is_copied_with_its_buffers", copied ? "" : copied.error().message);
             const auto again = AssetImport::CopyIntoProject(village, assets);
-            report.Check(again && *again == pathOf("assets/source/village_1/village.gltf"), "import::second_copy_does_not_overwrite");
+            report.Check(again && copied && *again == *copied && !fs::exists(root / "assets" / "source" / "village_1"),
+                "import::same_file_is_not_copied_again");
             const auto inside = copied ? AssetImport::CopyIntoProject(*copied, assets) : copied;
-            report.Check(inside && copied && *inside == *copied && !fs::exists(root / "assets" / "source" / "village_2"),
+            report.Check(inside && copied && *inside == *copied && !fs::exists(root / "assets" / "source" / "village_1"),
                 "import::file_in_the_project_stays");
+
+            // The same name, other contents: a node of the changed glTF has another name
+            fs::create_directories(root / "changed", error);
+            const fs::path villageFolder(village.Parent().generic_string());
+            fs::copy_file(villageFolder / "village.bin", root / "changed" / "village.bin", error);
+            std::ifstream villageStream(villageFolder / "village.gltf", std::ios::binary);
+            String changedText { std::istreambuf_iterator<char>(villageStream), std::istreambuf_iterator<char>() };
+            constexpr StringView RenamedNode = "Chimney 1";
+            changedText.replace(changedText.find(RenamedNode), RenamedNode.size(), "Chimney 9");
+            WriteScript(root / "changed" / "village.gltf", changedText.c_str());
+            const Path changedVillage = pathOf("changed/village.gltf");
+            const auto changedCopy = AssetImport::CopyIntoProject(changedVillage, assets);
+            report.Check(changedCopy && *changedCopy == pathOf("assets/source/village_1/village.gltf")
+                    && fs::exists(root / "assets" / "source" / "village_1" / "village.bin"),
+                "import::changed_file_gets_a_folder_of_its_own");
+            const auto originalAgain = AssetImport::CopyIntoProject(village, assets);
+            report.Check(originalAgain && copied && *originalAgain == *copied, "import::original_is_found_past_the_changed_one");
+            const auto changedAgain = AssetImport::CopyIntoProject(changedVillage, assets);
+            report.Check(changedAgain && changedCopy && *changedAgain == *changedCopy && !fs::exists(root / "assets" / "source" / "village_2"),
+                "import::changed_file_is_found_in_its_folder");
             WriteScript(root / "outside" / "escape.gltf", R"({ "buffers": [ { "uri": "../secret.bin" } ] })");
             report.Check(!AssetImport::CopyIntoProject(pathOf("outside/escape.gltf"), assets), "import::reference_outside_its_folder_is_an_error");
 
@@ -1499,6 +1547,46 @@ namespace elm::script {
                 "import::gltf_model_is_written");
             const auto same = model ? AssetImport::ImportModel(model->file, assets) : model;
             report.Check(same && model && same->file == model->file, "import::project_model_stays_its_file");
+
+            // The same glTF again: nothing new appears in the project
+            const auto entriesOf = [&](const char* folder) {
+                return std::distance(fs::directory_iterator(root / "assets" / folder), fs::directory_iterator { });
+            };
+            const auto sourcesBefore = entriesOf("source");
+            const auto modelFilesBefore = entriesOf("models");
+            const auto modelAgain = AssetImport::ImportModel(village, assets);
+            report.Check(modelAgain && model && modelAgain->file == model->file, "import::same_gltf_keeps_its_model_file",
+                modelAgain ? modelAgain->file.string().c_str() : "");
+            report.Check(entriesOf("source") == sourcesBefore, "import::same_gltf_is_not_copied_again");
+            report.Check(entriesOf("models") == modelFilesBefore, "import::same_gltf_writes_no_new_model");
+            const auto sceneAgain = AssetImport::ImportScene(village, assets);
+            report.Check(sceneAgain && scene && sceneAgain->modelFiles == scene->modelFiles && entriesOf("source") == sourcesBefore
+                    && entriesOf("models") == modelFilesBefore,
+                "import::same_gltf_scene_writes_no_new_models");
+
+            const auto changedModel = AssetImport::ImportModel(changedVillage, assets);
+            report.Check(changedModel && model && changedModel->file != model->file && FileSystem::Exists(model->file),
+                "import::changed_gltf_gets_a_model_of_its_own");
+
+            // An edited .model is no longer what the import makes: it stays, and the import gets a file of its own
+            Model edited = model ? model->model : Model { };
+            edited.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            report.Check(model && resource::Serializer::SaveModel(edited, model->file).has_value(), "import::edited_model_written");
+            const auto afterEdit = AssetImport::ImportModel(village, assets);
+            const auto editedOnDisk = model ? resource::Serializer::LoadModel(model->file) : EngineResult<Model> { };
+            report.Check(afterEdit && model && afterEdit->file != model->file && editedOnDisk
+                    && editedOnDisk->submeshes.size() == edited.submeshes.size(),
+                "import::edited_model_file_stays");
+
+            // A .model from outside has no original in source/: only its model file is looked for
+            Model crate("Crate");
+            crate.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            const Path outsideCrate = pathOf("outside/OtherName.model");
+            report.Check(resource::Serializer::SaveModel(crate, outsideCrate).has_value(), "import::outside_model_written");
+            const auto firstCrate = AssetImport::ImportModel(outsideCrate, assets);
+            const auto secondCrate = AssetImport::ImportModel(outsideCrate, assets);
+            report.Check(firstCrate && secondCrate && firstCrate->file == pathOf("assets/models/Crate.model") && secondCrate->file == firstCrate->file,
+                "import::outside_model_is_written_once");
             fs::remove_all(root, error);
         }
 
@@ -2370,6 +2458,44 @@ namespace elm::script {
             fs::remove_all(root, error);
         }
 
+        /// A file belongs to one model, so the nodes that use the file share its GPU meshes.
+        void RunModelCatalogTests(Report& report)
+        {
+            ModelCatalog catalog;
+            const Model cube("Cube");
+            const Path file("assets/models/Cube.model");
+            const Path otherFile("assets/models/Other.model");
+            const ModelHandler model = catalog.Insert(cube, file);
+            report.Check(catalog.FindByFile(file) == model && catalog.FindByFile("assets/scenes/../models/./Cube.model") == model,
+                "catalog::finds_a_model_by_its_file");
+            report.Check(!catalog.FindByFile(otherFile) && !catalog.FindByFile(Path { }), "catalog::no_model_of_another_file");
+
+            const ModelHandler again = catalog.Insert(Model("Other"), "assets/scenes/../models/Cube.model");
+            report.Check(again == model && catalog.Size() == 1 && catalog.Get(model)->name == "Cube", "catalog::a_known_file_keeps_its_model");
+            const ModelHandler firstInMemory = catalog.Insert(cube);
+            const ModelHandler secondInMemory = catalog.Insert(cube);
+            report.Check(firstInMemory != secondInMemory && catalog.Size() == 3, "catalog::models_without_a_file_stay_apart");
+
+            Vector<Model> sameTwice;
+            sameTwice.emplace_back("A");
+            sameTwice.emplace_back("A");
+            const Path sameFiles[] { Path("assets/models/A.model"), Path("assets/models/A.model") };
+            const auto handlers = catalog.InsertAll(std::move(sameTwice), sameFiles);
+            report.Check(handlers.size() == 2 && handlers[0] == handlers[1], "catalog::insert_all_gives_a_file_one_handle");
+
+            const ModelHandler other = catalog.Insert(cube, otherFile);
+            report.Check(catalog.SetFile(other, file) && catalog.FindByFile(file) == other && !catalog.FileOf(model) && !catalog.FindByFile(otherFile),
+                "catalog::a_file_moves_to_the_model_that_gets_it");
+            report.Check(catalog.SetFile(other, Path { }) && !catalog.FindByFile(file), "catalog::a_model_edited_in_memory_has_no_file");
+
+            const ModelHandler read = catalog.Insert(cube, file);
+            report.Check(catalog.Remove(read) && !catalog.FindByFile(file), "catalog::a_removed_model_frees_its_file");
+            const ModelHandler readAgain = catalog.Insert(cube, file);
+            report.Check(readAgain != read && catalog.FindByFile(file) == readAgain, "catalog::a_freed_file_gets_a_new_model");
+            catalog.Clear();
+            report.Check(!catalog.FindByFile(file), "catalog::clear_frees_the_files");
+        }
+
         /// The GPU meshes follow the catalog: new models get them, a replaced model keeps the meshes of the
         /// geometry it still shares, a removed model loses them.
         void RunModelMeshesTests(Report& report)
@@ -2566,6 +2692,7 @@ namespace elm::script {
         RunLogFileTests(report);
         RunSceneSystemTests(report);
         RunResourceSystemTests(report);
+        RunModelCatalogTests(report);
         RunModelMeshesTests(report);
         RunLateSettingsTests(report);
         RunDebugWithoutDrawingTests(report);

@@ -16,6 +16,7 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
+#include <concepts>
 #include <fstream>
 #include <initializer_list>
 #include <iterator>
@@ -989,12 +990,13 @@ namespace elm::resource {
             return used;
         }
 
-        /// models/<stem>.model, with a number added while such a file exists.
-        auto UnusedModelFile(const String& stem, const Path& assetsFolder) -> EngineResult<project::AssetPath>
+        /// models/<stem>.model, with a number added until `usable` takes the file.
+        template <std::predicate<const Path&> Usable>
+        auto FindModelFile(const String& stem, const Path& assetsFolder, Usable usable) -> EngineResult<project::AssetPath>
         {
             const String folder = String(project::Project::ModelsFolder) + "/";
             String text = folder + stem + ".model";
-            for (size_t suffix = 1; FileSystem::Exists(assetsFolder / text); ++suffix)
+            for (size_t suffix = 1; !usable(assetsFolder / text); ++suffix)
                 text = folder + stem + "_" + std::to_string(suffix).c_str() + ".model";
             auto file = project::AssetPath::FromString(text);
             if (!file)
@@ -1088,11 +1090,37 @@ namespace elm::resource {
 
     auto Serializer::SaveNewModel(const Model& model, const Path& assetsFolder) -> EngineResult<Path>
     {
-        const auto asset = UnusedModelFile(MakeModelFileStem(model.name, 0), assetsFolder);
+        const auto asset = FindModelFile(MakeModelFileStem(model.name, 0), assetsFolder,
+            [](const Path& file) { return !FileSystem::Exists(file); });
         if (!asset)
             return UnexpectedSerializationError(asset.error());
         Path file = asset->In(assetsFolder);
         if (auto written = SaveModel(model, file); !written)
+            return UnexpectedSerializationError(written.error());
+        return file;
+    }
+
+    auto Serializer::SaveModelOnce(const Model& model, const Path& assetsFolder) -> EngineResult<Path>
+    {
+        auto serializedModel = SerializeModel(model);
+        if (!serializedModel)
+            return UnexpectedSerializationError(serializedModel.error());
+        const auto json = serializedModel->ToString();
+        if (!json)
+            return UnexpectedSerializationError(json.error());
+
+        const auto asset = FindModelFile(MakeModelFileStem(model.name, 0), assetsFolder, [&](const Path& file) {
+            if (!FileSystem::Exists(file))
+                return true;
+            const auto contents = ReadFile(file);
+            return contents && *contents == *json;
+        });
+        if (!asset)
+            return UnexpectedSerializationError(asset.error());
+        Path file = asset->In(assetsFolder);
+        if (FileSystem::Exists(file))
+            return file;
+        if (auto written = WriteFile(file, *json); !written)
             return UnexpectedSerializationError(written.error());
         return file;
     }

@@ -20,6 +20,9 @@ namespace elm::resource {
         /// Writes a model into the models folder of an assets folder under a name no file has yet
         /// (models/<name>.model, models/<name>_1.model, ...). Returns the file.
         [[nodiscard]] static auto SaveNewModel(const Model& model, const Path& assetsFolder) -> EngineResult<Path>;
+        /// As SaveNewModel, but a file of those names that holds exactly this model is the one returned and
+        /// nothing is written (AssetImport: the same import again writes no new file).
+        [[nodiscard]] static auto SaveModelOnce(const Model& model, const Path& assetsFolder) -> EngineResult<Path>;
         /// Writes every model the scene uses that has no file in the assets folder into its models folder, under
         /// a name no file has yet, and gives the model that file (ModelCatalog::SetFile). Returns how many were written.
         [[nodiscard]] static auto SaveNewModels(const Scene& scene, ModelCatalog& models, const Path& assetsFolder)

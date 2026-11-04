@@ -59,7 +59,8 @@ namespace elm::script::bindings {
         }
 
         /// A .model or .gltf file of the project by its asset path, "models/crate.model". A .model keeps
-        /// its file (ModelCatalog::FileOf); a glTF model is new and gets a .model file when the scene is saved.
+        /// its file (ModelCatalog::FileOf): loaded again it is the same model, the file is not read. A glTF model
+        /// is new with every load and gets a .model file when the scene is saved.
         EngineResult<ModelRef> Load(lua_State* L, StringView file)
         {
             ModelsOf(L);
@@ -67,6 +68,8 @@ namespace elm::script::bindings {
             if (!asset)
                 luaL_error(L, "'%s' is not a path in the assets folder (like \"models/crate.model\")", String(file).c_str());
             const Path path = RequireSystem(L, ContextOf<ModelsContext>(L).project, "the project").Resolve(*asset);
+            if (const ModelHandler loaded = ModelsOf(L).FindByFile(path))
+                return ModelRef { loaded };
             const bool gltf = path.Extension().string() == ".gltf";
             auto model = gltf ? resource::GltfExporter::LoadModel(path) : resource::Serializer::LoadModel(path);
             if (!model)

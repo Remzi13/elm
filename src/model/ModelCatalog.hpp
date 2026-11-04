@@ -9,10 +9,11 @@
 
 namespace elm {
 
-    /// The models of a scene on the CPU and the files they are kept in, by handle. A model without a file
-    /// exists only in memory (a primitive, an import). Knows nothing of the GPU: graphics::ModelMeshes makes
-    /// the meshes of its models and follows its revisions. A stale handle finds nothing (nullptr, false).
-    /// Owner: the scene's owner (Engine), thread: update.
+    /// The models of a scene on the CPU and the files they are kept in, by handle. A file belongs to one model,
+    /// so the nodes that use a file share its GPU meshes; files are told apart by their normal form
+    /// (Path::LexicallyNormal). A model without a file exists only in memory (a primitive, an import). Knows
+    /// nothing of the GPU: graphics::ModelMeshes makes the meshes of its models and follows its revisions. A
+    /// stale handle finds nothing (nullptr, false). Owner: the scene's owner (Engine), thread: update.
     class ModelCatalog {
     public:
         ModelCatalog() = default;
@@ -22,18 +23,22 @@ namespace elm {
         ModelCatalog(ModelCatalog&&) noexcept = default;
         ModelCatalog& operator=(ModelCatalog&&) noexcept = default;
 
-        /// file: the .model file the model was read from, empty for a model that exists only in memory.
+        /// file: the .model file the model was read from, empty for a model that exists only in memory. A file
+        /// the catalog has already stays with its model: `model` is dropped and that model's handle comes back.
         [[nodiscard]] ModelHandler Insert(Model model, Path file = { });
         /// Inserts every model with the file of the same index (files may be shorter); the handles come in
-        /// the same order (a SceneAsset's models and modelFiles for Scene::Append).
+        /// the same order, the same file gives the same handle (a SceneAsset's models and modelFiles for Scene::Append).
         [[nodiscard]] Vector<ModelHandler> InsertAll(Vector<Model> models, std::span<const Path> files = { });
 
         /// Replaces the model behind a live handle, its file stays; its revision goes up.
         bool Replace(ModelHandler handler, Model model);
         /// Sets the file of a live model; an empty path: the model no longer matches a file (edited in memory).
+        /// Another model that had this file no longer has one.
         bool SetFile(ModelHandler handler, Path file);
         /// The file of a model, nullptr for a stale handle or a model without a file.
         [[nodiscard]] const Path* FileOf(ModelHandler handler) const noexcept;
+        /// The model of a file, an invalid handle when no model has it.
+        [[nodiscard]] ModelHandler FindByFile(const Path& file) const;
         [[nodiscard]] const Model* Get(ModelHandler handler) const noexcept;
         /// Changes with every Insert and Replace of the model behind the handle: who copies a model (its
         /// GPU meshes) compares it to know when the copy is out of date. 0 for a stale handle.
@@ -63,6 +68,7 @@ namespace elm {
 
         [[nodiscard]] Slot* GetSlot(ModelHandler handler) noexcept;
         [[nodiscard]] const Slot* GetSlot(ModelHandler handler) const noexcept;
+        [[nodiscard]] ModelHandler FindByNormalFile(const Path& normalFile) const noexcept;
         [[nodiscard]] uint32_t NextRevision() noexcept { return ++m_lastRevision; }
 
         Vector<Slot> m_slots;

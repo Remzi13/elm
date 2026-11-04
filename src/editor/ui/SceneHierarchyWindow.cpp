@@ -7,7 +7,6 @@
 
 #include "model/ModelCatalog.hpp"
 
-#include "resource/AssetImport.hpp"
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -456,16 +455,15 @@ void SceneHierarchyWindow::DrawModelDialog()
     if (!file)
         return;
     // A .model of the project stays its file; anything else is imported into the project
-    auto imported = resource::AssetImport::ImportModel(*file, m_assets);
-    if (!imported) {
-        m_deps.document.Report(StatusKind::Failure, "Failed to load model: " + imported.error().message);
+    const auto model = ModelFromFile(m_deps.models, *file, m_assets);
+    if (!model) {
+        m_deps.document.Report(StatusKind::Failure, "Failed to load model: " + model.error().message);
         return;
     }
-    const String name = imported->model.name;
-    const ModelHandler model = m_deps.models.Insert(std::move(imported->model), std::move(imported->file));
+    const String name = m_deps.models.Get(*model)->name;
     if (m_modelDialogParent)
         m_openRows.insert(m_modelDialogParent.Raw());
-    Select(AddModelNode(m_deps.scene, model, name, m_modelDialogParent));
+    Select(AddModelNode(m_deps.scene, *model, name, m_modelDialogParent));
     m_deps.document.Report(StatusKind::Info, "Added node \"" + name + "\".");
 }
 
@@ -476,14 +474,13 @@ void SceneHierarchyWindow::AcceptDroppedModel()
     if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(ModelFilePayload)) {
         const Path file(StringView(static_cast<const char*>(payload->Data), static_cast<size_t>(payload->DataSize)));
         // A model of the project stays its file, anything else is imported
-        auto imported = resource::AssetImport::ImportModel(file, m_assets);
-        if (imported) {
-            const String name = imported->model.name;
-            const ModelHandler model = m_deps.models.Insert(std::move(imported->model), std::move(imported->file));
-            Select(AddModelNode(m_deps.scene, model, name, NodeId { }));
+        const auto model = ModelFromFile(m_deps.models, file, m_assets);
+        if (model) {
+            const String name = m_deps.models.Get(*model)->name;
+            Select(AddModelNode(m_deps.scene, *model, name, NodeId { }));
             m_deps.document.Report(StatusKind::Info, "Added node \"" + name + "\".");
         } else {
-            m_deps.document.Report(StatusKind::Failure, "Failed to add the model: " + imported.error().message);
+            m_deps.document.Report(StatusKind::Failure, "Failed to add the model: " + model.error().message);
         }
     }
     ImGui::EndDragDropTarget();

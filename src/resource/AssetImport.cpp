@@ -8,7 +8,9 @@
 #include "project/AssetPath.hpp"
 #include "project/Project.hpp"
 
+#include <algorithm>
 #include <iterator>
+#include <span>
 #include <string>
 #include <utility>
 
@@ -51,12 +53,31 @@ namespace elm::resource {
             return uris;
         }
 
-        /// source/<stem>, with a number added while such a folder exists.
-        Path UnusedSourceFolder(const Path& assetsFolder, const String& stem)
+        bool HaveSameBytes(const Path& first, const Path& second)
         {
+            auto firstStream = FileSystem::OpenForReading(first, std::ios::binary);
+            auto secondStream = FileSystem::OpenForReading(second, std::ios::binary);
+            return firstStream && secondStream
+                && std::equal(std::istreambuf_iterator<char>(firstStream), std::istreambuf_iterator<char>(),
+                    std::istreambuf_iterator<char>(secondStream), std::istreambuf_iterator<char>());
+        }
+
+        /// The folder has a copy of the original: the file and every file it references, byte for byte.
+        bool HoldsCopyOf(const Path& folder, const Path& original, std::span<const String> references)
+        {
+            return HaveSameBytes(original, folder / original.Filename())
+                && std::all_of(references.begin(), references.end(),
+                    [&](const String& uri) { return HaveSameBytes(original.Parent() / uri, folder / uri); });
+        }
+
+        /// source/<stem>, with a number added while such a folder exists and holds another original: an
+        /// unused folder or the one with a copy of this original.
+        Path SourceFolderOf(const Path& original, std::span<const String> references, const Path& assetsFolder)
+        {
+            const String stem(original.Stem().string().c_str());
             const Path sources = assetsFolder / project::Project::SourceFolder;
             Path folder = sources / stem;
-            for (size_t suffix = 1; FileSystem::Exists(folder); ++suffix)
+            for (size_t suffix = 1; FileSystem::Exists(folder) && !HoldsCopyOf(folder, original, references); ++suffix)
                 folder = sources / (stem + "_" + std::to_string(suffix).c_str());
             return folder;
         }
@@ -98,17 +119,22 @@ namespace elm::resource {
             references = std::move(*found);
         }
 
-        const Path folder = UnusedSourceFolder(assetsFolder, String(file.Stem().string().c_str()));
         for (const String& uri : references) {
             // A referenced file keeps its place next to the copy, so it must be below the .gltf's folder:
             // a relative path without ".." is exactly what an asset path is
             if (!project::AssetPath::FromString(uri))
                 return UnexpectedSerializationError(String(file.string().c_str()) + " references a file outside of its folder: " + uri,
                     LogSource);
+        }
+
+        const Path folder = SourceFolderOf(file, references, assetsFolder);
+        Path copy = folder / file.Filename();
+        if (FileSystem::Exists(copy))
+            return copy;
+        for (const String& uri : references) {
             if (auto copied = CopyOne(file.Parent() / uri, folder / uri); !copied)
                 return UnexpectedSerializationError(copied.error());
         }
-        Path copy = folder / file.Filename();
         if (auto copied = CopyOne(file, copy); !copied)
             return UnexpectedSerializationError(copied.error());
         return copy;
@@ -125,7 +151,7 @@ namespace elm::resource {
             if (auto source = CopyIntoProject(file, assetsFolder); !source)
                 return UnexpectedSerializationError(source.error());
         }
-        auto saved = Serializer::SaveNewModel(*model, assetsFolder);
+        auto saved = Serializer::SaveModelOnce(*model, assetsFolder);
         if (!saved)
             return UnexpectedSerializationError(saved.error());
         return ProjectModel { std::move(*model), std::move(*saved) };
@@ -140,7 +166,7 @@ namespace elm::resource {
             return UnexpectedSerializationError(source.error());
         asset->modelFiles.clear();
         for (const auto& model : asset->models) {
-            auto saved = Serializer::SaveNewModel(model, assetsFolder);
+            auto saved = Serializer::SaveModelOnce(model, assetsFolder);
             if (!saved)
                 return UnexpectedSerializationError(saved.error());
             asset->modelFiles.push_back(std::move(*saved));

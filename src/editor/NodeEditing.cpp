@@ -1,10 +1,14 @@
 #include "editor/NodeEditing.hpp"
 
+#include "core/Unexpected.hpp"
+
 #include "math/Matrix.hpp"
 #include "math/Primitivs.hpp"
 
 #include "model/Model.hpp"
 #include "model/ModelCatalog.hpp"
+
+#include "resource/AssetImport.hpp"
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/Scene.hpp"
@@ -58,6 +62,16 @@ NodeId AddPrimitiveNode(Scene& scene, ModelCatalog& models, ModelPrimitive primi
     const NodeId id = scene.AddNode(ModelPrimitiveName(primitive), math::Matrix4x4::Translation(position), parent);
     scene.Components<ModelComponent>().Emplace(id, ModelComponent { .model = model, .color = color, .visible = true });
     return id;
+}
+
+EngineResult<ModelHandler> ModelFromFile(ModelCatalog& models, const Path& file, const Path& assetsFolder)
+{
+    if (const ModelHandler kept = models.FindByFile(file))
+        return kept;
+    auto imported = resource::AssetImport::ImportModel(file, assetsFolder);
+    if (!imported)
+        return MakeUnexpected(imported.error());
+    return models.Insert(std::move(imported->model), std::move(imported->file));
 }
 
 NodeId AddModelNode(Scene& scene, ModelHandler model, const String& name, NodeId parent)

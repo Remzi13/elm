@@ -375,6 +375,7 @@ void ModelEditorWindow::SaveImported(const Path& anyFileInDirectory)
             m_status = result.error().message;
             return;
         }
+        UpdateModelOfFile(directory / fileName, imported.model);
         // Added to the scene afterwards, the model references this file instead of being written again
         m_import->savedFiles.push_back(directory / fileName);
         ++saved;
@@ -478,6 +479,7 @@ bool ModelEditorWindow::SaveTo(const Path& path)
         m_status = result.error().message;
         return false;
     }
+    UpdateModelOfFile(path, *m_model);
     m_filePath = path;
     m_dirty = false;
     m_status = "Saved to " + String(path.string().c_str()) + ".";
@@ -517,8 +519,8 @@ void ModelEditorWindow::AddToScene()
     const Vector3 position = m_deps.camera.GetPosition() + m_deps.camera.GetForwardDirection() * (radius * 3.0f);
 
     const String name = m_model->name.empty() ? String("Model") : m_model->name;
-    m_sceneModel = m_deps.models.Insert(*m_model);
-    RecordSceneFile();
+    // With unsaved edits it is a new model without a file, otherwise the model of its file, which the catalog may have
+    m_sceneModel = m_deps.models.Insert(*m_model, m_dirty ? Path { } : m_filePath);
     const NodeId node = m_deps.scene.AddNode( name, Matrix4x4::Translation(position) );
     m_deps.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = m_sceneModel });
     m_status = "Added \"" + name + "\" to the scene, Apply to Scene now updates it.";
@@ -1248,6 +1250,12 @@ void ModelEditorWindow::RecordSceneFile() const
 {
     // Unsaved edits are not what the file holds: the scene model is then a new one, written with the scene
     m_deps.models.SetFile(m_sceneModel, m_dirty ? Path { } : m_filePath);
+}
+
+void ModelEditorWindow::UpdateModelOfFile(const Path& file, const Model& model) const
+{
+    if (const ModelHandler kept = m_deps.models.FindByFile(file))
+        m_deps.models.Replace(kept, model);
 }
 
 const Model* ModelEditorWindow::GetPreviewSource() const

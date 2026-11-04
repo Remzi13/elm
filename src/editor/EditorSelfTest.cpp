@@ -7,8 +7,10 @@
 #include "editor/script/CodeIndent.hpp"
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
+#include "graphics/Camera.hpp"
 #include "graphics/gizmo/GizmoSettings.hpp"
 #include "editor/ui/EditorToolbar.hpp"
+#include "editor/ui/ModelEditorWindow.hpp"
 #include "editor/ui/NodeInspectorWindow.hpp"
 #include "editor/ui/SceneHierarchyWindow.hpp"
 #include "editor/ui/SceneMenu.hpp"
@@ -16,6 +18,7 @@
 #include "model/ModelCatalog.hpp"
 
 #include "render/api/FrameWriter.hpp"
+#include "render/api/RenderResources.hpp"
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -40,6 +43,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <string>
 
 namespace elm::editor {
@@ -481,7 +485,7 @@ line]] .. [==[a]]b]==])",
             HeadlessImGui& operator=(const HeadlessImGui&) = delete;
         };
 
-        /// Scene Hierarchy, Inspector and the Scene menu on a scene of their own, in a fresh ImGui.
+        /// Scene Hierarchy, Inspector, Model Editor and the Scene menu on a scene of their own, in a fresh ImGui.
         struct WindowsFixture {
             static constexpr float ScanStep = 8.0f;
 
@@ -490,6 +494,7 @@ line]] .. [==[a]]b]==])",
                 , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile }, assets, assets / "models")
                 , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, gizmo, play, scripts, files, sceneFile },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
+                , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
             {
                 play.isPlaying = [this] { return playing; };
                 menu.SetDocument(&document, &edits);
@@ -507,9 +512,17 @@ line]] .. [==[a]]b]==])",
                 ImGui::SetNextWindowPos(ImVec2(1500.0f, 950.0f));
                 ImGui::Begin("Menus", nullptr, ImGuiWindowFlags_NoDecoration);
                 menu.DrawPopups();
+                if (draggedModelFile) {
+                    ImGui::Button("Model file");
+                    if (ImGui::BeginDragDropSource()) {
+                        ImGui::SetDragDropPayload(ModelFilePayload, draggedModelFile->data(), draggedModelFile->size());
+                        ImGui::EndDragDropSource();
+                    }
+                }
                 ImGui::End();
                 hierarchy.Render(writer);
                 inspector.Render(writer);
+                modelEditor.Render(writer);
                 ImGui::EndFrame();
             }
 
@@ -541,6 +554,30 @@ line]] .. [==[a]]b]==])",
                 MoveTo(ImVec2((from.x + to.x) * 0.5f, (from.y + to.y) * 0.5f));
                 MoveTo(to);
                 SetButton(ImGuiMouseButton_Left, false);
+                Frame();
+            }
+
+            /// Model Editor over the other windows, what it was asked to open is open.
+            void ShowModelEditor()
+            {
+                Frame();
+                ImGui::SetWindowPos("###Model Editor", ImVec2(0.0f, 0.0f));
+                ImGui::SetWindowSize("###Model Editor", ImVec2(980.0f, 900.0f));
+                Frame();
+                Frame();
+            }
+
+            /// A button of the model's properties in Model Editor.
+            bool ClickInModelEditor(const char* label) { return ClickItem(FindWindow("ModelProperties"), label); }
+
+            /// A file dragged, as from the Project window, onto the empty space of the tree.
+            void DropModelFile(const Path& file)
+            {
+                draggedModelFile = String(file.generic_string().c_str());
+                Frame();
+                Frame();
+                Drag(FindWindow("Menus")->InnerRect.GetCenter(), RowCenter(6));
+                draggedModelFile.reset();
                 Frame();
             }
 
@@ -655,6 +692,8 @@ line]] .. [==[a]]b]==])",
             Selection selection;
             GizmoSettings gizmo { GizmoOperation::Translate, GizmoSpace::World };
             bool playing { false };
+            /// While set, a button in the frame can be dragged as this file (ModelFilePayload).
+            std::optional<String> draggedModelFile;
             script::PlayRequests play;
             ScriptInspection scripts;
             FileOpener files;
@@ -664,6 +703,9 @@ line]] .. [==[a]]b]==])",
             SceneMenu menu;
             SceneHierarchyWindow hierarchy;
             NodeInspectorWindow inspector;
+            render::RenderResources resources;
+            Camera camera;
+            ModelEditorWindow modelEditor;
         };
 
         void RunTreeDropTests(Report& report, const Path& assets)
@@ -686,6 +728,22 @@ line]] .. [==[a]]b]==])",
                 fixture.Frame();
                 fixture.Drag(WindowsFixture::RowCenter(0), WindowsFixture::RowCenter(1));
                 report.Check(fixture.scene.Find(first)->parent == last, "tree::drop_on_the_last_row_makes_it_the_parent");
+            }
+            {
+                // The same file dropped twice is one model: both nodes share its GPU meshes
+                WindowsFixture fixture(assets);
+                Model dropped("Dropped");
+                dropped.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+                const Path file = assets / "models" / "Dropped.model";
+                report.Check(resource::Serializer::SaveModel(dropped, file).has_value(), "tree::dropped_model_written");
+                fixture.DropModelFile(file);
+                fixture.DropModelFile(file);
+                const auto nodeModels = fixture.scene.Components<ModelComponent>().Components();
+                report.Check(nodeModels.size() == 2, "tree::a_dropped_file_becomes_a_node", std::to_string(nodeModels.size()).c_str());
+                report.Check(nodeModels.size() == 2 && nodeModels[0].model == nodeModels[1].model && fixture.models.Size() == 1,
+                    "tree::a_file_dropped_twice_is_one_model", std::to_string(fixture.models.Size()).c_str());
+                std::error_code error;
+                FileSystem::RemoveAll(file, error);
             }
         }
 
@@ -811,6 +869,63 @@ line]] .. [==[a]]b]==])",
             }
         }
 
+        /// A file is one model: what Model Editor does with the catalog's model of the file it edits.
+        void RunModelEditorTests(Report& report, const Path& assets)
+        {
+            const Path file = assets / "models" / "Crate.model";
+            Model crate("Crate");
+            crate.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            const auto writeCrate = [&] { return resource::Serializer::SaveModel(crate, file).has_value(); };
+            {
+                WindowsFixture fixture(assets);
+                report.Check(writeCrate(), "model_editor::file_written");
+                const ModelHandler kept = fixture.models.Insert(crate, file);
+                fixture.modelEditor.OpenModelFile(file);
+                fixture.ShowModelEditor();
+                const auto& nodeModels = fixture.scene.Components<ModelComponent>();
+
+                const bool added = fixture.ClickInModelEditor("Add to Scene");
+                report.Check(added && nodeModels.Size() == 1 && nodeModels.Components()[0].model == kept && fixture.models.Size() == 1,
+                    "model_editor::add_to_scene_uses_the_model_of_the_file");
+
+                const bool edited = fixture.ClickInModelEditor("Duplicate");
+                const bool addedEdited = fixture.ClickInModelEditor("Add to Scene");
+                const ModelHandler editedModel = nodeModels.Size() == 2 ? nodeModels.Components()[1].model : ModelHandler { };
+                report.Check(edited && addedEdited && editedModel != kept && fixture.models.Get(editedModel) && !fixture.models.FileOf(editedModel)
+                        && fixture.models.FindByFile(file) == kept,
+                    "model_editor::add_to_scene_with_unsaved_edits_is_a_new_model");
+            }
+            {
+                WindowsFixture fixture(assets);
+                report.Check(writeCrate(), "model_editor::file_written_again");
+                const ModelHandler kept = fixture.models.Insert(crate, file);
+                fixture.modelEditor.OpenModelFile(file);
+                fixture.ShowModelEditor();
+                const bool edited = fixture.ClickInModelEditor("Duplicate");
+                const bool saved = fixture.ClickInModelEditor("Save");
+                const auto onDisk = resource::Serializer::LoadModel(file);
+                report.Check(edited && saved && onDisk && onDisk->submeshes.size() == 2 && fixture.models.FindByFile(file) == kept
+                        && fixture.models.Get(kept)->submeshes.size() == 2 && fixture.models.Size() == 1,
+                    "model_editor::save_updates_the_model_of_the_file");
+            }
+            {
+                WindowsFixture fixture(assets);
+                report.Check(writeCrate(), "model_editor::file_written_once_more");
+                const ModelHandler kept = fixture.models.Insert(crate, file);
+                fixture.modelEditor.OpenSceneModel(kept);
+                fixture.ShowModelEditor();
+                const bool edited = fixture.ClickInModelEditor("Duplicate");
+                const bool applied = fixture.ClickInModelEditor("Apply to Scene");
+                report.Check(edited && applied && fixture.models.Get(kept)->submeshes.size() == 2 && !fixture.models.FileOf(kept),
+                    "model_editor::applied_unsaved_edits_leave_the_file");
+                const auto fromFile = ModelFromFile(fixture.models, file, assets);
+                report.Check(fromFile && *fromFile != kept && fixture.models.Get(*fromFile)->submeshes.size() == 1,
+                    "model_editor::the_file_is_then_another_model");
+            }
+            std::error_code error;
+            FileSystem::RemoveAll(file, error);
+        }
+
         void RunSceneMenuTests(Report& report, const Path& assets)
         {
             const Path otherFile = assets / "scenes" / "other.scene";
@@ -910,6 +1025,7 @@ line]] .. [==[a]]b]==])",
             RunTreeSearchTests(report, assets);
             RunTreeEditTests(report, assets);
             RunInspectorTests(report, assets);
+            RunModelEditorTests(report, assets);
             RunSceneMenuTests(report, assets);
             fs::remove_all(root, error);
         }

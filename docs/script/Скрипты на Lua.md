@@ -313,7 +313,7 @@ lua::Class<Vector3>(module, "Vector3")
 | `elm.math` | `Vector3`, `Vector4`, `Quaternion`, `Matrix4x4`, `lerp`, `clamp`, `radians`, `degrees`, `pi` |
 | `elm.input` | `is_down/is_pressed/is_released(key)`, `is_mouse_*`, `mouse_position()`, `mouse_delta()`, `axis(name)`; константы `elm.input.key.W`, `elm.input.mouse.Left` |
 | `elm.scene` | `spawn(name?, model?, parent?)`, `find`, `find_all`, `all`, `count`, `with(type)`; класс `Entity` (`add/remove/has(type)` для `Script`, `RigidBody`, `Collider`; `script`, `rigidbody`, `collider`) |
-| `elm.models` | `cube(size?)`, `box(half)`, `plane(x, z)`, `load(path)` (.model / .gltf, путь ассета `"models/crate.model"`), `find(name)`; класс `Model` (`name`, `submesh_count`, `file` — путь файла модели или nil) |
+| `elm.models` | `cube(size?)`, `box(half)`, `plane(x, z)`, `load(path)` (.model / .gltf, путь ассета `"models/crate.model"`; повторный `load` того же `.model` возвращает ту же модель), `find(name)`; класс `Model` (`name`, `submesh_count`, `file` — путь файла модели или nil) |
 | `elm.camera` | `position`/`set_position`, `translate`, `forward`, `right`, `yaw`/`pitch`/`set_orientation`, `rotate`, `look_at`, `fov`/`set_fov` |
 | `elm.physics` | `raycast(origin, direction, max_distance?, ignore?)`, `gravity`/`set_gravity`, `body_count`; классы `RigidBody`, `Collider` |
 | `elm.debug` | `text(position, text)`, `line`, `arrow`, `ray(origin, direction, length)`, `point(position, size?)`, `box(center, half_extents)`, `sphere`, `capsule` (последний аргумент — `style?`), `channel(name, enabled_by_default?)`; класс `DebugChannel` ([[Отладочная отрисовка]]). В игре без отладочной отрисовки (`ELM_DEBUG_DRAW=OFF`) вызовы ничего не рисуют и не падают, `channel.enabled` всегда `false` |
@@ -342,6 +342,9 @@ e:destroy()                                   -- вместе с потомка�
 
 Каждый вызов `elm.models.cube()` создаёт новую модель с GPU-мешем. Создайте модель один раз
 и переиспользуйте её (`elm.models.find(name) or elm.models.cube()`).
+`elm.models.load("models/crate.model")` можно вызывать сколько угодно: файл читается один раз, и все
+вызовы возвращают одну модель, `==` это подтверждает ([[Файл сцены#Модели]]). `.gltf` своего `.model` не имеет,
+поэтому каждый его `load` читает файл и создаёт новую модель.
 
 Пример: `assets/scripts/demo/spinner.lua`. Чтобы запустить его, установите `entry.mainModule = demo.spinner` в `Sandbox.elmproject`.
 Отладочная отрисовка из Lua — `demo.debug` ([[Отладочная отрисовка]]).

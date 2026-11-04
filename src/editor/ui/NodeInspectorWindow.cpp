@@ -12,8 +12,6 @@
 
 #include "model/ModelCatalog.hpp"
 
-#include "resource/AssetImport.hpp"
-
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/Scene.hpp"
@@ -447,13 +445,13 @@ void NodeInspectorWindow::DrawModelDialog()
     if (!file)
         return;
     // A .model of the project stays its file; anything else is imported into the project
-    auto imported = resource::AssetImport::ImportModel(*file, m_folders.assets);
-    if (!imported) {
-        m_deps.document.Report(StatusKind::Failure, "Failed to load model: " + imported.error().message);
+    const auto model = ModelFromFile(m_deps.models, *file, m_folders.assets);
+    if (!model) {
+        m_deps.document.Report(StatusKind::Failure, "Failed to load model: " + model.error().message);
         return;
     }
-    const String modelName = imported->model.name;
-    const ModelHandler handle = m_deps.models.Insert(std::move(imported->model), std::move(imported->file));
+    const ModelHandler handle = *model;
+    const String modelName = m_deps.models.Get(handle)->name;
     Scene& scene = m_deps.scene;
     const Scene::Node* node = scene.Find(m_modelDialogNode);
     if (!node)

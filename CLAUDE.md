@@ -95,7 +95,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 |---|---|
 | `Model`, `Model::Submesh`, `MeshDataPtr` | CPU-описание модели. Геометрия неизменяема и разделяется с render-потоком. О файлах и проекте модель не знает |
 | `ModelHandler` | хэндл модели в `ModelCatalog` (`model/ModelHandler.hpp`, историческое имя, не путать с `Handle`) |
-| `ModelCatalog` | модели сцены на CPU и пути их файлов по хэндлу (`FileOf`, пусто у модели только в памяти), номер версии модели (`RevisionOf`); модуль `model`, о GPU не знает |
+| `ModelCatalog` | модели сцены на CPU и пути их файлов по хэндлу (`FileOf`, пусто у модели только в памяти), номер версии модели (`RevisionOf`). Файл принадлежит одной модели: `FindByFile`, `Insert` занятого файла возвращает его модель; модуль `model`, о GPU не знает |
 | `graphics::ModelMeshes` | GPU-меши моделей каталога (`render::Mesh`), `Sync` перед отрисовкой: новые и заменённые модели получают меши, удалённые теряют; часть `GraphicsSystem` |
 | `Camera`, `CameraController`, `ViewRay` | камера вида (у `GraphicsSystem`, `GetViewCamera`) и свободная камера редактора (у `Editor`, только в Edit); `ViewRay` — луч из камеры через точку вида (`GetRayThrough`) |
 | `OcclusionCulling`, `SoftwareDepthBuffer` | CPU-отсечение (frustum + occlusion). Сцену только читает, результат хранит по `NodeId` (`FindOccludee`). Текстуру превью буфера глубины делает и обновляет только редактор (`UpdateDepthPreviewTexture`, окно SocLab) |
@@ -150,7 +150,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ui::InputString`, `ui::ToggleButton`, `ui::BeginPropertyGrid`, `ui::DragAxes` | общие виджеты окон (`editor/ui/EditorWidgets.*`) | `editor/ui` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
-| `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели новыми `.model` в `assets/models/`; модель вместе с её файлом | `resource` |
+| `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели `.model` в `assets/models/`, тот же файл по содержимому не добавляет ничего нового; модель вместе с её файлом | `resource` |
 | `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `ResourceSystem`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |
 | `ProjectMenu`, `ProjectMenuDesc` | меню Project редактора; открытый проект для него, недавние проекты, запрос `open` (применяется в начале update) | `editor/ui` |

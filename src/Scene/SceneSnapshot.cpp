@@ -31,7 +31,8 @@ void SceneSnapshot::Restore(Scene& scene, ModelCatalog* models) &&
             known.insert(handle);
             continue;
         }
-        // Removed meanwhile (a script cleared the scene): back with a new handle and its file
+        // Removed meanwhile (a script cleared the scene): back with a new handle and its file, or to the
+        // model that has its file now
         const auto inserted = models->Insert(std::move(model), std::move(file));
         reinserted.emplace(handle, inserted);
         known.insert(inserted);

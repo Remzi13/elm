@@ -269,12 +269,12 @@ cmake --build build --config Debug -j</code></pre></div></div></li>
         <p class="muted">Узлы glTF появятся в иерархии с моделями. В проекте: <code>source/village/village.gltf</code> вместе с <code>village.bin</code> и новые <code>.model</code>.</p></div></li>
       <li><div><span>Или одна модель целиком:</span>
         <span class="path"><span>+ Add Object...</span><i>→</i><span>Model from Disk (.gltf, .glb, .model)...</span></span></div></li>
-      <li><div><span>Модели проекта можно перетаскивать: возьмите <code>.model</code> в окне <b>Project</b> и бросьте в дерево <b>Scene Hierarchy</b> — получится новый узел.</span></div></li>
+      <li><div><span>Модели проекта можно перетаскивать: возьмите <code>.model</code> в окне <b>Project</b> и бросьте в дерево <b>Scene Hierarchy</b> — получится новый узел с той же моделью.</span></div></li>
       <li><div><span>Сохраните сцену (<b>Save</b>).</span></div></li>
     </ol>
     <details><summary>Правка модели</summary><div>
       <p>Двойной клик по <code>.model</code> в окне Project открывает её в <b>Model Editor</b> (сабмеши, цвета, трансформ геометрии).
-        Apply to Scene заменяет модель в сцене; с несохранёнными правками она станет новой моделью и запишется со сценой отдельным файлом — сохраните её (Save), чтобы сцена ссылалась на её файл.</p>
+        Apply to Scene заменяет модель в сцене; с несохранёнными правками она станет новой моделью и запишется со сценой отдельным файлом — сохраните её (Save), чтобы сцена ссылалась на её файл. Save сразу обновляет все узлы с этим файлом.</p>
     </div></details>
     <div class="note">Повторный импорт того же файла не перезаписывает старый: оригинал ляжет в <code>source/village_1/</code>, модели — с номером в имени.</div>
   </section>

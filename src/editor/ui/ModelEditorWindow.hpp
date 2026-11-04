@@ -29,7 +29,7 @@ struct ModelEditorDeps {
 
 /// Model editor: creates, imports (glTF), opens and saves engine models (.model) and edits models
 /// of the current scene. Every edit works on a CPU copy of the model with undo/redo; the scene
-/// sees the result only on "Apply to Scene" or "Add to Scene".
+/// sees the result only on "Apply to Scene", "Add to Scene" or a save over the file of a scene model.
 class ModelEditorWindow final : public IImGuiWindow {
 public:
     /// The project's assets folder (imports are copied into it) and its models folder (where dialogs start).
@@ -122,6 +122,8 @@ private:
     [[nodiscard]] const Model* GetPreviewSource() const;
     /// The file of the scene model the document was applied to: the document's file unless it has unsaved edits.
     void RecordSceneFile() const;
+    /// A file was written: its model in the catalog holds what the file holds now, every node with it shows that.
+    void UpdateModelOfFile(const Path& file, const Model& model) const;
     [[nodiscard]] bool IsSceneModelAlive() const;
 
     ModelEditorDeps m_deps;
