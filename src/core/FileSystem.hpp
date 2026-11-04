@@ -55,7 +55,6 @@ namespace elm {
         [[nodiscard]] Path LexicallyNormal() const;
 
         [[nodiscard]] std::string string() const;
-        [[nodiscard]] std::string u8string() const;
         [[nodiscard]] std::string generic_string() const;
         [[nodiscard]] const char* c_str() const noexcept;
 
@@ -92,7 +91,6 @@ namespace elm {
         [[nodiscard]] static Path FindInParents(const Path& start, const Path& name);
 
         [[nodiscard]] static Path CurrentPath(std::error_code& error);
-        [[nodiscard]] static Path CurrentPath();
         [[nodiscard]] static bool Exists(const Path& path, std::error_code& error);
         /// False too for a path the system cannot inspect; the overload above tells the two apart.
         [[nodiscard]] static bool Exists(const Path& path);
@@ -115,7 +113,6 @@ namespace elm {
     public:
         class Iterator {
         public:
-            Iterator();
             explicit Iterator(const Path& path, std::error_code& error);
             ~Iterator();
             Iterator(Iterator&&) noexcept;
@@ -130,9 +127,6 @@ namespace elm {
             [[nodiscard]] bool IsRegularFile(std::error_code& error) const;
             [[nodiscard]] Path Extension() const;
             void Next(std::error_code& error);
-
-            [[nodiscard]] bool operator==(const Iterator& other) const;
-            [[nodiscard]] bool operator!=(const Iterator& other) const;
 
         private:
             struct Impl;

@@ -10,8 +10,6 @@ namespace elm {
     enum class ErrorCode {
         WindowInitializationFailed,
         RenderEngineInitializationFailed,
-        PhysicsInitializationFailed,
-        ResourceCreationFailed,
         SerializationFailed,
         ScriptError,
         UnknownError,

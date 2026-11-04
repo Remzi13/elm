@@ -2,22 +2,11 @@
 
 #include <array>
 #include <atomic>
+#include <thread>
 
 namespace elm::core {
     namespace {
         std::array<std::atomic<std::thread::id>, static_cast<size_t>(ThreadRole::Count)> g_threadRoles;
-    }
-
-    void Thread::Start(std::function<void()> func)
-    {
-        m_thread = std::thread(func);
-    }
-
-    void Thread::Join()
-    {
-        if (m_thread.joinable()) {
-            m_thread.join();
-        }
     }
 
     void registerThread(ThreadRole role)

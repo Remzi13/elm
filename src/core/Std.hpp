@@ -40,19 +40,6 @@ namespace elm {
     template <typename T>
     using UniquePtr = std::unique_ptr<T, std::function<void(void*)>>;
 
-    template <typename T>
-    UniquePtr<T> MakeUnique(T* ptr)
-    {
-        memory::Allocator<T> allocator;
-        return UniquePtr<T>(ptr, [allocator](void* value) mutable {
-            if (value) {
-                auto* typedValue = static_cast<T*>(value);
-                std::destroy_at(typedValue);
-                allocator.deallocate(typedValue, 1);
-            }
-        });
-    }
-
     template <typename T, typename... Args>
     UniquePtr<T> MakeUnique(Args&&... args)
     {

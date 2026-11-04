@@ -202,11 +202,6 @@ namespace elm {
         return std::string(m_path.begin(), m_path.end());
     }
 
-    auto Path::u8string() const -> std::string
-    {
-        return string();
-    }
-
     auto Path::generic_string() const -> std::string
     {
         const auto text = ToFilesystemPath(*this).generic_u8string();
@@ -261,11 +256,6 @@ namespace elm {
     auto FileSystem::CurrentPath(std::error_code& error) -> Path
     {
         return ToPath(fs::current_path(error));
-    }
-
-    auto FileSystem::CurrentPath() -> Path
-    {
-        return ToPath(fs::current_path());
     }
 
     void FileSystem::RegisterSettings(Settings& settings)
@@ -392,8 +382,6 @@ namespace elm {
         fs::directory_iterator iterator;
     };
 
-    Directory::Iterator::Iterator() = default;
-
     Directory::Iterator::Iterator(const Path& path, std::error_code& error)
         : m_impl(std::make_unique<Impl>(path, error))
     {
@@ -444,20 +432,6 @@ namespace elm {
             return;
         }
         m_impl->iterator.increment(error);
-    }
-
-    auto Directory::Iterator::operator==(const Iterator& other) const -> bool
-    {
-        if (IsEnd() && other.IsEnd())
-            return true;
-        if (IsEnd() || other.IsEnd())
-            return false;
-        return m_impl->iterator == other.m_impl->iterator;
-    }
-
-    auto Directory::Iterator::operator!=(const Iterator& other) const -> bool
-    {
-        return !(*this == other);
     }
 
     Directory::Directory(const Path& path)

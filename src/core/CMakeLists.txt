@@ -6,7 +6,6 @@ engine_add_library(core
     Memory.cpp
     Log.hpp
     Log.cpp
-    Error.cpp
     Error.hpp
     Unexpected.hpp
     FrameClock.hpp
@@ -20,7 +19,6 @@ engine_add_library(core
     JobSystem.hpp
     JobSystem.cpp
     Handler.hpp
-    Handler.cpp
     Profiling.hpp
     Settings.hpp
     Settings.cpp

@@ -56,7 +56,6 @@ namespace elm::log {
             case Category::Physics: return "PHYSICS";
             case Category::Core: return "CORE";
             case Category::Script: return "SCRIPT";
-            case Category::Invalid: return "INVALID";
             }
             return "UNKNOWN";
         }
@@ -189,15 +188,6 @@ namespace elm::log {
                 return m_messages;
             }
 
-            Vector<Entry> Take()
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                Vector<Entry> messages;
-                messages.reserve(m_maxMessages);
-                messages.swap(m_messages);
-                return messages;
-            }
-
             void Clear()
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
@@ -300,11 +290,6 @@ namespace elm::log {
     Vector<Entry> getMessages()
     {
         return messageStore().Get();
-    }
-
-    Vector<Entry> takeMessages()
-    {
-        return messageStore().Take();
     }
 
     void clearMessages()
