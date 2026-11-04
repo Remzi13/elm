@@ -16,9 +16,9 @@ elm — 3D-движок с редактором на C++23: собственны
   Логику редактора (подсветка, отступы, место ошибки в окне Scripts) проверяет `editor --editor-selftest`,
   тоже без окна, код возврата — число падений. Оба набора гоняет CI на GitHub (`.github/workflows/ci.yml`: Linux и Windows, Debug и Release, `-DELM_BUILD_TRACY_PROFILER=OFF`). Задания Release ещё публикуют пакет редактора артефактом.
 - Lua API для LuaLS: `editor --dump-script-api` перегенерирует `assets/scripts/.meta/elm.lua`.  Это сгенерированный файл, руками его не правь.
-- `.clang-format` и `.clang-tidy` в проекте нет. Форматируй как окружающий код этого же файла:
-  отступ табом или 4 пробелами, как уже в файле. Посторонние строки не переформатируй.
-- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` и `editor --editor-selftest` проходят.
+- Форматирование: `.clang-format` в корне, `clang-format` 23.1.1 (`pip install clang-format==23.1.1`; та же версия лежит в расширении C/C++ для VS Code, Rider даёт тот же результат). Изменённый файл форматируй целиком: `clang-format -i <файл>`. CI проверяет весь `src/`: `git ls-files 'src/*.cpp' 'src/*.hpp' | xargs -d '\n' clang-format --dry-run --Werror`. `.clang-tidy` в проекте нет.
+- Два приёма clang-format портит, если не помочь ему переносом. Вызов с двумя многострочными лямбдами пиши с первым аргументом на своей строке (образец `ScenePass`). Список `{ ... }` после других аргументов начинай с `{` на своей строке (образец `Serializer`). `// clang-format off: причина` — только когда переносом не выйти (строки матрицы в `math/Matrix.hpp`).
+- Перед завершением задачи: сборка без новых предупреждений, `elm_tests` и `editor --editor-selftest` проходят, изменённые файлы отформатированы.
 
 ## 1. Сущности выражены явно
 
@@ -216,7 +216,7 @@ editor     → graphics, physics, project, script (+ ImGui, GLFW)   Editor (ко
 - Namespace: всё в `elm` (`elm::core`, `elm::render`, `elm::render::rhi`, `elm::graphics`,
   `elm::platform`, `elm::resource`, `elm::script`, `elm::script::lua`, `elm::script::bindings`).
   Математика исторически в корневом `math`. Закрывающий комментарий называет namespace верно:
-  `} // namespace elm::render`. Встречающееся `// namespace Engine` не копируй.
+  `} // namespace elm::render`, за этим следит clang-format.
 - Lua-сторона: `snake_case` (`elm.scene.spawn`, `on_start`, `props`). Имена компонентов в Lua и
   в файле сцены: `Script`, `RigidBody`, `Collider`; в файле есть ещё `Model` (в Lua — `entity.model/color/visible`).
 - Имена говорят о назначении: никаких `data`, `tmp`, `x1`, `doStuff`. Сокращения только общепринятые.

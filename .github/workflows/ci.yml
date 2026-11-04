@@ -7,6 +7,20 @@ on:
     branches: [main]
 
 jobs:
+  # Needs no build, and a badly formatted line says nothing about the compilers
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The version is pinned: another clang-format may format the same code differently
+      - name: Install clang-format
+        run: pipx install clang-format==23.1.1
+
+      - name: Check the format
+        run: git ls-files 'src/*.cpp' 'src/*.hpp' | xargs -d '\n' clang-format --dry-run --Werror
+
   build:
     name: ${{ matrix.platform.name }} ${{ matrix.config }}
     runs-on: ${{ matrix.platform.os }}
