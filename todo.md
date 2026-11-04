@@ -1,4 +1,6 @@
+
 # Main
+* сделать ревью все библиотек на качество кода через скил
 * убрать std::cout и std::err
 * убрать scenePreset and test scenes 
 
