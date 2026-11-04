@@ -12,6 +12,8 @@
 #include "script/module/ModulePaths.hpp"
 #include "script/reload/HotReload.hpp"
 
+#include "core/BinaryBlock.hpp"
+#include "core/File.hpp"
 #include "core/JobSystem.hpp"
 #include "core/Log.hpp"
 #include "core/Memory.hpp"
@@ -46,11 +48,15 @@
 #include "resource/Serializer.hpp"
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <limits>
+#include <span>
 #include <thread>
 #include <cmath>
 #include <iostream>
@@ -1395,6 +1401,7 @@ namespace elm::script {
                 WriteScript(root / name, text.c_str());
                 return pathOf(name);
             };
+            report.Check(!loadScene(writeScene("too_old.scene", 3, "")) && !loadScene(writeScene("oldest.scene", 1, "")), "scene_file::version_3_is_an_error");
             const auto old = loadScene(writeScene("old.scene", 4, ""));
             report.Check(old && old->nodes.size() == 1 && !old->components.FindComponents<ScriptComponent>()
                     && !old->components.FindComponents<Collider>() && !old->components.FindComponents<ModelComponent>(),
@@ -1504,6 +1511,288 @@ namespace elm::script {
         // ── Play mode ───────────────────────────────────────────────────────────
 
         /// Imports into a project: the Sandbox glTF sample (village.gltf with village.bin) into a fresh assets folder.
+        void RunBinaryBlockTests(Report& report)
+        {
+            BinaryBlock block;
+            block.Append(uint32_t { 7 });
+            block.AppendText(StringView("a\0b", 3));
+            const std::array<uint16_t, 2> pair { 3, 4 };
+            block.AppendArray<uint16_t>(pair);
+            std::array<uint16_t, 2> pairRead {};
+            report.Check(block.Size() == 11 && block.Read<uint32_t>(0) == 7u && block.ReadText(4, 3) == StringView("a\0b", 3)
+                    && block.ReadArray<uint16_t>(7, pairRead) && pairRead == pair,
+                "binary_block::values_are_read_back_at_their_offsets");
+
+            block.AlignTo(16);
+            const size_t aligned = block.Size();
+            block.AlignTo(16);
+            report.Check(aligned == 16 && block.Size() == 16 && block.Read<uint8_t>(15) == uint8_t { 0 }, "binary_block::align_adds_zero_bytes_once");
+
+            const BinaryBlock four(4);
+            std::array<uint32_t, 2> two {};
+            report.Check(four.Read<uint32_t>(0) == 0u && !four.Read<uint32_t>(1) && !four.Read<uint32_t>(5), "binary_block::read_stays_inside");
+            report.Check(!four.Read<uint8_t>(SIZE_MAX) && !four.ReadText(SIZE_MAX, 2) && !four.ReadText(2, SIZE_MAX), "binary_block::huge_offset_and_size_do_not_overflow");
+            report.Check(!four.ReadArray<uint32_t>(0, two) && !four.ReadArray<uint32_t>(4, std::span<uint32_t>(two).first(1)) && four.ReadArray<uint32_t>(4, std::span<uint32_t> {}),
+                "binary_block::array_stays_inside");
+
+            BinaryBlock other(4);
+            report.Check(other == four, "binary_block::same_bytes_are_equal");
+            other.Bytes()[3] = 1;
+            report.Check(other != four, "binary_block::other_bytes_are_not_equal");
+        }
+
+        void RunFileTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_file_selftest";
+            fs::remove_all(root, error);
+            const String rootText(root.generic_string().c_str());
+            const auto write = [](const Path& path, StringView text) {
+                auto file = File::OpenForWriting(path);
+                return file && file->Write(text) && file->Close();
+            };
+            const auto read = [](const Path& path) {
+                auto file = File::OpenForReading(path);
+                return file ? file->ReadAll() : EngineResult<BinaryBlock>(std::unexpected(file.error()));
+            };
+            const auto textOf = [](const BinaryBlock& block) {
+                const auto bytes = block.Bytes();
+                return String(bytes.data(), bytes.size());
+            };
+
+            const Path deep = rootText + "/a/b/bytes.bin";
+            const StringView bytes("line\r\n\0\x1a end", 12);
+            report.Check(write(deep, bytes), "file::write_creates_its_folders");
+            const auto written = read(deep);
+            report.Check(written && StringView(textOf(*written)) == bytes, "file::bytes_are_read_back_as_written");
+
+            report.Check(write(deep, "x"), "file::write_over_a_file");
+            const auto replaced = read(deep);
+            report.Check(replaced && textOf(*replaced) == "x", "file::write_replaces_the_contents");
+
+            const Path empty = rootText + "/empty.bin";
+            report.Check(write(empty, ""), "file::empty_file_written");
+            const auto emptyRead = read(empty);
+            report.Check(emptyRead && emptyRead->Size() == 0, "file::empty_file_is_read");
+
+            // "модель.bin" in UTF-8
+            const Path named = rootText + "/\xD0\xBC\xD0\xBE\xD0\xB4\xD0\xB5\xD0\xBB\xD1\x8C.bin";
+            const auto namedRead = write(named, "named") ? read(named) : EngineResult<BinaryBlock> {};
+            report.Check(namedRead && textOf(*namedRead) == "named", "file::name_outside_of_ascii");
+
+            report.Check(!File::OpenForReading(rootText + "/missing.bin"), "file::missing_file_is_an_error");
+            report.Check(!File::OpenForReading(Path(rootText)) && !File::OpenForWriting(Path(rootText)), "file::folder_is_an_error");
+
+            auto reading = File::OpenForReading(deep);
+            report.Check(reading && !reading->Write(StringView("y")) && reading->ReadAll(), "file::opened_for_reading_does_not_write");
+            auto writing = File::OpenForWriting(rootText + "/writing.bin");
+            report.Check(writing && !writing->ReadAll() && writing->Close(), "file::opened_for_writing_does_not_read");
+            report.Check(writing && !writing->Write(StringView("y")), "file::closed_file_does_not_write");
+            fs::remove_all(root, error);
+        }
+
+        void RunModelFileTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            using resource::Serializer;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_model_file_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root, error);
+            const Path file(String((root / "test.model").generic_string().c_str()));
+
+            const auto readBlock = [](const Path& path) {
+                auto opened = File::OpenForReading(path);
+                return opened ? opened->ReadAll() : EngineResult<BinaryBlock>(std::unexpected(opened.error()));
+            };
+            const auto writeBlock = [](const Path& path, const BinaryBlock& block) {
+                auto opened = File::OpenForWriting(path);
+                return opened && opened->Write(block) && opened->Close();
+            };
+            const auto sameModel = [](const Model& a, const Model& b) {
+                return a.name == b.name && std::ranges::equal(a.submeshes, b.submeshes, [](const Model::Submesh& x, const Model::Submesh& y) {
+                    return x.name == y.name && x.color == y.color && *x.data == *y.data;
+                });
+            };
+            const auto loads = [&](const BinaryBlock& block) { return writeBlock(file, block) ? Serializer::LoadModel(file) : EngineResult<Model> {}; };
+
+            // Written and read back. "модель" in UTF-8 for the names, values that text rounding would change
+            constexpr const char* OutsideOfAscii = "\xD0\xBC\xD0\xBE\xD0\xB4\xD0\xB5\xD0\xBB\xD1\x8C";
+            MeshData triangle;
+            triangle.vertices = {
+                Vertex { Vector3 { 0.1f, -2.5f, 1e-7f }, Vector3 { 0.0f, 1.0f, 0.0f }, 1.0f / 3.0f, 0.7f },
+                Vertex { Vector3 { 1.0f, 1e30f, 0.0f }, Vector3 { 0.0f, 0.0f, 1.0f }, 0.0f, 1.0f },
+                Vertex { Vector3 { 1.0f, 2.0f, 3.0f }, Vector3 { 1.0f, 0.0f, 0.0f }, 0.5f, 0.25f },
+            };
+            triangle.indices = { 0, 1, 2 };
+            triangle.localBounds = ComputeBounds(triangle.vertices);
+            const MeshData cube = GeometryPrimitives::CreateCube(1.0f);
+            Model model(OutsideOfAscii);
+            model.AddSubmesh(triangle, Vector4 { 0.1f, 1.0f / 3.0f, 0.7f, 1.0f }, OutsideOfAscii);
+            model.AddSubmesh(cube, Vector4 { 0.0f, 0.5f, 1.0f, 0.25f }, "cube");
+            model.AddSubmesh(MeshData {}, Vector4 { 1.0f, 1.0f, 1.0f, 1.0f }, "empty");
+            report.Check(Serializer::SaveModel(model, file).has_value(), "model_file::written");
+            const auto loaded = Serializer::LoadModel(file);
+            report.Check(loaded && sameModel(*loaded, model), "model_file::read_back_exactly", loaded ? "" : loaded.error().message);
+
+            Model nothing("Nothing");
+            report.Check(Serializer::SaveModel(nothing, file).has_value(), "model_file::model_without_submeshes_written");
+            const auto nothingLoaded = Serializer::LoadModel(file);
+            report.Check(nothingLoaded && sameModel(*nothingLoaded, nothing), "model_file::model_without_submeshes_read_back");
+
+            // The layout of a written file
+            report.Check(Serializer::SaveModel(model, file).has_value(), "model_file::written_again");
+            const auto saved = readBlock(file);
+            report.Check(saved.has_value(), "model_file::saved_file_read");
+            if (saved) {
+                const size_t headerSize = saved->Read<uint32_t>(8).value_or(0);
+                const size_t geometry = (12 + headerSize + 15) / 16 * 16;
+                const size_t vertexCount = triangle.vertices.size() + cube.vertices.size();
+                const size_t indexCount = triangle.indices.size() + cube.indices.size();
+                report.Check(saved->ReadText(0, 4) == StringView("ELMM") && saved->Read<uint32_t>(4) == 3u && headerSize > 0
+                        && saved->Size() == geometry + vertexCount * sizeof(Vertex) + indexCount * sizeof(uint32_t),
+                    "model_file::signature_version_and_size");
+                std::array<Vertex, 3> vertices {};
+                std::array<uint32_t, 3> indices {};
+                report.Check(saved->ReadArray<Vertex>(geometry, vertices) && std::ranges::equal(vertices, triangle.vertices)
+                        && saved->ReadArray<uint32_t>(geometry + vertexCount * sizeof(Vertex), indices) && std::ranges::equal(indices, triangle.indices),
+                    "model_file::geometry_blocks_hold_the_bytes_of_the_model");
+
+                const auto savedAgain = Serializer::SaveModel(model, file) ? readBlock(file) : EngineResult<BinaryBlock> {};
+                report.Check(savedAgain && *savedAgain == *saved, "model_file::same_model_gives_same_bytes");
+
+                const StringView bytes(saved->Bytes().data(), saved->Size());
+                bool cutFailed = true;
+                for (const size_t cut : { size_t { 0 }, size_t { 3 }, size_t { 7 }, size_t { 11 }, size_t { 12 }, 12 + headerSize / 2, 12 + headerSize,
+                         geometry, geometry + 20, geometry + vertexCount * sizeof(Vertex), saved->Size() - 1 }) {
+                    BinaryBlock part;
+                    part.AppendText(bytes.substr(0, cut));
+                    cutFailed = cutFailed && !loads(part);
+                }
+                report.Check(cutFailed, "model_file::cut_file_is_an_error");
+
+                BinaryBlock longer = *saved;
+                longer.Append(uint8_t { 0 });
+                report.Check(!loads(longer), "model_file::extra_byte_is_an_error");
+            }
+
+            // Files made by hand: the format does not depend on the code that writes it
+            const auto makeFile = [](StringView header, std::span<const Vertex> vertices, std::span<const uint32_t> indices) {
+                BinaryBlock block;
+                block.AppendText("ELMM");
+                block.Append(uint32_t { 3 });
+                block.Append(static_cast<uint32_t>(header.size()));
+                block.AppendText(header);
+                block.AlignTo(16);
+                block.AppendArray<Vertex>(vertices);
+                block.AppendArray<uint32_t>(indices);
+                return block;
+            };
+            const auto headerOf = [](StringView totals, StringView submeshes) {
+                return "{ \"name\": \"Hand\", " + String(totals) + ", \"submeshes\": [ " + String(submeshes) + " ] }";
+            };
+            constexpr StringView Totals = R"("vertexCount": 3, "indexCount": 3)";
+            constexpr StringView Submesh = R"({ "name": "a", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1,1,0], )"
+                                           R"("firstVertex": 0, "vertexCount": 3, "firstIndex": 0, "indexCount": 3 })";
+            const auto rejects = [&](StringView totals, StringView submeshes) {
+                return !loads(makeFile(headerOf(totals, submeshes), triangle.vertices, triangle.indices));
+            };
+
+            const auto byHand = loads(makeFile(headerOf(Totals, Submesh), triangle.vertices, triangle.indices));
+            report.Check(byHand && byHand->name == "Hand" && byHand->submeshes.size() == 1 && byHand->submeshes[0].name == "a"
+                    && byHand->submeshes[0].color == Vector4 { 1.0f, 0.0f, 0.0f, 1.0f } && byHand->submeshes[0].data->vertices == triangle.vertices
+                    && byHand->submeshes[0].data->indices == triangle.indices,
+                "model_file::file_made_by_hand_is_read", byHand ? "" : byHand.error().message);
+
+            BinaryBlock wrongSignature;
+            wrongSignature.AppendText("ELMX");
+            wrongSignature.Append(uint32_t { 3 });
+            report.Check(!loads(wrongSignature), "model_file::wrong_signature_is_an_error");
+            BinaryBlock oldJson;
+            oldJson.AppendText(R"({ "formatVersion": 2, "name": "Old", "submeshes": [] })");
+            const auto oldLoaded = loads(oldJson);
+            report.Check(!oldLoaded && oldLoaded.error().message.find("import its glTF file again") != String::npos, "model_file::old_format_asks_for_a_new_import");
+            BinaryBlock wrongVersion;
+            wrongVersion.AppendText("ELMM");
+            wrongVersion.Append(uint32_t { 4 });
+            wrongVersion.Append(uint32_t { 0 });
+            report.Check(!loads(wrongVersion), "model_file::unknown_version_is_an_error");
+            BinaryBlock hugeHeader;
+            hugeHeader.AppendText("ELMM");
+            hugeHeader.Append(uint32_t { 3 });
+            hugeHeader.Append(uint32_t { 0xFFFFFFFFu });
+            report.Check(!loads(hugeHeader), "model_file::header_larger_than_the_file_is_an_error");
+            report.Check(!loads(makeFile("not json", triangle.vertices, triangle.indices)) && !loads(makeFile("[]", triangle.vertices, triangle.indices)),
+                "model_file::invalid_header_is_an_error");
+
+            report.Check(rejects(R"("vertexCount": 3)", Submesh) && rejects(R"("vertexCount": 4294967296, "indexCount": 3)", Submesh)
+                    && rejects(R"("vertexCount": 4294967295, "indexCount": 3)", Submesh) && rejects(R"("vertexCount": 2, "indexCount": 3)", Submesh),
+                "model_file::wrong_totals_are_an_error");
+            report.Check(rejects(Totals, R"({ "name": "a", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1,1,0], "firstVertex": 0, "firstIndex": 0, "indexCount": 3 })")
+                    && rejects(Totals, R"({ "name": "a", "minBounds": [0,0,0], "maxBounds": [1,1,0], "firstVertex": 0, "vertexCount": 3, "firstIndex": 0, "indexCount": 3 })"),
+                "model_file::missing_submesh_field_is_an_error");
+            report.Check(rejects(Totals, R"({ "name": "a", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1,1,0], "firstVertex": 1, "vertexCount": 3, "firstIndex": 0, "indexCount": 3 })")
+                    && rejects(Totals, R"({ "name": "a", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1,1,0], "firstVertex": 0, "vertexCount": 3, "firstIndex": 3, "indexCount": 1 })"),
+                "model_file::submesh_outside_of_the_geometry_is_an_error");
+            report.Check(rejects(Totals, R"({ "name": "a", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1,1,0], "firstVertex": 4294967295, "vertexCount": 4294967295, "firstIndex": 0, "indexCount": 3 })"),
+                "model_file::huge_submesh_counts_are_an_error");
+            report.Check(rejects(Totals, R"({ "name": "a", "color": [1,0,0,1], "minBounds": [null,0,0], "maxBounds": [1,1,0], "firstVertex": 0, "vertexCount": 3, "firstIndex": 0, "indexCount": 3 })")
+                    && rejects(Totals, R"({ "name": "a", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1e39,1,0], "firstVertex": 0, "vertexCount": 3, "firstIndex": 0, "indexCount": 3 })"),
+                "model_file::bounds_outside_of_float_are_an_error");
+
+            const std::array<uint32_t, 3> outOfRange { 0, 1, 3 };
+            report.Check(!loads(makeFile(headerOf(Totals, Submesh), triangle.vertices, outOfRange)), "model_file::index_out_of_range_is_an_error");
+            // The index fits the whole block, but it counts inside its own submesh
+            constexpr StringView TwoSubmeshes = R"({ "name": "a", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1,1,0], "firstVertex": 0, "vertexCount": 1, "firstIndex": 0, "indexCount": 1 }, )"
+                                                R"({ "name": "b", "color": [1,0,0,1], "minBounds": [0,0,0], "maxBounds": [1,1,0], "firstVertex": 1, "vertexCount": 2, "firstIndex": 1, "indexCount": 2 })";
+            const std::array<uint32_t, 3> ofTheWholeBlock { 0, 1, 2 };
+            report.Check(!loads(makeFile(headerOf(Totals, TwoSubmeshes), triangle.vertices, ofTheWholeBlock)), "model_file::index_counts_inside_its_submesh");
+            const std::array<uint32_t, 3> ofTheirSubmeshes { 0, 0, 1 };
+            const auto twoSubmeshes = loads(makeFile(headerOf(Totals, TwoSubmeshes), triangle.vertices, ofTheirSubmeshes));
+            report.Check(twoSubmeshes && twoSubmeshes->submeshes.size() == 2 && twoSubmeshes->submeshes[1].data->vertices[0] == triangle.vertices[1]
+                    && twoSubmeshes->submeshes[1].data->indices[1] == 1u,
+                "model_file::submeshes_take_their_ranges");
+
+            std::array<Vertex, 3> notFinite { triangle.vertices[0], triangle.vertices[1], triangle.vertices[2] };
+            notFinite[1].normal.y = std::numeric_limits<float>::quiet_NaN();
+            report.Check(!loads(makeFile(headerOf(Totals, Submesh), notFinite, triangle.indices)), "model_file::nan_in_a_vertex_is_an_error");
+            notFinite[1].normal.y = 0.0f;
+            notFinite[2].u = std::numeric_limits<float>::infinity();
+            report.Check(!loads(makeFile(headerOf(Totals, Submesh), notFinite, triangle.indices)), "model_file::infinity_in_a_vertex_is_an_error");
+
+            // Nothing is written that could not be read
+            const Path neverWritten(String((root / "never.model").generic_string().c_str()));
+            MeshData nanGeometry = triangle;
+            nanGeometry.vertices[0].position.x = std::numeric_limits<float>::quiet_NaN();
+            Model nanModel("Nan");
+            nanModel.AddSubmesh(std::move(nanGeometry));
+            MeshData nanBoundsGeometry = triangle;
+            nanBoundsGeometry.localBounds.maxBounds.z = std::numeric_limits<float>::infinity();
+            Model nanBounds("NanBounds");
+            nanBounds.AddSubmesh(std::move(nanBoundsGeometry));
+            Model noGeometry("NoGeometry");
+            noGeometry.AddSubmesh(MeshDataPtr {});
+            report.Check(!Serializer::SaveModel(nanModel, neverWritten) && !Serializer::SaveModel(nanBounds, neverWritten) && !Serializer::SaveModel(noGeometry, neverWritten)
+                    && !fs::exists(root / "never.model"),
+                "model_file::model_that_cannot_be_read_is_not_written");
+
+            // A file of an old format stays: the import adds a file of its own
+            const Path assets(String((root / "assets").generic_string().c_str()));
+            Model crate("Crate");
+            crate.AddSubmesh(cube);
+            const Path oldCrate = assets / "models" / "Crate.model";
+            BinaryBlock oldFormat;
+            oldFormat.AppendText(R"({ "formatVersion": 2, "name": "Crate", "submeshes": [] })");
+            report.Check(writeBlock(oldCrate, oldFormat), "model_file::old_file_written");
+            const auto crateFile = Serializer::SaveModelOnce(crate, assets);
+            const auto oldAfter = readBlock(oldCrate);
+            report.Check(crateFile && *crateFile == assets / "models" / "Crate_1.model" && oldAfter && *oldAfter == oldFormat, "model_file::old_file_is_not_overwritten");
+            const auto crateAgain = Serializer::SaveModelOnce(crate, assets);
+            report.Check(crateAgain && crateFile && *crateAgain == *crateFile, "model_file::same_model_finds_its_file");
+            fs::remove_all(root, error);
+        }
+
         void RunAssetImportTests(Report& report, const Path& scriptRoot)
         {
             namespace fs = std::filesystem;
@@ -2690,6 +2979,9 @@ namespace elm::script {
         RunEntityScriptListTests(report);
         RunPhysicsTests(report);
         RunPhysicsScriptTests(report);
+        RunBinaryBlockTests(report);
+        RunFileTests(report);
+        RunModelFileTests(report);
         RunSceneFileTests(report);
         RunAssetImportTests(report, scriptRoot);
         RunProjectTests(report);

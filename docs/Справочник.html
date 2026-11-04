@@ -456,7 +456,7 @@ UseWorldPosition(scene.WorldTransforms()[scene.IndexOf(lamp)]);</code></pre>
       </div>
       <div class="sub">
         <h3>Файл .scene</h3>
-        <p class="muted" style="font-size:.92rem">JSON, пишется <code>formatVersion</code> 6, читаются версии 1–6. Модели лежат отдельными <code>.model</code> в <code>assets/models</code>. Родитель — индекс в <code>nodes</code>, ссылки на сущности в props — <code>{ "entity": индекс }</code>. Меняете формат: поднимите версию и сохраните чтение старых.</p>
+        <p class="muted" style="font-size:.92rem">JSON, пишется <code>formatVersion</code> 7, читаются версии 4–7. Модели лежат отдельными двоичными <code>.model</code> в <code>assets/models</code>. Родитель — индекс в <code>nodes</code>, ссылки на сущности в props — <code>{ "entity": индекс }</code>. Меняете формат: поднимите версию и сохраните чтение старых.</p>
 <pre><code>{
    "formatVersion": 6,
    "models": [ { "path": "../models/Cube.model" } ],
@@ -687,7 +687,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     graphics: { x: 120, y: 128, dir: "src/graphics", ns: "elm::graphics, elm", third: ["ImGui", "ImGuizmo"], desc: "Модели и их GPU-меши, камера, CPU-отсечение, окна редактора на ImGui.", ents: ["ModelManager", "ModelHandler", "Camera", "OcclusionCulling", "ImGuiSystem", "IImGuiWindow"], note: "editor/Редактор.md", thread: "update" },
     script:   { x: 400, y: 128, dir: "src/script", ns: "elm::script", third: ["Lua 5.4.7"], desc: "Lua-машина, главный модуль, скрипты сущностей, hot reload, консоль, `PlayMode`. Остальные модули линкуются PRIVATE, наружу видны `ScriptSystem`, `EngineContext`, `PlayMode`.", ents: ["ScriptSystem", "EngineContext", "PlayMode", "EntityScripts", "HotReload", "lua::State"], note: "script/Скрипты на Lua.md", thread: "update" },
     input:    { x: 610, y: 128, dir: "src/input", ns: "elm", third: ["GLFW"], desc: "Ввод с приоритетами подписчиков, действия и оси.", ents: ["Input", "IInputSubscriber", "InputContext", "ActionBinding", "AxisBinding"], note: null, thread: "update" },
-    resource:   { x: 120, y: 222, dir: "src/resource", ns: "elm::resource", third: ["glaze"], desc: "Читает и пишет `.model` и `.scene` (JSON через glaze), экспорт glTF.", ents: ["Serializer", "GltfExporter", "JsonValue"], note: "scene/Файл сцены.md", thread: "любой (SceneAsset)" },
+    resource:   { x: 120, y: 222, dir: "src/resource", ns: "elm::resource", third: ["glaze"], desc: "Читает и пишет `.model` (двоичный) и `.scene` (JSON через glaze), экспорт glTF.", ents: ["Serializer", "GltfExporter", "JsonValue"], note: "scene/Файл сцены.md", thread: "любой (SceneAsset)" },
     physics:  { x: 300, y: 222, dir: "src/physics", ns: "elm", third: ["Jolt 5.2"], desc: "Тела Jolt для узлов с `Collider`, по `NodeId`. Jolt линкуется PRIVATE: он выставляет `_HAS_EXCEPTIONS=0`, а движку нужны исключения.", ents: ["PhysicsSystem", "RayHit", "CollisionEvent"], note: "physics/Физика.md", thread: "update" },
     platform: { x: 600, y: 222, dir: "src/platform", ns: "elm::platform", third: ["GLFW"], desc: "Главное окно. Рендер получает от него только `NativeWindow` и размер.", ents: ["platform::Window"], note: "render/бэкенд/Бэкенды.md", thread: "update" },
     Scene:    { x: 230, y: 318, dir: "src/Scene", ns: "elm", third: [], desc: "Узлы, `NodeId`, хранилища компонентов, `SceneAsset`, `SceneSnapshot`. Только update-поток, мутации проверяет `ELM_ASSERT_THREAD(Update)`.", ents: ["Scene", "NodeId", "NodeIdTable", "ComponentStores", "SceneAsset", "SceneSnapshot"], note: "scene/Сцена.md", thread: "update" },
@@ -1078,6 +1078,8 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Ядро", "core::JobSystem, TaskGroup, parallelFor", "пул воркеров и группы задач", "core/JobSystem.hpp"],
     ["Ядро", "core::ThreadRole (Update, Render)", "роль потока, проверяется `ELM_ASSERT_THREAD`", "core/Threading.hpp"],
     ["Ядро", "FileSystem, Path, AssetPaths", "пути относительно корня (`Core/FileSystem/RootPath`)", "core/FileSystem.hpp"],
+    ["Ядро", "File", "открытый файл: чтение и запись всех байтов, закрывается сам", "core/File.hpp"],
+    ["Ядро", "BinaryBlock, BinaryValue", "байты подряд: содержимое файла или то, что будет записано", "core/BinaryBlock.hpp"],
     ["Ядро", "log::Category, log::Severity", "лог движка, макросы `LOG_MESSAGE`/`WARNING_MESSAGE`/`ERROR_MESSAGE`", "core/Log.hpp"],
     ["Сцена", "Scene", "узлы, их мировые трансформы и компоненты; запись методами сцены по `NodeId`", "Engine, update"],
     ["Сцена", "Scene::Node, узел", "ядро элемента сцены: `id`, родитель, имя, локальный трансформ. В Lua — `Entity`", "Scene"],
@@ -1114,7 +1116,7 @@ local entity, point, normal, distance = elm.physics.raycast(origin, direction, 5
     ["Системы", "PhysicsSystem, RayHit", "тела Jolt для узлов с `Collider`, по `NodeId`, только update", "physics"],
     ["Системы", "Input, IInputSubscriber, InputContext, ActionBinding, AxisBinding", "ввод с приоритетами подписчиков и действия", "input"],
     ["Системы", "platform::Window", "главное окно GLFW", "platform"],
-    ["Системы", "resource::Serializer, GltfExporter, JsonValue", "`.model`/`.scene` (JSON через glaze), экспорт glTF", "resource"],
+    ["Системы", "resource::Serializer, GltfExporter, JsonValue", "`.model` (двоичный), `.scene` (JSON через glaze), экспорт glTF", "resource"],
     ["Скрипты", "script::ScriptSystem", "менеджер скриптов: Lua-машина, части, биндинги, порядок в кадре", "script"],
     ["Скрипты", "EngineContext, ScriptTime, PlayRequests", "системы движка для скриптов, время кадра, запросы Play/Stop", "script"],
     ["Скрипты", "ModulePaths, ModuleLoader, LoadedModule", "имя модуля ↔ файл; `require` и загруженные модули", "script/module"],

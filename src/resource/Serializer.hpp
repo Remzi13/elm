@@ -15,7 +15,10 @@ namespace elm::project {
 namespace elm::resource {
     class Serializer {
     public:
+        /// Writes a binary .model file (docs/scene/Файл сцены.md). A model with a submesh without geometry or with a
+        /// value that is not finite is an error, nothing is written.
         [[nodiscard]] static auto SaveModel(const Model& model, const Path& path) -> EngineResult<void>;
+        /// Reads a binary .model file. A file of the old JSON formats is an error: its glTF file is imported again.
         [[nodiscard]] static auto LoadModel(const Path& path) -> EngineResult<Model>;
         /// Writes a model into the models folder of an assets folder under a name no file has yet
         /// (models/<name>.model, models/<name>_1.model, ...). Returns the file.

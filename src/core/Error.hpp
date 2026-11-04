@@ -14,7 +14,8 @@ namespace elm {
         ResourceCreationFailed,
         SerializationFailed,
         ScriptError,
-        UnknownError
+        UnknownError,
+        FileAccessFailed
     };
 
     struct EngineError {

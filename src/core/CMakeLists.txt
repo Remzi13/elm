@@ -26,6 +26,10 @@ engine_add_library(core
     Settings.cpp
     FileSystem.hpp
     FileSystem.cpp
+    BinaryBlock.hpp
+    BinaryBlock.cpp
+    File.hpp
+    File.cpp
 )
 
 target_include_directories(core PUBLIC

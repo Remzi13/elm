@@ -65,6 +65,8 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `core::JobSystem`, `TaskGroup`, `parallelFor` | пул воркеров и группы задач | `core/JobSystem.hpp` |
 | `core::ThreadRole` (`Update`, `Render`) | роль потока, проверяется `ELM_ASSERT_THREAD` | `core/Threading.hpp` |
 | `FileSystem`, `Path` | пути относительно корня движка (`Core/FileSystem/RootPath`): шейдеры, `resources/` редактора. Пути игры — у `Project` | `core/FileSystem.hpp` |
+| `File` | открытый файл: `OpenForReading`/`OpenForWriting`, `ReadAll`, `Write`, `Close`; закрывается сам, ошибки называют файл (`docs/core/Файлы.md`) | `core/File.hpp` |
+| `BinaryBlock`, `BinaryValue` | байты подряд: содержимое файла или то, что будет записано; значения идут с раскладкой в памяти, чтение за границей ничего не читает | `core/BinaryBlock.hpp` |
 | `log::Category`, `log::Severity` | лог движка, макросы `LOG_MESSAGE`/`WARNING_MESSAGE`/`ERROR_MESSAGE`; вывод в консоль (`ELM_LOG_CONSOLE`) и в файл (`Core/Log/File`, `log::openFile`) | `core/Log.hpp` |
 
 **Сцена** (`src/Scene`, `elm`)
@@ -149,7 +151,7 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `ModelPrimitive`, `NodeEditing` | модели без файла; что окна делают с узлами и компонентами без UI (`editor/NodeEditing.*`) | `editor` |
 | `ui::InputString`, `ui::ToggleButton`, `ui::BeginPropertyGrid`, `ui::DragAxes` | общие виджеты окон (`editor/ui/EditorWidgets.*`) | `editor/ui` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
-| `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model`/`.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
+| `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model` (двоичный), `.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели `.model` в `assets/models/`, тот же файл по содержимому не добавляет ничего нового; модель вместе с её файлом | `resource` |
 | `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `ResourceSystem`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |

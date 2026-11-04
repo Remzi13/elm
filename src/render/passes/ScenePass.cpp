@@ -2,8 +2,12 @@
 
 #include "core/Log.hpp"
 
+#include "math/Primitivs.hpp"
+
 #include "render/frame/FrameSnapshot.hpp"
 #include "render/rhi/IRenderBackend.hpp"
+
+#include <cstddef>
 
 namespace elm::render {
 
@@ -15,6 +19,9 @@ namespace elm::render {
         };
 
         static_assert(sizeof(InstanceData) == sizeof(float) * 20, "Instance layout must match the per-instance vertex stream");
+        static_assert(sizeof(Vertex) == sizeof(float) * 8 && offsetof(Vertex, position) == 0 && offsetof(Vertex, normal) == sizeof(float) * 3
+                && offsetof(Vertex, u) == sizeof(float) * 6 && offsetof(Vertex, v) == sizeof(float) * 7,
+            "Vertex must match the per-vertex stream, mesh.vert.hlsl and the .model file");
 
         constexpr uint32_t CameraConstantsSlot = 0;
 
