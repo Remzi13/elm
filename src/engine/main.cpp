@@ -61,7 +61,7 @@ namespace {
     int ReportFatal(const char* what, const elm::EngineError& error)
     {
         std::cerr << "[Fatal Error] " << what << ": " << error.message << std::endl;
-        return static_cast<int>(error.code);
+        return 1;
     }
 
 } // namespace

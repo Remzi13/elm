@@ -43,7 +43,8 @@ namespace elm::log {
     };
 
     void add(Severity severity, Category category, char const* pSourceInfo, char const* pFilename, int pLineNumber, char const* pMessageFormat, ...);
-    const Vector<Entry>& getMessages();
+    /// A copy of the kept messages: other threads keep adding new ones.
+    [[nodiscard]] Vector<Entry> getMessages();
     Vector<Entry> takeMessages();
     void clearMessages();
     void setMaxMessages(std::size_t maxMessages);

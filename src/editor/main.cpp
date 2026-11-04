@@ -105,7 +105,7 @@ namespace {
     int ReportFatal(const char* what, const elm::EngineError& error)
     {
         std::cerr << "[Fatal Error] " << what << ": " << error.message << std::endl;
-        return static_cast<int>(error.code);
+        return 1;
     }
 
     /// The editor with the --project argument, otherwise the project opened last time, otherwise the Project Hub.

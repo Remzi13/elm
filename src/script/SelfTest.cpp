@@ -45,6 +45,7 @@
 #include "resource/ProjectBuilder.hpp"
 #include "resource/ResourceSystem.hpp"
 #include "resource/ProjectTemplate.hpp"
+#include "resource/SerializationError.hpp"
 #include "resource/Serializer.hpp"
 
 #include <algorithm>
@@ -60,6 +61,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <type_traits>
 
 namespace elm::script {
 
@@ -1608,6 +1610,9 @@ namespace elm::script {
 
             report.Check(log::getMessages().size() == messagesBefore, "file::errors_are_left_to_the_caller");
 
+            // A name too long for the system to tell whether it exists
+            report.Check(!FileSystem::Exists(Path(String(5000, 'a'))), "file_system::path_that_cannot_be_inspected_does_not_exist");
+
             File reading;
             report.Check(reading.Open(deep, FileMode::Read) && !reading.Write(StringView("y")) && reading.ReadAll(), "file::opened_for_reading_does_not_write");
             File writing;
@@ -2967,6 +2972,21 @@ namespace elm::script {
             fs::remove_all(root, error);
         }
 
+        /// A message is read as a copy, says where it was made and survives a format that fails.
+        void RunLogMessageTests(Report& report)
+        {
+            static_assert(!std::is_reference_v<decltype(log::getMessages())>, "a reference would outlive the lock of the log");
+
+            (void)MakeUnexpected(ErrorCode::UnknownError, "selftest error", log::Category::Core, "SelfTest");
+            report.Check(log::getMessages().back().filename.ends_with("SelfTest.cpp"), "log::error_names_the_place_it_was_made");
+            (void)resource::UnexpectedSerializationError("selftest error", "SelfTest");
+            report.Check(log::getMessages().back().filename.ends_with("SelfTest.cpp"), "log::serialization_error_names_the_place_it_was_made");
+
+            // The "C" locale has no narrow form of this character, so vsnprintf fails
+            LOG_MESSAGE(log::Category::Core, "SelfTest", "cannot format %ls", L"\u044F");
+            report.Check(log::getMessages().back().message.starts_with("cannot format"), "log::message_that_cannot_be_formatted_is_kept");
+        }
+
         // ── Lua side ────────────────────────────────────────────────────────────
 
         void RunScriptTests(ScriptSystem& system, Report& report)
@@ -3050,6 +3070,7 @@ namespace elm::script {
         RunDebugDrawSystemTests(report);
         RunTransformGizmoTests(report);
         RunLogFileTests(report);
+        RunLogMessageTests(report);
         RunSceneSystemTests(report);
         RunResourceSystemTests(report);
         RunModelCatalogTests(report);

@@ -94,6 +94,7 @@ namespace elm {
         [[nodiscard]] static Path CurrentPath(std::error_code& error);
         [[nodiscard]] static Path CurrentPath();
         [[nodiscard]] static bool Exists(const Path& path, std::error_code& error);
+        /// False too for a path the system cannot inspect; the overload above tells the two apart.
         [[nodiscard]] static bool Exists(const Path& path);
         [[nodiscard]] static bool IsDirectory(const Path& path, std::error_code& error);
         [[nodiscard]] static bool IsRegularFile(const Path& path, std::error_code& error);
@@ -123,6 +124,7 @@ namespace elm {
             Iterator& operator=(const Iterator&) = delete;
 
             [[nodiscard]] bool IsEnd() const noexcept;
+            /// Only before the end.
             [[nodiscard]] Path CurrentPath() const;
             [[nodiscard]] bool IsDirectory(std::error_code& error) const;
             [[nodiscard]] bool IsRegularFile(std::error_code& error) const;

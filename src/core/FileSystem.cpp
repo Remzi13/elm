@@ -1,11 +1,11 @@
 #include "core/FileSystem.hpp"
 
+#include "core/Debug.hpp"
 #include "core/FilesystemPath.hpp"
 #include "core/Settings.hpp"
 
 #include <filesystem>
 #include <mutex>
-#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -331,7 +331,8 @@ namespace elm {
 
     auto FileSystem::Exists(const Path& path) -> bool
     {
-        return fs::exists(ToFilesystemPath(path));
+        std::error_code error;
+        return fs::exists(ToFilesystemPath(path), error);
     }
 
     auto FileSystem::IsDirectory(const Path& path, std::error_code& error) -> bool
@@ -409,8 +410,7 @@ namespace elm {
 
     auto Directory::Iterator::CurrentPath() const -> Path
     {
-        if (IsEnd())
-            throw std::out_of_range("Cannot access the end directory iterator");
+        ELM_ASSERT(!IsEnd() && "the end iterator has no path");
         return ToPath(m_impl->iterator->path());
     }
 

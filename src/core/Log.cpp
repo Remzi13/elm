@@ -10,7 +10,6 @@
 #include <string>
 #include <ctime>
 #include <mutex>
-#include <stdexcept>
 #include <utility>
 
 namespace elm::log {
@@ -21,43 +20,22 @@ namespace elm::log {
         /// Buffered file lines are written when this much has gathered, even before the frame ends.
         constexpr std::size_t FileBufferSize = 64 * 1024;
 
+        /// The format itself when it cannot be formatted: the log is called from any thread and does not throw.
         String formatMessage(char const* pMessageFormat, va_list args)
         {
             if (pMessageFormat == nullptr)
                 return {};
 
-            Vector<char> buffer(256);
-            while (true) {
-                va_list argsCopy;
-                va_copy(argsCopy, args);
-                int const result = std::vsnprintf(buffer.data(), buffer.size(), pMessageFormat, argsCopy);
-                va_end(argsCopy);
+            va_list sizeArgs;
+            va_copy(sizeArgs, args);
+            int const size = std::vsnprintf(nullptr, 0, pMessageFormat, sizeArgs);
+            va_end(sizeArgs);
+            if (size < 0)
+                return pMessageFormat;
 
-                if (result >= 0 && static_cast<std::size_t>(result) < buffer.size())
-                    return String(buffer.data(), static_cast<std::size_t>(result));
-
-                std::size_t nextSize;
-                if (result >= 0) {
-                    nextSize = static_cast<std::size_t>(result) + 1;
-                } else {
-#if defined(_MSC_VER)
-                    va_list sizeArgs;
-                    va_copy(sizeArgs, args);
-                    int const requiredSize = ::_vscprintf(pMessageFormat, sizeArgs);
-                    va_end(sizeArgs);
-                    if (requiredSize < 0)
-                        throw std::runtime_error("Unable to format log message");
-                    nextSize = static_cast<std::size_t>(requiredSize) + 1;
-#else
-                    throw std::runtime_error("Unable to format log message");
-#endif
-                }
-
-                if (nextSize <= buffer.size() || nextSize > buffer.max_size())
-                    throw std::length_error("Log message is too large to format");
-
-                buffer.resize(nextSize);
-            }
+            String message(static_cast<std::size_t>(size), '\0');
+            std::vsnprintf(message.data(), message.size() + 1, pMessageFormat, args);
+            return message;
         }
 
         char const* getSeverityName(Severity severity)
@@ -205,7 +183,7 @@ namespace elm::log {
                 m_file = File {};
             }
 
-            const Vector<Entry>& Get() const
+            Vector<Entry> Get() const
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 return m_messages;
@@ -303,13 +281,7 @@ namespace elm::log {
     {
         va_list args;
         va_start(args, pMessageFormat);
-        String message;
-        try {
-            message = formatMessage(pMessageFormat, args);
-        } catch (...) {
-            va_end(args);
-            throw;
-        }
+        String message = formatMessage(pMessageFormat, args);
         va_end(args);
 
         Entry entry {
@@ -325,7 +297,7 @@ namespace elm::log {
         messageStore().Add(std::move(entry));
     }
 
-    const Vector<Entry>& getMessages()
+    Vector<Entry> getMessages()
     {
         return messageStore().Get();
     }
