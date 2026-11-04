@@ -2,6 +2,7 @@
 
 #include "resource/SerializationError.hpp"
 
+#include "core/File.hpp"
 #include "core/Log.hpp"
 #include "core/Settings.hpp"
 
@@ -95,10 +96,13 @@ namespace elm::resource {
         {
             std::error_code error;
             FileSystem::CreateDirectories(folder, error);
-            auto mark = FileSystem::OpenForWriting(folder / ProjectBuilder::BuildMarkFile);
-            mark << "Made by ProjectBuilder: the next build replaces this folder.\n";
-            if (error || !mark)
-                return UnexpectedSerializationError("Cannot make the build folder " + folder.string(), LogSource);
+            File mark;
+            if (auto opened = mark.Open(folder / ProjectBuilder::BuildMarkFile, FileMode::Write); !opened)
+                return UnexpectedSerializationError(opened.error().message, LogSource);
+            if (auto written = mark.Write(StringView("Made by ProjectBuilder: the next build replaces this folder.\n")); !written)
+                return UnexpectedSerializationError(written.error().message, LogSource);
+            if (auto closed = mark.Close(); !closed)
+                return UnexpectedSerializationError(closed.error().message, LogSource);
             return {};
         }
 

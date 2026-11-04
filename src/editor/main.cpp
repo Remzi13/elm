@@ -2,6 +2,7 @@
 #include <cstring>
 #include <iostream>
 
+#include "core/File.hpp"
 #include "core/Log.hpp"
 #include "core/Settings.hpp"
 #include "core/Threading.hpp"
@@ -46,11 +47,10 @@ namespace {
             return 1;
         }
         const Path path = FileSystem::Resolve(fileName);
-        std::error_code error;
-        FileSystem::CreateDirectories(path.Parent(), error);
-        auto stream = FileSystem::OpenForWriting(path, std::ios::out | std::ios::binary);
-        stream.write(meta->data(), static_cast<std::streamsize>(meta->size()));
-        if (!stream) {
+        std::error_code folderError;
+        FileSystem::CreateDirectories(path.Parent(), folderError);
+        File file;
+        if (!file.Open(path, FileMode::Write) || !file.Write(*meta) || !file.Close()) {
             std::cerr << "Cannot write " << path.string() << std::endl;
             return 1;
         }

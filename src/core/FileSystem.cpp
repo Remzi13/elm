@@ -1,5 +1,6 @@
 #include "core/FileSystem.hpp"
 
+#include "core/FilesystemPath.hpp"
 #include "core/Settings.hpp"
 
 #include <filesystem>
@@ -9,19 +10,19 @@
 #include <utility>
 
 namespace elm {
+    namespace fs = std::filesystem;
+
+    auto ToFilesystemPath(const Path& path) -> fs::path
+    {
+        const auto text = path.string();
+        std::u8string utf8;
+        utf8.reserve(text.size());
+        for (const unsigned char character : text)
+            utf8.push_back(static_cast<char8_t>(character));
+        return fs::path(utf8);
+    }
+
     namespace {
-        namespace fs = std::filesystem;
-
-        auto ToFilesystemPath(const Path& path) -> fs::path
-        {
-            const auto text = path.string();
-            std::u8string utf8;
-            utf8.reserve(text.size());
-            for (const unsigned char character : text)
-                utf8.push_back(static_cast<char8_t>(character));
-            return fs::path(utf8);
-        }
-
         auto ToUtf8String(const fs::path& path) -> String
         {
             const auto text = path.u8string();
@@ -379,16 +380,6 @@ namespace elm {
     {
         fs::current_path(ToFilesystemPath(path), error);
         return !error;
-    }
-
-    auto FileSystem::OpenForReading(const Path& path, std::ios::openmode mode) -> std::ifstream
-    {
-        return std::ifstream(ToFilesystemPath(path), mode);
-    }
-
-    auto FileSystem::OpenForWriting(const Path& path, std::ios::openmode mode) -> std::ofstream
-    {
-        return std::ofstream(ToFilesystemPath(path), mode);
     }
 
     struct Directory::Iterator::Impl {

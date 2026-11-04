@@ -26,6 +26,7 @@ engine_add_library(core
     Settings.cpp
     FileSystem.hpp
     FileSystem.cpp
+    FilesystemPath.hpp
     BinaryBlock.hpp
     BinaryBlock.cpp
     File.hpp

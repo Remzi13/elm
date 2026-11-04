@@ -5,12 +5,13 @@
 
 #include "Scene/ModelComponent.hpp"
 
+#include "core/File.hpp"
+
 #include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
 #include <cstdint>
-#include <fstream>
 #include <limits>
 #include <optional>
 #include <span>
@@ -50,11 +51,6 @@ namespace elm::resource {
         auto Failure(String message) -> std::unexpected<EngineError>
         {
             return UnexpectedSerializationError(std::move(message), "GltfExporter");
-        }
-
-        auto Failure(const std::string& message) -> std::unexpected<EngineError>
-        {
-            return UnexpectedSerializationError(StringView(message.data(), message.size()), "GltfExporter");
         }
 
         auto Failure(const char* message) -> std::unexpected<EngineError>
@@ -122,18 +118,6 @@ namespace elm::resource {
                 }
             }
             return encoded;
-        }
-
-        auto WriteBytes(const Path& path, const Vector<uint8_t>& bytes) -> EngineResult<void>
-        {
-            auto file = FileSystem::OpenForWriting(path, std::ios::binary);
-            if (!file)
-                return Failure("Unable to open glTF output file: " + path.string());
-            if (!bytes.empty())
-                file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-            if (!file)
-                return Failure("Unable to write glTF output file: " + path.string());
-            return {};
         }
 
         struct ExportPrimitive {
@@ -283,15 +267,23 @@ namespace elm::resource {
                 auto json = root.ToString();
                 if (!json)
                     return UnexpectedSerializationError(json.error());
-                auto writeBinary = WriteBytes(binaryPath, m_binary);
-                if (!writeBinary)
-                    return UnexpectedSerializationError(writeBinary.error());
-                auto jsonFile = FileSystem::OpenForWriting(path, std::ios::binary);
-                if (!jsonFile)
-                    return Failure("Unable to open glTF output file: " + path.string());
-                jsonFile.write(json->data(), static_cast<std::streamsize>(json->size()));
-                if (!jsonFile)
-                    return Failure("Unable to write glTF output file: " + path.string());
+                BinaryBlock binary;
+                binary.AppendArray<uint8_t>(m_binary);
+                File binaryFile;
+                if (auto opened = binaryFile.Open(binaryPath, FileMode::Write); !opened)
+                    return Failure(opened.error().message);
+                if (auto written = binaryFile.Write(binary); !written)
+                    return Failure(written.error().message);
+                if (auto closed = binaryFile.Close(); !closed)
+                    return Failure(closed.error().message);
+
+                File jsonFile;
+                if (auto opened = jsonFile.Open(path, FileMode::Write); !opened)
+                    return Failure(opened.error().message);
+                if (auto written = jsonFile.Write(*json); !written)
+                    return Failure(written.error().message);
+                if (auto closed = jsonFile.Close(); !closed)
+                    return Failure(closed.error().message);
                 return {};
             }
 
@@ -567,24 +559,15 @@ namespace elm::resource {
 
         auto ReadFile(const Path& path) -> EngineResult<Vector<uint8_t>>
         {
-            auto file = FileSystem::OpenForReading(path, std::ios::binary);
-            if (!file)
-                return Failure("Unable to open glTF resource: " + path.string());
-
-            file.seekg(0, std::ios::end);
-            const std::streamoff length = file.tellg();
-            if (length < 0)
-                return Failure(String("Unable to determine glTF resource size: ") + String(path.string().c_str()));
-            if (static_cast<std::uintmax_t>(length) > static_cast<std::uintmax_t>(std::numeric_limits<std::streamsize>::max()))
-                return Failure("glTF resource is too large to read: " + path.string());
-            file.seekg(0, std::ios::beg);
-
-            Vector<uint8_t> bytes(static_cast<size_t>(length));
-            if (!bytes.empty()) {
-                file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-                if (!file)
-                    return Failure(String("Unable to read glTF resource: ") + String(path.string().c_str()));
-            }
+            File file;
+            if (auto opened = file.Open(path, FileMode::Read); !opened)
+                return Failure(opened.error().message);
+            const auto block = file.ReadAll();
+            if (!block)
+                return Failure(block.error().message);
+            Vector<uint8_t> bytes(block->Size());
+            if (!block->ReadArray<uint8_t>(0, bytes))
+                return Failure(String("Unable to read glTF resource: ") + String(path.string().c_str()));
             return bytes;
         }
 

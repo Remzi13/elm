@@ -1,12 +1,12 @@
 #include "core/Log.hpp"
 
+#include "core/File.hpp"
 #include "core/FileSystem.hpp"
 #include "core/Settings.hpp"
 
 #include <cstdarg>
 #include <cstddef>
 #include <cstdio>
-#include <fstream>
 #include <string>
 #include <ctime>
 #include <mutex>
@@ -149,17 +149,6 @@ namespace elm::log {
             return previous;
         }
 
-        /// Creates the file's folder and keeps an existing file as the previous log.
-        std::ofstream openRotated(const Path& file)
-        {
-            std::error_code error;
-            if (file.HsaParentPath())
-                FileSystem::CreateDirectories(file.Parent(), error);
-            if (FileSystem::IsRegularFile(file, error))
-                FileSystem::Rename(file, previousFileOf(file), error);
-            return FileSystem::OpenForWriting(file, std::ios::out | std::ios::trunc);
-        }
-
         class MessageStore {
         public:
             MessageStore()
@@ -175,14 +164,7 @@ namespace elm::log {
             void Add(Entry entry)
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
-                m_messages.push_back(std::move(entry));
-                if (m_messages.size() > m_maxMessages)
-                    m_messages.erase(m_messages.begin());
-#if defined(ELM_LOG_CONSOLE)
-                writeToConsole(m_messages.back());
-#endif
-                if (m_file.is_open())
-                    BufferForFile(m_messages.back());
+                Store(std::move(entry));
             }
 
             /// The kept messages go first: the file starts with what was logged before it was opened.
@@ -191,16 +173,23 @@ namespace elm::log {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 WriteFileBuffer();
                 // Before the rotation: Windows does not rename a file that is still open
-                m_file.close();
-                m_file = openRotated(file);
-                if (!m_file)
+                m_file = File {};
+                std::error_code error;
+                if (file.HsaParentPath())
+                    FileSystem::CreateDirectories(file.Parent(), error);
+                if (FileSystem::IsRegularFile(file, error))
+                    FileSystem::Rename(file, previousFileOf(file), error);
+                if (!m_file.Open(file, FileMode::Write))
                     return false;
                 m_fileBuffer.reserve(FileBufferSize);
-                m_file << formatFileHeader() << '\n';
-                for (Entry const& entry : m_messages)
-                    m_file << formatLine(entry) << '\n';
-                m_file.flush();
-                return static_cast<bool>(m_file);
+                m_fileBuffer += formatFileHeader();
+                m_fileBuffer += '\n';
+                for (Entry const& entry : m_messages) {
+                    m_fileBuffer += formatLine(entry);
+                    m_fileBuffer += '\n';
+                }
+                WriteFileBuffer();
+                return m_file.IsOpen();
             }
 
             void Flush()
@@ -213,7 +202,7 @@ namespace elm::log {
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
                 WriteFileBuffer();
-                m_file.close();
+                m_file = File {};
             }
 
             const Vector<Entry>& Get() const
@@ -256,6 +245,18 @@ namespace elm::log {
             }
 
         private:
+            void Store(Entry entry)
+            {
+                m_messages.push_back(std::move(entry));
+                if (m_messages.size() > m_maxMessages)
+                    m_messages.erase(m_messages.begin());
+#if defined(ELM_LOG_CONSOLE)
+                writeToConsole(m_messages.back());
+#endif
+                if (m_file.IsOpen())
+                    BufferForFile(m_messages.back());
+            }
+
             /// Lines wait in the buffer: one write per frame or per full buffer instead of one per message.
             /// A warning or an error is written at once with the lines before it, so they survive a crash.
             void BufferForFile(Entry const& entry)
@@ -266,19 +267,25 @@ namespace elm::log {
                     WriteFileBuffer();
             }
 
+            /// A failed write ends the file: the log goes on without it and keeps the reason among its messages.
             void WriteFileBuffer()
             {
-                if (m_fileBuffer.empty())
+                if (!m_file.IsOpen() || m_fileBuffer.empty())
                     return;
-                m_file.write(m_fileBuffer.data(), static_cast<std::streamsize>(m_fileBuffer.size()));
-                m_file.flush();
+                auto written = m_file.Write(m_fileBuffer);
+                if (written)
+                    written = m_file.Flush();
                 m_fileBuffer.clear();
+                if (written)
+                    return;
+                m_file = File {};
+                Store(Entry { std::chrono::system_clock::now(), Severity::Error, Category::Core, "Log", "", 0, written.error().message });
             }
 
         private:
             mutable std::mutex m_mutex;
             Vector<Entry> m_messages;
-            std::ofstream m_file;
+            File m_file;
             /// Formatted lines not yet written to m_file.
             String m_fileBuffer;
             std::size_t m_maxMessages { 5000 };

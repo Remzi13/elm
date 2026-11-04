@@ -1,6 +1,5 @@
 #pragma once
 
-#include <fstream>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -109,10 +108,6 @@ namespace elm {
         static bool RemoveAll(const Path& path, std::error_code& error);
         /// The folder relative paths of the process start from (a built game works in its own folder).
         static bool SetCurrentPath(const Path& path, std::error_code& error);
-        [[nodiscard]] static std::ifstream OpenForReading(
-            const Path& path, std::ios::openmode mode = std::ios::in);
-        [[nodiscard]] static std::ofstream OpenForWriting(
-            const Path& path, std::ios::openmode mode = std::ios::out);
     };
 
     class Directory {

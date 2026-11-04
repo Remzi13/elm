@@ -53,7 +53,6 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
-#include <fstream>
 #include <iterator>
 #include <limits>
 #include <span>
@@ -674,7 +673,18 @@ namespace elm::script {
 
         void WriteScript(const std::filesystem::path& path, const char* text)
         {
-            std::ofstream(path, std::ios::binary | std::ios::trunc) << text;
+            File file;
+            if (!file.Open(String(path.generic_string().c_str()), FileMode::Write) || !file.Write(StringView(text)) || !file.Close())
+                std::cerr << "A test cannot write its file: " << path.generic_string() << std::endl;
+        }
+
+        String ReadTestFile(const std::filesystem::path& path)
+        {
+            File file;
+            if (!file.Open(String(path.generic_string().c_str()), FileMode::Read))
+                return {};
+            const auto block = file.ReadAll();
+            return block ? String(*block->ReadText(0, block->Size())) : String {};
         }
 
         /// Moves the file time forward: two writes within the clock resolution look unchanged.
@@ -1319,8 +1329,7 @@ namespace elm::script {
             report.Check(saved.has_value(), "scene_file::save_with_components", saved ? "" : saved.error().message);
             {
                 // Component floats are written in their shortest form, for people who edit the file
-                std::ifstream stream(root / "components.scene", std::ios::binary);
-                const String text { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+                const String text = ReadTestFile(root / "components.scene");
                 report.Check(text.find("\"linearDamping\": 0.1") != String::npos && text.find("\"radius\": 0.4") != String::npos
                         && text.find("\"type\": \"kinematic\"") != String::npos && text.find("\"entity\": null") != String::npos,
                     "scene_file::readable_components", text.substr(text.find("\"components\"")));
@@ -1541,6 +1550,11 @@ namespace elm::script {
             report.Check(other != four, "binary_block::other_bytes_are_not_equal");
         }
 
+#if defined(ELM_PLATFORM_LINUX)
+        /// Opens as a file and fails every write that reaches it, as a full disk does.
+        constexpr const char* FullDevice = "/dev/full";
+#endif
+
         void RunFileTests(Report& report)
         {
             namespace fs = std::filesystem;
@@ -1549,12 +1563,14 @@ namespace elm::script {
             fs::remove_all(root, error);
             const String rootText(root.generic_string().c_str());
             const auto write = [](const Path& path, StringView text) {
-                auto file = File::OpenForWriting(path);
-                return file && file->Write(text) && file->Close();
+                File file;
+                return file.Open(path, FileMode::Write) && file.Write(text) && file.Close();
             };
             const auto read = [](const Path& path) {
-                auto file = File::OpenForReading(path);
-                return file ? file->ReadAll() : EngineResult<BinaryBlock>(std::unexpected(file.error()));
+                File file;
+                if (auto opened = file.Open(path, FileMode::Read); !opened)
+                    return EngineResult<BinaryBlock>(MakeUnexpected(opened.error()));
+                return file.ReadAll();
             };
             const auto textOf = [](const BinaryBlock& block) {
                 const auto bytes = block.Bytes();
@@ -1563,7 +1579,8 @@ namespace elm::script {
 
             const Path deep = rootText + "/a/b/bytes.bin";
             const StringView bytes("line\r\n\0\x1a end", 12);
-            report.Check(write(deep, bytes), "file::write_creates_its_folders");
+            fs::create_directories(root / "a" / "b", error);
+            report.Check(write(deep, bytes), "file::write_into_an_existing_folder");
             const auto written = read(deep);
             report.Check(written && StringView(textOf(*written)) == bytes, "file::bytes_are_read_back_as_written");
 
@@ -1581,14 +1598,43 @@ namespace elm::script {
             const auto namedRead = write(named, "named") ? read(named) : EngineResult<BinaryBlock> {};
             report.Check(namedRead && textOf(*namedRead) == "named", "file::name_outside_of_ascii");
 
-            report.Check(!File::OpenForReading(rootText + "/missing.bin"), "file::missing_file_is_an_error");
-            report.Check(!File::OpenForReading(Path(rootText)) && !File::OpenForWriting(Path(rootText)), "file::folder_is_an_error");
+            const size_t messagesBefore = log::getMessages().size();
+            File unopened;
+            report.Check(!unopened.IsOpen() && !unopened.ReadAll() && !unopened.Write(StringView("y")) && !unopened.Flush() && unopened.Close(),
+                "file::file_that_was_not_opened_does_nothing");
+            report.Check(!unopened.Open(rootText + "/missing.bin", FileMode::Read), "file::missing_file_is_an_error");
+            report.Check(!unopened.Open(Path(rootText), FileMode::Read) && !unopened.Open(Path(rootText), FileMode::Write), "file::folder_is_an_error");
+            report.Check(!unopened.Open(rootText + "/no/such/folder/file.bin", FileMode::Write) && !unopened.IsOpen(), "file::missing_folder_is_an_error");
 
-            auto reading = File::OpenForReading(deep);
-            report.Check(reading && !reading->Write(StringView("y")) && reading->ReadAll(), "file::opened_for_reading_does_not_write");
-            auto writing = File::OpenForWriting(rootText + "/writing.bin");
-            report.Check(writing && !writing->ReadAll() && writing->Close(), "file::opened_for_writing_does_not_read");
-            report.Check(writing && !writing->Write(StringView("y")), "file::closed_file_does_not_write");
+            report.Check(log::getMessages().size() == messagesBefore, "file::errors_are_left_to_the_caller");
+
+            File reading;
+            report.Check(reading.Open(deep, FileMode::Read) && !reading.Write(StringView("y")) && reading.ReadAll(), "file::opened_for_reading_does_not_write");
+            File writing;
+            report.Check(writing.Open(rootText + "/writing.bin", FileMode::Write) && !writing.ReadAll() && writing.Close(), "file::opened_for_writing_does_not_read");
+            report.Check(!writing.IsOpen() && !writing.Write(StringView("y")), "file::closed_file_does_not_write");
+            report.Check(reading.Close() && !reading.ReadAll(), "file::closed_file_does_not_read");
+
+            const Path flushed = rootText + "/flushed.bin";
+            File flushing;
+            report.Check(flushing.Open(flushed, FileMode::Write) && flushing.Write(StringView("seen")) && flushing.Flush(), "file::flush_succeeds");
+            const auto seen = read(flushed);
+            report.Check(seen && textOf(*seen) == "seen", "file::flushed_bytes_are_readable_before_close");
+            File moved = std::move(flushing);
+            report.Check(!flushing.IsOpen() && !flushing.Write(StringView("y")) && !flushing.Flush() && flushing.Close(), "file::moved_from_file_is_closed");
+            report.Check(moved.IsOpen() && moved.Write(StringView(" twice")), "file::moved_file_stays_open");
+
+            report.Check(moved.Open(rootText + "/second.bin", FileMode::Write).has_value(), "file::open_on_an_open_file");
+            const auto closedFirst = read(flushed);
+            report.Check(closedFirst && textOf(*closedFirst) == "seen twice", "file::open_closes_the_previous_file");
+            report.Check(moved.Close().has_value(), "file::second_file_closes");
+
+#if defined(ELM_PLATFORM_LINUX)
+            if (fs::exists(FullDevice, error)) {
+                File full;
+                report.Check(full.Open(FullDevice, FileMode::Write) && full.Write(StringView("y")) && !full.Flush(), "file::write_to_a_full_disk_shows_in_flush");
+            }
+#endif
             fs::remove_all(root, error);
         }
 
@@ -1603,12 +1649,14 @@ namespace elm::script {
             const Path file(String((root / "test.model").generic_string().c_str()));
 
             const auto readBlock = [](const Path& path) {
-                auto opened = File::OpenForReading(path);
-                return opened ? opened->ReadAll() : EngineResult<BinaryBlock>(std::unexpected(opened.error()));
+                File file;
+                if (auto opened = file.Open(path, FileMode::Read); !opened)
+                    return EngineResult<BinaryBlock>(MakeUnexpected(opened.error()));
+                return file.ReadAll();
             };
             const auto writeBlock = [](const Path& path, const BinaryBlock& block) {
-                auto opened = File::OpenForWriting(path);
-                return opened && opened->Write(block) && opened->Close();
+                File file;
+                return file.Open(path, FileMode::Write) && file.Write(block) && file.Close();
             };
             const auto sameModel = [](const Model& a, const Model& b) {
                 return a.name == b.name && std::ranges::equal(a.submeshes, b.submeshes, [](const Model::Submesh& x, const Model::Submesh& y) {
@@ -1784,6 +1832,7 @@ namespace elm::script {
             const Path oldCrate = assets / "models" / "Crate.model";
             BinaryBlock oldFormat;
             oldFormat.AppendText(R"({ "formatVersion": 2, "name": "Crate", "submeshes": [] })");
+            fs::create_directories(root / "assets" / "models", error);
             report.Check(writeBlock(oldCrate, oldFormat), "model_file::old_file_written");
             const auto crateFile = Serializer::SaveModelOnce(crate, assets);
             const auto oldAfter = readBlock(oldCrate);
@@ -1821,8 +1870,7 @@ namespace elm::script {
             fs::create_directories(root / "changed", error);
             const fs::path villageFolder(village.Parent().generic_string());
             fs::copy_file(villageFolder / "village.bin", root / "changed" / "village.bin", error);
-            std::ifstream villageStream(villageFolder / "village.gltf", std::ios::binary);
-            String changedText { std::istreambuf_iterator<char>(villageStream), std::istreambuf_iterator<char>() };
+            String changedText = ReadTestFile(villageFolder / "village.gltf");
             constexpr StringView RenamedNode = "Chimney 1";
             changedText.replace(changedText.find(RenamedNode), RenamedNode.size(), "Chimney 9");
             WriteScript(root / "changed" / "village.gltf", changedText.c_str());
@@ -2706,14 +2754,6 @@ namespace elm::script {
             report.Check(!geometry.IsEmpty() && geometry.batches[0].style.depth == render::DebugDepth::OnTop, "gizmo::drawn_on_top");
         }
 
-        // ── Log ─────────────────────────────────────────────────────────────────
-
-        String ReadLogFile(const std::filesystem::path& path)
-        {
-            std::ifstream stream(path, std::ios::binary);
-            return String { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
-        }
-
         /// A scene put in brings its models into the catalog; clearing the scene leaves them to the resources.
         void RunSceneSystemTests(Report& report)
         {
@@ -2885,27 +2925,27 @@ namespace elm::script {
             LOG_MESSAGE(log::Category::Core, "SelfTest", "before the file opens");
             report.Check(log::openFile(logFile), "log::open_file_makes_its_folder");
             LOG_MESSAGE(log::Category::Core, "SelfTest", "first run message");
-            const String buffered = ReadLogFile(file);
+            const String buffered = ReadTestFile(file);
             report.Check(buffered.starts_with("Log started ") && buffered.find("before the file opens") != String::npos,
                 "log::file_starts_with_kept_messages");
             report.Check(buffered.find("first run message") == String::npos, "log::info_waits_for_the_flush");
             log::flushFile();
-            report.Check(ReadLogFile(file).find("[INFO] [CORE] [SelfTest] first run message") != String::npos, "log::flush_writes_the_buffer");
+            report.Check(ReadTestFile(file).find("[INFO] [CORE] [SelfTest] first run message") != String::npos, "log::flush_writes_the_buffer");
 
             LOG_MESSAGE(log::Category::Core, "SelfTest", "info before a warning");
             WARNING_MESSAGE(log::Category::Core, "SelfTest", "selftest warning");
-            const String warned = ReadLogFile(file);
+            const String warned = ReadTestFile(file);
             report.Check(warned.find("info before a warning") != String::npos && warned.find("[WARNING] [CORE] [SelfTest] selftest warning") != String::npos,
                 "log::warning_writes_at_once");
 
             report.Check(log::openFile(logFile), "log::open_file_again");
-            const String previous = ReadLogFile(root / "Logs" / "game.prev.log");
+            const String previous = ReadTestFile(root / "Logs" / "game.prev.log");
             report.Check(previous.find("first run message") != String::npos, "log::reopen_keeps_the_previous_file");
 
             LOG_MESSAGE(log::Category::Core, "SelfTest", "buffered when closing");
             log::closeFile();
             LOG_MESSAGE(log::Category::Core, "SelfTest", "after the file closes");
-            const String closed = ReadLogFile(file);
+            const String closed = ReadTestFile(file);
             report.Check(closed.find("buffered when closing") != String::npos, "log::close_writes_the_buffer");
             report.Check(closed.find("after the file closes") == String::npos, "log::close_stops_writing");
 
@@ -2913,7 +2953,17 @@ namespace elm::script {
             report.Check(!log::openFile(Path(String((root / "Logs").generic_string().c_str()))), "log::folder_is_not_a_log_file");
             LOG_MESSAGE(log::Category::Core, "SelfTest", "after the failed open");
             log::flushFile();
-            report.Check(ReadLogFile(file).find("after the failed open") == String::npos, "log::failed_open_goes_on_without_a_file");
+            report.Check(ReadTestFile(file).find("after the failed open") == String::npos, "log::failed_open_goes_on_without_a_file");
+
+#if defined(ELM_PLATFORM_LINUX)
+            // The log reports its own failed write while it holds its lock: this hangs if it takes the lock again
+            if (fs::exists(FullDevice, error)) {
+                report.Check(!log::openFile(FullDevice), "log::failed_write_ends_the_file");
+                report.Check(log::getMessages().back().message.find(FullDevice) != String::npos, "log::failed_write_is_reported");
+                WARNING_MESSAGE(log::Category::Core, "SelfTest", "after the failed write");
+                report.Check(log::getMessages().back().message == "after the failed write", "log::failed_write_goes_on_without_a_file");
+            }
+#endif
             fs::remove_all(root, error);
         }
 

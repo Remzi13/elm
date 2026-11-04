@@ -8,8 +8,9 @@
 #include "project/AssetPath.hpp"
 #include "project/Project.hpp"
 
+#include "core/File.hpp"
+
 #include <algorithm>
-#include <iterator>
 #include <span>
 #include <string>
 #include <utility>
@@ -22,22 +23,17 @@ namespace elm::resource {
         /// The parts of a .gltf that may live in files of their own.
         constexpr const char* ReferencingLists[] = { "buffers", "images" };
 
-        auto ReadText(const Path& file) -> EngineResult<String>
-        {
-            auto stream = FileSystem::OpenForReading(file, std::ios::binary);
-            if (!stream)
-                return UnexpectedSerializationError("Cannot read " + file.string(), LogSource);
-            return String { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
-        }
-
         /// The uri of every buffer and image of a .gltf that is a file, not data inside the .gltf.
         auto ReferencedFiles(const Path& gltf) -> EngineResult<Vector<String>>
         {
-            auto text = ReadText(gltf);
+            File file;
+            if (auto opened = file.Open(gltf, FileMode::Read); !opened)
+                return UnexpectedSerializationError(opened.error().message, LogSource);
+            const auto text = file.ReadAll();
             if (!text)
-                return UnexpectedSerializationError(text.error());
+                return UnexpectedSerializationError(text.error().message, LogSource);
             JsonValue document;
-            if (auto parsed = document.Parse(*text); !parsed)
+            if (auto parsed = document.Parse(*text->ReadText(0, text->Size())); !parsed)
                 return UnexpectedSerializationError(parsed.error());
             Vector<String> uris;
             for (const char* list : ReferencingLists) {
@@ -55,11 +51,13 @@ namespace elm::resource {
 
         bool HaveSameBytes(const Path& first, const Path& second)
         {
-            auto firstStream = FileSystem::OpenForReading(first, std::ios::binary);
-            auto secondStream = FileSystem::OpenForReading(second, std::ios::binary);
-            return firstStream && secondStream
-                && std::equal(std::istreambuf_iterator<char>(firstStream), std::istreambuf_iterator<char>(),
-                    std::istreambuf_iterator<char>(secondStream), std::istreambuf_iterator<char>());
+            File firstFile;
+            File secondFile;
+            if (!firstFile.Open(first, FileMode::Read) || !secondFile.Open(second, FileMode::Read))
+                return false;
+            const auto firstBlock = firstFile.ReadAll();
+            const auto secondBlock = secondFile.ReadAll();
+            return firstBlock && secondBlock && *firstBlock == *secondBlock;
         }
 
         /// The folder has a copy of the original: the file and every file it references, byte for byte.

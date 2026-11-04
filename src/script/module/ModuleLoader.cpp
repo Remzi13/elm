@@ -4,10 +4,10 @@
 #include "script/lua/State.hpp"
 #include "script/module/ModulePaths.hpp"
 
+#include "core/File.hpp"
 #include "core/Unexpected.hpp"
 
 #include <algorithm>
-#include <iterator>
 
 namespace elm::script {
 
@@ -57,13 +57,16 @@ namespace elm::script {
 
     auto ModuleLoader::LoadChunk(const Path& file) -> EngineResult<void>
     {
-        auto stream = FileSystem::OpenForReading(file, std::ios::in | std::ios::binary);
-        if (!stream)
+        File source;
+        if (!source.Open(file, FileMode::Read))
             return MakeUnexpected(EngineError(ErrorCode::ScriptError, "cannot read " + String(file.string().c_str())));
-        String code { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+        const auto block = source.ReadAll();
+        if (!block)
+            return MakeUnexpected(EngineError(ErrorCode::ScriptError, "cannot read " + String(file.string().c_str())));
+        StringView code = *block->ReadText(0, block->Size());
         // luaL_loadbuffer does not skip the UTF-8 byte order mark some editors write
         if (code.starts_with("\xEF\xBB\xBF"))
-            code.erase(0, 3);
+            code.remove_prefix(3);
         return m_state.Load(code, m_paths.ChunkName(file).c_str());
     }
 

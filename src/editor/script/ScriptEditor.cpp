@@ -7,6 +7,8 @@
 #include "script/module/ModulePaths.hpp"
 #include "script/reload/HotReload.hpp"
 
+#include "core/File.hpp"
+
 #include "imgui.h"
 #include "imgui_internal.h"
 
@@ -14,7 +16,6 @@
 #include <cfloat>
 #include <charconv>
 #include <cstring>
-#include <iterator>
 
 namespace elm::script {
 
@@ -75,22 +76,16 @@ namespace elm::script {
 
         auto ReadFile(const Path& path) -> std::optional<String>
         {
-            auto stream = FileSystem::OpenForReading(path, std::ios::in | std::ios::binary);
-            if (!stream)
+            File file;
+            if (!file.Open(path, FileMode::Read))
                 return std::nullopt;
-            String text { std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>() };
+            const auto block = file.ReadAll();
+            if (!block)
+                return std::nullopt;
+            StringView text = *block->ReadText(0, block->Size());
             if (text.starts_with("\xEF\xBB\xBF"))
-                text.erase(0, 3);
-            return text;
-        }
-
-        bool WriteFile(const Path& path, StringView text)
-        {
-            std::error_code error;
-            FileSystem::CreateDirectories(path.Parent(), error);
-            auto stream = FileSystem::OpenForWriting(path, std::ios::out | std::ios::binary | std::ios::trunc);
-            stream.write(text.data(), static_cast<std::streamsize>(text.size()));
-            return static_cast<bool>(stream);
+                text.remove_prefix(3);
+            return String(text);
         }
 
         int64_t WriteTimeOf(const Path& path)
@@ -629,7 +624,10 @@ namespace elm::script {
     void ScriptEditor::Save(Document& document)
     {
         document.errorLine = 0;
-        if (!WriteFile(document.path, document.text)) {
+        std::error_code folderError;
+        FileSystem::CreateDirectories(document.path.Parent(), folderError);
+        File file;
+        if (!file.Open(document.path, FileMode::Write) || !file.Write(document.text) || !file.Close()) {
             document.status = "Cannot write " + String(document.path.string().c_str());
             document.statusError = true;
             return;
@@ -708,8 +706,13 @@ namespace elm::script {
         const Path path = m_paths.Root() / name;
         if (m_paths.NameOf(path).empty())
             return; // outside the script root or not a valid module name
-        if (!FileSystem::Exists(path) && !WriteFile(path, NewModuleTemplate))
-            return;
+        if (!FileSystem::Exists(path)) {
+            std::error_code folderError;
+            FileSystem::CreateDirectories(path.Parent(), folderError);
+            File file;
+            if (!file.Open(path, FileMode::Write) || !file.Write(NewModuleTemplate) || !file.Close())
+                return;
+        }
         RefreshFiles();
         Open(path, 2);
     }

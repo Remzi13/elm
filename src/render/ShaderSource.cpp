@@ -1,9 +1,8 @@
 #include "render/ShaderSource.hpp"
 
+#include "core/File.hpp"
 #include "core/Std.hpp"
 #include "core/FileSystem.hpp"
-
-#include <fstream>
 
 namespace elm::render {
 
@@ -15,15 +14,12 @@ namespace elm::render {
             FileSystem::Resolve("assets/shaders") / name
         };
         for (const auto& path : paths) {
-            auto file = FileSystem::OpenForReading(path, std::ios::binary | std::ios::ate);
-            if (!file)
+            File file;
+            if (!file.Open(path, FileMode::Read))
                 continue;
-            const auto size = file.tellg();
-            if (size <= 0 || !file.seekg(0))
-                continue;
-            String source(static_cast<size_t>(size), '\0');
-            if (file.read(source.data(), size))
-                return source;
+            const auto source = file.ReadAll();
+            if (source && source->Size() > 0)
+                return String(*source->ReadText(0, source->Size()));
         }
         return {};
     }

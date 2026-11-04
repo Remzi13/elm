@@ -1,8 +1,8 @@
 #include "core/File.hpp"
 
-#include "core/Log.hpp"
-#include "core/Unexpected.hpp"
+#include "core/FilesystemPath.hpp"
 
+#include <fstream>
 #include <ios>
 #include <string>
 #include <system_error>
@@ -11,61 +11,46 @@
 namespace elm {
 
     namespace {
-        constexpr const char* LogSource = "File";
-
         auto FileError(const char* what, const Path& path) -> std::unexpected<EngineError>
         {
-            return MakeUnexpected(ErrorCode::FileAccessFailed, std::string(what) + ": " + path.string(), log::Category::Core, LogSource);
+            return std::unexpected(EngineError(ErrorCode::FileAccessFailed, std::string(what) + ": " + path.string()));
         }
     } // namespace
 
-    File::File(Path path, std::ifstream input, std::ofstream output)
-        : m_path(std::move(path))
-        , m_input(std::move(input))
-        , m_output(std::move(output))
+    auto File::Open(const Path& path, FileMode mode) -> EngineResult<void>
     {
-    }
-
-    auto File::OpenForReading(const Path& path) -> EngineResult<File>
-    {
-        // A folder opens as a stream on Linux and only fails later
-        std::error_code error;
-        if (!FileSystem::IsRegularFile(path, error))
-            return FileError("Failed to open file for reading", path);
-        auto input = FileSystem::OpenForReading(path, std::ios::binary);
-        if (!input.is_open())
-            return FileError("Failed to open file for reading", path);
-        return File(path, std::move(input), std::ofstream {});
-    }
-
-    auto File::OpenForWriting(const Path& path) -> EngineResult<File>
-    {
-        if (const auto directory = path.Parent(); !directory.Empty()) {
+        if (auto closed = Close(); !closed)
+            return closed;
+        m_path = path;
+        m_mode = mode;
+        m_buffer = MakeUnique<std::filebuf>();
+        if (mode == FileMode::Read) {
+            // A folder opens on Linux and only fails later
             std::error_code error;
-            FileSystem::CreateDirectories(directory, error);
-            if (error)
-                return FileError("Failed to create the folder of file", path);
-        }
-        auto output = FileSystem::OpenForWriting(path, std::ios::binary | std::ios::trunc);
-        if (!output.is_open())
+            if (!FileSystem::IsRegularFile(path, error) || !m_buffer->open(ToFilesystemPath(path), std::ios::in | std::ios::binary))
+                return FileError("Failed to open file for reading", path);
+        } else if (!m_buffer->open(ToFilesystemPath(path), std::ios::out | std::ios::binary | std::ios::trunc)) {
             return FileError("Failed to open file for writing", path);
-        return File(path, std::ifstream {}, std::move(output));
+        }
+        return {};
+    }
+
+    bool File::IsOpen() const
+    {
+        return m_buffer && m_buffer->is_open();
     }
 
     auto File::ReadAll() -> EngineResult<BinaryBlock>
     {
-        if (!m_input.is_open())
+        if (m_mode != FileMode::Read || !IsOpen())
             return FileError("File is not open for reading", m_path);
-        m_input.clear();
-        m_input.seekg(0, std::ios::end);
-        const std::streamoff size = m_input.tellg();
-        m_input.seekg(0, std::ios::beg);
-        if (!m_input || size < 0)
+        const std::streamoff size = m_buffer->pubseekoff(0, std::ios::end, std::ios::in);
+        const std::streamoff start = m_buffer->pubseekpos(0, std::ios::in);
+        if (size < 0 || start != 0)
             return FileError("Failed to get the size of file", m_path);
 
         BinaryBlock block(static_cast<size_t>(size));
-        m_input.read(block.Bytes().data(), size);
-        if (!m_input)
+        if (m_buffer->sgetn(block.Bytes().data(), static_cast<std::streamsize>(size)) != size)
             return FileError("Failed to read file", m_path);
         return block;
     }
@@ -78,23 +63,29 @@ namespace elm {
 
     auto File::Write(StringView text) -> EngineResult<void>
     {
-        if (!m_output.is_open())
+        if (m_mode != FileMode::Write || !IsOpen())
             return FileError("File is not open for writing", m_path);
-        m_output.write(text.data(), static_cast<std::streamsize>(text.size()));
-        if (!m_output)
+        const auto size = static_cast<std::streamsize>(text.size());
+        if (m_buffer->sputn(text.data(), size) != size)
+            return FileError("Failed to write file", m_path);
+        return {};
+    }
+
+    auto File::Flush() -> EngineResult<void>
+    {
+        if (m_mode != FileMode::Write || !IsOpen())
+            return FileError("File is not open for writing", m_path);
+        if (m_buffer->pubsync() != 0)
             return FileError("Failed to write file", m_path);
         return {};
     }
 
     auto File::Close() -> EngineResult<void>
     {
-        if (m_input.is_open())
-            m_input.close();
-        if (!m_output.is_open())
+        if (!IsOpen())
             return {};
-        m_output.close();
-        if (!m_output)
-            return FileError("Failed to write file", m_path);
+        if (!m_buffer->close())
+            return FileError("Failed to close file", m_path);
         return {};
     }
 

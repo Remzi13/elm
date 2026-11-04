@@ -15,6 +15,8 @@
 #include "editor/ui/SceneHierarchyWindow.hpp"
 #include "editor/ui/SceneMenu.hpp"
 
+#include "core/File.hpp"
+
 #include "model/ModelCatalog.hpp"
 
 #include "render/api/FrameWriter.hpp"
@@ -41,7 +43,6 @@
 
 #include <cstring>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -70,6 +71,13 @@ namespace elm::editor {
                 }
             }
         };
+
+        /// A file for a test in a folder that exists.
+        bool WriteTestFile(const std::filesystem::path& path, StringView text)
+        {
+            File file;
+            return file.Open(String(path.generic_string().c_str()), FileMode::Write) && file.Write(text) && file.Close();
+        }
 
         // ── Syntax coloring ─────────────────────────────────────────────────────
 
@@ -179,10 +187,11 @@ line]] .. [==[a]]b]==])",
             const fs::path root = fs::temp_directory_path(error) / "elm_edit_mode_selftest";
             fs::remove_all(root, error);
             fs::create_directories(root, error);
-            std::ofstream(root / "mover.lua")
-                << "local Mover = {}\n"
-                   "function Mover:on_update(dt) self.entity.position = self.entity.position + elm.math.Vector3(1, 0, 0) end\n"
-                   "return Mover\n";
+            report.Check(WriteTestFile(root / "mover.lua",
+                             "local Mover = {}\n"
+                             "function Mover:on_update(dt) self.entity.position = self.entity.position + elm.math.Vector3(1, 0, 0) end\n"
+                             "return Mover\n"),
+                "edit::script_is_written");
 
             resource::ResourceSystem resources;
             ModelCatalog& models = resources.GetModels();
@@ -393,11 +402,8 @@ line]] .. [==[a]]b]==])",
             fs::remove_all(root, error);
             fs::create_directories(root / "game" / "npc", error);
             fs::create_directories(root / ".meta", error);
-            std::ofstream(root / "main.lua") << "";
-            std::ofstream(root / "init.lua") << "";
-            std::ofstream(root / "game" / "init.lua") << "";
-            std::ofstream(root / "game" / "npc" / "guard.lua") << "";
-            std::ofstream(root / ".meta" / "elm.lua") << "";
+            for (const char* module : { "main.lua", "init.lua", "game/init.lua", "game/npc/guard.lua", ".meta/elm.lua" })
+                report.Check(WriteTestFile(root / module, ""), "nodes::script_module_is_written");
             const Vector<String> modules = ListScriptModules(Path(String(root.generic_string().c_str())));
             report.Check(modules == Vector<String> { "game", "game.npc.guard", "main" }, "nodes::script_modules_by_require_names");
             fs::remove_all(root, error);

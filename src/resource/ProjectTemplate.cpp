@@ -5,6 +5,8 @@
 
 #include "project/Project.hpp"
 
+#include "core/File.hpp"
+
 #include <cctype>
 
 namespace elm::resource {
@@ -33,17 +35,6 @@ namespace elm::resource {
             "    \"runtime.builtin\": { \"io\": \"disable\", \"os\": \"disable\" },\n"
             "    \"workspace.library\": [ \".meta\" ]\n"
             "}\n";
-
-        auto WriteText(const Path& file, StringView text) -> EngineResult<void>
-        {
-            std::error_code error;
-            FileSystem::CreateDirectories(file.Parent(), error);
-            auto stream = FileSystem::OpenForWriting(file, std::ios::out | std::ios::binary);
-            stream.write(text.data(), static_cast<std::streamsize>(text.size()));
-            if (error || !stream)
-                return UnexpectedSerializationError("Cannot write " + file.string(), LogSource);
-            return {};
-        }
 
     } // namespace
 
@@ -76,13 +67,25 @@ namespace elm::resource {
         FileSystem::CreateDirectories(created.Scenes(), error);
         FileSystem::CreateDirectories(created.Models(), error);
         const Path scripts = created.Scripts();
-        auto written = WriteText(scripts / "main.lua", MainModuleText);
-        if (written)
-            written = WriteText(scripts / ".luarc.json", LuaLsSettingsText);
-        if (written)
-            written = WriteText(scripts / ".meta" / "elm.lua", luaApi);
-        if (!written)
-            return UnexpectedSerializationError(written.error());
+        FileSystem::CreateDirectories(scripts / ".meta", error);
+        struct ScriptFile {
+            Path path;
+            StringView text;
+        };
+        const ScriptFile scriptFiles[] = {
+            { scripts / "main.lua", MainModuleText },
+            { scripts / ".luarc.json", LuaLsSettingsText },
+            { scripts / ".meta" / "elm.lua", luaApi },
+        };
+        for (const ScriptFile& script : scriptFiles) {
+            File scriptFile;
+            if (auto opened = scriptFile.Open(script.path, FileMode::Write); !opened)
+                return UnexpectedSerializationError(opened.error().message, LogSource);
+            if (auto written = scriptFile.Write(script.text); !written)
+                return UnexpectedSerializationError(written.error().message, LogSource);
+            if (auto closed = scriptFile.Close(); !closed)
+                return UnexpectedSerializationError(closed.error().message, LogSource);
+        }
         if (error)
             return UnexpectedSerializationError("Cannot create the asset folders in " + folder.string(), LogSource);
         return file;

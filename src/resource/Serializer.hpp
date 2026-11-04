@@ -41,9 +41,5 @@ namespace elm::resource {
         [[nodiscard]] static auto LoadProject(const Path& path) -> EngineResult<project::Project>;
         /// Writes the project file (Project::File) from its description.
         [[nodiscard]] static auto SaveProject(const project::Project& project) -> EngineResult<void>;
-
-    private:
-        [[nodiscard]] static auto WriteFile(const Path& path, StringView contents) -> EngineResult<void>;
-        [[nodiscard]] static auto ReadFile(const Path& path) -> EngineResult<String>;
     };
 } // namespace elm::resource

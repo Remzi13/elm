@@ -998,24 +998,6 @@ namespace elm::resource {
             return model;
         }
 
-        auto ReadModelFile(const Path& path) -> EngineResult<BinaryBlock>
-        {
-            auto file = File::OpenForReading(path);
-            if (!file)
-                return UnexpectedSerializationError(file.error());
-            return file->ReadAll();
-        }
-
-        auto WriteModelFile(const Path& path, const BinaryBlock& block) -> EngineResult<void>
-        {
-            auto file = File::OpenForWriting(path);
-            if (!file)
-                return UnexpectedSerializationError(file.error());
-            if (auto written = file->Write(block); !written)
-                return UnexpectedSerializationError(written.error());
-            return file->Close();
-        }
-
         /// The models of the scene's Model components, each once, in the order of the nodes.
         auto UsedModels(const Scene& scene, const ModelCatalog& models) -> Vector<ModelHandler>
         {
@@ -1101,14 +1083,26 @@ namespace elm::resource {
         const auto block = EncodeModel(model);
         if (!block)
             return UnexpectedSerializationError(block.error());
-        return WriteModelFile(path, *block);
+        std::error_code folderError;
+        FileSystem::CreateDirectories(path.Parent(), folderError);
+        File file;
+        if (auto opened = file.Open(path, FileMode::Write); !opened)
+            return UnexpectedSerializationError(opened.error().message, "Serializer");
+        if (auto written = file.Write(*block); !written)
+            return UnexpectedSerializationError(written.error().message, "Serializer");
+        if (auto closed = file.Close(); !closed)
+            return UnexpectedSerializationError(closed.error().message, "Serializer");
+        return {};
     }
 
     auto Serializer::LoadModel(const Path& path) -> EngineResult<Model>
     {
-        const auto block = ReadModelFile(path);
+        File file;
+        if (auto opened = file.Open(path, FileMode::Read); !opened)
+            return UnexpectedSerializationError(opened.error().message, "Serializer");
+        const auto block = file.ReadAll();
         if (!block)
-            return UnexpectedSerializationError(block.error());
+            return UnexpectedSerializationError(block.error().message, "Serializer");
         return DecodeModel(*block, path);
     }
 
@@ -1133,7 +1127,10 @@ namespace elm::resource {
         const auto asset = FindModelFile(MakeModelFileStem(model.name, 0), assetsFolder, [&](const Path& file) {
             if (!FileSystem::Exists(file))
                 return true;
-            const auto contents = ReadModelFile(file);
+            File existing;
+            if (!existing.Open(file, FileMode::Read))
+                return false;
+            const auto contents = existing.ReadAll();
             return contents && *contents == *block;
         });
         if (!asset)
@@ -1141,8 +1138,15 @@ namespace elm::resource {
         Path file = asset->In(assetsFolder);
         if (FileSystem::Exists(file))
             return file;
-        if (auto written = WriteModelFile(file, *block); !written)
-            return UnexpectedSerializationError(written.error());
+        std::error_code folderError;
+        FileSystem::CreateDirectories(file.Parent(), folderError);
+        File modelFile;
+        if (auto opened = modelFile.Open(file, FileMode::Write); !opened)
+            return UnexpectedSerializationError(opened.error().message, "Serializer");
+        if (auto written = modelFile.Write(*block); !written)
+            return UnexpectedSerializationError(written.error().message, "Serializer");
+        if (auto closed = modelFile.Close(); !closed)
+            return UnexpectedSerializationError(closed.error().message, "Serializer");
         return file;
     }
 
@@ -1214,16 +1218,28 @@ namespace elm::resource {
         if (!json)
             return UnexpectedSerializationError(json.error());
 
-        return WriteFile(path, *json);
+        std::error_code folderError;
+        FileSystem::CreateDirectories(path.Parent(), folderError);
+        File file;
+        if (auto opened = file.Open(path, FileMode::Write); !opened)
+            return UnexpectedSerializationError(opened.error().message, "Serializer");
+        if (auto written = file.Write(*json); !written)
+            return UnexpectedSerializationError(written.error().message, "Serializer");
+        if (auto closed = file.Close(); !closed)
+            return UnexpectedSerializationError(closed.error().message, "Serializer");
+        return {};
     }
 
     auto Serializer::LoadScene(const Path& path, const Path& assetsFolder) -> EngineResult<SceneAsset>
     {
-        auto json = ReadFile(path);
+        File file;
+        if (auto opened = file.Open(path, FileMode::Read); !opened)
+            return UnexpectedSerializationError(opened.error().message, "Serializer");
+        const auto json = file.ReadAll();
         if (!json)
-            return UnexpectedSerializationError(json.error());
+            return UnexpectedSerializationError(json.error().message, "Serializer");
         JsonValue document;
-        auto parseResult = document.Parse(*json);
+        auto parseResult = document.Parse(*json->ReadText(0, json->Size()));
         if (!parseResult)
             return UnexpectedSerializationError(parseResult.error());
         if (!document.IsObject())
@@ -1316,11 +1332,14 @@ namespace elm::resource {
 
     auto Serializer::LoadProject(const Path& path) -> EngineResult<project::Project>
     {
-        auto json = ReadFile(path);
+        File file;
+        if (auto opened = file.Open(path, FileMode::Read); !opened)
+            return UnexpectedSerializationError(opened.error().message, "Serializer");
+        const auto json = file.ReadAll();
         if (!json)
-            return UnexpectedSerializationError(json.error());
+            return UnexpectedSerializationError(json.error().message, "Serializer");
         JsonValue document;
-        if (auto parsed = document.Parse(*json); !parsed)
+        if (auto parsed = document.Parse(*json->ReadText(0, json->Size())); !parsed)
             return UnexpectedSerializationError(parsed.error());
         if (!document.IsObject())
             return UnexpectedSerializationError("Project document root must be an object", "Serializer");
@@ -1370,28 +1389,15 @@ namespace elm::resource {
         auto json = document.ToString();
         if (!json)
             return UnexpectedSerializationError(json.error());
-        return WriteFile(project.File(), *json);
-    }
-
-    auto Serializer::WriteFile(const Path& path, StringView contents) -> EngineResult<void>
-    {
-        auto file = File::OpenForWriting(path);
-        if (!file)
-            return UnexpectedSerializationError(file.error());
-        if (auto written = file->Write(contents); !written)
-            return UnexpectedSerializationError(written.error());
-        return file->Close();
-    }
-
-    auto Serializer::ReadFile(const Path& path) -> EngineResult<String>
-    {
-        auto file = File::OpenForReading(path);
-        if (!file)
-            return UnexpectedSerializationError(file.error());
-        const auto contents = file->ReadAll();
-        if (!contents)
-            return UnexpectedSerializationError(contents.error());
-        const auto bytes = contents->Bytes();
-        return String(bytes.data(), bytes.size());
+        std::error_code folderError;
+        FileSystem::CreateDirectories(project.File().Parent(), folderError);
+        File file;
+        if (auto opened = file.Open(project.File(), FileMode::Write); !opened)
+            return UnexpectedSerializationError(opened.error().message, "Serializer");
+        if (auto written = file.Write(*json); !written)
+            return UnexpectedSerializationError(written.error().message, "Serializer");
+        if (auto closed = file.Close(); !closed)
+            return UnexpectedSerializationError(closed.error().message, "Serializer");
+        return {};
     }
 } // namespace elm::resource

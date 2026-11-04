@@ -1,12 +1,12 @@
 #include "core/Settings.hpp"
 
+#include "core/File.hpp"
+
 #include "resource/JsonValue.hpp"
 #include "resource/SerializationError.hpp"
 
 #include <algorithm>
 #include <cmath>
-#include <fstream>
-#include <iterator>
 #include <limits>
 
 namespace elm {
@@ -52,16 +52,15 @@ namespace elm {
         if (!fileExists)
             return {};
 
-        auto file = FileSystem::OpenForReading(path, std::ios::binary);
-        if (!file)
-            return resource::UnexpectedSerializationError("Failed to open settings file for reading", "Settings");
-
-        const String serialized { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
-        if (file.bad())
-            return resource::UnexpectedSerializationError("Failed to read settings file", "Settings");
+        File file;
+        if (auto opened = file.Open(path, FileMode::Read); !opened)
+            return resource::UnexpectedSerializationError(opened.error().message, "Settings");
+        const auto serialized = file.ReadAll();
+        if (!serialized)
+            return resource::UnexpectedSerializationError(serialized.error().message, "Settings");
 
         resource::JsonValue document;
-        if (auto parsed = document.Parse(StringView(serialized.data(), serialized.size())); !parsed)
+        if (auto parsed = document.Parse(*serialized->ReadText(0, serialized->Size())); !parsed)
             return resource::UnexpectedSerializationError(parsed.error());
         if (!document.IsObject())
             return resource::UnexpectedSerializationError("Settings document must be a JSON object", "Settings");
@@ -219,14 +218,13 @@ namespace elm {
         if (!json)
             return resource::UnexpectedSerializationError(json.error());
 
-        auto file = FileSystem::OpenForWriting(path, std::ios::binary | std::ios::trunc);
-        if (!file)
-            return resource::UnexpectedSerializationError("Failed to open settings file for writing", "Settings");
-        file.write(json->data(), static_cast<std::streamsize>(json->size()));
-        file.flush();
-        if (!file)
-            return resource::UnexpectedSerializationError("Failed to write settings file", "Settings");
-
+        File file;
+        if (auto opened = file.Open(path, FileMode::Write); !opened)
+            return resource::UnexpectedSerializationError(opened.error().message, "Settings");
+        if (auto written = file.Write(*json); !written)
+            return resource::UnexpectedSerializationError(written.error().message, "Settings");
+        if (auto closed = file.Close(); !closed)
+            return resource::UnexpectedSerializationError(closed.error().message, "Settings");
         return {};
     }
 
