@@ -6,11 +6,11 @@
 #define ELM_DEBUG_BREAK() asm volatile("int $3");
 #endif
 
-#define ELM_ASSERT(cond)                                         \
-    do {                                                         \
-        if (!(cond)) {                                           \
-            ELM_DEBUG_BREAK();                                   \
-        }                                                        \
+#define ELM_ASSERT(cond)       \
+    do {                       \
+        if (!(cond)) {         \
+            ELM_DEBUG_BREAK(); \
+        }                      \
     } while (0)
 
 // Checks that the calling thread holds the role (elm::core::ThreadRole), debug builds only

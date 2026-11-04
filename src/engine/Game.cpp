@@ -40,9 +40,7 @@ namespace elm {
         : m_scene(m_resources.GetModels())
         , m_graphics(m_settings, m_scene, m_resources.GetModels())
         , m_debugDraw(MakeDebugDrawing(m_settings))
-        , m_scripts({ .scene = &m_scene, .physics = &m_physics, .resources = &m_resources, .input = &m_platform.GetInput(),
-              .camera = &m_graphics.GetViewCamera(), .settings = &m_settings,
-              .debugDraw = m_debugDraw ? &m_debugDraw->GetDebugDraw() : nullptr })
+        , m_scripts({ .scene = &m_scene, .physics = &m_physics, .resources = &m_resources, .input = &m_platform.GetInput(), .camera = &m_graphics.GetViewCamera(), .settings = &m_settings, .debugDraw = m_debugDraw ? &m_debugDraw->GetDebugDraw() : nullptr })
     {
     }
 
@@ -78,7 +76,7 @@ namespace elm {
 #endif
         m_scripts.GetPlayMode().SetStartSource([this](script::PlayTarget target) { return script::MakeProjectPlayStart(m_resources, target); });
         m_initialized = true;
-        return { };
+        return {};
     }
 
 #if defined(ELM_DEBUG_DRAW)

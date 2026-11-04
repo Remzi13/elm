@@ -45,7 +45,7 @@ namespace elm::script {
         Vector<String> m_history;
         /// Position while browsing the history with the arrows, -1 = a new line.
         int m_historyPosition { -1 };
-        std::array<char, 4096> m_input { };
+        std::array<char, 4096> m_input {};
         bool m_scrollToBottom { false };
         bool m_focusInput { false };
     };

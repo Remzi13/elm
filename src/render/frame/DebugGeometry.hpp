@@ -73,7 +73,11 @@ namespace elm::render {
 
         [[nodiscard]] bool IsEmpty() const noexcept { return batches.empty(); }
         /// Keeps the allocated capacity.
-        void Clear() noexcept { vertices.clear(); batches.clear(); }
+        void Clear() noexcept
+        {
+            vertices.clear();
+            batches.clear();
+        }
     };
 
     /// Converts a color with components in [0, 1] to the DebugVertex format.

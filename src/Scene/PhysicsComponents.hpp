@@ -12,140 +12,147 @@
 
 namespace elm {
 
-/// How a body moves. A Collider without a RigidBody makes a static body.
-enum class BodyType : uint8_t {
-    /// Does not move by itself; moving its node teleports it.
-    Static,
-    /// Follows its node (scripts, animation) and pushes dynamic bodies, nothing pushes it.
-    Kinematic,
-    /// Simulated: its node follows the body.
-    Dynamic,
-};
+    /// How a body moves. A Collider without a RigidBody makes a static body.
+    enum class BodyType : uint8_t {
+        /// Does not move by itself; moving its node teleports it.
+        Static,
+        /// Follows its node (scripts, animation) and pushes dynamic bodies, nothing pushes it.
+        Kinematic,
+        /// Simulated: its node follows the body.
+        Dynamic,
+    };
 
-/// Physical behaviour of a node; it becomes a body together with a Collider. PhysicsSystem builds
-/// the body on the next step and builds it again when a field changes (the velocity is kept).
-struct RigidBody {
-    static constexpr ComponentType Type = ComponentType::RigidBody;
+    /// Physical behaviour of a node; it becomes a body together with a Collider. PhysicsSystem builds
+    /// the body on the next step and builds it again when a field changes (the velocity is kept).
+    struct RigidBody {
+        static constexpr ComponentType Type = ComponentType::RigidBody;
 
-    BodyType type { BodyType::Dynamic };
-    /// Kilograms, dynamic bodies only.
-    float mass { 1.0f };
-    float friction { 0.5f };
-    /// Bounciness, 0..1.
-    float restitution { 0.0f };
-    float linearDamping { 0.05f };
-    float angularDamping { 0.05f };
-    float gravityScale { 1.0f };
+        BodyType type { BodyType::Dynamic };
+        /// Kilograms, dynamic bodies only.
+        float mass { 1.0f };
+        float friction { 0.5f };
+        /// Bounciness, 0..1.
+        float restitution { 0.0f };
+        float linearDamping { 0.05f };
+        float angularDamping { 0.05f };
+        float gravityScale { 1.0f };
 
-    bool operator==(const RigidBody&) const = default;
-};
+        bool operator==(const RigidBody&) const = default;
+    };
 
-enum class ColliderShape : uint8_t { Box, Sphere, Capsule };
+    enum class ColliderShape : uint8_t { Box,
+        Sphere,
+        Capsule };
 
-/// Collision shape of a node in its local space; the node's world scale applies to it.
-struct Collider {
-    static constexpr ComponentType Type = ComponentType::Collider;
+    /// Collision shape of a node in its local space; the node's world scale applies to it.
+    struct Collider {
+        static constexpr ComponentType Type = ComponentType::Collider;
 
-    ColliderShape shape { ColliderShape::Box };
-    /// Box half size.
-    math::Vector3 halfExtents { 0.5f, 0.5f, 0.5f };
-    /// Sphere and capsule radius.
-    float radius { 0.5f };
-    /// Capsule: half the length of its cylinder, along local Y.
-    float halfHeight { 0.5f };
-    /// Center of the shape relative to the node.
-    math::Vector3 offset { };
-    /// A trigger reports the bodies that enter it (on_trigger_enter) and does not push them.
-    bool trigger { false };
+        ColliderShape shape { ColliderShape::Box };
+        /// Box half size.
+        math::Vector3 halfExtents { 0.5f, 0.5f, 0.5f };
+        /// Sphere and capsule radius.
+        float radius { 0.5f };
+        /// Capsule: half the length of its cylinder, along local Y.
+        float halfHeight { 0.5f };
+        /// Center of the shape relative to the node.
+        math::Vector3 offset {};
+        /// A trigger reports the bodies that enter it (on_trigger_enter) and does not push them.
+        bool trigger { false };
 
-    bool operator==(const Collider&) const = default;
-};
+        bool operator==(const Collider&) const = default;
+    };
 
-// Names of the enums in scene files and scripts
+    // Names of the enums in scene files and scripts
 
-[[nodiscard]] constexpr const char* BodyTypeName(BodyType type) noexcept
-{
-    switch (type) {
-    case BodyType::Static: return "static";
-    case BodyType::Kinematic: return "kinematic";
-    case BodyType::Dynamic: return "dynamic";
+    [[nodiscard]] constexpr const char* BodyTypeName(BodyType type) noexcept
+    {
+        switch (type) {
+        case BodyType::Static: return "static";
+        case BodyType::Kinematic: return "kinematic";
+        case BodyType::Dynamic: return "dynamic";
+        }
+        return "?";
     }
-    return "?";
-}
 
-[[nodiscard]] constexpr std::optional<BodyType> BodyTypeFromName(StringView name) noexcept
-{
-    for (const BodyType type : { BodyType::Static, BodyType::Kinematic, BodyType::Dynamic }) {
-        if (name == BodyTypeName(type))
-            return type;
+    [[nodiscard]] constexpr std::optional<BodyType> BodyTypeFromName(StringView name) noexcept
+    {
+        for (const BodyType type : { BodyType::Static, BodyType::Kinematic, BodyType::Dynamic }) {
+            if (name == BodyTypeName(type))
+                return type;
+        }
+        return std::nullopt;
     }
-    return std::nullopt;
-}
 
-[[nodiscard]] constexpr const char* ColliderShapeName(ColliderShape shape) noexcept
-{
-    switch (shape) {
-    case ColliderShape::Box: return "box";
-    case ColliderShape::Sphere: return "sphere";
-    case ColliderShape::Capsule: return "capsule";
+    [[nodiscard]] constexpr const char* ColliderShapeName(ColliderShape shape) noexcept
+    {
+        switch (shape) {
+        case ColliderShape::Box: return "box";
+        case ColliderShape::Sphere: return "sphere";
+        case ColliderShape::Capsule: return "capsule";
+        }
+        return "?";
     }
-    return "?";
-}
 
-[[nodiscard]] constexpr std::optional<ColliderShape> ColliderShapeFromName(StringView name) noexcept
-{
-    for (const ColliderShape shape : { ColliderShape::Box, ColliderShape::Sphere, ColliderShape::Capsule }) {
-        if (name == ColliderShapeName(shape))
-            return shape;
+    [[nodiscard]] constexpr std::optional<ColliderShape> ColliderShapeFromName(StringView name) noexcept
+    {
+        for (const ColliderShape shape : { ColliderShape::Box, ColliderShape::Sphere, ColliderShape::Capsule }) {
+            if (name == ColliderShapeName(shape))
+                return shape;
+        }
+        return std::nullopt;
     }
-    return std::nullopt;
-}
 
-/// A contact that began or ended during a physics step; the scripts of both entities hear of it.
-struct CollisionEvent {
-    enum class Kind : uint8_t { Enter, Exit };
+    /// A contact that began or ended during a physics step; the scripts of both entities hear of it.
+    struct CollisionEvent {
+        enum class Kind : uint8_t { Enter,
+            Exit };
 
-    Kind kind { Kind::Enter };
-    /// One of the two is a trigger.
-    bool trigger { false };
-    NodeId first;
-    NodeId second;
-    /// Enter only: a contact point and the contact normal pointing from first to second.
-    math::Vector3 point;
-    math::Vector3 normal;
-};
+        Kind kind { Kind::Enter };
+        /// One of the two is a trigger.
+        bool trigger { false };
+        NodeId first;
+        NodeId second;
+        /// Enter only: a contact point and the contact normal pointing from first to second.
+        math::Vector3 point;
+        math::Vector3 normal;
+    };
 
-/// What PhysicsSystem::CastRay hit.
-struct RayHit {
-    NodeId node;
-    math::Vector3 point;
-    math::Vector3 normal;
-    float distance { 0.0f };
-};
+    /// What PhysicsSystem::CastRay hit.
+    struct RayHit {
+        NodeId node;
+        math::Vector3 point;
+        math::Vector3 normal;
+        float distance { 0.0f };
+    };
 
-/// A PhysicsSystem::CastRay call and its result, recorded for inspection (debug views).
-struct RayQuery {
-    math::Vector3 origin;
-    /// Unit length.
-    math::Vector3 direction;
-    float maxDistance { 0.0f };
-    std::optional<RayHit> hit;
-};
+    /// A PhysicsSystem::CastRay call and its result, recorded for inspection (debug views).
+    struct RayQuery {
+        math::Vector3 origin;
+        /// Unit length.
+        math::Vector3 direction;
+        float maxDistance { 0.0f };
+        std::optional<RayHit> hit;
+    };
 
-/// What physics did since the frame began, recorded for inspection (debug views): the CastRay
-/// calls and the contacts that began, over every step of the frame. PhysicsSystem fills it.
-struct PhysicsFrameLog {
-    /// A loop casting thousands of rays, or a pile of bodies, must not grow the log without bound.
-    static constexpr size_t MaxRayQueries = 256;
-    static constexpr size_t MaxContacts = 256;
+    /// What physics did since the frame began, recorded for inspection (debug views): the CastRay
+    /// calls and the contacts that began, over every step of the frame. PhysicsSystem fills it.
+    struct PhysicsFrameLog {
+        /// A loop casting thousands of rays, or a pile of bodies, must not grow the log without bound.
+        static constexpr size_t MaxRayQueries = 256;
+        static constexpr size_t MaxContacts = 256;
 
-    /// The first MaxRayQueries CastRay calls of the frame.
-    Vector<RayQuery> rayQueries;
-    /// Enter events of the frame's steps, the first MaxContacts of them: an exit has no contact point.
-    Vector<CollisionEvent> contacts;
+        /// The first MaxRayQueries CastRay calls of the frame.
+        Vector<RayQuery> rayQueries;
+        /// Enter events of the frame's steps, the first MaxContacts of them: an exit has no contact point.
+        Vector<CollisionEvent> contacts;
 
-    /// Keeps the allocated capacity.
-    void Clear() noexcept { rayQueries.clear(); contacts.clear(); }
-};
+        /// Keeps the allocated capacity.
+        void Clear() noexcept
+        {
+            rayQueries.clear();
+            contacts.clear();
+        }
+    };
 
 } // namespace elm

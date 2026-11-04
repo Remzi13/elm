@@ -18,7 +18,7 @@ namespace elm::platform {
         m_input.AddAxisMapping("MoveRight", Key::A, -1.0f);
         m_input.AddAxisMapping("MoveUp", Key::E, 1.0f);
         m_input.AddAxisMapping("MoveUp", Key::Q, -1.0f);
-        return { };
+        return {};
     }
 
     void PlatformSystem::Shutdown()

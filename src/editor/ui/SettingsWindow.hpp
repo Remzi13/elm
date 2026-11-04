@@ -4,16 +4,16 @@
 
 namespace elm {
 
-	class SettingsWindow final : public IImGuiWindow {
-	public:
-		using IImGuiWindow::IImGuiWindow;
+    class SettingsWindow final : public IImGuiWindow {
+    public:
+        using IImGuiWindow::IImGuiWindow;
 
-		[[nodiscard]] StringView GetName() const override { return "Settings"; }
-		void Render(render::FrameWriter& frame) override;
+        [[nodiscard]] StringView GetName() const override { return "Settings"; }
+        void Render(render::FrameWriter& frame) override;
 
-	private:
-		String m_status;
-		bool m_statusIsError{ false };
-	};
+    private:
+        String m_status;
+        bool m_statusIsError { false };
+    };
 
 } // namespace elm

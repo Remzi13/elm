@@ -18,7 +18,8 @@ namespace elm::script {
     class ScriptSystem;
 
     /// What Play is asked to play: the game as it starts, or the edited scene.
-    enum class PlayTarget : uint8_t { Project, Scene };
+    enum class PlayTarget : uint8_t { Project,
+        Scene };
 
     /// How a Play begins (docs/editor/Редактор.md): the scene to play in and the main module to start.
     struct PlayStart {
@@ -64,7 +65,9 @@ namespace elm::script {
         void RequestPlay(PlayTarget target) noexcept;
         void RequestStop() noexcept { m_request = Request::Stop; }
         /// What was asked for since the last ApplyRequest.
-        enum class Request : uint8_t { None, Play, Stop };
+        enum class Request : uint8_t { None,
+            Play,
+            Stop };
         [[nodiscard]] Request GetRequest() const noexcept { return m_request; }
         /// Play or Stop, as requested. A Play the start source gives no start for does not begin; a Play while
         /// playing and a Stop while stopped do nothing.
@@ -73,7 +76,6 @@ namespace elm::script {
         [[nodiscard]] PlayRequests Requests();
 
     private:
-
         /// The start scene in place of the edited one: the snapshot keeps the edited one.
         void ReplaceScene(SceneAsset asset);
 

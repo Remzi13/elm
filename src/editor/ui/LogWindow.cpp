@@ -16,8 +16,7 @@ namespace elm {
 
         char const* getSeverityName(log::Severity severity)
         {
-            switch (severity)
-            {
+            switch (severity) {
             case log::Severity::Info: return "INFO";
             case log::Severity::Warning: return "WARNING";
             case log::Severity::Error: return "ERROR";
@@ -28,8 +27,7 @@ namespace elm {
 
         ImVec4 getSeverityColor(log::Severity severity)
         {
-            switch (severity)
-            {
+            switch (severity) {
             case log::Severity::Info: return ImVec4(0.72f, 0.82f, 0.94f, 1.0f);
             case log::Severity::Warning: return ImVec4(1.0f, 0.78f, 0.25f, 1.0f);
             case log::Severity::Error: return ImVec4(1.0f, 0.35f, 0.32f, 1.0f);
@@ -40,8 +38,7 @@ namespace elm {
 
         ImVec4 getCategoryColor(log::Category category)
         {
-            switch (category)
-            {
+            switch (category) {
             case log::Category::Render: return ImVec4(0.35f, 0.75f, 1.0f, 1.0f);
             case log::Category::Physics: return ImVec4(0.35f, 0.88f, 0.55f, 1.0f);
             case log::Category::Core: return ImVec4(0.78f, 0.55f, 1.0f, 1.0f);
@@ -53,8 +50,7 @@ namespace elm {
 
         char const* getCategoryName(log::Category category)
         {
-            switch (category)
-            {
+            switch (category) {
             case log::Category::Render: return "RENDER";
             case log::Category::Physics: return "PHYSICS";
             case log::Category::Core: return "CORE";
@@ -66,8 +62,7 @@ namespace elm {
 
         int getCategoryIndex(log::Category category)
         {
-            switch (category)
-            {
+            switch (category) {
             case log::Category::Render: return 0;
             case log::Category::Physics: return 1;
             case log::Category::Core: return 2;
@@ -79,10 +74,9 @@ namespace elm {
 
         String formatTimestamp(std::chrono::system_clock::time_point timestamp)
         {
-            auto const milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-                timestamp.time_since_epoch()).count();
+            auto const milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()).count();
             auto const time = std::chrono::system_clock::to_time_t(timestamp);
-            std::tm localTime{};
+            std::tm localTime {};
 #if defined(ELM_PLATFORM_WINDOWS)
             localtime_s(&localTime, &time);
 #else
@@ -113,8 +107,7 @@ namespace elm {
             m_maxMessages = static_cast<int>((std::min)(log::getMaxMessages(), static_cast<std::size_t>(1000000)));
 
         ImGui::SetNextWindowSize(ImVec2(760.0f, 420.0f), ImGuiCond_FirstUseEver);
-        if (!ImGui::Begin(GetName().data(), &m_visible))
-        {
+        if (!ImGui::Begin(GetName().data(), &m_visible)) {
             ImGui::End();
             return;
         }
@@ -126,8 +119,7 @@ namespace elm {
         ImGui::TextDisabled("%zu messages", messages.size());
         ImGui::SameLine();
         ImGui::SetNextItemWidth(180.0f);
-        if (ImGui::InputInt("Max messages", &m_maxMessages))
-        {
+        if (ImGui::InputInt("Max messages", &m_maxMessages)) {
             m_maxMessages = (std::clamp)(m_maxMessages, 1, 1000000);
             log::setMaxMessages(static_cast<std::size_t>(m_maxMessages));
         }
@@ -136,8 +128,7 @@ namespace elm {
 
         ImGui::TextDisabled("Severity");
         const char* severityNames[] = { "Info", "Warning", "Error", "Fatal" };
-        for (std::size_t i = 0; i < m_severityEnabled.size(); ++i)
-        {
+        for (std::size_t i = 0; i < m_severityEnabled.size(); ++i) {
             if (i > 0)
                 ImGui::SameLine();
             ImGui::Checkbox(severityNames[i], &m_severityEnabled[i]);
@@ -146,8 +137,7 @@ namespace elm {
         ImGui::SameLine();
         ImGui::TextDisabled("  Category");
         const char* categoryNames[] = { "Render", "Physics", "Core", "Script", "Invalid" };
-        for (std::size_t i = 0; i < m_categoryEnabled.size(); ++i)
-        {
+        for (std::size_t i = 0; i < m_categoryEnabled.size(); ++i) {
             if (i > 0)
                 ImGui::SameLine();
             ImGui::Checkbox(categoryNames[i], &m_categoryEnabled[i]);
@@ -157,11 +147,9 @@ namespace elm {
         ImGui::TextDisabled("%zu / %d", messages.size(), m_maxMessages);
 
         if (ImGui::BeginChild("LogEntries", ImVec2(0.0f, 0.0f), true,
-            ImGuiWindowFlags_HorizontalScrollbar))
-        {
+                ImGuiWindowFlags_HorizontalScrollbar)) {
             bool const wasAtBottom = ImGui::GetScrollY() >= ImGui::GetScrollMaxY();
-            for (auto const& entry : messages)
-            {
+            for (auto const& entry : messages) {
                 auto const severityIndex = static_cast<std::size_t>(entry.severity);
                 if (severityIndex >= m_severityEnabled.size() || !m_severityEnabled[severityIndex])
                     continue;
@@ -171,8 +159,7 @@ namespace elm {
                     continue;
 
                 bool firstSegment = true;
-                auto drawSegment = [&firstSegment](ImVec4 color, String const& text)
-                {
+                auto drawSegment = [&firstSegment](ImVec4 color, String const& text) {
                     if (!firstSegment)
                         ImGui::SameLine(0.0f, 5.0f);
                     ImGui::PushStyleColor(ImGuiCol_Text, color);
@@ -192,8 +179,7 @@ namespace elm {
                 categoryLabel += getCategoryName(entry.category);
                 categoryLabel += "]";
                 drawSegment(categoryColor, categoryLabel);
-                if (!entry.sourceInfo.empty())
-                {
+                if (!entry.sourceInfo.empty()) {
                     String source;
                     source += "[";
                     appendSingleLine(source, entry.sourceInfo);
@@ -205,8 +191,7 @@ namespace elm {
                 appendSingleLine(message, entry.message);
                 drawSegment(categoryColor, message);
 
-                if (!entry.filename.empty())
-                {
+                if (!entry.filename.empty()) {
                     String location;
                     location += "(";
                     appendSingleLine(location, entry.filename);

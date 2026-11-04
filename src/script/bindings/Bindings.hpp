@@ -9,7 +9,7 @@ namespace elm::script {
     class EntityScripts;
     class HotReload;
     class ModuleLoader;
-}
+} // namespace elm::script
 
 namespace elm::script::bindings {
 

@@ -42,7 +42,7 @@ namespace elm::resource {
             stream.write(text.data(), static_cast<std::streamsize>(text.size()));
             if (error || !stream)
                 return UnexpectedSerializationError("Cannot write " + file.string(), LogSource);
-            return { };
+            return {};
         }
 
     } // namespace

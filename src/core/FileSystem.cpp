@@ -40,7 +40,7 @@ namespace elm {
         {
             return std::make_error_code(std::errc::no_such_file_or_directory);
         }
-    }
+    } // namespace
 
     Path::Path(StringView path)
         : m_path(path)
@@ -269,12 +269,12 @@ namespace elm {
 
     void FileSystem::RegisterSettings(Settings& settings)
     {
-        settings.Register(Settings::Category::Core, RootPathSetting, "Root Path", String{ "." });
+        settings.Register(Settings::Category::Core, RootPathSetting, "Root Path", String { "." });
     }
 
     void FileSystem::ApplySettings(const Settings& settings, const Path& settingsDirectory)
     {
-        const Path root{ settings.Get<String>(Settings::Category::Core, RootPathSetting, String{ "." }) };
+        const Path root { settings.Get<String>(Settings::Category::Core, RootPathSetting, String { "." }) };
         const fs::path resolved = ToFilesystemPath(root.IsAbsolute() ? root : settingsDirectory / root);
 
         std::error_code error;
@@ -413,7 +413,7 @@ namespace elm {
 
     auto Directory::Iterator::IsEnd() const noexcept -> bool
     {
-        return !m_impl || m_impl->iterator == fs::directory_iterator{};
+        return !m_impl || m_impl->iterator == fs::directory_iterator {};
     }
 
     auto Directory::Iterator::CurrentPath() const -> Path
@@ -478,4 +478,4 @@ namespace elm {
     {
         return Iterator(m_path, error);
     }
-}
+} // namespace elm

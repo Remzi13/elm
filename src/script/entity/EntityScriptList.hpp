@@ -38,7 +38,9 @@ namespace elm::script {
         /// A running pass while it lives: the entries keep their indices.
         class Pass {
         public:
-            explicit Pass(EntityScriptList& list) noexcept : m_list(list) { ++m_list.m_passDepth; }
+            explicit Pass(EntityScriptList& list) noexcept
+                : m_list(list)
+            { ++m_list.m_passDepth; }
             ~Pass() { --m_list.m_passDepth; }
 
             Pass(const Pass&) = delete;

@@ -35,4 +35,4 @@ namespace elm::resource {
     {
         return UnexpectedSerializationError(StringView(message), source);
     }
-}
+} // namespace elm::resource

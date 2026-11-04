@@ -36,17 +36,17 @@ namespace elm::script::lua::detail {
     };
 
     template <typename R, typename... A>
-    struct FunctionTraits<R (*)(A...)> : Signature<R, A...> { };
+    struct FunctionTraits<R (*)(A...)> : Signature<R, A...> {};
     template <typename R, typename... A>
-    struct FunctionTraits<R (*)(A...) noexcept> : Signature<R, A...> { };
+    struct FunctionTraits<R (*)(A...) noexcept> : Signature<R, A...> {};
     template <typename C, typename R, typename... A>
-    struct FunctionTraits<R (C::*)(A...)> : MemberSignature<C, R, A...> { };
+    struct FunctionTraits<R (C::*)(A...)> : MemberSignature<C, R, A...> {};
     template <typename C, typename R, typename... A>
-    struct FunctionTraits<R (C::*)(A...) noexcept> : MemberSignature<C, R, A...> { };
+    struct FunctionTraits<R (C::*)(A...) noexcept> : MemberSignature<C, R, A...> {};
     template <typename C, typename R, typename... A>
-    struct FunctionTraits<R (C::*)(A...) const> : MemberSignature<const C, R, A...> { };
+    struct FunctionTraits<R (C::*)(A...) const> : MemberSignature<const C, R, A...> {};
     template <typename C, typename R, typename... A>
-    struct FunctionTraits<R (C::*)(A...) const noexcept> : MemberSignature<const C, R, A...> { };
+    struct FunctionTraits<R (C::*)(A...) const noexcept> : MemberSignature<const C, R, A...> {};
 
     template <auto Fn>
     using TraitsOf = FunctionTraits<std::remove_cvref_t<decltype(Fn)>>;
@@ -79,7 +79,7 @@ namespace elm::script::lua::detail {
     {
         return []<size_t... J>(std::index_sequence<J...>) {
             return (0 + ... + ((J < I && !IsStateArg<std::tuple_element_t<J, Args>>) ? 1 : 0));
-        }(std::make_index_sequence<std::tuple_size_v<Args>>{});
+        }(std::make_index_sequence<std::tuple_size_v<Args>> {});
     }
 
     template <typename Arg>
@@ -113,7 +113,8 @@ namespace elm::script::lua::detail {
             return std::apply([L](auto&&... items) {
                 (Push(L, std::forward<decltype(items)>(items)), ...);
                 return static_cast<int>(sizeof...(items));
-            }, std::forward<R>(result));
+            },
+                std::forward<R>(result));
         } else if constexpr (IsExpected<V>) {
             if (!result)
                 return luaL_error(L, "%s", result.error().message.c_str());
@@ -167,7 +168,7 @@ namespace elm::script::lua::detail {
                         std::invoke(Fn, ReadArg<std::tuple_element_t<I, Args>>(L, FirstSlot + SlotOf<Args, I>())...));
                 }
             }
-        }(std::make_index_sequence<Traits::Arity>{});
+        }(std::make_index_sequence<Traits::Arity> {});
     }
 
     /// Lua C function calling Fn with arguments read from the stack starting at FirstSlot.
@@ -196,7 +197,7 @@ namespace elm::script::lua::detail {
                     StackTraits<T>::Push(L, T(ReadArg<A>(L, FirstSlot + static_cast<int>(I))...));
                 else
                     StackTraits<T>::Push(L, T { ReadArg<A>(L, FirstSlot + static_cast<int>(I))... });
-            }(std::index_sequence_for<A...>{});
+            }(std::index_sequence_for<A...> {});
             return 1;
         });
     }
@@ -211,7 +212,7 @@ namespace elm::script::lua::detail {
         } else if constexpr (IsTuple<V>) {
             [&]<size_t... I>(std::index_sequence<I...>) {
                 (results.push_back(&TypeNameOf<std::tuple_element_t<I, V>>), ...);
-            }(std::make_index_sequence<std::tuple_size_v<V>>{});
+            }(std::make_index_sequence<std::tuple_size_v<V>> {});
         } else if constexpr (IsExpected<V>) {
             AddResultTypes<typename V::value_type>(results);
         } else {
@@ -241,7 +242,7 @@ namespace elm::script::lua::detail {
                 params.push_back(std::move(param));
             };
             (add.template operator()<std::tuple_element_t<I, Args>>(), ...);
-        }(std::make_index_sequence<std::tuple_size_v<Args>>{});
+        }(std::make_index_sequence<std::tuple_size_v<Args>> {});
     }
 
     /// selfIsFirstArg: a free function bound as a method takes the object as its first parameter.

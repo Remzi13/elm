@@ -24,7 +24,7 @@ namespace elm::script {
     private:
         const lua::State& m_state;
         InsertText m_insert;
-        std::array<char, 128> m_filter { };
+        std::array<char, 128> m_filter {};
     };
 
 } // namespace elm::script

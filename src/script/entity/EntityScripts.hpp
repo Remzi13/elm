@@ -11,7 +11,7 @@ namespace elm {
     class Scene;
     struct CollisionEvent;
     struct ScriptComponent;
-}
+} // namespace elm
 
 namespace elm::script {
 
@@ -77,7 +77,8 @@ namespace elm::script {
         void OnModuleReloaded(StringView name);
 
     private:
-        enum class OnFailure : uint8_t { Keep, Forget };
+        enum class OnFailure : uint8_t { Keep,
+            Forget };
 
         [[nodiscard]] auto PushInstance(NodeId node, OnFailure onFailure) -> EngineResult<void>;
         [[nodiscard]] const ScriptComponent* FindComponent(NodeId node) const noexcept;

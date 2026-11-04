@@ -63,7 +63,7 @@ namespace elm::script {
     {
         ELM_ASSERT_THREAD(Update);
         if (m_state.IsOpen())
-            return { };
+            return {};
 
         m_engine = MakeEngineContext();
         m_modulePaths->SetRoot(std::move(scriptRoot));
@@ -79,7 +79,7 @@ namespace elm::script {
 
         LOG_MESSAGE(log::Category::Script, LogSource, "%s initialized, scripts in %s", LUA_RELEASE,
             m_modulePaths->Root().string().c_str());
-        return { };
+        return {};
     }
 
     auto ScriptSystem::Start(StringView mainModule) -> EngineResult<void>
@@ -89,7 +89,7 @@ namespace elm::script {
         m_mainModuleName = String(mainModule);
         m_scriptsEnabled = !m_engine.settings || m_engine.settings->Get<bool>(Settings::Category::Script, EnabledSetting, true);
         if (!m_scriptsEnabled)
-            return { };
+            return {};
         return m_mainModule->Start(mainModule);
     }
 
@@ -155,7 +155,7 @@ namespace elm::script {
         m_moduleLoader->Shutdown();
         m_state.Close();
         m_restartRequested = false;
-        m_time = { };
+        m_time = {};
     }
 
     void ScriptSystem::OnPlay()
@@ -179,7 +179,7 @@ namespace elm::script {
 
     auto ScriptSystem::GenerateApiMeta() -> EngineResult<String>
     {
-        ScriptSystem scripts({ });
+        ScriptSystem scripts({});
         if (auto init = scripts.Init(); !init)
             return MakeUnexpected(init.error());
         return scripts.m_state.Api().GenerateLuaMeta();
@@ -193,7 +193,7 @@ namespace elm::script {
         LOG_MESSAGE(log::Category::Script, LogSource, "Scripts restarted");
         // In Edit the main module waits for Play. Start takes the name by view: the member it is copied into is the source
         if (!m_playing)
-            return { };
+            return {};
         const String mainModule = m_mainModuleName;
         return Start(mainModule);
     }
@@ -237,8 +237,7 @@ namespace elm::script {
         bindings::RegisterScene(m_state, m_engine.scene, m_engine.models, *m_entityScripts);
         bindings::RegisterModels(m_state, m_engine.models, m_engine.project);
         bindings::RegisterCamera(m_state, m_engine.camera);
-        bindings::RegisterEngine(m_state, { m_engine.scene, m_engine.models, m_entityScripts.get(), m_engine.play,
-            m_engine.project });
+        bindings::RegisterEngine(m_state, { m_engine.scene, m_engine.models, m_entityScripts.get(), m_engine.play, m_engine.project });
         bindings::RegisterPhysics(m_state, m_engine.physics, m_engine.scene, m_engine.models);
         bindings::RegisterDebug(m_state, m_engine.debugDraw);
     }

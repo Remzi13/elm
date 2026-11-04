@@ -14,7 +14,7 @@ namespace elm::graphics {
         // Entries whose model left the catalog (stale handle) lose their meshes
         for (Entry& entry : m_entries) {
             if (entry.handler.IsValid() && !catalog.Get(entry.handler))
-                entry = { };
+                entry = {};
         }
         catalog.ForEach([&](ModelHandler handler, const Model& model) {
             const size_t index = handler.Index() - 1;
@@ -25,7 +25,7 @@ namespace elm::graphics {
             if (entry.handler == handler && entry.revision == revision)
                 return;
             // A replaced model keeps the meshes whose geometry it still shares
-            Vector<render::Mesh> previous = entry.handler == handler ? std::move(entry.meshes) : Vector<render::Mesh> { };
+            Vector<render::Mesh> previous = entry.handler == handler ? std::move(entry.meshes) : Vector<render::Mesh> {};
             entry.meshes = CreateMeshes(model, std::move(previous));
             entry.handler = handler;
             entry.revision = revision;

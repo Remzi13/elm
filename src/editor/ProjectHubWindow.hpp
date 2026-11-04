@@ -38,8 +38,8 @@ namespace elm::editor {
 
         ProjectHubDesc m_desc;
         ui::FileDialog m_openDialog;
-        std::array<char, 64> m_name { };
-        std::array<char, 260> m_location { };
+        std::array<char, 64> m_name {};
+        std::array<char, 260> m_location {};
         String m_status;
     };
 

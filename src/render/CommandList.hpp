@@ -4,77 +4,78 @@
 #include "core/Std.hpp"
 
 namespace elm {
-namespace render {
+    namespace render {
 
-    template <typename TVariant>
-    class BasicCommandList {
-    public:
-        explicit BasicCommandList() = default;
+        template <typename TVariant>
+        class BasicCommandList {
+        public:
+            explicit BasicCommandList() = default;
 
-        BasicCommandList(BasicCommandList&&) noexcept = default;
-        BasicCommandList& operator=(BasicCommandList&&) noexcept = default;
+            BasicCommandList(BasicCommandList&&) noexcept = default;
+            BasicCommandList& operator=(BasicCommandList&&) noexcept = default;
 
-        BasicCommandList(const BasicCommandList&) = delete;
-        BasicCommandList& operator=(const BasicCommandList&) = delete;
+            BasicCommandList(const BasicCommandList&) = delete;
+            BasicCommandList& operator=(const BasicCommandList&) = delete;
 
-        void Reserve(std::size_t count)
-        {
-            m_commands.reserve(count);
-        }
-
-        template <typename Command>
-        void Push(Command&& command)
-        {
-            m_commands.emplace_back(std::forward<Command>(command));
-        }
-
-        template <class Command, class... Args>
-        void Emplace(Args&&... args)
-        {
-            m_commands.emplace_back(std::in_place_type<Command>, std::forward<Args>(args)...);
-        }
-
-        [[nodiscard]] std::size_t Size() const
-        {
-            return m_commands.size();
-        }
-
-        [[nodiscard]] bool Empty() const
-        {
-            return m_commands.empty();
-        }
-
-        void Clear()
-        {
-            m_commands.clear();
-        }
-
-        /// Moves all commands of other to the end of this list, preserving their order.
-        void Append(BasicCommandList& other)
-        {
-            if (m_commands.empty()) {
-                m_commands.swap(other.m_commands);
-            } else {
-                m_commands.reserve(m_commands.size() + other.m_commands.size());
-                for (auto& command : other.m_commands)
-                    m_commands.push_back(std::move(command));
+            void Reserve(std::size_t count)
+            {
+                m_commands.reserve(count);
             }
-            other.m_commands.clear();
-        }
 
-        template <class Executor>
-        void Execute(Executor& executor)
-        {
-            for (auto& command : m_commands) {
-                std::visit([&executor](auto&& cmd) {
-                    executor.Execute(cmd);
-                }, command);
+            template <typename Command>
+            void Push(Command&& command)
+            {
+                m_commands.emplace_back(std::forward<Command>(command));
             }
-        }
 
-    private:
-        Vector<TVariant> m_commands;
-    };
+            template <class Command, class... Args>
+            void Emplace(Args&&... args)
+            {
+                m_commands.emplace_back(std::in_place_type<Command>, std::forward<Args>(args)...);
+            }
 
-} // namespace render
+            [[nodiscard]] std::size_t Size() const
+            {
+                return m_commands.size();
+            }
+
+            [[nodiscard]] bool Empty() const
+            {
+                return m_commands.empty();
+            }
+
+            void Clear()
+            {
+                m_commands.clear();
+            }
+
+            /// Moves all commands of other to the end of this list, preserving their order.
+            void Append(BasicCommandList& other)
+            {
+                if (m_commands.empty()) {
+                    m_commands.swap(other.m_commands);
+                } else {
+                    m_commands.reserve(m_commands.size() + other.m_commands.size());
+                    for (auto& command : other.m_commands)
+                        m_commands.push_back(std::move(command));
+                }
+                other.m_commands.clear();
+            }
+
+            template <class Executor>
+            void Execute(Executor& executor)
+            {
+                for (auto& command : m_commands) {
+                    std::visit([&executor](auto&& cmd) {
+                        executor.Execute(cmd);
+                    },
+                        command);
+                }
+            }
+
+        private:
+            Vector<TVariant> m_commands;
+        };
+
+    } // namespace render
 } // namespace elm

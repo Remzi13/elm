@@ -62,7 +62,7 @@ namespace elm::render::rhi {
             ColorAttachment color;
             DepthAttachment depth;
         };
-        struct EndRenderPass { };
+        struct EndRenderPass {};
         struct SetPipeline {
             PipelineHandle pipeline;
         };
@@ -110,7 +110,7 @@ namespace elm::render::rhi {
             uint32_t instanceCount { 1 };
             uint32_t firstVertex { 0 };
         };
-    }
+    } // namespace cmd
 
     using Command = std::variant<
         cmd::Barrier,

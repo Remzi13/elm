@@ -35,16 +35,17 @@ namespace elm::script {
         return ScriptInspection {
             .defaults = [&defaults](StringView module) { return defaults.Get(module); },
             .forgetDefaults = [&defaults] { defaults.Forget(); },
-            .instance = [&entities](NodeId node) {
-                const EntityScript* instance = entities.Find(node);
-                if (!instance)
-                    return ScriptInstanceState { };
-                if (instance->faulted)
-                    return ScriptInstanceState { ScriptInstanceState::Kind::Faulted, instance->error, instance->module };
-                ScriptInstanceState state;
-                state.kind = instance->started ? ScriptInstanceState::Kind::Running : ScriptInstanceState::Kind::Starting;
-                return state;
-            },
+            .instance =
+                [&entities](NodeId node) {
+                    const EntityScript* instance = entities.Find(node);
+                    if (!instance)
+                        return ScriptInstanceState {};
+                    if (instance->faulted)
+                        return ScriptInstanceState { ScriptInstanceState::Kind::Faulted, instance->error, instance->module };
+                    ScriptInstanceState state;
+                    state.kind = instance->started ? ScriptInstanceState::Kind::Running : ScriptInstanceState::Kind::Starting;
+                    return state;
+                },
             .setField = [&entities](NodeId node, StringView name, const ScriptValue& value) { entities.SetField(node, name, value); },
             .endInstance = [&entities](NodeId node) { entities.Destroy({ &node, 1 }); },
             .reloadModule = [&reload](StringView module) { (void)reload.Reload(module); },

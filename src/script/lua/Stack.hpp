@@ -82,7 +82,7 @@ namespace elm::script::lua {
     ///   TypeName()         type name for the LuaLS annotations
     /// Types without a specialization are registered classes.
     template <typename T>
-    struct StackTraits : UserTypeTraits<T> { };
+    struct StackTraits : UserTypeTraits<T> {};
 
     template <>
     struct StackTraits<bool> {
@@ -180,12 +180,12 @@ namespace elm::script::lua {
     } // namespace detail
 
     template <>
-    struct StackTraits<String> : detail::StringTraits<String> { };
+    struct StackTraits<String> : detail::StringTraits<String> {};
     template <>
-    struct StackTraits<std::string> : detail::StringTraits<std::string> { };
+    struct StackTraits<std::string> : detail::StringTraits<std::string> {};
     /// The view points into the Lua string: valid while the value stays on the stack (the call).
     template <>
-    struct StackTraits<StringView> : detail::StringTraits<StringView> { };
+    struct StackTraits<StringView> : detail::StringTraits<StringView> {};
 
     template <>
     struct StackTraits<const char*> {

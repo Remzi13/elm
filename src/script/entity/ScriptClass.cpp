@@ -142,7 +142,7 @@ namespace elm::script {
             lua_settop(L, top);
             return made;
         }
-        return { };
+        return {};
     }
 
     auto ScriptClass::ReadDefaults(StringView module) -> EngineResult<ScriptProps>

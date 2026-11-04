@@ -59,7 +59,7 @@ namespace elm::editor {
             int passed { 0 };
             int failed { 0 };
 
-            void Check(bool condition, StringView name, StringView detail = { })
+            void Check(bool condition, StringView name, StringView detail = {})
             {
                 if (condition) {
                     ++passed;
@@ -179,9 +179,10 @@ line]] .. [==[a]]b]==])",
             const fs::path root = fs::temp_directory_path(error) / "elm_edit_mode_selftest";
             fs::remove_all(root, error);
             fs::create_directories(root, error);
-            std::ofstream(root / "mover.lua") << "local Mover = {}\n"
-                "function Mover:on_update(dt) self.entity.position = self.entity.position + elm.math.Vector3(1, 0, 0) end\n"
-                "return Mover\n";
+            std::ofstream(root / "mover.lua")
+                << "local Mover = {}\n"
+                   "function Mover:on_update(dt) self.entity.position = self.entity.position + elm.math.Vector3(1, 0, 0) end\n"
+                   "return Mover\n";
 
             resource::ResourceSystem resources;
             ModelCatalog& models = resources.GetModels();
@@ -290,7 +291,7 @@ line]] .. [==[a]]b]==])",
             // A drag: every frame of it moves the node while the widget is held, it is one step
             for (int step = 2; step <= 4; ++step)
                 frame(a, true, [&] { (void)scene.SetLocalTransform(a, Matrix4x4::Translation({ static_cast<float>(step), 0.0f, 0.0f })); });
-            frame(a, false, [] { });
+            frame(a, false, [] {});
             report.Check(edits.Undo() && x(a) == 1.0f, "edits::a_gesture_is_one_step");
             (void)edits.Redo();
             // Released between two edits: two steps
@@ -304,7 +305,7 @@ line]] .. [==[a]]b]==])",
 
             // Structure: undo brings a removed node back with its id
             const NodeId b = scene.AddNode("b");
-            frame(a, false, [] { });
+            frame(a, false, [] {});
             frame(b, false, [&] { scene.Components<Collider>().Emplace(b); });
             frame(b, false, [&] { (void)scene.RemoveNode(b); });
             report.Check(edits.Undo() && scene.Find(b) && scene.Components<Collider>().Contains(b), "edits::undo_a_removal_keeps_the_node_id");
@@ -771,7 +772,7 @@ line]] .. [==[a]]b]==])",
                 fixture.Press(ImGuiKey_Backspace);
             fixture.selection.node = parent;
             fixture.Click(WindowsFixture::RowCenter(1));
-            report.Check(fixture.selection.node == NodeId { }, "tree::search_leaves_a_closed_parent_closed");
+            report.Check(fixture.selection.node == NodeId {}, "tree::search_leaves_a_closed_parent_closed");
         }
 
         void RunTreeEditTests(Report& report, const Path& assets)
@@ -779,7 +780,7 @@ line]] .. [==[a]]b]==])",
             WindowsFixture fixture(assets);
             const NodeId node = fixture.scene.AddNode("node");
             fixture.Frame();
-            report.Check(fixture.selection.node == NodeId { }, "tree::nothing_is_selected_at_first");
+            report.Check(fixture.selection.node == NodeId {}, "tree::nothing_is_selected_at_first");
             fixture.Click(WindowsFixture::RowCenter(0));
             report.Check(fixture.selection.node == node, "tree::a_click_selects");
 
@@ -814,7 +815,7 @@ line]] .. [==[a]]b]==])",
             report.Check(deleted && fixture.scene.NodeCount() == 1 && !fixture.scene.Find(node), "tree::row_menu_deletes_the_node");
 
             fixture.Click(WindowsFixture::RowCenter(6));
-            report.Check(fixture.selection.node == NodeId { }, "tree::a_click_on_empty_space_selects_nothing");
+            report.Check(fixture.selection.node == NodeId {}, "tree::a_click_on_empty_space_selects_nothing");
 
             fixture.Click(WindowsFixture::RowCenter(6), ImGuiMouseButton_Right);
             fixture.Frame();
@@ -890,7 +891,7 @@ line]] .. [==[a]]b]==])",
 
                 const bool edited = fixture.ClickInModelEditor("Duplicate");
                 const bool addedEdited = fixture.ClickInModelEditor("Add to Scene");
-                const ModelHandler editedModel = nodeModels.Size() == 2 ? nodeModels.Components()[1].model : ModelHandler { };
+                const ModelHandler editedModel = nodeModels.Size() == 2 ? nodeModels.Components()[1].model : ModelHandler {};
                 report.Check(edited && addedEdited && editedModel != kept && fixture.models.Get(editedModel) && !fixture.models.FileOf(editedModel)
                         && fixture.models.FindByFile(file) == kept,
                     "model_editor::add_to_scene_with_unsaved_edits_is_a_new_model");

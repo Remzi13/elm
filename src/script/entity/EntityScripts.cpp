@@ -205,7 +205,7 @@ namespace elm::script {
         const ScriptComponent* component = FindComponent(node);
         if (!component) {
             lua_pushnil(L);
-            return { };
+            return {};
         }
         if (const size_t index = m_scripts.FindIndex(node); index != NoIndex) {
             const auto& script = m_scripts[index];
@@ -213,14 +213,14 @@ namespace elm::script {
                 if (!script.self)
                     return MakeUnexpected(EngineError(ErrorCode::ScriptError, script.error));
                 script.self.Push(L);
-                return { };
+                return {};
             }
             // The component names another module now
             End(index);
             component = FindComponent(node);
             if (!component) {
                 lua_pushnil(L);
-                return { };
+                return {};
             }
         }
 

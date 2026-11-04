@@ -9,60 +9,60 @@
 #include "script/EngineContext.hpp"
 
 #include <optional>
-namespace elm  {
+namespace elm {
 
-class Camera;
-class Scene;
-class SceneEdits;
+    class Camera;
+    class Scene;
+    class SceneEdits;
 
-namespace render {
-    class ViewPort;
-}
+    namespace render {
+        class ViewPort;
+    }
 
-/// What the viewport window works with; it outlives projects, so do these (Editor).
-struct EngineViewportDeps {
-    Scene& scene;
-    /// The view camera: the window sets its aspect to the image.
-    Camera& camera;
-    /// The engine view: the window sizes it to the image and shows it.
-    render::ViewPort& viewPort;
-    graphics::DebugDraw& debugDraw;
-    /// In Play the keys are the game's.
-    const script::PlayRequests& play;
-    /// The node the gizmo moves.
-    const Selection& selection;
-    /// The gizmo mode: Inspector and the keys W, E, R pick it.
-    GizmoSettings& gizmo;
-    /// Ctrl+Z and Ctrl+Y while the viewport has the focus.
-    SceneEdits& edits;
-    /// Ctrl+S while the viewport has the focus.
-    const SceneFileRequests& sceneFile;
-};
+    /// What the viewport window works with; it outlives projects, so do these (Editor).
+    struct EngineViewportDeps {
+        Scene& scene;
+        /// The view camera: the window sets its aspect to the image.
+        Camera& camera;
+        /// The engine view: the window sizes it to the image and shows it.
+        render::ViewPort& viewPort;
+        graphics::DebugDraw& debugDraw;
+        /// In Play the keys are the game's.
+        const script::PlayRequests& play;
+        /// The node the gizmo moves.
+        const Selection& selection;
+        /// The gizmo mode: Inspector and the keys W, E, R pick it.
+        GizmoSettings& gizmo;
+        /// Ctrl+Z and Ctrl+Y while the viewport has the focus.
+        SceneEdits& edits;
+        /// Ctrl+S while the viewport has the focus.
+        const SceneFileRequests& sceneFile;
+    };
 
-/// The engine view alone, with no controls over it: its image, the debug labels and the gizmo of the selected
-/// node. What runs and what is drawn is picked in EditorToolbar, the gizmo mode in Inspector.
-/// Owner: ImGuiSystem, thread: update (UI).
-class EngineViewportWindow final : public IImGuiWindow {
-public:
-    EngineViewportWindow(Settings& settings, const EngineViewportDeps& deps);
+    /// The engine view alone, with no controls over it: its image, the debug labels and the gizmo of the selected
+    /// node. What runs and what is drawn is picked in EditorToolbar, the gizmo mode in Inspector.
+    /// Owner: ImGuiSystem, thread: update (UI).
+    class EngineViewportWindow final : public IImGuiWindow {
+    public:
+        EngineViewportWindow(Settings& settings, const EngineViewportDeps& deps);
 
-    [[nodiscard]] StringView GetName() const override { return "Engine Viewport"; }
-    void Render(render::FrameWriter& frame) override;
+        [[nodiscard]] StringView GetName() const override { return "Engine Viewport"; }
+        void Render(render::FrameWriter& frame) override;
 
-    // State of the last built frame, used to route camera input to the viewport only
-    [[nodiscard]] bool IsHovered() const noexcept { return m_hovered; }
-    [[nodiscard]] bool IsFocused() const noexcept { return m_focused; }
+        // State of the last built frame, used to route camera input to the viewport only
+        [[nodiscard]] bool IsHovered() const noexcept { return m_hovered; }
+        [[nodiscard]] bool IsFocused() const noexcept { return m_focused; }
 
-private:
-    /// Moves the selected node with the gizmo and draws the gizmo.
-    void UpdateGizmo(NodeId node, const graphics::GizmoInput& input);
+    private:
+        /// Moves the selected node with the gizmo and draws the gizmo.
+        void UpdateGizmo(NodeId node, const graphics::GizmoInput& input);
 
-    EngineViewportDeps m_deps;
+        EngineViewportDeps m_deps;
 
-    bool m_hovered { false };
-    bool m_focused { false };
-    /// Made on the first frame with a selection: it registers its debug draw channel.
-    std::optional<graphics::TransformGizmo> m_gizmo;
-};
+        bool m_hovered { false };
+        bool m_focused { false };
+        /// Made on the first frame with a selection: it registers its debug draw channel.
+        std::optional<graphics::TransformGizmo> m_gizmo;
+    };
 
-} // namespace Engine
+} // namespace elm

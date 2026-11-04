@@ -78,10 +78,10 @@ namespace elm::resource {
             return {};
         }
 
-        template<size_t N>
+        template <size_t N>
         auto MakeArray(const std::array<float, N>& values) -> EngineResult<JsonValue>
         {
-            JsonValue array{ JsonValue::Type::Array };
+            JsonValue array { JsonValue::Type::Array };
             for (const float value : values) {
                 auto result = Push(array, JsonValue(static_cast<double>(value)));
                 if (!result)
@@ -113,10 +113,7 @@ namespace elm::resource {
             constexpr char hex[] = "0123456789ABCDEF";
             String encoded;
             for (const unsigned char character : value) {
-                if ((character >= 'a' && character <= 'z') ||
-                    (character >= 'A' && character <= 'Z') ||
-                    (character >= '0' && character <= '9') ||
-                    character == '-' || character == '_' || character == '.' || character == '~') {
+                if ((character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9') || character == '-' || character == '_' || character == '.' || character == '~') {
                     encoded.push_back(static_cast<char>(character));
                 } else {
                     encoded.push_back('%');
@@ -150,7 +147,7 @@ namespace elm::resource {
         };
 
         struct ExportNode {
-            static constexpr size_t NoMesh = ~size_t{ 0 };
+            static constexpr size_t NoMesh = ~size_t { 0 };
 
             String name;
             Matrix4x4 transform;
@@ -166,7 +163,7 @@ namespace elm::resource {
         public:
             auto AddMesh(const ExportMesh& mesh) -> EngineResult<void>
             {
-                JsonValue primitives{ JsonValue::Type::Array };
+                JsonValue primitives { JsonValue::Type::Array };
                 for (const auto& primitive : mesh.primitives) {
                     auto written = AddPrimitive(primitive);
                     if (!written)
@@ -174,7 +171,7 @@ namespace elm::resource {
                     auto result = Push(primitives, std::move(*written));
                     if (!result) return UnexpectedSerializationError(result.error());
                 }
-                JsonValue meshObject{ JsonValue::Type::Object };
+                JsonValue meshObject { JsonValue::Type::Object };
                 if (!mesh.name.empty()) {
                     auto result = SetField(meshObject, "name", JsonValue(mesh.name.c_str()));
                     if (!result) return UnexpectedSerializationError(result.error());
@@ -186,7 +183,7 @@ namespace elm::resource {
 
             auto AddNode(const ExportNode& node) -> EngineResult<void>
             {
-                JsonValue object{ JsonValue::Type::Object };
+                JsonValue object { JsonValue::Type::Object };
                 EngineResult<void> result;
                 if (!node.name.empty()) {
                     result = SetField(object, "name", JsonValue(node.name.c_str()));
@@ -197,7 +194,7 @@ namespace elm::resource {
                     if (!result) return UnexpectedSerializationError(result.error());
                 }
                 if (node.transform.m != Matrix4x4::Identity().m) {
-                    JsonValue matrix{ JsonValue::Type::Array };
+                    JsonValue matrix { JsonValue::Type::Array };
                     for (size_t column = 0; column < 4; ++column) {
                         for (size_t row = 0; row < 4; ++row) {
                             const float value = node.transform(row, column);
@@ -211,7 +208,7 @@ namespace elm::resource {
                     if (!result) return UnexpectedSerializationError(result.error());
                 }
                 if (!node.children.empty()) {
-                    JsonValue children{ JsonValue::Type::Array };
+                    JsonValue children { JsonValue::Type::Array };
                     for (const size_t child : node.children) {
                         result = Push(children, JsonValue(static_cast<double>(child)));
                         if (!result) return UnexpectedSerializationError(result.error());
@@ -221,7 +218,7 @@ namespace elm::resource {
                 }
                 const auto& tint = node.tint;
                 if (tint.x != 1.0f || tint.y != 1.0f || tint.z != 1.0f || tint.w != 1.0f || !node.visible) {
-                    JsonValue extras{ JsonValue::Type::Object };
+                    JsonValue extras { JsonValue::Type::Object };
                     auto color = MakeArray(std::array { tint.x, tint.y, tint.z, tint.w });
                     if (!color)
                         return UnexpectedSerializationError(color.error());
@@ -247,8 +244,8 @@ namespace elm::resource {
                 if (!*m_meshes.Size())
                     return Failure("Cannot export an empty glTF scene");
 
-                JsonValue root{ JsonValue::Type::Object };
-                JsonValue asset{ JsonValue::Type::Object };
+                JsonValue root { JsonValue::Type::Object };
+                JsonValue asset { JsonValue::Type::Object };
                 auto result = SetField(asset, "version", JsonValue("2.0"));
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = SetField(asset, "generator", JsonValue("elm"));
@@ -257,24 +254,23 @@ namespace elm::resource {
                 if (!result) return UnexpectedSerializationError(result.error());
 
                 const auto binaryPath = path.Parent() / (path.Stem().string() + ".bin");
-                JsonValue buffer{ JsonValue::Type::Object };
+                JsonValue buffer { JsonValue::Type::Object };
                 result = SetField(buffer, "uri", JsonValue(EncodeUri(binaryPath.Filename().generic_string())));
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(buffer, "byteLength", m_binary.size());
                 if (!result) return UnexpectedSerializationError(result.error());
-                JsonValue buffers{ JsonValue::Type::Array };
+                JsonValue buffers { JsonValue::Type::Array };
                 result = Push(buffers, std::move(buffer));
                 if (!result) return UnexpectedSerializationError(result.error());
 
-                JsonValue scene{ JsonValue::Type::Object };
+                JsonValue scene { JsonValue::Type::Object };
                 result = SetField(scene, "nodes", std::move(m_sceneNodes));
                 if (!result) return UnexpectedSerializationError(result.error());
-                JsonValue scenes{ JsonValue::Type::Array };
+                JsonValue scenes { JsonValue::Type::Array };
                 result = Push(scenes, std::move(scene));
                 if (!result) return UnexpectedSerializationError(result.error());
 
-                const std::array<std::pair<const char*, JsonValue*>, 7> sections { {
-                    { "buffers", &buffers }, { "bufferViews", &m_bufferViews }, { "accessors", &m_accessors },
+                const std::array<std::pair<const char*, JsonValue*>, 7> sections { { { "buffers", &buffers }, { "bufferViews", &m_bufferViews }, { "accessors", &m_accessors },
                     { "materials", &m_materials }, { "meshes", &m_meshes }, { "nodes", &m_nodes },
                     { "scenes", &scenes } } };
                 for (const auto& [key, value] : sections) {
@@ -307,17 +303,17 @@ namespace elm::resource {
                     if (existing.x == color.x && existing.y == color.y && existing.z == color.z && existing.w == color.w)
                         return index;
                 }
-                JsonValue baseColor{ JsonValue::Type::Array };
+                JsonValue baseColor { JsonValue::Type::Array };
                 for (const float component : { color.x, color.y, color.z, color.w }) {
                     if (!std::isfinite(component))
                         return Failure("Cannot export non-finite material color to glTF");
                     auto result = Push(baseColor, JsonValue(static_cast<double>(component)));
                     if (!result) return UnexpectedSerializationError(result.error());
                 }
-                JsonValue pbr{ JsonValue::Type::Object };
+                JsonValue pbr { JsonValue::Type::Object };
                 auto result = SetField(pbr, "baseColorFactor", std::move(baseColor));
                 if (!result) return UnexpectedSerializationError(result.error());
-                JsonValue material{ JsonValue::Type::Object };
+                JsonValue material { JsonValue::Type::Object };
                 result = SetField(material, "pbrMetallicRoughness", std::move(pbr));
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = Push(m_materials, std::move(material));
@@ -355,8 +351,7 @@ namespace elm::resource {
                         return Failure("glTF model index is outside the vertex array");
                 }
                 const size_t alignedOffset = binary.size() + ((4 - binary.size() % 4) % 4);
-                if (alignedOffset > maxBufferSize ||
-                    mesh.vertices.size() > (maxBufferSize - alignedOffset) / 32)
+                if (alignedOffset > maxBufferSize || mesh.vertices.size() > (maxBufferSize - alignedOffset) / 32)
                     return Failure("glTF model exceeds the 32-bit buffer limit");
                 const size_t vertexEnd = alignedOffset + mesh.vertices.size() * 32;
                 if (indices.size() > (maxBufferSize - vertexEnd) / sizeof(uint32_t))
@@ -365,10 +360,10 @@ namespace elm::resource {
                 while (binary.size() % 4 != 0)
                     binary.push_back(0);
                 const size_t vertexOffset = binary.size();
-                Vector3 minimum{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
-                Vector3 maximum{ -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
+                Vector3 minimum { std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+                Vector3 maximum { -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() };
                 for (const auto& vertex : mesh.vertices) {
-                    const std::array<float, 8> components{
+                    const std::array<float, 8> components {
                         vertex.position.x, vertex.position.y, vertex.position.z,
                         vertex.normal.x, vertex.normal.y, vertex.normal.z,
                         vertex.u, vertex.v
@@ -389,7 +384,7 @@ namespace elm::resource {
                     return Failure("glTF model exceeds the 32-bit buffer limit");
                 const size_t vertexLength = binary.size() - vertexOffset;
 
-                JsonValue vertexView{ JsonValue::Type::Object };
+                JsonValue vertexView { JsonValue::Type::Object };
                 result = AddNumberField(vertexView, "buffer", 0);
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(vertexView, "byteOffset", vertexOffset);
@@ -404,14 +399,13 @@ namespace elm::resource {
 
                 const size_t positionAccessorIndex = *m_accessors.Size();
                 for (const auto& [offset, type, minimumValues, maximumValues] : {
-                    std::tuple<size_t, const char*, std::array<float, 3>, std::array<float, 3>>{
-                        0, "VEC3", { minimum.x, minimum.y, minimum.z }, { maximum.x, maximum.y, maximum.z } },
-                    std::tuple<size_t, const char*, std::array<float, 3>, std::array<float, 3>>{
-                        12, "VEC3", {}, {} },
-                    std::tuple<size_t, const char*, std::array<float, 3>, std::array<float, 3>>{
-                        24, "VEC2", {}, {} }
-                }) {
-                    JsonValue accessor{ JsonValue::Type::Object };
+                         std::tuple<size_t, const char*, std::array<float, 3>, std::array<float, 3>> {
+                             0, "VEC3", { minimum.x, minimum.y, minimum.z }, { maximum.x, maximum.y, maximum.z } },
+                         std::tuple<size_t, const char*, std::array<float, 3>, std::array<float, 3>> {
+                             12, "VEC3", {}, {} },
+                         std::tuple<size_t, const char*, std::array<float, 3>, std::array<float, 3>> {
+                             24, "VEC2", {}, {} } }) {
+                    JsonValue accessor { JsonValue::Type::Object };
                     result = AddNumberField(accessor, "bufferView", vertexViewIndex);
                     if (!result) return UnexpectedSerializationError(result.error());
                     result = AddNumberField(accessor, "byteOffset", offset);
@@ -444,7 +438,7 @@ namespace elm::resource {
                 if (binary.size() > std::numeric_limits<uint32_t>::max())
                     return Failure("glTF model exceeds the 32-bit buffer limit");
 
-                JsonValue indexView{ JsonValue::Type::Object };
+                JsonValue indexView { JsonValue::Type::Object };
                 result = AddNumberField(indexView, "buffer", 0);
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(indexView, "byteOffset", indexOffset);
@@ -455,7 +449,7 @@ namespace elm::resource {
                 result = Push(m_bufferViews, std::move(indexView));
                 if (!result) return UnexpectedSerializationError(result.error());
 
-                JsonValue indexAccessor{ JsonValue::Type::Object };
+                JsonValue indexAccessor { JsonValue::Type::Object };
                 result = AddNumberField(indexAccessor, "bufferView", indexViewIndex);
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = SetField(indexAccessor, "componentType", JsonValue(5125));
@@ -468,7 +462,7 @@ namespace elm::resource {
                 result = Push(m_accessors, std::move(indexAccessor));
                 if (!result) return UnexpectedSerializationError(result.error());
 
-                JsonValue attributes{ JsonValue::Type::Object };
+                JsonValue attributes { JsonValue::Type::Object };
                 result = AddNumberField(attributes, "POSITION", positionAccessorIndex);
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(attributes, "NORMAL", positionAccessorIndex + 1);
@@ -480,7 +474,7 @@ namespace elm::resource {
                 if (!material)
                     return UnexpectedSerializationError(material.error());
 
-                JsonValue primitive{ JsonValue::Type::Object };
+                JsonValue primitive { JsonValue::Type::Object };
                 result = SetField(primitive, "attributes", std::move(attributes));
                 if (!result) return UnexpectedSerializationError(result.error());
                 result = AddNumberField(primitive, "indices", indexAccessorIndex);
@@ -490,12 +484,12 @@ namespace elm::resource {
                 return primitive;
             }
 
-            JsonValue m_bufferViews{ JsonValue::Type::Array };
-            JsonValue m_accessors{ JsonValue::Type::Array };
-            JsonValue m_materials{ JsonValue::Type::Array };
-            JsonValue m_meshes{ JsonValue::Type::Array };
-            JsonValue m_nodes{ JsonValue::Type::Array };
-            JsonValue m_sceneNodes{ JsonValue::Type::Array };
+            JsonValue m_bufferViews { JsonValue::Type::Array };
+            JsonValue m_accessors { JsonValue::Type::Array };
+            JsonValue m_materials { JsonValue::Type::Array };
+            JsonValue m_meshes { JsonValue::Type::Array };
+            JsonValue m_nodes { JsonValue::Type::Array };
+            JsonValue m_sceneNodes { JsonValue::Type::Array };
             Vector<uint8_t> m_binary;
             Vector<Vector4> m_materialColors;
         };
@@ -535,7 +529,7 @@ namespace elm::resource {
             return *number;
         }
 
-        template<typename T>
+        template <typename T>
         auto ReadUnsigned(const JsonValue& value, StringView description) -> EngineResult<T>
         {
             auto number = ReadNumber(value, description);
@@ -544,15 +538,13 @@ namespace elm::resource {
 
             constexpr bool maxExceedsDoublePrecision = std::numeric_limits<T>::digits > std::numeric_limits<double>::digits;
             const double maximum = static_cast<double>(std::numeric_limits<T>::max());
-            if (*number < 0.0 ||
-                (maxExceedsDoublePrecision ? *number >= maximum : *number > maximum) ||
-                std::floor(*number) != *number)
+            if (*number < 0.0 || (maxExceedsDoublePrecision ? *number >= maximum : *number > maximum) || std::floor(*number) != *number)
                 return Failure("Invalid unsigned integer glTF field: " + String(description));
 
             return static_cast<T>(*number);
         }
 
-        template<size_t N>
+        template <size_t N>
         auto ReadFloatArray(const JsonValue& value, StringView description) -> EngineResult<std::array<float, N>>
         {
             if (!value.IsArray())
@@ -562,7 +554,7 @@ namespace elm::resource {
             if (!size || *size != N)
                 return Failure("Invalid array length for glTF field: " + String(description));
 
-            std::array<float, N> result{};
+            std::array<float, N> result {};
             for (size_t index = 0; index < N; ++index) {
                 auto component = value.At(index);
                 auto number = ReadNumber(component, description);
@@ -591,7 +583,7 @@ namespace elm::resource {
             if (!bytes.empty()) {
                 file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
                 if (!file)
-                    return Failure(String("Unable to read glTF resource: ") + String(path.string().c_str()  ));
+                    return Failure(String("Unable to read glTF resource: ") + String(path.string().c_str()));
             }
             return bytes;
         }
@@ -922,7 +914,7 @@ namespace elm::resource {
         {
             const auto materialField = Optional(primitive, "material");
             if (!materialField)
-                return Vector4{ 1.0f, 1.0f, 1.0f, 1.0f };
+                return Vector4 { 1.0f, 1.0f, 1.0f, 1.0f };
 
             auto materialIndex = ReadUnsigned<size_t>(*materialField, "primitives.material");
             if (!materialIndex)
@@ -940,16 +932,16 @@ namespace elm::resource {
                 return Failure("glTF material entry must be an object");
             const auto pbr = Optional(material, "pbrMetallicRoughness");
             if (!pbr)
-                return Vector4{ 1.0f, 1.0f, 1.0f, 1.0f };
+                return Vector4 { 1.0f, 1.0f, 1.0f, 1.0f };
             if (!pbr->IsObject())
                 return Failure("glTF pbrMetallicRoughness must be an object");
             auto factor = Optional(*pbr, "baseColorFactor");
             if (!factor)
-                return Vector4{ 1.0f, 1.0f, 1.0f, 1.0f };
+                return Vector4 { 1.0f, 1.0f, 1.0f, 1.0f };
             auto color = ReadFloatArray<4>(*factor, "materials.pbrMetallicRoughness.baseColorFactor");
             if (!color)
                 return UnexpectedSerializationError(color.error());
-            return Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
+            return Vector4 { (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
         }
 
         auto DecodePrimitive(const GltfDocument& document, const JsonValue& primitive) -> EngineResult<DecodedSubmesh>
@@ -1003,12 +995,12 @@ namespace elm::resource {
 
             DecodedSubmesh model;
             model.meshData.vertices.reserve(positions->size());
-            model.meshData.localBounds = AABB{};
+            model.meshData.localBounds = AABB {};
             for (size_t index = 0; index < positions->size(); ++index) {
                 const auto& position = (*positions)[index];
-                const auto normal = normals.empty() ? std::array<float, 4>{} : normals[index];
-                const auto uv = texcoords.empty() ? std::array<float, 4>{} : texcoords[index];
-                const Vector3 point{ position[0], position[1], position[2] };
+                const auto normal = normals.empty() ? std::array<float, 4> {} : normals[index];
+                const auto uv = texcoords.empty() ? std::array<float, 4> {} : texcoords[index];
+                const Vector3 point { position[0], position[1], position[2] };
                 model.meshData.vertices.push_back({ point, { normal[0], normal[1], normal[2] }, uv[0], uv[1] });
                 model.meshData.localBounds.minBounds.x = std::min(model.meshData.localBounds.minBounds.x, point.x);
                 model.meshData.localBounds.minBounds.y = std::min(model.meshData.localBounds.minBounds.y, point.y);
@@ -1074,7 +1066,7 @@ namespace elm::resource {
             auto values = ReadFloatArray<3>(*field, key);
             if (!values)
                 return UnexpectedSerializationError(values.error());
-            return Vector3{ (*values)[0], (*values)[1], (*values)[2] };
+            return Vector3 { (*values)[0], (*values)[1], (*values)[2] };
         }
 
         auto ReadNodeTransform(const JsonValue& node) -> EngineResult<Matrix4x4>
@@ -1098,7 +1090,7 @@ namespace elm::resource {
             if (!translation || !scale)
                 return Failure("Invalid TRS transform in glTF node");
 
-            std::array<float, 4> rotation{ 0.0f, 0.0f, 0.0f, 1.0f };
+            std::array<float, 4> rotation { 0.0f, 0.0f, 0.0f, 1.0f };
             if (const auto rotationField = Optional(node, "rotation")) {
                 auto values = ReadFloatArray<4>(*rotationField, "nodes.rotation");
                 if (!values)
@@ -1265,7 +1257,7 @@ namespace elm::resource {
             recursionStack[nodeIndex] = false;
             return {};
         }
-    }
+    } // namespace
 
     auto GltfExporter::ExportModel(const Model& model, const Path& path) -> EngineResult<void>
     {
@@ -1386,7 +1378,7 @@ namespace elm::resource {
         for (size_t meshIndex = 0; meshIndex < *meshCount; ++meshIndex) {
             auto submeshes = ReadMeshPrimitives(*document, meshIndex);
             if (!submeshes)
-                return UnexpectedSerializationError(submeshes.error());            
+                return UnexpectedSerializationError(submeshes.error());
             Model model;
             if (const auto nameField = Optional(meshesResult->At(meshIndex), "name")) {
                 auto name = nameField->AsString();
@@ -1467,4 +1459,4 @@ namespace elm::resource {
 
         return imported;
     }
-}
+} // namespace elm::resource

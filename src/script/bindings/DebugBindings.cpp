@@ -101,7 +101,7 @@ namespace elm::script::bindings {
         {
             DebugContext& context = Context(L);
             // The default channel is first; without debug drawing there is none
-            ScriptPen pen { {}, context.channels.empty() ? DebugChannel { } : context.channels.front() };
+            ScriptPen pen { {}, context.channels.empty() ? DebugChannel {} : context.channels.front() };
             if (!style)
                 return pen;
             style->Push(L);
@@ -181,7 +181,7 @@ namespace elm::script::bindings {
             if (name.empty() || name.find('/') != StringView::npos)
                 luaL_error(L, "elm.debug.channel: the name must be non-empty and have no '/'");
             if (!context.debugDraw)
-                return { DebugChannel { }, String(name) };
+                return { DebugChannel {}, String(name) };
             return { RegisterScriptChannel(context, name, enabledByDefault.value_or(true)), String(name) };
         }
 

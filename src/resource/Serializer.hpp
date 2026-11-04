@@ -43,4 +43,4 @@ namespace elm::resource {
         [[nodiscard]] static auto WriteFile(const Path& path, StringView contents) -> EngineResult<void>;
         [[nodiscard]] static auto ReadFile(const Path& path) -> EngineResult<String>;
     };
-}
+} // namespace elm::resource

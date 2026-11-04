@@ -36,7 +36,7 @@ namespace elm::script::bindings {
             return models && models->Get(model.handle);
         }
 
-        ModelRef Insert(lua_State* L, Model model, Path file = { })
+        ModelRef Insert(lua_State* L, Model model, Path file = {})
         {
             return { ModelsOf(L).Insert(std::move(model), std::move(file)) };
         }
@@ -74,7 +74,7 @@ namespace elm::script::bindings {
             auto model = gltf ? resource::GltfExporter::LoadModel(path) : resource::Serializer::LoadModel(path);
             if (!model)
                 return MakeUnexpected(model.error());
-            return Insert(L, std::move(*model), gltf ? Path { } : path);
+            return Insert(L, std::move(*model), gltf ? Path {} : path);
         }
 
         /// The asset path of the model's file, nil for a model without one.

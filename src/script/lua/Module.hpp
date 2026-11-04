@@ -56,7 +56,7 @@ namespace elm::script::lua {
 
         /// Fn: a function pointer, a captureless lambda or a raw int(lua_State*) function.
         template <auto Fn>
-        Module& Function(const char* name, ParamNames names = { })
+        Module& Function(const char* name, ParamNames names = {})
         {
             lua_pushcfunction(m_state, detail::CFunctionOf<Fn>());
             lua_setfield(m_state, Index(), name);

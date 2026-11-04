@@ -3,7 +3,7 @@
 #include "core/Handler.hpp"
 
 namespace elm::render {
-     
+
     struct TextureTag;
     struct BufferTag;
     struct MeshTag;
@@ -21,4 +21,3 @@ namespace elm::render {
     inline constexpr SurfaceId MainSurface = 0;
 
 } // namespace elm::render
-

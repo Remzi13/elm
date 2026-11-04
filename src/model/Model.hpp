@@ -23,16 +23,16 @@ namespace elm {
             String name;
         };
 
-        explicit Model(String modelName = { });
+        explicit Model(String modelName = {});
 
-        void AddSubmesh(MeshData meshData, Vector4 submeshColor = { 1.0f, 1.0f, 1.0f, 1.0f }, String submeshName = { });
-        void AddSubmesh(MeshDataPtr meshData, Vector4 submeshColor = { 1.0f, 1.0f, 1.0f, 1.0f }, String submeshName = { });
+        void AddSubmesh(MeshData meshData, Vector4 submeshColor = { 1.0f, 1.0f, 1.0f, 1.0f }, String submeshName = {});
+        void AddSubmesh(MeshDataPtr meshData, Vector4 submeshColor = { 1.0f, 1.0f, 1.0f, 1.0f }, String submeshName = {});
         [[nodiscard]] AABB GetLocalBounds() const noexcept;
 
         String name;
         Vector<Submesh> submeshes;
     };
-    
+
     [[nodiscard]] AABB ComputeBounds(const Vector<Vertex>& vertices) noexcept;
     /// Bakes an affine transform into the geometry. Normals use the inverse transpose,
     /// mirroring transforms flip the triangle winding so faces keep pointing outwards.

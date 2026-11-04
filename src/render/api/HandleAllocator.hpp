@@ -45,8 +45,7 @@ namespace elm::render {
         {
             std::lock_guard lock(m_mutex);
             const uint32_t index = handle.Index();
-            return handle.IsValid() && index > 0 && index <= m_generations.size() &&
-                m_generations[index - 1] == handle.Generation();
+            return handle.IsValid() && index > 0 && index <= m_generations.size() && m_generations[index - 1] == handle.Generation();
         }
 
     private:

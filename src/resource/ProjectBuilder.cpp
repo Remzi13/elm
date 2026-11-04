@@ -37,11 +37,11 @@ namespace elm::resource {
             std::error_code error;
             if (!FileSystem::Copy(from, to, error))
                 return UnexpectedSerializationError("Cannot copy " + from.string() + ": " + error.message(), LogSource);
-            return { };
+            return {};
         }
 
         /// Copies a folder's files and folders, hidden ones left out; `skipped` is a name of the top level left out too.
-        auto CopyFolder(const Path& from, const Path& to, StringView skipped = { }) -> EngineResult<void>
+        auto CopyFolder(const Path& from, const Path& to, StringView skipped = {}) -> EngineResult<void>
         {
             std::error_code error;
             FileSystem::CreateDirectories(to, error);
@@ -57,20 +57,20 @@ namespace elm::resource {
             }
             if (error)
                 return UnexpectedSerializationError("Cannot read " + from.string() + ": " + error.message(), LogSource);
-            return { };
+            return {};
         }
 
         /// Only a folder with the build mark is ours to replace.
         auto ClearOldBuild(const Path& folder) -> EngineResult<void>
         {
             if (!FileSystem::Exists(folder))
-                return { };
+                return {};
             if (!FileSystem::Exists(folder / ProjectBuilder::BuildMarkFile))
                 return UnexpectedSerializationError("Not a game build, left as it is: " + folder.string(), LogSource);
             std::error_code error;
             if (!FileSystem::RemoveAll(folder, error))
                 return UnexpectedSerializationError("Cannot remove the old build " + folder.string() + ": " + error.message(), LogSource);
-            return { };
+            return {};
         }
 
         /// The program and the libraries next to it; the program gets the game's name.
@@ -87,7 +87,7 @@ namespace elm::resource {
                 if (auto copied = CopyOne(it.CurrentPath(), folder / it.CurrentPath().Filename()); !copied)
                     return copied;
             }
-            return { };
+            return {};
         }
 
         /// First of all: a build that fails halfway is still ours to replace.
@@ -99,7 +99,7 @@ namespace elm::resource {
             mark << "Made by ProjectBuilder: the next build replaces this folder.\n";
             if (error || !mark)
                 return UnexpectedSerializationError("Cannot make the build folder " + folder.string(), LogSource);
-            return { };
+            return {};
         }
 
         /// .settings with the folder as the engine root: shaders and the project are found next to the program.

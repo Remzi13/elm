@@ -7,7 +7,7 @@ namespace elm::script {
     Path ModulePaths::Find(StringView module) const
     {
         if (!IsValidName(module))
-            return { };
+            return {};
         String relative(module);
         for (char& c : relative) {
             if (c == '.')
@@ -19,17 +19,17 @@ namespace elm::script {
             if (FileSystem::IsRegularFile(candidate, error))
                 return candidate;
         }
-        return { };
+        return {};
     }
 
     String ModulePaths::NameOf(const Path& file) const
     {
         const String relative(file.LexicallyRelative(m_root).generic_string().c_str());
         if (relative.empty() || relative.starts_with("..") || !relative.ends_with(".lua") || Path(file).IsRelative())
-            return { };
+            return {};
         String name = relative.substr(0, relative.size() - 4);
         if (name == "init")
-            return { };
+            return {};
         if (name.ends_with("/init"))
             name.resize(name.size() - 5);
         for (char& c : name) {

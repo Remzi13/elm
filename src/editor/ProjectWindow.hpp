@@ -49,11 +49,11 @@ namespace elm::editor {
         project::ProjectAssets m_assets;
         /// After m_assets: it reads them.
         ProjectSettingsPanel m_settingsPanel;
-        std::array<char, 128> m_search { };
+        std::array<char, 128> m_search {};
         std::optional<project::AssetType> m_typeFilter;
         /// The folder New Folder makes a folder in; empty: the assets folder.
         project::AssetPath m_newFolderParent;
-        std::array<char, 64> m_newFolderName { };
+        std::array<char, 64> m_newFolderName {};
         bool m_openNewFolder { false };
         String m_status;
     };

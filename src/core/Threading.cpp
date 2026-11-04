@@ -3,10 +3,8 @@
 #include <array>
 #include <atomic>
 
-namespace elm::core
-{
-    namespace
-    {
+namespace elm::core {
+    namespace {
         std::array<std::atomic<std::thread::id>, static_cast<size_t>(ThreadRole::Count)> g_threadRoles;
     }
 
@@ -17,8 +15,7 @@ namespace elm::core
 
     void Thread::Join()
     {
-        if (m_thread.joinable())
-        {
+        if (m_thread.joinable()) {
             m_thread.join();
         }
     }
@@ -30,12 +27,12 @@ namespace elm::core
 
     void unregisterThread(ThreadRole role)
     {
-        g_threadRoles[static_cast<size_t>(role)].store(std::thread::id{}, std::memory_order_release);
+        g_threadRoles[static_cast<size_t>(role)].store(std::thread::id {}, std::memory_order_release);
     }
 
     bool isThread(ThreadRole role)
     {
         const auto owner = g_threadRoles[static_cast<size_t>(role)].load(std::memory_order_acquire);
-        return owner == std::thread::id{} || owner == std::this_thread::get_id();
+        return owner == std::thread::id {} || owner == std::this_thread::get_id();
     }
-}
+} // namespace elm::core

@@ -7,25 +7,27 @@
 
 namespace elm {
 
-enum class ErrorCode {
-    WindowInitializationFailed,
-    RenderEngineInitializationFailed,
-    PhysicsInitializationFailed,
-    ResourceCreationFailed,
-    SerializationFailed,
-    ScriptError,
-    UnknownError
-};
+    enum class ErrorCode {
+        WindowInitializationFailed,
+        RenderEngineInitializationFailed,
+        PhysicsInitializationFailed,
+        ResourceCreationFailed,
+        SerializationFailed,
+        ScriptError,
+        UnknownError
+    };
 
-struct EngineError {
-    ErrorCode code{ErrorCode::UnknownError};
-    String message;
+    struct EngineError {
+        ErrorCode code { ErrorCode::UnknownError };
+        String message;
 
-    explicit EngineError(ErrorCode c, StringView msg = "")
-        : code(c), message(msg) {}
-};
+        explicit EngineError(ErrorCode c, StringView msg = "")
+            : code(c)
+            , message(msg)
+        {}
+    };
 
-template <typename T>
-using EngineResult = std::expected<T, EngineError>;
+    template <typename T>
+    using EngineResult = std::expected<T, EngineError>;
 
-} // namespace Engine
+} // namespace elm

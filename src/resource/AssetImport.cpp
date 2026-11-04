@@ -45,7 +45,7 @@ namespace elm::resource {
                 const auto count = items && items->IsArray() ? items->Size() : EngineResult<size_t> { 0 };
                 for (size_t index = 0; count && index < *count; ++index) {
                     const auto uri = items->At(index).Find("uri");
-                    auto value = uri && uri->GetKind() == JsonValue::Kind::String ? uri->AsString() : EngineResult<String> { };
+                    auto value = uri && uri->GetKind() == JsonValue::Kind::String ? uri->AsString() : EngineResult<String> {};
                     if (value && !value->empty() && !value->starts_with("data:"))
                         uris.push_back(std::move(*value));
                 }
@@ -102,7 +102,7 @@ namespace elm::resource {
             if (!FileSystem::Copy(from, to, error))
                 return UnexpectedSerializationError("Cannot copy " + from.string() + " to " + to.string() + ": " + error.message(),
                     LogSource);
-            return { };
+            return {};
         }
 
     } // namespace

@@ -121,7 +121,7 @@ namespace elm::script::bindings {
         Vector3 GetVelocity(lua_State* L, const RigidBodyRef& ref)
         {
             RigidBodyOf(L, ref);
-            return BodyOf(L, ref.node).GetLinearVelocity(ref.node).value_or(Vector3 { });
+            return BodyOf(L, ref.node).GetLinearVelocity(ref.node).value_or(Vector3 {});
         }
         void SetVelocity(lua_State* L, RigidBodyRef& ref, const Vector3& velocity)
         {
@@ -130,7 +130,7 @@ namespace elm::script::bindings {
         Vector3 GetAngularVelocity(lua_State* L, const RigidBodyRef& ref)
         {
             RigidBodyOf(L, ref);
-            return BodyOf(L, ref.node).GetAngularVelocity(ref.node).value_or(Vector3 { });
+            return BodyOf(L, ref.node).GetAngularVelocity(ref.node).value_or(Vector3 {});
         }
         void SetAngularVelocity(lua_State* L, RigidBodyRef& ref, const Vector3& velocity)
         {
@@ -251,9 +251,9 @@ namespace elm::script::bindings {
         std::tuple<std::optional<Entity>, std::optional<Vector3>, std::optional<Vector3>, std::optional<float>> Raycast(lua_State* L,
             const Vector3& origin, const Vector3& direction, std::optional<float> maxDistance, std::optional<Entity> ignore)
         {
-            const auto hit = PhysicsOf(L).CastRay(origin, direction, maxDistance.value_or(1000.0f), ignore ? ignore->id : NodeId { });
+            const auto hit = PhysicsOf(L).CastRay(origin, direction, maxDistance.value_or(1000.0f), ignore ? ignore->id : NodeId {});
             if (!hit)
-                return { };
+                return {};
             return { Entity { hit->node }, hit->point, hit->normal, hit->distance };
         }
 
@@ -271,7 +271,7 @@ namespace elm::script::bindings {
         Vector3 half = (bounds.maxBounds - bounds.minBounds) * 0.5f;
         Vector3 center = (bounds.maxBounds + bounds.minBounds) * 0.5f;
         constexpr float FlatThickness = 0.25f;
-        for (float Vector3::*axis : { &Vector3::x, &Vector3::y, &Vector3::z }) {
+        for (float Vector3::* axis : { &Vector3::x, &Vector3::y, &Vector3::z }) {
             if (half.*axis < 0.01f) {
                 half.*axis = FlatThickness;
                 center.*axis -= FlatThickness;

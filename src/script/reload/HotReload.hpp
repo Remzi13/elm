@@ -57,7 +57,7 @@ namespace elm::script {
         lua::State& m_state;
         ModuleLoader& m_loader;
         ModuleReloaded m_onModuleReloaded;
-        std::chrono::steady_clock::time_point m_nextPoll { };
+        std::chrono::steady_clock::time_point m_nextPoll {};
     };
 
 } // namespace elm::script

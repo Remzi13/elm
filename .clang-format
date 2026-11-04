@@ -1,0 +1,36 @@
+# The style most of the code already has. Line breaks stay as written: there is no column limit.
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 0
+NamespaceIndentation: All
+AccessModifierOffset: -4
+PointerAlignment: Left
+
+# A wrapped line gets a plain indent, so a rename does not move its neighbours
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+BreakBeforeBinaryOperators: NonAssignment
+BreakConstructorInitializers: BeforeComma
+BreakTemplateDeclarations: Leave
+
+AllowShortBlocksOnASingleLine: Always
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+
+# float mass { 1.0f };
+SpaceBeforeCpp11BracedList: true
+Cpp11BracedListStyle: false
+
+# The order of includes is a project rule with groups by module, and comments keep their own lines
+SortIncludes: Never
+ReflowComments: false
+InsertNewlineAtEOF: true
+
+# A function has its brace on a new line, everything else on the same line
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false

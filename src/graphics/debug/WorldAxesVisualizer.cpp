@@ -2,21 +2,21 @@
 
 namespace elm::graphics {
 
-namespace {
+    namespace {
 
-    constexpr StringView WorldAxesChannel = "Editor/WorldAxes";
-    constexpr float WorldAxisLength = 2.0f;
+        constexpr StringView WorldAxesChannel = "Editor/WorldAxes";
+        constexpr float WorldAxisLength = 2.0f;
 
-} // namespace
+    } // namespace
 
-WorldAxesVisualizer::WorldAxesVisualizer(DebugDraw& debugDraw)
-    : m_channel(debugDraw.RegisterChannel(WorldAxesChannel, "World Axes", true))
-{
-}
+    WorldAxesVisualizer::WorldAxesVisualizer(DebugDraw& debugDraw)
+        : m_channel(debugDraw.RegisterChannel(WorldAxesChannel, "World Axes", true))
+    {
+    }
 
-void WorldAxesVisualizer::Draw(DebugDraw& debugDraw)
-{
-    debugDraw.Axes(m_channel, math::Matrix4x4::Identity(), WorldAxisLength, {});
-}
+    void WorldAxesVisualizer::Draw(DebugDraw& debugDraw)
+    {
+        debugDraw.Axes(m_channel, math::Matrix4x4::Identity(), WorldAxisLength, {});
+    }
 
 } // namespace elm::graphics

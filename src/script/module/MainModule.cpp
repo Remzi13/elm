@@ -26,7 +26,7 @@ namespace elm::script {
         m_name = String(name);
         if (m_name.empty() || m_loader.Paths().Find(m_name).Empty()) {
             LOG_MESSAGE(log::Category::Script, LogSource, "No main module '%s', scripts are idle", m_name.c_str());
-            return { };
+            return {};
         }
 
         lua_State* L = m_state;
@@ -38,7 +38,7 @@ namespace elm::script {
         m_error.clear();
 
         CallHook("on_start");
-        return { };
+        return {};
     }
 
     void MainModule::Shutdown() noexcept

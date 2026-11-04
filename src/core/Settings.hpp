@@ -8,111 +8,97 @@
 #include <optional>
 #include <variant>
 
-namespace elm
-{
-	class Settings
-	{
-	public:
-		enum class Category
-		{
-			Core,
-			Render,
-			Physics,
-			Script,
-		};
+namespace elm {
+    class Settings {
+    public:
+        enum class Category {
+            Core,
+            Render,
+            Physics,
+            Script,
+        };
 
-		using Value = std::variant<uint32_t, float, String, bool >;
+        using Value = std::variant<uint32_t, float, String, bool>;
 
-		struct Entry
-		{
-			Category category;
-			String path;
-			String label;
-			Value value;
-		};
+        struct Entry {
+            Category category;
+            String path;
+            String label;
+            Value value;
+        };
 
-	public:
-		Settings();
+    public:
+        Settings();
 
-		template<typename T>
-		void Register(Category category, StringView path, StringView label, T defaultValue)
-		{
-			const String key = MakeKey(category, path);
-			std::lock_guard<std::mutex> lock(m_mutex);
+        template <typename T>
+        void Register(Category category, StringView path, StringView label, T defaultValue)
+        {
+            const String key = MakeKey(category, path);
+            std::lock_guard<std::mutex> lock(m_mutex);
 
-			const auto entry = m_entries.find(key);
-			if (entry == m_entries.end()) {
-				// Registered after Load: the file's value wins over the default
-				Value value(std::move(defaultValue));
-				if (auto loaded = TakeFileValue(key, value))
-					value = std::move(*loaded);
-				m_entries.emplace(key, Entry{
-					category,
-					String(path.begin(), path.end()),
-					String(label.begin(), label.end()),
-					std::move(value)
-				});
-				return;
-			}
+            const auto entry = m_entries.find(key);
+            if (entry == m_entries.end()) {
+                // Registered after Load: the file's value wins over the default
+                Value value(std::move(defaultValue));
+                if (auto loaded = TakeFileValue(key, value))
+                    value = std::move(*loaded);
+                m_entries.emplace(key, Entry { category, String(path.begin(), path.end()), String(label.begin(), label.end()), std::move(value) });
+                return;
+            }
 
-			entry->second.category = category;
-			entry->second.path = String(path.begin(), path.end());
-			entry->second.label = String(label.begin(), label.end());
-		}
+            entry->second.category = category;
+            entry->second.path = String(path.begin(), path.end());
+            entry->second.label = String(label.begin(), label.end());
+        }
 
-		template<typename T>
-		void Set(Category category, StringView path, T&& value)
-		{
-			std::lock_guard<std::mutex> lock(m_mutex);
-			const String key = MakeKey(category, path);
-			const auto entry = m_entries.find(key);
-			if (entry != m_entries.end()) {
-				entry->second.value = Value(std::forward<T>(value));
-				return;
-			}
+        template <typename T>
+        void Set(Category category, StringView path, T&& value)
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            const String key = MakeKey(category, path);
+            const auto entry = m_entries.find(key);
+            if (entry != m_entries.end()) {
+                entry->second.value = Value(std::forward<T>(value));
+                return;
+            }
 
-			m_fileValues.erase(key);
-			m_entries.emplace(key, Entry{
-				category,
-				String(path.begin(), path.end()),
-				String(path.begin(), path.end()),
-				Value(std::forward<T>(value))
-			});
-		}
+            m_fileValues.erase(key);
+            m_entries.emplace(key, Entry { category, String(path.begin(), path.end()), String(path.begin(), path.end()), Value(std::forward<T>(value)) });
+        }
 
-		template<typename T>
-		T Get(Category category, StringView path, T defaultValue = T{}) const
-		{
-			std::lock_guard<std::mutex> lock(m_mutex);
-			const auto it = m_entries.find(MakeKey(category, path));
+        template <typename T>
+        T Get(Category category, StringView path, T defaultValue = T {}) const
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            const auto it = m_entries.find(MakeKey(category, path));
 
-			if (it == m_entries.end())
-				return defaultValue;
+            if (it == m_entries.end())
+                return defaultValue;
 
-			if (const auto* value = std::get_if<T>(&it->second.value))
-				return *value;
+            if (const auto* value = std::get_if<T>(&it->second.value))
+                return *value;
 
-			return defaultValue;
-		}
+            return defaultValue;
+        }
 
-		[[nodiscard]] auto GetEntries() const -> Vector<Entry>;
-		[[nodiscard]] static auto DefaultFilePath() -> Path;
-		[[nodiscard]] auto Load(const Path& path) -> EngineResult<void>;
-		[[nodiscard]] auto Save(const Path& path) const -> EngineResult<void>;
+        [[nodiscard]] auto GetEntries() const -> Vector<Entry>;
+        [[nodiscard]] static auto DefaultFilePath() -> Path;
+        [[nodiscard]] auto Load(const Path& path) -> EngineResult<void>;
+        [[nodiscard]] auto Save(const Path& path) const -> EngineResult<void>;
 
-	private:
-		/// A value of the settings file whose key nobody registered yet, as its JSON type.
-		using FileValue = std::variant<bool, String, double>;
+    private:
+        /// A value of the settings file whose key nobody registered yet, as its JSON type.
+        using FileValue = std::variant<bool, String, double>;
 
-		static String MakeKey(Category category, StringView path);
-		/// The file's value of key as the type of defaultValue, taken out of m_fileValues; nothing when the
-		/// file has none or one of another type. Called with m_mutex held.
-		[[nodiscard]] std::optional<Value> TakeFileValue(const String& key, const Value& defaultValue);
+        static String MakeKey(Category category, StringView path);
+        /// The file's value of key as the type of defaultValue, taken out of m_fileValues; nothing when the
+        /// file has none or one of another type. Called with m_mutex held.
+        [[nodiscard]] std::optional<Value> TakeFileValue(const String& key, const Value& defaultValue);
 
-	private:
-		mutable std::mutex m_mutex;
-		UnorderedMap<String, Entry> m_entries;
-		/// Read by Load before their keys were registered: Register takes them, Save writes them back.
-		UnorderedMap<String, FileValue> m_fileValues;
-	};
-}
+    private:
+        mutable std::mutex m_mutex;
+        UnorderedMap<String, Entry> m_entries;
+        /// Read by Load before their keys were registered: Register takes them, Save writes them back.
+        UnorderedMap<String, FileValue> m_fileValues;
+    };
+} // namespace elm

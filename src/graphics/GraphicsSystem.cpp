@@ -38,7 +38,7 @@ namespace elm::graphics {
         m_culling.Init(m_render->Resources(), m_settings);
         m_initialized = true;
         m_renderThread = std::thread(&GraphicsSystem::RenderThreadFunc, this);
-        return { };
+        return {};
     }
 
     void GraphicsSystem::StopRendering()
@@ -56,7 +56,7 @@ namespace elm::graphics {
         StopRendering();
         m_meshes.Clear();
         m_culling.Shutdown();
-        m_viewPort = { };
+        m_viewPort = {};
         m_render->Shutdown();
         m_initialized = false;
     }

@@ -30,7 +30,7 @@ namespace elm {
         Vector<ModelHandler> handlers;
         handlers.reserve(models.size());
         for (size_t index = 0; index < models.size(); ++index)
-            handlers.push_back(Insert(std::move(models[index]), index < files.size() ? files[index] : Path { }));
+            handlers.push_back(Insert(std::move(models[index]), index < files.size() ? files[index] : Path {}));
         return handlers;
     }
 
@@ -126,7 +126,7 @@ namespace elm {
     ModelHandler ModelCatalog::FindByNormalFile(const Path& normalFile) const noexcept
     {
         if (normalFile.Empty())
-            return { };
+            return {};
         // As text: both are in their normal form, and Path::operator== makes a filesystem::path per comparison
         const StringView file(normalFile.c_str());
         for (uint32_t index = 0; index < m_slots.size(); ++index) {
@@ -134,7 +134,7 @@ namespace elm {
             if (StringView(slot.file.c_str()) == file)
                 return ModelHandler(index + 1, slot.generation);
         }
-        return { };
+        return {};
     }
 
 } // namespace elm

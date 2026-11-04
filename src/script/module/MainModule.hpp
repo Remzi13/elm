@@ -8,7 +8,9 @@ namespace elm::script {
 
     class ModuleLoader;
 
-    enum class MainState : uint8_t { Idle, Running, Faulted };
+    enum class MainState : uint8_t { Idle,
+        Running,
+        Faulted };
 
     /// The main module (entry.mainModule of the project): a table of hooks the engine calls,
     ///     on_start(), on_update(dt), on_fixed_update(dt), on_play(), on_stop(), on_shutdown(),

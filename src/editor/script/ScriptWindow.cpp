@@ -1,6 +1,5 @@
 #include "editor/script/ScriptWindow.hpp"
 
-
 #include "script/entity/EntityScripts.hpp"
 #include "script/entity/ScriptDefaults.hpp"
 

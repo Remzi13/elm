@@ -19,7 +19,9 @@ namespace elm::script::lua {
     };
 
     struct ApiFunction {
-        enum class Kind { Function, Method, Constructor };
+        enum class Kind { Function,
+            Method,
+            Constructor };
 
         String name;
         Kind kind { Kind::Function };

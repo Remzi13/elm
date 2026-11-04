@@ -7,7 +7,10 @@
 namespace elm::script {
 
     /// Kinds of lines in the console of the Scripts window.
-    enum class ConsoleLineKind : uint8_t { Command, Output, Error, Info };
+    enum class ConsoleLineKind : uint8_t { Command,
+        Output,
+        Error,
+        Info };
 
     /// How a part of the Scripts window reports something: a line in its console.
     using PrintLine = std::function<void(ConsoleLineKind kind, StringView text)>;

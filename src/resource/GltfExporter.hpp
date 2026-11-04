@@ -19,4 +19,4 @@ namespace elm::resource {
         /// Reads the default glTF scene: one model per glTF mesh, one scene node per glTF node.
         [[nodiscard]] static auto LoadScene(const Path& path) -> EngineResult<SceneAsset>;
     };
-}
+} // namespace elm::resource

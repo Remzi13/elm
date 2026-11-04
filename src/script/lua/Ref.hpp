@@ -48,7 +48,7 @@ namespace elm::script::lua {
         [[nodiscard]] Ref Copy() const
         {
             if (!m_state)
-                return { };
+                return {};
             Push(m_state);
             Ref copy(m_state, -1);
             lua_pop(m_state, 1);
@@ -117,7 +117,7 @@ namespace elm::script::lua {
                 return MakeUnexpected(called.error());
 
             if constexpr (std::is_void_v<R>) {
-                return { };
+                return {};
             } else {
                 auto value = StackTraits<R>::Get(L, -1);
                 const String resultType = luaL_typename(L, -1);

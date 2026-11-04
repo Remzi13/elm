@@ -81,7 +81,11 @@ namespace elm::script {
             float z { 0.0f };
 
             TestVector() = default;
-            TestVector(float inX, float inY, float inZ) : x(inX), y(inY), z(inZ) { }
+            TestVector(float inX, float inY, float inZ)
+                : x(inX)
+                , y(inY)
+                , z(inZ)
+            {}
 
             [[nodiscard]] float Dot(const TestVector& other) const noexcept { return x * other.x + y * other.y + z * other.z; }
             [[nodiscard]] float Length() const noexcept { return std::sqrt(Dot(*this)); }
@@ -113,9 +117,17 @@ namespace elm::script {
             int value { 0 };
             const int id { 7 };
 
-            explicit Tracked(int inValue) : value(inValue) { ++alive; }
-            Tracked(const Tracked& other) : value(other.value), id(other.id) { ++alive; }
-            Tracked(Tracked&& other) noexcept : value(other.value), id(other.id) { ++alive; }
+            explicit Tracked(int inValue)
+                : value(inValue)
+            { ++alive; }
+            Tracked(const Tracked& other)
+                : value(other.value)
+                , id(other.id)
+            { ++alive; }
+            Tracked(Tracked&& other) noexcept
+                : value(other.value)
+                , id(other.id)
+            { ++alive; }
             Tracked& operator=(const Tracked&) = delete;
             ~Tracked() { --alive; }
 
@@ -130,7 +142,9 @@ namespace elm::script {
             tracked.value = value;
         }
 
-        enum class Color : uint8_t { Red = 1, Green = 2, Blue = 3 };
+        enum class Color : uint8_t { Red = 1,
+            Green = 2,
+            Blue = 3 };
 
         Color NextColor(Color color) { return color == Color::Blue ? Color::Red : static_cast<Color>(static_cast<uint8_t>(color) + 1); }
         int Twice(int value) { return value * 2; }
@@ -151,7 +165,7 @@ namespace elm::script {
         {
             if (fail)
                 return MakeUnexpected(EngineError(ErrorCode::ScriptError, "void failure"));
-            return { };
+            return {};
         }
         /// Calls back into Lua from inside a Lua call (a nested protected call).
         int CallBack(const lua::FunctionRef& function, int value)
@@ -243,7 +257,7 @@ namespace elm::script {
             int passed { 0 };
             int failed { 0 };
 
-            void Check(bool condition, StringView name, StringView detail = { })
+            void Check(bool condition, StringView name, StringView detail = {})
             {
                 if (condition) {
                     ++passed;
@@ -265,7 +279,7 @@ namespace elm::script {
 
             auto loadFunction = [&](const char* code) -> lua::FunctionRef {
                 if (!state.Load(code, "=native") || !state.ProtectedCall(0, 1))
-                    return { };
+                    return {};
                 lua::FunctionRef function(L, -1);
                 lua_pop(L, 1);
                 return function;
@@ -357,7 +371,7 @@ namespace elm::script {
             NodeIdTable ids;
             const NodeId a = ids.Allocate(0);
             const NodeId b = ids.Allocate(1);
-            report.Check(a && b && a != b && ids.IndexOf(a) == 0 && ids.IndexOf(b) == 1 && ids.IndexOf({ }) == NodeIdTable::NoIndex,
+            report.Check(a && b && a != b && ids.IndexOf(a) == 0 && ids.IndexOf(b) == 1 && ids.IndexOf({}) == NodeIdTable::NoIndex,
                 "node_ids::allocate");
             ids.Move(b, 7);
             report.Check(ids.IndexOf(b) == 7, "node_ids::move");
@@ -467,7 +481,7 @@ namespace elm::script {
             report.Check(!scene.AddNode("orphan", math::Matrix4x4::Identity(), gone) && scene.NodeCount() == 2, "scene::add_node_with_stale_parent");
 
             // Reparenting keeps the world transform; a parent that comes later takes the child after it
-            const NodeId other = scene.AddNode("other", Matrix4x4::Translation(Vector3 { 0.0f, 0.0f, 4.0f }) );
+            const NodeId other = scene.AddNode("other", Matrix4x4::Translation(Vector3 { 0.0f, 0.0f, 4.0f }));
             report.Check(scene.SetParent(child, other) == Scene::SetParentResult::Done, "scene::set_parent_done");
             report.Check(scene.IndexOf(other) == 1 && scene.IndexOf(child) == 2 && ParentsComeFirst(scene),
                 "scene::set_parent_moves_the_child_after_its_parent");
@@ -477,7 +491,7 @@ namespace elm::script {
             report.Check(scene.SetParent(other, child) == Scene::SetParentResult::Cycle
                     && scene.SetParent(child, child) == Scene::SetParentResult::Cycle,
                 "scene::set_parent_rejects_cycle");
-            report.Check(scene.SetParent(child, { }) == Scene::SetParentResult::Done && !scene.Find(child)->parent
+            report.Check(scene.SetParent(child, {}) == Scene::SetParentResult::Done && !scene.Find(child)->parent
                     && scene.Find(child)->localTransform(0, 3) == 2.0f,
                 "scene::set_parent_detaches");
             const NodeId flat = scene.AddNode("flat", Matrix4x4::Scaling(Vector3 { 1.0f, 0.0f, 1.0f }));
@@ -528,8 +542,8 @@ namespace elm::script {
         void RunSnapshotTests(Report& report)
         {
             Scene scene;
-            const NodeId a = scene.AddNode( "a" );
-            const NodeId b = scene.AddNode( "b" );
+            const NodeId a = scene.AddNode("a");
+            const NodeId b = scene.AddNode("b");
             scene.Components<RigidBody>().Emplace(a, RigidBody { .mass = 7.0f });
             Scene copy = scene.Clone();
             report.Check(copy.IndexOf(a) == 0 && copy.IndexOf(b) == 1 && copy.FindComponents<RigidBody>()
@@ -537,7 +551,7 @@ namespace elm::script {
                 "snapshot::clone_keeps_ids_and_components");
 
             // Meanwhile: c comes in a new slot, b goes, a changes
-            const NodeId c = scene.AddNode( "c" );
+            const NodeId c = scene.AddNode("c");
             report.Check(scene.RemoveNode(b), "snapshot::play_removes");
             scene.Components<RigidBody>().Remove(a);
             scene.SetName(a, "changed");
@@ -644,7 +658,7 @@ namespace elm::script {
             source.Components<Collider>().Emplace(SceneAsset::NodeRef(1), Collider { .radius = 3.0f });
             const NodeId target = scene.AddNode("target");
             ComponentStores moved;
-            moved.TakeFrom(std::move(source), [&](NodeId key) { return key == SceneAsset::NodeRef(0) ? target : NodeId { }; });
+            moved.TakeFrom(std::move(source), [&](NodeId key) { return key == SceneAsset::NodeRef(0) ? target : NodeId {}; });
             const auto* colliders = moved.FindComponents<Collider>();
             report.Check(colliders && colliders->Size() == 1 && colliders->Find(target) && colliders->Find(target)->radius == 2.0f,
                 "components::take_from_remaps_ids");
@@ -831,11 +845,12 @@ namespace elm::script {
             return "local Walker = { props = { speed = 2, label = 'walker', dir = elm.math.Vector3(1, 0, 0) } }\n"
                    "function Walker:on_start() events[#events + 1] = 'start ' .. self.label self.ticks = 0 end\n"
                    "function Walker:on_update(dt) if self.fail then error('walker failed') end self.ticks = self.ticks + "
-                + String(std::to_string(step)) + " end\n"
-                   "function Walker:on_fixed_update(dt) self.fixed = (self.fixed or 0) + 1 end\n"
-                   "function Walker:on_destroy() events[#events + 1] = 'destroy ' .. self.label .. ' ' .. tostring(self.entity.valid) end\n"
-                   "function Walker:on_script_reload() self.reloaded = true end\n"
-                   "return Walker\n";
+                + String(std::to_string(step))
+                + " end\n"
+                  "function Walker:on_fixed_update(dt) self.fixed = (self.fixed or 0) + 1 end\n"
+                  "function Walker:on_destroy() events[#events + 1] = 'destroy ' .. self.label .. ' ' .. tostring(self.entity.valid) end\n"
+                  "function Walker:on_script_reload() self.reloaded = true end\n"
+                  "return Walker\n";
         }
 
         void RunEntityScriptTests(Report& report)
@@ -928,8 +943,9 @@ namespace elm::script {
                 "function Selfish:on_start() end\n"
                 "function Selfish:on_destroy() events[#events + 1] = 'selfish' self.entity:destroy() end\n"
                 "return Selfish\n");
-            (void)SelfTestAccess::Console(system).Execute("events = {} s = elm.scene.spawn('s') s:add('Script', 'npc.selfish') "
-                                 "t = elm.scene.spawn('t') t:add('Script', 'npc.selfish')");
+            (void)SelfTestAccess::Console(system).Execute(
+                "events = {} s = elm.scene.spawn('s') s:add('Script', 'npc.selfish') "
+                "t = elm.scene.spawn('t') t:add('Script', 'npc.selfish')");
             system.Update(0.016f);
             report.Check(eval("s:destroy() t:remove('Script') return #events, s.valid, t.valid") == "2\tfalse\tfalse",
                 "entity::on_destroy_may_destroy_its_entity");
@@ -952,7 +968,7 @@ namespace elm::script {
 
             // A component naming a missing module is kept faulted, a reload makes it again
             const NodeId nodeF = scene.AddNode("f");
-            scene.Components<ScriptComponent>().Emplace(nodeF, ScriptComponent { "npc.later", { } });
+            scene.Components<ScriptComponent>().Emplace(nodeF, ScriptComponent { "npc.later", {} });
             system.Update(0.016f);
             const auto* broken = SelfTestAccess::Entities(system).Find(nodeF);
             report.Check(broken && broken->faulted && !broken->self && fails("return elm.scene.find('f').script", "npc.later"),
@@ -1261,13 +1277,13 @@ namespace elm::script {
             auto assetPathOf = [&](ModelHandler model) {
                 const Path* file = models.FileOf(model);
                 const auto asset = file ? project.AssetPathOf(*file) : std::nullopt;
-                return asset ? asset->Text() : String { };
+                return asset ? asset->Text() : String {};
             };
             Scene scene;
             const NodeId guard = Place(scene, "guard", { 1.0f, 0.0f, 2.0f });
             const NodeId target = Place(scene, "target", { 5.0f, 0.0f, 0.0f });
-            const NodeId plain = Place(scene, "plain", { });
-            const NodeId gone = Place(scene, "gone", { });
+            const NodeId plain = Place(scene, "plain", {});
+            const NodeId gone = Place(scene, "gone", {});
             (void)scene.SetParent(target, guard);
             Model cubeModel("Cube");
             cubeModel.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
@@ -1280,11 +1296,9 @@ namespace elm::script {
                     { "lost", ScriptValue(gone) }, { "offset", ScriptValue(Vector3 { 1.0f, 2.0f, 3.0f }) }, { "speed", ScriptValue(2.5) },
                     { "target", ScriptValue(target) }, { "tint", ScriptValue(Vector4 { 1.0f, 0.0f, 0.0f, 1.0f }) } } };
             scene.Components<ScriptComponent>().Emplace(guard, script);
-            const RigidBody body { .type = BodyType::Kinematic, .mass = 3.0f, .friction = 0.25f, .restitution = 0.5f,
-                .linearDamping = 0.1f, .angularDamping = 0.2f, .gravityScale = 0.5f };
+            const RigidBody body { .type = BodyType::Kinematic, .mass = 3.0f, .friction = 0.25f, .restitution = 0.5f, .linearDamping = 0.1f, .angularDamping = 0.2f, .gravityScale = 0.5f };
             scene.Components<RigidBody>().Emplace(guard, body);
-            const Collider capsule { .shape = ColliderShape::Capsule, .halfExtents = { 1.0f, 2.0f, 3.0f }, .radius = 0.4f,
-                .halfHeight = 0.9f, .offset = { 0.0f, 1.0f, 0.0f }, .trigger = true };
+            const Collider capsule { .shape = ColliderShape::Capsule, .halfExtents = { 1.0f, 2.0f, 3.0f }, .radius = 0.4f, .halfHeight = 0.9f, .offset = { 0.0f, 1.0f, 0.0f }, .trigger = true };
             scene.Components<Collider>().Emplace(guard, capsule);
             scene.Components<Collider>().Emplace(target);
             // An Entity prop pointing at a node that is gone is saved as no entity
@@ -1317,7 +1331,7 @@ namespace elm::script {
 
             // Into a scene that has a node already: the loaded nodes get other ids than they had
             Scene restored;
-            (void)Place(restored, "existing", { });
+            (void)Place(restored, "existing", {});
             const auto handlers = models.InsertAll(std::move(loaded->models), loaded->modelFiles);
             const Vector<NodeId> ids = restored.Append(std::move(*loaded), handlers);
             const auto savedAgain = resource::Serializer::SaveNewModels(restored, models, project.Assets());
@@ -1362,20 +1376,22 @@ namespace elm::script {
                     && tintValue && tintValue->x == 1.0f && tintValue->y == 0.0f && tintValue->z == 0.0f && tintValue->w == 1.0f,
                 "scene_file::script_props_round_trip");
             report.Check(restoredScript && newTarget != target && PropIs(*restoredScript, "target", newTarget)
-                    && PropIs(*restoredScript, "lost", NodeId { }),
+                    && PropIs(*restoredScript, "lost", NodeId {}),
                 "scene_file::entity_props_follow_the_new_ids");
             const auto* bodies = restored.FindComponents<RigidBody>();
             const auto* colliders = restored.FindComponents<Collider>();
             report.Check(bodies && bodies->Find(newGuard) && *bodies->Find(newGuard) == body && !bodies->Contains(newTarget)
                     && colliders && colliders->Find(newGuard) && *colliders->Find(newGuard) == capsule && colliders->Find(newTarget)
-                    && *colliders->Find(newTarget) == Collider { } && !colliders->Contains(newPlain) && !scripts->Contains(newPlain),
+                    && *colliders->Find(newTarget) == Collider {} && !colliders->Contains(newPlain) && !scripts->Contains(newPlain),
                 "scene_file::physics_components_round_trip");
 
             // Hand-written files
             auto writeScene = [&](const char* name, int version, const char* components) {
-                const String text = "{ \"formatVersion\": " + String(std::to_string(version)) + ", \"models\": [], \"nodes\": [ { \"name\": \"a\", "
-                    "\"localTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], \"worldTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], "
-                    "\"visible\": true, \"color\": [1,1,1,1]" + components + " } ] }";
+                const String text = "{ \"formatVersion\": " + String(std::to_string(version))
+                    + ", \"models\": [], \"nodes\": [ { \"name\": \"a\", "
+                      "\"localTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], \"worldTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], "
+                      "\"visible\": true, \"color\": [1,1,1,1]"
+                    + components + " } ] }";
                 WriteScript(root / name, text.c_str());
                 return pathOf(name);
             };
@@ -1386,8 +1402,8 @@ namespace elm::script {
             // Before version 6 the model, color and visible were fields of the node; the model file is the one saved
             // above, before version 7 relative to the scene file
             const String legacyText = "{ \"formatVersion\": 5, \"models\": [ { \"path\": \"assets/models/Cube.model\" } ], \"nodes\": [ { \"name\": \"a\", "
-                "\"localTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], \"worldTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], "
-                "\"visible\": false, \"color\": [0,0,1,1], \"modelIndex\": 0 } ] }";
+                                      "\"localTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], \"worldTransform\": [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], "
+                                      "\"visible\": false, \"color\": [0,0,1,1], \"modelIndex\": 0 } ] }";
             WriteScript(root / "legacy.scene", legacyText.c_str());
             const auto legacy = loadScene(pathOf("legacy.scene"));
             const auto* legacyModels = legacy ? legacy->components.FindComponents<ModelComponent>() : nullptr;
@@ -1456,8 +1472,10 @@ namespace elm::script {
             const String saveAndLoad = "elm.engine.save_scene('" + file + "') return elm.engine.load_scene('" + file + "')";
             report.Check(Evaluate(system, saveAndLoad.c_str()) == "2", "scene_file::lua_save_and_load", Evaluate(system, "return seen"));
             report.Check(fs::exists(root / "assets" / "scenes" / "lua.scene")
-                    && Evaluate(system, "local ok, e = pcall(elm.engine.load_scene, 'C:/lua.scene') "
-                                        "return ok, e:find('not a path in the assets folder', 1, true) ~= nil") == "false	true",
+                    && Evaluate(system,
+                           "local ok, e = pcall(elm.engine.load_scene, 'C:/lua.scene') "
+                           "return ok, e:find('not a path in the assets folder', 1, true) ~= nil")
+                        == "false	true",
                 "scene_file::lua_scene_is_an_asset_path");
             report.Check(Evaluate(system, "local m = elm.models.load('models/Cube.model') return m.file, elm.models.cube().file")
                     == "models/Cube.model	nil",
@@ -1469,7 +1487,7 @@ namespace elm::script {
                 sameModel + ", catalog " + std::to_string(loadedModels).c_str() + " -> " + std::to_string(resources.GetModels().Size()).c_str());
             // A model edited in memory no longer has the file: what the file holds is another model
             ModelCatalog& liveModels = resources.GetModels();
-            liveModels.SetFile(liveModels.FindByFile(project.Resolve(*project::AssetPath::FromString("models/Cube.model"))), Path { });
+            liveModels.SetFile(liveModels.FindByFile(project.Resolve(*project::AssetPath::FromString("models/Cube.model"))), Path {});
             report.Check(Evaluate(system, "return elm.models.load('models/Cube.model').file") == "models/Cube.model"
                     && liveModels.Size() == loadedModels + 1,
                 "models::load_reads_the_file_of_a_model_edited_in_memory");
@@ -1550,7 +1568,7 @@ namespace elm::script {
 
             // The same glTF again: nothing new appears in the project
             const auto entriesOf = [&](const char* folder) {
-                return std::distance(fs::directory_iterator(root / "assets" / folder), fs::directory_iterator { });
+                return std::distance(fs::directory_iterator(root / "assets" / folder), fs::directory_iterator {});
             };
             const auto sourcesBefore = entriesOf("source");
             const auto modelFilesBefore = entriesOf("models");
@@ -1569,11 +1587,11 @@ namespace elm::script {
                 "import::changed_gltf_gets_a_model_of_its_own");
 
             // An edited .model is no longer what the import makes: it stays, and the import gets a file of its own
-            Model edited = model ? model->model : Model { };
+            Model edited = model ? model->model : Model {};
             edited.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
             report.Check(model && resource::Serializer::SaveModel(edited, model->file).has_value(), "import::edited_model_written");
             const auto afterEdit = AssetImport::ImportModel(village, assets);
-            const auto editedOnDisk = model ? resource::Serializer::LoadModel(model->file) : EngineResult<Model> { };
+            const auto editedOnDisk = model ? resource::Serializer::LoadModel(model->file) : EngineResult<Model> {};
             report.Check(afterEdit && model && afterEdit->file != model->file && editedOnDisk
                     && editedOnDisk->submeshes.size() == edited.submeshes.size(),
                 "import::edited_model_file_stays");
@@ -1861,7 +1879,8 @@ namespace elm::script {
             report.Check(eval("return elm.scene.find('a').position.x") == "6.0", "play::inspector_writes_the_instance");
 
             // What the game does meanwhile goes away on Stop
-            (void)SelfTestAccess::Console(system).Execute("local a = elm.scene.find('a') elm.scene.find('b'):destroy() "
+            (void)SelfTestAccess::Console(system).Execute(
+                "local a = elm.scene.find('a') elm.scene.find('b'):destroy() "
                 "elm.scene.spawn('c') a.color = elm.math.Vector4(1, 0, 0, 1) a:remove('Collider') play_marker = 1");
             Model extraModel("Extra");
             extraModel.AddSubmesh(GeometryPrimitives::CreateCube(2.0f));
@@ -1871,8 +1890,7 @@ namespace elm::script {
             (void)SelfTestAccess::Console(system).Execute("elm.engine.stop()");
             frame();
             // The engine's Stop ends the game; bringing the edited scene back is the editor's (EditMode)
-            report.Check(!playMode.IsPlaying() && eval("return elm.scene.find('b'), elm.scene.find('c') ~= nil, log[#log - 1], log[#log]")
-                    == "nil\ttrue\tdestroy a\tstop",
+            report.Check(!playMode.IsPlaying() && eval("return elm.scene.find('b'), elm.scene.find('c') ~= nil, log[#log - 1], log[#log]") == "nil\ttrue\tdestroy a\tstop",
                 "play::stop_ends_the_game");
             report.Check(models.Get(extra) && physics.GetNumBodies() == 0 && SelfTestAccess::Entities(system).All().empty(),
                 "play::stop_clears_runtime");
@@ -2170,8 +2188,8 @@ namespace elm::script {
                 physics.Step(scene, 1.0f / 60.0f);
             physics.Step(scene, 1.0f / 60.0f);
             report.Check(!log.contacts.empty() && std::ranges::all_of(log.contacts, [](const CollisionEvent& event) {
-                    return event.kind == CollisionEvent::Kind::Enter;
-                }) && physics.CollisionEvents().empty(),
+                return event.kind == CollisionEvent::Kind::Enter;
+            }) && physics.CollisionEvents().empty(),
                 "physics_frame_log::contacts_outlive_their_step");
             physics.ClearFrameLog();
             report.Check(log.contacts.empty(), "physics_frame_log::clear_drops_contacts");
@@ -2422,7 +2440,7 @@ namespace elm::script {
             const auto* drawnModels = scenes.GetScene().FindComponents<ModelComponent>();
             const ModelComponent* drawn = ids.size() == 1 && drawnModels ? drawnModels->Find(ids[0]) : nullptr;
             report.Check(drawn && models.Get(drawn->model) && models.Get(drawn->model)->name == "Cube", "scene_system::append_brings_models");
-            const ModelHandler model = drawn ? drawn->model : ModelHandler { };
+            const ModelHandler model = drawn ? drawn->model : ModelHandler {};
             scenes.Clear();
             report.Check(scenes.GetScene().NodeCount() == 0 && models.Get(model), "scene_system::clear_keeps_models");
         }
@@ -2468,7 +2486,7 @@ namespace elm::script {
             const ModelHandler model = catalog.Insert(cube, file);
             report.Check(catalog.FindByFile(file) == model && catalog.FindByFile("assets/scenes/../models/./Cube.model") == model,
                 "catalog::finds_a_model_by_its_file");
-            report.Check(!catalog.FindByFile(otherFile) && !catalog.FindByFile(Path { }), "catalog::no_model_of_another_file");
+            report.Check(!catalog.FindByFile(otherFile) && !catalog.FindByFile(Path {}), "catalog::no_model_of_another_file");
 
             const ModelHandler again = catalog.Insert(Model("Other"), "assets/scenes/../models/Cube.model");
             report.Check(again == model && catalog.Size() == 1 && catalog.Get(model)->name == "Cube", "catalog::a_known_file_keeps_its_model");
@@ -2486,7 +2504,7 @@ namespace elm::script {
             const ModelHandler other = catalog.Insert(cube, otherFile);
             report.Check(catalog.SetFile(other, file) && catalog.FindByFile(file) == other && !catalog.FileOf(model) && !catalog.FindByFile(otherFile),
                 "catalog::a_file_moves_to_the_model_that_gets_it");
-            report.Check(catalog.SetFile(other, Path { }) && !catalog.FindByFile(file), "catalog::a_model_edited_in_memory_has_no_file");
+            report.Check(catalog.SetFile(other, Path {}) && !catalog.FindByFile(file), "catalog::a_model_edited_in_memory_has_no_file");
 
             const ModelHandler read = catalog.Insert(cube, file);
             report.Check(catalog.Remove(read) && !catalog.FindByFile(file), "catalog::a_removed_model_frees_its_file");
@@ -2559,7 +2577,7 @@ namespace elm::script {
             report.Check(settings.Save(pathOf("second.settings")).has_value(), "settings::save_with_unregistered_keys");
             Settings reloaded;
             const bool loaded = reloaded.Load(pathOf("second.settings")).has_value();
-            reloaded.Register(Settings::Category::Core, "Late/Name", "Name", String { });
+            reloaded.Register(Settings::Category::Core, "Late/Name", "Name", String {});
             report.Check(loaded && reloaded.Get<String>(Settings::Category::Core, "Late/Name") == "kept",
                 "settings::save_keeps_unregistered_keys");
             fs::remove_all(root, error);

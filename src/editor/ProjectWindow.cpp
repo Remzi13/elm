@@ -21,8 +21,7 @@ namespace elm::editor {
                 return true;
             for (size_t start = 0; start + part.size() <= text.size(); ++start) {
                 size_t index = 0;
-                while (index < part.size() && std::tolower(static_cast<unsigned char>(text[start + index]))
-                        == std::tolower(static_cast<unsigned char>(part[index])))
+                while (index < part.size() && std::tolower(static_cast<unsigned char>(text[start + index])) == std::tolower(static_cast<unsigned char>(part[index])))
                     ++index;
                 if (index == part.size())
                     return true;
@@ -106,7 +105,7 @@ namespace elm::editor {
             m_assets.Refresh();
         ImGui::SameLine();
         if (ImGui::Button("New Folder")) {
-            m_newFolderParent = { };
+            m_newFolderParent = {};
             m_openNewFolder = true;
         }
     }

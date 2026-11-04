@@ -25,10 +25,10 @@ namespace elm {
 
         /// file: the .model file the model was read from, empty for a model that exists only in memory. A file
         /// the catalog has already stays with its model: `model` is dropped and that model's handle comes back.
-        [[nodiscard]] ModelHandler Insert(Model model, Path file = { });
+        [[nodiscard]] ModelHandler Insert(Model model, Path file = {});
         /// Inserts every model with the file of the same index (files may be shorter); the handles come in
         /// the same order, the same file gives the same handle (a SceneAsset's models and modelFiles for Scene::Append).
-        [[nodiscard]] Vector<ModelHandler> InsertAll(Vector<Model> models, std::span<const Path> files = { });
+        [[nodiscard]] Vector<ModelHandler> InsertAll(Vector<Model> models, std::span<const Path> files = {});
 
         /// Replaces the model behind a live handle, its file stays; its revision goes up.
         bool Replace(ModelHandler handler, Model model);
@@ -48,7 +48,7 @@ namespace elm {
         void Clear();
         [[nodiscard]] size_t Size() const noexcept;
 
-        template<typename Fn>
+        template <typename Fn>
         void ForEach(Fn&& fn) const
         {
             for (uint32_t index = 0; index < m_slots.size(); ++index) {

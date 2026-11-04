@@ -44,7 +44,8 @@ namespace elm::script {
                 return true;
             const auto lower = [](char c) { return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c); };
             return std::search(text.begin(), text.end(), part.begin(), part.end(),
-                [&](char a, char b) { return lower(a) == lower(b); }) != text.end();
+                       [&](char a, char b) { return lower(a) == lower(b); })
+                != text.end();
         }
 
     } // namespace
@@ -99,8 +100,10 @@ namespace elm::script {
                 const bool method = function.kind == lua::ApiFunction::Kind::Method;
                 const bool constructor = function.kind == lua::ApiFunction::Kind::Constructor;
                 const String label = constructor ? added.name + "(...)" : (method ? ":" : ".") + function.name;
-                entry(label, Signature(function), constructor ? CallText(qualified, "", function)
-                    : method ? CallText("", ":", function) : CallText(qualified, ".", function));
+                entry(label, Signature(function),
+                    constructor  ? CallText(qualified, "", function)
+                        : method ? CallText("", ":", function)
+                                 : CallText(qualified, ".", function));
             }
             for (const auto& field : added.fields)
                 entry("." + field.name, ": " + TypeOf(field.type) + (field.readOnly ? " (read only)" : ""), "." + field.name);

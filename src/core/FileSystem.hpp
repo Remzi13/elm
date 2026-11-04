@@ -9,144 +9,144 @@
 
 namespace elm {
 
-class Settings;
+    class Settings;
 
-class Path {
-public:
-    Path() = default;
-    Path(const Path&) = default;
-    Path(Path&&) noexcept = default;
-    Path& operator=(const Path&) = default;
-    Path& operator=(Path&&) noexcept = default;
-
-    Path(StringView path);
-    Path(const char* path);
-    Path(const String& path);
-
-    Path& operator=(StringView path);
-    Path& operator=(const char* path);
-    Path& operator=(const String& path);
-
-    [[nodiscard]] Path operator/(const Path& other) const;
-    [[nodiscard]] Path operator/(const char* path) const;
-    [[nodiscard]] Path operator/(StringView path) const;
-    [[nodiscard]] Path operator/(const String& path) const;
-    Path& operator/=(const Path& other);
-    Path& operator/=(const char* path);
-    Path& operator/=(StringView path);
-    Path& operator/=(const String& path);
-
-    Path& operator+=(const Path& other);
-    Path& operator+=(const char* path);
-    Path& operator+=(StringView path);
-    Path& operator+=(const String& path);
-
-    [[nodiscard]] bool Empty() const noexcept;
-    [[nodiscard]] bool IsAbsolute() const;
-    [[nodiscard]] bool IsRelative() const;
-    [[nodiscard]] bool HsaParentPath() const;
-    [[nodiscard]] bool HasFilename() const;
-
-    [[nodiscard]] Path Parent() const;
-    [[nodiscard]] Path Filename() const;
-    [[nodiscard]] Path Stem() const;
-    [[nodiscard]] Path Extension() const;
-    [[nodiscard]] Path LexicallyRelative(const Path& base) const;
-    /// "a/./b/../c" -> "a/c", without looking at the disk.
-    [[nodiscard]] Path LexicallyNormal() const;
-
-    [[nodiscard]] std::string string() const;
-    [[nodiscard]] std::string u8string() const;
-    [[nodiscard]] std::string generic_string() const;
-    [[nodiscard]] const char* c_str() const noexcept;
-
-    void Clear() noexcept;
-
-    [[nodiscard]] int Compare(const Path& other) const;
-
-    [[nodiscard]] bool operator==(const Path& other) const;
-    [[nodiscard]] bool operator!=(const Path& other) const;
-    [[nodiscard]] bool operator<(const Path& other) const;
-    [[nodiscard]] bool operator<=(const Path& other) const;
-    [[nodiscard]] bool operator>(const Path& other) const;
-    [[nodiscard]] bool operator>=(const Path& other) const;
-
-private:
-    String m_path;
-};
-
-class FileSystem {
-public:
-    FileSystem() = delete;
-
-    /// Root that relative engine paths are resolved against; a relative value is taken from the settings file folder.
-    static constexpr StringView RootPathSetting = "FileSystem/RootPath";
-
-    static void RegisterSettings(Settings& settings);
-    static void ApplySettings(const Settings& settings, const Path& settingsDirectory);
-
-    /// Root for relative engine paths, the current directory until settings are applied.
-    [[nodiscard]] static Path RootPath();
-    /// Absolute paths are returned unchanged, relative ones are resolved against RootPath().
-    [[nodiscard]] static Path Resolve(const Path& path);
-    /// The first of `start` and its parents that contains `name`, otherwise an empty path.
-    [[nodiscard]] static Path FindInParents(const Path& start, const Path& name);
-
-    [[nodiscard]] static Path CurrentPath(std::error_code& error);
-    [[nodiscard]] static Path CurrentPath();
-    [[nodiscard]] static bool Exists(const Path& path, std::error_code& error);
-    [[nodiscard]] static bool Exists(const Path& path);
-    [[nodiscard]] static bool IsDirectory(const Path& path, std::error_code& error);
-    [[nodiscard]] static bool IsRegularFile(const Path& path, std::error_code& error);
-    /// Modification time in file clock ticks: only for comparing two readings of the same file.
-    [[nodiscard]] static int64_t LastWriteTime(const Path& path, std::error_code& error);
-    static bool CreateDirectories(const Path& path, std::error_code& error);
-    /// Copies a file, creating the folders of the target; an existing target is not overwritten (an error).
-    static bool Copy(const Path& from, const Path& to, std::error_code& error);
-    /// Renames or moves a file; an existing target is replaced.
-    static bool Rename(const Path& from, const Path& to, std::error_code& error);
-    /// Removes a file or a folder with everything in it.
-    static bool RemoveAll(const Path& path, std::error_code& error);
-    /// The folder relative paths of the process start from (a built game works in its own folder).
-    static bool SetCurrentPath(const Path& path, std::error_code& error);
-    [[nodiscard]] static std::ifstream OpenForReading(
-        const Path& path, std::ios::openmode mode = std::ios::in);
-    [[nodiscard]] static std::ofstream OpenForWriting(
-        const Path& path, std::ios::openmode mode = std::ios::out);
-};
-
-class Directory {
-public:
-    class Iterator {
+    class Path {
     public:
-        Iterator();
-        explicit Iterator(const Path& path, std::error_code& error);
-        ~Iterator();
-        Iterator(Iterator&&) noexcept;
-        Iterator& operator=(Iterator&&) noexcept;
-        Iterator(const Iterator&) = delete;
-        Iterator& operator=(const Iterator&) = delete;
+        Path() = default;
+        Path(const Path&) = default;
+        Path(Path&&) noexcept = default;
+        Path& operator=(const Path&) = default;
+        Path& operator=(Path&&) noexcept = default;
 
-        [[nodiscard]] bool IsEnd() const noexcept;
-        [[nodiscard]] Path CurrentPath() const;
-        [[nodiscard]] bool IsDirectory(std::error_code& error) const;
-        [[nodiscard]] bool IsRegularFile(std::error_code& error) const;
+        Path(StringView path);
+        Path(const char* path);
+        Path(const String& path);
+
+        Path& operator=(StringView path);
+        Path& operator=(const char* path);
+        Path& operator=(const String& path);
+
+        [[nodiscard]] Path operator/(const Path& other) const;
+        [[nodiscard]] Path operator/(const char* path) const;
+        [[nodiscard]] Path operator/(StringView path) const;
+        [[nodiscard]] Path operator/(const String& path) const;
+        Path& operator/=(const Path& other);
+        Path& operator/=(const char* path);
+        Path& operator/=(StringView path);
+        Path& operator/=(const String& path);
+
+        Path& operator+=(const Path& other);
+        Path& operator+=(const char* path);
+        Path& operator+=(StringView path);
+        Path& operator+=(const String& path);
+
+        [[nodiscard]] bool Empty() const noexcept;
+        [[nodiscard]] bool IsAbsolute() const;
+        [[nodiscard]] bool IsRelative() const;
+        [[nodiscard]] bool HsaParentPath() const;
+        [[nodiscard]] bool HasFilename() const;
+
+        [[nodiscard]] Path Parent() const;
+        [[nodiscard]] Path Filename() const;
+        [[nodiscard]] Path Stem() const;
         [[nodiscard]] Path Extension() const;
-        void Next(std::error_code& error);
+        [[nodiscard]] Path LexicallyRelative(const Path& base) const;
+        /// "a/./b/../c" -> "a/c", without looking at the disk.
+        [[nodiscard]] Path LexicallyNormal() const;
 
-        [[nodiscard]] bool operator==(const Iterator& other) const;
-        [[nodiscard]] bool operator!=(const Iterator& other) const;
+        [[nodiscard]] std::string string() const;
+        [[nodiscard]] std::string u8string() const;
+        [[nodiscard]] std::string generic_string() const;
+        [[nodiscard]] const char* c_str() const noexcept;
+
+        void Clear() noexcept;
+
+        [[nodiscard]] int Compare(const Path& other) const;
+
+        [[nodiscard]] bool operator==(const Path& other) const;
+        [[nodiscard]] bool operator!=(const Path& other) const;
+        [[nodiscard]] bool operator<(const Path& other) const;
+        [[nodiscard]] bool operator<=(const Path& other) const;
+        [[nodiscard]] bool operator>(const Path& other) const;
+        [[nodiscard]] bool operator>=(const Path& other) const;
 
     private:
-        struct Impl;
-        std::unique_ptr<Impl> m_impl;
+        String m_path;
     };
 
-    explicit Directory(const Path& path);
-    [[nodiscard]] Iterator Begin(std::error_code& error) const;
+    class FileSystem {
+    public:
+        FileSystem() = delete;
 
-private:
-    Path m_path;
-};
+        /// Root that relative engine paths are resolved against; a relative value is taken from the settings file folder.
+        static constexpr StringView RootPathSetting = "FileSystem/RootPath";
+
+        static void RegisterSettings(Settings& settings);
+        static void ApplySettings(const Settings& settings, const Path& settingsDirectory);
+
+        /// Root for relative engine paths, the current directory until settings are applied.
+        [[nodiscard]] static Path RootPath();
+        /// Absolute paths are returned unchanged, relative ones are resolved against RootPath().
+        [[nodiscard]] static Path Resolve(const Path& path);
+        /// The first of `start` and its parents that contains `name`, otherwise an empty path.
+        [[nodiscard]] static Path FindInParents(const Path& start, const Path& name);
+
+        [[nodiscard]] static Path CurrentPath(std::error_code& error);
+        [[nodiscard]] static Path CurrentPath();
+        [[nodiscard]] static bool Exists(const Path& path, std::error_code& error);
+        [[nodiscard]] static bool Exists(const Path& path);
+        [[nodiscard]] static bool IsDirectory(const Path& path, std::error_code& error);
+        [[nodiscard]] static bool IsRegularFile(const Path& path, std::error_code& error);
+        /// Modification time in file clock ticks: only for comparing two readings of the same file.
+        [[nodiscard]] static int64_t LastWriteTime(const Path& path, std::error_code& error);
+        static bool CreateDirectories(const Path& path, std::error_code& error);
+        /// Copies a file, creating the folders of the target; an existing target is not overwritten (an error).
+        static bool Copy(const Path& from, const Path& to, std::error_code& error);
+        /// Renames or moves a file; an existing target is replaced.
+        static bool Rename(const Path& from, const Path& to, std::error_code& error);
+        /// Removes a file or a folder with everything in it.
+        static bool RemoveAll(const Path& path, std::error_code& error);
+        /// The folder relative paths of the process start from (a built game works in its own folder).
+        static bool SetCurrentPath(const Path& path, std::error_code& error);
+        [[nodiscard]] static std::ifstream OpenForReading(
+            const Path& path, std::ios::openmode mode = std::ios::in);
+        [[nodiscard]] static std::ofstream OpenForWriting(
+            const Path& path, std::ios::openmode mode = std::ios::out);
+    };
+
+    class Directory {
+    public:
+        class Iterator {
+        public:
+            Iterator();
+            explicit Iterator(const Path& path, std::error_code& error);
+            ~Iterator();
+            Iterator(Iterator&&) noexcept;
+            Iterator& operator=(Iterator&&) noexcept;
+            Iterator(const Iterator&) = delete;
+            Iterator& operator=(const Iterator&) = delete;
+
+            [[nodiscard]] bool IsEnd() const noexcept;
+            [[nodiscard]] Path CurrentPath() const;
+            [[nodiscard]] bool IsDirectory(std::error_code& error) const;
+            [[nodiscard]] bool IsRegularFile(std::error_code& error) const;
+            [[nodiscard]] Path Extension() const;
+            void Next(std::error_code& error);
+
+            [[nodiscard]] bool operator==(const Iterator& other) const;
+            [[nodiscard]] bool operator!=(const Iterator& other) const;
+
+        private:
+            struct Impl;
+            std::unique_ptr<Impl> m_impl;
+        };
+
+        explicit Directory(const Path& path);
+        [[nodiscard]] Iterator Begin(std::error_code& error) const;
+
+    private:
+        Path m_path;
+    };
 
 } // namespace elm

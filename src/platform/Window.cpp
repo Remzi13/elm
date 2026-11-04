@@ -15,103 +15,103 @@
 
 namespace elm::platform {
 
-Window::~Window()
-{
-    Destroy();
-}
-
-auto Window::Create(Size size, StringView title) -> EngineResult<void>
-{
-    if (m_window)
-        return {};
-
-#if defined(ELM_PLATFORM_WINDOWS)
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-#endif
-    if (!glfwInit())
-        return MakeUnexpected(ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW",
-            log::Category::Core, "Window");
-    m_glfwInitialized = true;
-
-    // The renderer owns the graphics API, GLFW only provides the window
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
-
-    m_window = glfwCreateWindow(static_cast<int>(size.width), static_cast<int>(size.height), String(title).c_str(), nullptr, nullptr);
-    if (!m_window) {
+    Window::~Window()
+    {
         Destroy();
-        return MakeUnexpected(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window",
-            log::Category::Core, "Window");
     }
-    return {};
-}
 
-void Window::Destroy()
-{
-    if (m_window) {
-        glfwDestroyWindow(m_window);
-        m_window = nullptr;
-    }
-    if (m_glfwInitialized) {
-        glfwTerminate();
-        m_glfwInitialized = false;
-    }
-}
+    auto Window::Create(Size size, StringView title) -> EngineResult<void>
+    {
+        if (m_window)
+            return {};
 
-bool Window::ShouldClose() const
-{
-    return m_window ? glfwWindowShouldClose(m_window) : true;
-}
-
-void Window::SetTitle(StringView title)
-{
-    if (m_window)
-        glfwSetWindowTitle(m_window, String(title).c_str());
-}
-
-render::NativeWindow Window::GetNativeWindow() const
-{
-    return GetNativeWindow(m_window);
-}
-
-render::NativeWindow Window::GetNativeWindow(GLFWwindow* window)
-{
-    render::NativeWindow native;
-    if (!window)
-        return native;
 #if defined(ELM_PLATFORM_WINDOWS)
-    native.handle = glfwGetWin32Window(window);
-    native.system = render::WindowSystem::Win32;
-#else
-    if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
-        native.display = glfwGetWaylandDisplay();
-        native.handle = glfwGetWaylandWindow(window);
-        native.system = render::WindowSystem::Wayland;
-    } else {
-        native.display = glfwGetX11Display();
-        native.system = render::WindowSystem::X11;
-        native.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(glfwGetX11Window(window)));
-    }
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 #endif
-    return native;
-}
+        if (!glfwInit())
+            return MakeUnexpected(ErrorCode::WindowInitializationFailed, "Failed to initialize GLFW",
+                log::Category::Core, "Window");
+        m_glfwInitialized = true;
 
-Size Window::GetSize() const
-{
-    int width = 0;
-    int height = 0;
-    if (m_window)
-        glfwGetWindowSize(m_window, &width, &height);
-    return { static_cast<uint32_t>((std::max)(width, 0)), static_cast<uint32_t>((std::max)(height, 0)) };
-}
+        // The renderer owns the graphics API, GLFW only provides the window
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-Size Window::GetFramebufferSize() const
-{
-    int width = 0;
-    int height = 0;
-    if (m_window)
-        glfwGetFramebufferSize(m_window, &width, &height);
-    return { static_cast<uint32_t>((std::max)(width, 0)), static_cast<uint32_t>((std::max)(height, 0)) };
-}
+        m_window = glfwCreateWindow(static_cast<int>(size.width), static_cast<int>(size.height), String(title).c_str(), nullptr, nullptr);
+        if (!m_window) {
+            Destroy();
+            return MakeUnexpected(ErrorCode::WindowInitializationFailed, "Failed to create GLFW window",
+                log::Category::Core, "Window");
+        }
+        return {};
+    }
+
+    void Window::Destroy()
+    {
+        if (m_window) {
+            glfwDestroyWindow(m_window);
+            m_window = nullptr;
+        }
+        if (m_glfwInitialized) {
+            glfwTerminate();
+            m_glfwInitialized = false;
+        }
+    }
+
+    bool Window::ShouldClose() const
+    {
+        return m_window ? glfwWindowShouldClose(m_window) : true;
+    }
+
+    void Window::SetTitle(StringView title)
+    {
+        if (m_window)
+            glfwSetWindowTitle(m_window, String(title).c_str());
+    }
+
+    render::NativeWindow Window::GetNativeWindow() const
+    {
+        return GetNativeWindow(m_window);
+    }
+
+    render::NativeWindow Window::GetNativeWindow(GLFWwindow* window)
+    {
+        render::NativeWindow native;
+        if (!window)
+            return native;
+#if defined(ELM_PLATFORM_WINDOWS)
+        native.handle = glfwGetWin32Window(window);
+        native.system = render::WindowSystem::Win32;
+#else
+        if (glfwGetPlatform() == GLFW_PLATFORM_WAYLAND) {
+            native.display = glfwGetWaylandDisplay();
+            native.handle = glfwGetWaylandWindow(window);
+            native.system = render::WindowSystem::Wayland;
+        } else {
+            native.display = glfwGetX11Display();
+            native.system = render::WindowSystem::X11;
+            native.handle = reinterpret_cast<void*>(static_cast<uintptr_t>(glfwGetX11Window(window)));
+        }
+#endif
+        return native;
+    }
+
+    Size Window::GetSize() const
+    {
+        int width = 0;
+        int height = 0;
+        if (m_window)
+            glfwGetWindowSize(m_window, &width, &height);
+        return { static_cast<uint32_t>((std::max)(width, 0)), static_cast<uint32_t>((std::max)(height, 0)) };
+    }
+
+    Size Window::GetFramebufferSize() const
+    {
+        int width = 0;
+        int height = 0;
+        if (m_window)
+            glfwGetFramebufferSize(m_window, &width, &height);
+        return { static_cast<uint32_t>((std::max)(width, 0)), static_cast<uint32_t>((std::max)(height, 0)) };
+    }
 
 } // namespace elm::platform

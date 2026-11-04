@@ -43,7 +43,8 @@ namespace elm::script {
                 lua::Push(L, Entity { item });
             else
                 lua::Push(L, item);
-        }, value);
+        },
+            value);
     }
 
     const char* ScriptValueKind(const ScriptValue& value) noexcept
@@ -61,7 +62,8 @@ namespace elm::script {
                 return "Vector4";
             else
                 return "Entity";
-        }, value);
+        },
+            value);
     }
 
     int ScriptValueKindOf(lua_State* L)

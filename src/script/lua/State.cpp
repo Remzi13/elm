@@ -56,7 +56,7 @@ namespace elm::script::lua {
             lua_close(m_state);
         m_state = nullptr;
         m_contexts.clear();
-        m_api = { };
+        m_api = {};
     }
 
     void State::Open()
@@ -114,7 +114,8 @@ namespace elm::script::lua {
                 end
                 return base_load(chunk, chunkname, "t")
             end
-        )", "=engine");
+        )",
+            "=engine");
         ELM_ASSERT(restricted.has_value());
     }
 
@@ -123,7 +124,7 @@ namespace elm::script::lua {
         // Text only: precompiled bytecode is not verified by Lua and could crash the engine
         if (luaL_loadbufferx(m_state, code.data(), code.size(), chunkName, "t") != LUA_OK)
             return PopError(m_state);
-        return { };
+        return {};
     }
 
     auto State::ProtectedCall(int argumentCount, int resultCount) -> EngineResult<void>
@@ -135,7 +136,7 @@ namespace elm::script::lua {
         lua_remove(m_state, handlerIndex);
         if (status != LUA_OK)
             return PopError(m_state);
-        return { };
+        return {};
     }
 
     auto State::Run(StringView code, const char* chunkName) -> EngineResult<void>
@@ -152,7 +153,7 @@ namespace elm::script::lua {
         if (auto ran = ProtectedCall(0, 1); !ran)
             return ran;
         lua_setfield(m_state, LUA_REGISTRYINDEX, key);
-        return { };
+        return {};
     }
 
     size_t State::MemoryUsage() const noexcept

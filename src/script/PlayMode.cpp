@@ -90,7 +90,7 @@ namespace elm::script {
         if (request != Request::Play || m_playing)
             return;
         if (!m_startSource) {
-            Play({ });
+            Play({});
             return;
         }
         if (auto start = m_startSource(m_requestedTarget))

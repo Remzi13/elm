@@ -70,7 +70,7 @@ int main(int argc, char** argv)
 {
     using namespace elm;
 
-    LOG_MESSAGE( log::Category::Core, "Main", "Starting elm..." );
+    LOG_MESSAGE(log::Category::Core, "Main", "Starting elm...");
 
     // A built game plays its own project, from its own folder: its .settings and shaders are there
     const auto builtGame = FindBuiltGame();
@@ -94,6 +94,6 @@ int main(int argc, char** argv)
 
     game.Run();
     game.Shutdown();
-    LOG_MESSAGE( log::Category::Core, "Main", "Application terminated gracefully." );
+    LOG_MESSAGE(log::Category::Core, "Main", "Application terminated gracefully.");
     return 0;
 }

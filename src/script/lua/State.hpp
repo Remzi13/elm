@@ -106,7 +106,10 @@ namespace elm::script::lua {
     /// Checks that a scope leaves the Lua stack as it found it (debug builds).
     class StackGuard {
     public:
-        explicit StackGuard(lua_State* L) noexcept : m_state(L), m_top(lua_gettop(L)) { }
+        explicit StackGuard(lua_State* L) noexcept
+            : m_state(L)
+            , m_top(lua_gettop(L))
+        {}
         ~StackGuard();
 
         StackGuard(const StackGuard&) = delete;

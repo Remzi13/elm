@@ -117,7 +117,7 @@ namespace {
             return ReportFatal("Failed to initialize the editor", init.error());
 
         const Path projectPath = projectArgument ? *projectArgument : editor.LastProject();
-        const auto opened = projectPath.Empty() ? EngineResult<void> { } : editor.OpenProject(projectPath);
+        const auto opened = projectPath.Empty() ? EngineResult<void> {} : editor.OpenProject(projectPath);
         if (!opened && projectArgument)
             return ReportFatal("Failed to open the project", opened.error());
         if (!opened) {
@@ -131,13 +131,14 @@ namespace {
         LoadTestSceneArgument(editor, argc, argv);
         editor.Run();
         editor.Shutdown();
-        LOG_MESSAGE( log::Category::Core, "Main", "Application terminated gracefully." );
+        LOG_MESSAGE(log::Category::Core, "Main", "Application terminated gracefully.");
         return 0;
     }
 
 } // namespace
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     using namespace elm;
 
     // Tool modes: run without a window and exit
@@ -157,7 +158,7 @@ int main(int argc, char** argv) {
         return DumpScriptApi(i + 1 < argc ? argv[i + 1] : DefaultScriptApiFile);
     }
 
-    LOG_MESSAGE( log::Category::Core, "Main", "Starting editor..." );
+    LOG_MESSAGE(log::Category::Core, "Main", "Starting editor...");
 
     const auto projectFlag = FindArgument(argc, argv, "--project");
     const std::optional<Path> projectArgument = projectFlag ? std::optional<Path>(Path(*projectFlag)) : std::nullopt;

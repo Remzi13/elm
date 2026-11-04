@@ -45,10 +45,10 @@ namespace elm::project {
             const String prefix = String(Project::ScriptsFolder) + "/";
             const String& text = script.Text();
             if (!text.starts_with(prefix) || !text.ends_with(".lua"))
-                return { };
+                return {};
             String module = text.substr(prefix.size(), text.size() - prefix.size() - StringView(".lua").size());
             if (module == "init")
-                return { };
+                return {};
             if (module.ends_with("/init"))
                 module.resize(module.size() - StringView("/init").size());
             std::replace(module.begin(), module.end(), '/', '.');
@@ -65,7 +65,7 @@ namespace elm::project {
 
     void ProjectAssets::Refresh()
     {
-        m_root = ScanFolder(m_folder, { });
+        m_root = ScanFolder(m_folder, {});
     }
 
     Vector<AssetPath> ProjectAssets::FilesOf(AssetType type) const

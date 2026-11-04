@@ -37,7 +37,7 @@ namespace elm::script::lua {
         /// "a.b.c" -> "a", "a.b", "a.b.c": every table on the way has to be declared.
         void AddModulePrefixes(Vector<String>& declared, StringView path)
         {
-            for (size_t dot = path.find('.'); ; dot = path.find('.', dot + 1)) {
+            for (size_t dot = path.find('.');; dot = path.find('.', dot + 1)) {
                 const String prefix(path.substr(0, dot));
                 if (std::find(declared.begin(), declared.end(), prefix) == declared.end())
                     declared.push_back(prefix);

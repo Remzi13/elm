@@ -15,7 +15,7 @@ namespace elm {
     class ModelCatalog;
     class SceneSystem;
     class Settings;
-}
+} // namespace elm
 
 namespace elm::graphics {
 

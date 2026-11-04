@@ -20,7 +20,7 @@ namespace elm {
     namespace resource {
         class ResourceSystem;
     }
-}
+} // namespace elm
 
 namespace elm::script {
 

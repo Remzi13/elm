@@ -90,4 +90,4 @@ namespace elm {
         result.localBounds = ComputeBounds(result.vertices);
         return result;
     }
-    }
+} // namespace elm

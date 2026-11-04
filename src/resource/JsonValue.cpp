@@ -10,32 +10,39 @@ namespace elm::resource {
         glz::json_t value;
     };
 
-    JsonValue::JsonValue() : m_storage(MakeShared<Storage>()) {}
+    JsonValue::JsonValue()
+        : m_storage(MakeShared<Storage>())
+    {}
 
-    JsonValue::JsonValue(Type type) : JsonValue()
+    JsonValue::JsonValue(Type type)
+        : JsonValue()
     {
         if (type == Type::Object)
-            m_storage->value.data = glz::json_t::object_t{};
+            m_storage->value.data = glz::json_t::object_t {};
         else if (type == Type::Array)
-            m_storage->value.data = glz::json_t::array_t{};
+            m_storage->value.data = glz::json_t::array_t {};
     }
 
-    JsonValue::JsonValue(bool value) : JsonValue()
+    JsonValue::JsonValue(bool value)
+        : JsonValue()
     {
         m_storage->value = value;
     }
 
-    JsonValue::JsonValue(double value) : JsonValue()
+    JsonValue::JsonValue(double value)
+        : JsonValue()
     {
         m_storage->value = value;
     }
 
-    JsonValue::JsonValue(StringView value) : JsonValue()
+    JsonValue::JsonValue(StringView value)
+        : JsonValue()
     {
         m_storage->value = String(value.data() ? value.data() : "", value.size());
     }
 
-    JsonValue::JsonValue(const char* value) : JsonValue(StringView(value ? value : ""))
+    JsonValue::JsonValue(const char* value)
+        : JsonValue(StringView(value ? value : ""))
     {
     }
 
@@ -46,7 +53,8 @@ namespace elm::resource {
     auto JsonValue::operator=(JsonValue&&) noexcept -> JsonValue& = default;
 
     JsonValue::JsonValue(SharedPtr<Storage> storage, Vector<PathElement> path)
-        : m_storage(std::move(storage)), m_path(std::move(path))
+        : m_storage(std::move(storage))
+        , m_path(std::move(path))
     {
     }
 
@@ -60,7 +68,7 @@ namespace elm::resource {
             const auto& pathElement = m_path[index];
             if (const auto* key = std::get_if<String>(&pathElement)) {
                 if (current->holds<glz::json_t::null_t>() && create)
-                    current->data = glz::json_t::object_t{};
+                    current->data = glz::json_t::object_t {};
 
                 auto* object = current->get_if<glz::json_t::object_t>();
                 if (!object)
@@ -71,7 +79,7 @@ namespace elm::resource {
                 if (field == object->end()) {
                     if (!create)
                         return UnexpectedSerializationError("JSON object is missing key: " + String(fieldName), "JsonValue");
-                    field = object->emplace(String(fieldName), glz::json_t{}).first;
+                    field = object->emplace(String(fieldName), glz::json_t {}).first;
                 }
                 current = &field->second;
             } else {
@@ -109,7 +117,7 @@ namespace elm::resource {
         if (!node)
             return UnexpectedSerializationError(node.error());
 
-        static_cast<glz::json_t*>(*node)->data = glz::json_t::object_t{};
+        static_cast<glz::json_t*>(*node)->data = glz::json_t::object_t {};
         return {};
     }
 
@@ -119,7 +127,7 @@ namespace elm::resource {
         if (!node)
             return UnexpectedSerializationError(node.error());
 
-        static_cast<glz::json_t*>(*node)->data = glz::json_t::array_t{};
+        static_cast<glz::json_t*>(*node)->data = glz::json_t::array_t {};
         return {};
     }
 
@@ -318,4 +326,4 @@ namespace elm::resource {
 
         return String(string->begin(), string->end());
     }
-}
+} // namespace elm::resource

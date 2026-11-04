@@ -75,7 +75,7 @@ namespace elm::script::bindings {
             IndexOf(L, entity);
             const auto* models = SceneOf(L).FindComponents<ModelComponent>();
             const ModelComponent* model = models ? models->Find(entity.id) : nullptr;
-            return model ? *model : ModelComponent { };
+            return model ? *model : ModelComponent {};
         }
 
         ModelComponent& ModelToWrite(lua_State* L, const Entity& entity)
@@ -172,7 +172,7 @@ namespace elm::script::bindings {
         void SetParent(lua_State* L, Entity& entity, std::optional<Entity> parent)
         {
             const NodeId node = AliveId(L, entity);
-            const NodeId parentNode = parent ? AliveId(L, *parent) : NodeId { };
+            const NodeId parentNode = parent ? AliveId(L, *parent) : NodeId {};
             switch (SceneOf(L).SetParent(node, parentNode)) {
             case Scene::SetParentResult::Done:
                 return;
@@ -238,7 +238,7 @@ namespace elm::script::bindings {
                 luaL_error(L, "the model was removed");
             auto& models = SceneOf(L).Components<ModelComponent>();
             if (ModelComponent* existing = models.Find(AliveId(L, entity)))
-                existing->model = model ? model->handle : ModelHandler { };
+                existing->model = model ? model->handle : ModelHandler {};
             else if (model)
                 models.Emplace(entity.id, ModelComponent { .model = model->handle });
         }
@@ -415,7 +415,7 @@ namespace elm::script::bindings {
             auto& scene = SceneOf(L);
             if (model && !ModelsOf(L).Get(model->handle))
                 luaL_error(L, "the model was removed");
-            const NodeId parentNode = parent ? AliveId(L, *parent) : NodeId { };
+            const NodeId parentNode = parent ? AliveId(L, *parent) : NodeId {};
             const NodeId node = scene.AddNode(name.value_or(String("Entity")), math::Matrix4x4::Identity(), parentNode);
             if (model)
                 scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = model->handle });

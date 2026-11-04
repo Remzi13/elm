@@ -6,8 +6,7 @@
 
 namespace elm {
 
-    class LogWindow final : public IImGuiWindow
-    {
+    class LogWindow final : public IImGuiWindow {
     public:
         using IImGuiWindow::IImGuiWindow;
 
@@ -15,10 +14,10 @@ namespace elm {
         void Render(render::FrameWriter& frame) override;
 
     private:
-        std::array<bool, 4> m_severityEnabled{ true, true, true, true };
-        std::array<bool, 5> m_categoryEnabled{ true, true, true, true, true };
-        int m_maxMessages{ 5000 };
-        bool m_autoScroll{ true };
+        std::array<bool, 4> m_severityEnabled { true, true, true, true };
+        std::array<bool, 5> m_categoryEnabled { true, true, true, true, true };
+        int m_maxMessages { 5000 };
+        bool m_autoScroll { true };
     };
 
 } // namespace elm

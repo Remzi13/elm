@@ -47,7 +47,7 @@ namespace elm::render {
         struct DestroyMesh {
             MeshHandle handle;
         };
-    }
+    } // namespace command::resource
 
     using ResourceCommand = std::variant<
         command::resource::CreateTexture,

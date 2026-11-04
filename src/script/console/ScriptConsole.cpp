@@ -155,7 +155,7 @@ namespace elm::script {
             return ran;
         const int resultCount = lua_gettop(L) - top;
         if (resultCount == 0)
-            return { };
+            return {};
         lua_getfield(L, LUA_REGISTRYINDEX, FormatKey);
         lua_insert(L, top + 1);
         if (auto formatted = m_state.ProtectedCall(resultCount, 1); !formatted)
@@ -163,7 +163,7 @@ namespace elm::script {
         size_t length = 0;
         const char* text = lua_tolstring(L, -1, &length);
         output.append(text, length);
-        return { };
+        return {};
     }
 
     Vector<String> ScriptConsole::Complete(StringView text)

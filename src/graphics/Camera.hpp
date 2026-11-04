@@ -5,60 +5,60 @@
 
 namespace elm {
 
-	using namespace math;
+    using namespace math;
 
-	/// A ray from the camera through a point of its view; direction has unit length.
-	struct ViewRay {
-		Vector3 origin;
-		Vector3 direction;
-	};
+    /// A ray from the camera through a point of its view; direction has unit length.
+    struct ViewRay {
+        Vector3 origin;
+        Vector3 direction;
+    };
 
-	class Camera {
-	public:
-		Camera(const Vector3& position = { 0.0f, 6.0f, -22.0f },
-			float yaw = 0.0f,
-			float pitch = -0.1f);
+    class Camera {
+    public:
+        Camera(const Vector3& position = { 0.0f, 6.0f, -22.0f },
+            float yaw = 0.0f,
+            float pitch = -0.1f);
 
-		void SetAspect(float aspect) noexcept { m_aspect = aspect; }
+        void SetAspect(float aspect) noexcept { m_aspect = aspect; }
 
-		void Rotate(float yawDelta, float pitchDelta) noexcept;
-		/// Absolute orientation, pitch is clamped like in Rotate.
-		void SetOrientation(float yaw, float pitch) noexcept;
-		[[nodiscard]] float GetYaw() const noexcept { return m_yaw; }
-		[[nodiscard]] float GetPitch() const noexcept { return m_pitch; }
-		void Translate(const Vector3& offset) noexcept { m_position += offset; }
-		[[nodiscard]] Vector3 GetForwardDirection() const noexcept;
-		[[nodiscard]] Vector3 GetRightDirection() const noexcept;
+        void Rotate(float yawDelta, float pitchDelta) noexcept;
+        /// Absolute orientation, pitch is clamped like in Rotate.
+        void SetOrientation(float yaw, float pitch) noexcept;
+        [[nodiscard]] float GetYaw() const noexcept { return m_yaw; }
+        [[nodiscard]] float GetPitch() const noexcept { return m_pitch; }
+        void Translate(const Vector3& offset) noexcept { m_position += offset; }
+        [[nodiscard]] Vector3 GetForwardDirection() const noexcept;
+        [[nodiscard]] Vector3 GetRightDirection() const noexcept;
 
-		[[nodiscard]] Matrix4x4 GetViewMatrix() const noexcept;
-		[[nodiscard]] Matrix4x4 GetProjectionMatrix() const noexcept;
-		[[nodiscard]] Matrix4x4 GetViewProjectionMatrix() const noexcept;
-		/// The ray through a point of the view in normalized device coordinates: x to the right
-		/// and y up, both in [-1, 1].
-		[[nodiscard]] ViewRay GetRayThrough(float ndcX, float ndcY) const noexcept;
+        [[nodiscard]] Matrix4x4 GetViewMatrix() const noexcept;
+        [[nodiscard]] Matrix4x4 GetProjectionMatrix() const noexcept;
+        [[nodiscard]] Matrix4x4 GetViewProjectionMatrix() const noexcept;
+        /// The ray through a point of the view in normalized device coordinates: x to the right
+        /// and y up, both in [-1, 1].
+        [[nodiscard]] ViewRay GetRayThrough(float ndcX, float ndcY) const noexcept;
 
-		// Freeze camera for culling inspection
-		void SetFreezeCulling(bool freeze) noexcept;
-		[[nodiscard]] bool IsCullingFrozen() const noexcept { return m_freezeCulling; }
-		[[nodiscard]] Matrix4x4 GetCullingViewProjection() const noexcept;
+        // Freeze camera for culling inspection
+        void SetFreezeCulling(bool freeze) noexcept;
+        [[nodiscard]] bool IsCullingFrozen() const noexcept { return m_freezeCulling; }
+        [[nodiscard]] Matrix4x4 GetCullingViewProjection() const noexcept;
 
-		[[nodiscard]] Vector3 GetPosition() const noexcept { return m_position; }
-		void SetPosition(const Vector3& pos) noexcept { m_position = pos; }
+        [[nodiscard]] Vector3 GetPosition() const noexcept { return m_position; }
+        void SetPosition(const Vector3& pos) noexcept { m_position = pos; }
 
-		float moveSpeed{ 15.0f };
-		float mouseSensitivity{ 0.003f };
-		float fovRadians{ 1.04719755f }; // 60 deg
-		float zNear{ 0.2f };
-		float zFar{ 500.0f };
+        float moveSpeed { 15.0f };
+        float mouseSensitivity { 0.003f };
+        float fovRadians { 1.04719755f }; // 60 deg
+        float zNear { 0.2f };
+        float zFar { 500.0f };
 
-	private:
-		Vector3 m_position;
-		float m_yaw{ 0.0f };   // Radians
-		float m_pitch{ 0.0f }; // Radians
-		float m_aspect{ 16.0f / 9.0f };
+    private:
+        Vector3 m_position;
+        float m_yaw { 0.0f };   // Radians
+        float m_pitch { 0.0f }; // Radians
+        float m_aspect { 16.0f / 9.0f };
 
-		bool m_freezeCulling{ false };
-		Matrix4x4 m_frozenCullingViewProj{ Matrix4x4::Identity() };
-	};
+        bool m_freezeCulling { false };
+        Matrix4x4 m_frozenCullingViewProj { Matrix4x4::Identity() };
+    };
 
-} // namespace Engine
+} // namespace elm

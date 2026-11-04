@@ -16,7 +16,7 @@ namespace elm {
             return MakeUnexpected(loaded.error());
         FileSystem::ApplySettings(settings, settingsPath.Parent());
         log::applySettings(settings, settingsPath.Parent());
-        return { };
+        return {};
     }
 
 } // namespace elm

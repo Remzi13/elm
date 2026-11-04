@@ -172,7 +172,7 @@ namespace elm::script::lua {
 
         /// Name(args...) and Name.new(args...).
         template <typename... A>
-        Class& Constructor(ParamNames names = { })
+        Class& Constructor(ParamNames names = {})
         {
             lua_State* L = m_state;
             lua_pushcfunction(L, (&detail::Construct<T, 1, A...>));
@@ -196,7 +196,7 @@ namespace elm::script::lua {
         /// Name(args...) and Name.new(args...) through a function returning T, for optional or
         /// computed arguments: Fn(std::optional<float> x, ...) -> T.
         template <auto Fn>
-        Class& Factory(ParamNames names = { })
+        Class& Factory(ParamNames names = {})
         {
             static_assert(std::is_same_v<std::remove_cvref_t<typename detail::TraitsOf<Fn>::Result>, T>,
                 "a factory returns the class type");
@@ -254,7 +254,7 @@ namespace elm::script::lua {
         /// obj:name(...): a member function, or a free function taking T& (or const T&) first
         /// (after an optional lua_State*).
         template <auto Fn>
-        Class& Method(const char* name, ParamNames names = { })
+        Class& Method(const char* name, ParamNames names = {})
         {
             AddFunction<Fn>(Methods(), name);
             Api().functions.push_back(detail::Describe<Fn>(name, ApiFunction::Kind::Method, names, true));
@@ -263,7 +263,7 @@ namespace elm::script::lua {
 
         /// Name.name(...): a function without an object.
         template <auto Fn>
-        Class& StaticFunction(const char* name, ParamNames names = { })
+        Class& StaticFunction(const char* name, ParamNames names = {})
         {
             AddFunction<Fn>(Methods(), name);
             Api().functions.push_back(detail::Describe<Fn>(name, ApiFunction::Kind::Function, names, false));

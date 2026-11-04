@@ -49,7 +49,7 @@ namespace elm::core {
         m_workers.clear();
 
         // Jobs left in the queue still belong to someone waiting on a TaskGroup
-        while (TryRunOne()) { }
+        while (TryRunOne()) {}
     }
 
     void JobSystem::Submit(Job job)

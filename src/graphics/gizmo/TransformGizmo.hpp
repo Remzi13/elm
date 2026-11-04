@@ -26,7 +26,10 @@ namespace elm::graphics {
     };
 
     /// A handle of the gizmo: the axis it moves, rotates or scales along.
-    enum class GizmoAxis : uint8_t { None, X, Y, Z };
+    enum class GizmoAxis : uint8_t { None,
+        X,
+        Y,
+        Z };
 
     /// Move, rotate and scale handles of a world transform, drawn with DebugDraw over the scene
     /// (channel Editor/Gizmo) and dragged with the left mouse button. Keeps the drag between

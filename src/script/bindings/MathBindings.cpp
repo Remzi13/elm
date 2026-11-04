@@ -63,7 +63,7 @@ namespace elm::script::bindings {
                 .Method<[](const Vector3& a, const Vector3& b, float t) { return a + (b - a) * t; }>("lerp", { "other", "t" })
                 .Method<[](const Vector3& v) { return v; }>("copy")
                 .Method<[](Vector3& v, const Vector3& other) { v = other; }>("assign", { "other" })
-                .StaticFunction<[] { return Vector3 { }; }>("zero")
+                .StaticFunction<[] { return Vector3 {}; }>("zero")
                 .StaticFunction<[] { return Vector3 { 1.0f, 1.0f, 1.0f }; }>("one")
                 .StaticFunction<[] { return Vector3 { 0.0f, 1.0f, 0.0f }; }>("up")
                 .StaticFunction<[] { return Vector3 { 1.0f, 0.0f, 0.0f }; }>("right")
@@ -118,7 +118,7 @@ namespace elm::script::bindings {
         Quaternion MakeQuaternion(std::optional<float> x, std::optional<float> y, std::optional<float> z, std::optional<float> w)
         {
             if (!x && !y && !z && !w)
-                return { };
+                return {};
             return { x.value_or(0.0f), y.value_or(0.0f), z.value_or(0.0f), w.value_or(0.0f) };
         }
 
@@ -149,7 +149,7 @@ namespace elm::script::bindings {
                 .Method<[](const Quaternion& q) { return math::ToEuler(q); }>("to_euler")
                 .Method<[](const Quaternion& a, const Quaternion& b) { return math::Dot(a, b); }>("dot", { "other" })
                 .Method<[](const Quaternion& q) { return q; }>("copy")
-                .StaticFunction<[] { return Quaternion { }; }>("identity")
+                .StaticFunction<[] { return Quaternion {}; }>("identity")
                 .StaticFunction<&math::QuaternionFromAxisAngle>("from_axis_angle", { "axis", "radians" })
                 .StaticFunction<&math::QuaternionFromEuler>("from_euler", { "pitch_yaw_roll" })
                 .StaticFunction<&math::Slerp>("slerp", { "from", "to", "t" })

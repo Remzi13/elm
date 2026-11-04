@@ -34,9 +34,11 @@ namespace elm::resource {
         explicit JsonValue(StringView value);
         explicit JsonValue(const char* value);
 
-        template<std::integral T>
-            requires (!std::same_as<T, bool>)
-        explicit JsonValue(T value) : JsonValue(static_cast<double>(value)) {}
+        template <std::integral T>
+            requires(!std::same_as<T, bool>)
+        explicit JsonValue(T value)
+            : JsonValue(static_cast<double>(value))
+        {}
 
         ~JsonValue();
         JsonValue(const JsonValue&);
@@ -77,4 +79,4 @@ namespace elm::resource {
         SharedPtr<Storage> m_storage;
         Vector<PathElement> m_path;
     };
-}
+} // namespace elm::resource

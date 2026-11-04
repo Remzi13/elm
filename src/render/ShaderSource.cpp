@@ -7,25 +7,25 @@
 
 namespace elm::render {
 
-String loadShaderSource(StringView fileName)
-{
-    const Path name { fileName };
-    const Path paths[] = {
-        FileSystem::Resolve("shaders") / name,
-        FileSystem::Resolve("assets/shaders") / name
-    };
-    for (const auto& path : paths) {
-        auto file = FileSystem::OpenForReading(path, std::ios::binary | std::ios::ate);
-        if (!file)
-            continue;
-        const auto size = file.tellg();
-        if (size <= 0 || !file.seekg(0))
-            continue;
-        String source(static_cast<size_t>(size), '\0');
-        if (file.read(source.data(), size))
-            return source;
+    String loadShaderSource(StringView fileName)
+    {
+        const Path name { fileName };
+        const Path paths[] = {
+            FileSystem::Resolve("shaders") / name,
+            FileSystem::Resolve("assets/shaders") / name
+        };
+        for (const auto& path : paths) {
+            auto file = FileSystem::OpenForReading(path, std::ios::binary | std::ios::ate);
+            if (!file)
+                continue;
+            const auto size = file.tellg();
+            if (size <= 0 || !file.seekg(0))
+                continue;
+            String source(static_cast<size_t>(size), '\0');
+            if (file.read(source.data(), size))
+                return source;
+        }
+        return {};
     }
-    return {};
-}
 
 } // namespace elm::render

@@ -80,14 +80,14 @@ namespace elm::platform {
         std::wstring command = Widen(commandLine);
         const std::wstring program = Widen(executable.string());
 
-        STARTUPINFOW startup { };
+        STARTUPINFOW startup {};
         startup.cb = sizeof(startup);
-        PROCESS_INFORMATION process { };
+        PROCESS_INFORMATION process {};
         if (!CreateProcessW(program.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &process))
             return ProcessError("Cannot start " + String(executable.string().c_str()));
         CloseHandle(process.hThread);
         CloseHandle(process.hProcess);
-        return { };
+        return {};
     }
 
 #else
@@ -116,7 +116,7 @@ namespace elm::platform {
         // posix_spawn takes non-const strings for historical reasons and does not change them
         if (posix_spawn(&child, program.c_str(), nullptr, nullptr, argv.data(), environ) != 0)
             return ProcessError("Cannot start " + String(program.c_str()));
-        return { };
+        return {};
     }
 
 #endif

@@ -37,10 +37,10 @@ namespace elm::resource {
             return array.Push(std::move(value));
         }
 
-        template<typename Range>
+        template <typename Range>
         auto MakeArray(const Range& values) -> EngineResult<JsonValue>
         {
-            JsonValue array{ JsonValue::Type::Array };
+            JsonValue array { JsonValue::Type::Array };
             for (const auto value : values) {
                 auto result = AddToArray(array, JsonValue(static_cast<double>(value)));
                 if (!result)
@@ -51,14 +51,13 @@ namespace elm::resource {
 
         auto MakeMatrix(const std::array<float, 16>& values) -> EngineResult<JsonValue>
         {
-            JsonValue matrix{ JsonValue::Type::Array };
+            JsonValue matrix { JsonValue::Type::Array };
             for (size_t row = 0; row < 4; ++row) {
-                auto rowArray = MakeArray(std::array{
+                auto rowArray = MakeArray(std::array {
                     values[row * 4],
                     values[row * 4 + 1],
                     values[row * 4 + 2],
-                    values[row * 4 + 3]
-                });
+                    values[row * 4 + 3] });
                 if (!rowArray)
                     return UnexpectedSerializationError(rowArray.error());
 
@@ -71,7 +70,7 @@ namespace elm::resource {
 
         auto MakeVector(const Vector3& vector) -> EngineResult<JsonValue>
         {
-            return MakeArray(std::array{ vector.x, vector.y, vector.z });
+            return MakeArray(std::array { vector.x, vector.y, vector.z });
         }
 
         auto MakeModelFileStem(StringView name, size_t fallbackIndex) -> String
@@ -79,9 +78,7 @@ namespace elm::resource {
             String stem;
             stem.reserve(name.size());
             for (const unsigned char character : name) {
-                const bool invalid = character < 0x20 || character == 0x7f ||
-                    character == '/' || character == '\\' || character == ':' || character == '*' ||
-                    character == '?' || character == '"' || character == '<' || character == '>' || character == '|';
+                const bool invalid = character < 0x20 || character == 0x7f || character == '/' || character == '\\' || character == ':' || character == '*' || character == '?' || character == '"' || character == '<' || character == '>' || character == '|';
                 stem.push_back(invalid ? '_' : static_cast<char>(character));
             }
 
@@ -97,11 +94,8 @@ namespace elm::resource {
                 reservedCheck.resize(extension);
             for (char& character : reservedCheck)
                 character = static_cast<char>(std::toupper(static_cast<unsigned char>(character)));
-            const bool numberedDevice = reservedCheck.size() == 4 &&
-                (reservedCheck.compare(0, 3, "COM") == 0 || reservedCheck.compare(0, 3, "LPT") == 0) &&
-                reservedCheck[3] >= '1' && reservedCheck[3] <= '9';
-            if (reservedCheck == "CON" || reservedCheck == "PRN" || reservedCheck == "AUX" ||
-                reservedCheck == "NUL" || numberedDevice)
+            const bool numberedDevice = reservedCheck.size() == 4 && (reservedCheck.compare(0, 3, "COM") == 0 || reservedCheck.compare(0, 3, "LPT") == 0) && reservedCheck[3] >= '1' && reservedCheck[3] <= '9';
+            if (reservedCheck == "CON" || reservedCheck == "PRN" || reservedCheck == "AUX" || reservedCheck == "NUL" || numberedDevice)
                 stem.insert(stem.begin(), '_');
 
             return stem;
@@ -134,7 +128,7 @@ namespace elm::resource {
             return *number;
         }
 
-        template<typename T>
+        template <typename T>
         auto ReadUnsigned(const JsonValue& value, StringView description) -> EngineResult<T>
         {
             auto number = ReadNumber(value, description);
@@ -147,7 +141,7 @@ namespace elm::resource {
             return static_cast<T>(*number);
         }
 
-        template<size_t N>
+        template <size_t N>
         auto ReadFloatArray(const JsonValue& value, StringView description) -> EngineResult<std::array<float, N>>
         {
             if (!value.IsArray())
@@ -157,7 +151,7 @@ namespace elm::resource {
             if (!size || *size != N)
                 return UnexpectedSerializationError("Invalid array scene field: " + String(description), "Serializer");
 
-            std::array<float, N> result{};
+            std::array<float, N> result {};
             for (size_t index = 0; index < N; ++index) {
                 auto element = GetElement(value, index);
                 if (!element)
@@ -189,7 +183,7 @@ namespace elm::resource {
             if (*size != 4)
                 return UnexpectedSerializationError("Invalid matrix scene field: " + String(description), "Serializer");
 
-            std::array<float, 16> matrix{};
+            std::array<float, 16> matrix {};
             for (size_t row = 0; row < 4; ++row) {
                 auto rowValue = GetElement(value, row);
                 if (!rowValue)
@@ -210,7 +204,7 @@ namespace elm::resource {
             if (!components)
                 return UnexpectedSerializationError(components.error());
 
-            return Vector3{ (*components)[0], (*components)[1], (*components)[2] };
+            return Vector3 { (*components)[0], (*components)[1], (*components)[2] };
         }
 
         auto ReadArrayField(const JsonValue& object, StringView key) -> EngineResult<JsonValue>
@@ -312,7 +306,8 @@ namespace elm::resource {
                         return UnexpectedSerializationError(result.error());
                     return reference;
                 }
-            }, value);
+            },
+                value);
         }
 
         auto MakeScript(const ScriptComponent& script, const Scene& scene) -> EngineResult<JsonValue>
@@ -333,15 +328,16 @@ namespace elm::resource {
         auto MakeRigidBody(const RigidBody& body) -> EngineResult<JsonValue>
         {
             JsonValue serialized { JsonValue::Type::Object };
-            auto result = SetFields(serialized, {
-                { "type", JsonValue(BodyTypeName(body.type)) },
-                { "mass", ShortNumber(body.mass) },
-                { "friction", ShortNumber(body.friction) },
-                { "restitution", ShortNumber(body.restitution) },
-                { "linearDamping", ShortNumber(body.linearDamping) },
-                { "angularDamping", ShortNumber(body.angularDamping) },
-                { "gravityScale", ShortNumber(body.gravityScale) },
-            });
+            auto result = SetFields(serialized,
+                {
+                    { "type", JsonValue(BodyTypeName(body.type)) },
+                    { "mass", ShortNumber(body.mass) },
+                    { "friction", ShortNumber(body.friction) },
+                    { "restitution", ShortNumber(body.restitution) },
+                    { "linearDamping", ShortNumber(body.linearDamping) },
+                    { "angularDamping", ShortNumber(body.angularDamping) },
+                    { "gravityScale", ShortNumber(body.gravityScale) },
+                });
             if (!result)
                 return UnexpectedSerializationError(result.error());
             return serialized;
@@ -350,12 +346,13 @@ namespace elm::resource {
         auto MakeCollider(const Collider& collider) -> EngineResult<JsonValue>
         {
             JsonValue serialized { JsonValue::Type::Object };
-            auto result = SetFields(serialized, {
-                { "shape", JsonValue(ColliderShapeName(collider.shape)) },
-                { "radius", ShortNumber(collider.radius) },
-                { "halfHeight", ShortNumber(collider.halfHeight) },
-                { "trigger", JsonValue(collider.trigger) },
-            });
+            auto result = SetFields(serialized,
+                {
+                    { "shape", JsonValue(ColliderShapeName(collider.shape)) },
+                    { "radius", ShortNumber(collider.radius) },
+                    { "halfHeight", ShortNumber(collider.halfHeight) },
+                    { "trigger", JsonValue(collider.trigger) },
+                });
             if (result)
                 result = SetResult(serialized, "halfExtents", MakeShortVector(collider.halfExtents));
             if (result)
@@ -761,7 +758,7 @@ namespace elm::resource {
 
         auto SerializeModel(const Model& model) -> EngineResult<JsonValue>
         {
-            JsonValue document{ JsonValue::Type::Object };
+            JsonValue document { JsonValue::Type::Object };
             auto result = SetField(document, "formatVersion", JsonValue(2.0));
             if (!result)
                 return UnexpectedSerializationError(result.error());
@@ -770,15 +767,15 @@ namespace elm::resource {
             if (!result)
                 return UnexpectedSerializationError(result.error());
 
-            JsonValue serializedSubmeshes{ JsonValue::Type::Array };
+            JsonValue serializedSubmeshes { JsonValue::Type::Array };
             for (const auto& submesh : model.submeshes) {
                 if (!submesh.data)
                     return UnexpectedSerializationError("Model contains a submesh without geometry", "Serializer");
                 const auto& meshData = *submesh.data;
-                JsonValue serializedSubmesh{ JsonValue::Type::Object };
-                JsonValue serializedVertices{ JsonValue::Type::Array };
+                JsonValue serializedSubmesh { JsonValue::Type::Object };
+                JsonValue serializedVertices { JsonValue::Type::Array };
                 for (const auto& vertex : meshData.vertices) {
-                    JsonValue serializedVertex{ JsonValue::Type::Object };
+                    JsonValue serializedVertex { JsonValue::Type::Object };
                     auto position = MakeVector(vertex.position);
                     if (!position)
                         return UnexpectedSerializationError(position.error());
@@ -812,7 +809,7 @@ namespace elm::resource {
                 auto maxBounds = MakeVector(meshData.localBounds.maxBounds);
                 if (!maxBounds)
                     return UnexpectedSerializationError(maxBounds.error());
-                auto color = MakeArray(std::array{ submesh.color.x, submesh.color.y, submesh.color.z, submesh.color.w });
+                auto color = MakeArray(std::array { submesh.color.x, submesh.color.y, submesh.color.z, submesh.color.w });
                 if (!color)
                     return UnexpectedSerializationError(color.error());
 
@@ -869,7 +866,7 @@ namespace elm::resource {
                 return UnexpectedSerializationError(indexCount.error());
 
             MeshData meshData;
-            meshData.localBounds = AABB{ *minBounds, *maxBounds };
+            meshData.localBounds = AABB { *minBounds, *maxBounds };
             meshData.vertices.reserve(*vertexCount);
             meshData.indices.reserve(*indexCount);
 
@@ -898,8 +895,7 @@ namespace elm::resource {
                 auto v = ReadNumber(*vField, "vertex.v");
                 if (!v)
                     return UnexpectedSerializationError(v.error());
-                if (*u < -std::numeric_limits<float>::max() || *u > std::numeric_limits<float>::max() ||
-                    *v < -std::numeric_limits<float>::max() || *v > std::numeric_limits<float>::max())
+                if (*u < -std::numeric_limits<float>::max() || *u > std::numeric_limits<float>::max() || *v < -std::numeric_limits<float>::max() || *v > std::numeric_limits<float>::max())
                     return UnexpectedSerializationError("Vertex UV is outside the float range", "Serializer");
 
                 meshData.vertices.push_back({ *position, *normal, static_cast<float>(*u), static_cast<float>(*v) });
@@ -948,7 +944,7 @@ namespace elm::resource {
                         auto components = ReadFloatArray<4>(*colorValue, "submesh.color");
                         if (!components)
                             return UnexpectedSerializationError(components.error());
-                        color = Vector4{ (*components)[0], (*components)[1], (*components)[2], (*components)[3] };
+                        color = Vector4 { (*components)[0], (*components)[1], (*components)[2], (*components)[3] };
                     }
                     String submeshName;
                     if (const auto nameValue = serializedSubmesh->Find("name")) {
@@ -970,7 +966,7 @@ namespace elm::resource {
                 auto components = ReadFloatArray<4>(*colorValue, "model.color");
                 if (!components)
                     return UnexpectedSerializationError(components.error());
-                color = Vector4{ (*components)[0], (*components)[1], (*components)[2], (*components)[3] };
+                color = Vector4 { (*components)[0], (*components)[1], (*components)[2], (*components)[3] };
             }
             model.AddSubmesh(std::move(*meshData), color);
             return model;
@@ -1054,7 +1050,7 @@ namespace elm::resource {
             return result;
         }
 
-    }
+    } // namespace
 
     auto Serializer::SaveModel(const Model& model, const Path& path) -> EngineResult<void>
     {
@@ -1145,21 +1141,22 @@ namespace elm::resource {
     auto Serializer::SaveScene(const Scene& scene, const ModelCatalog& models, const Path& assetsFolder,
         const Path& path) -> EngineResult<void>
     {
-        JsonValue document{ JsonValue::Type::Object };
+        JsonValue document { JsonValue::Type::Object };
         // 7: models are referenced by their asset paths (6: model, color and visible are the Model component)
         auto result = SetField(document, "formatVersion", JsonValue(7.0));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
-        JsonValue serializedModels{ JsonValue::Type::Array };
+        JsonValue serializedModels { JsonValue::Type::Array };
         ModelIndices modelIndices;
         for (const ModelHandler handler : UsedModels(scene, models)) {
             const Path* file = models.FileOf(handler);
             const auto asset = file ? project::AssetPath::Of(*file, assetsFolder) : std::nullopt;
             if (!asset)
                 return UnexpectedSerializationError("Model \"" + models.Get(handler)->name
-                    + "\" has no file in the assets folder: SaveNewModels writes the new models first", "Serializer");
-            JsonValue modelReference{ JsonValue::Type::Object };
+                        + "\" has no file in the assets folder: SaveNewModels writes the new models first",
+                    "Serializer");
+            JsonValue modelReference { JsonValue::Type::Object };
             result = SetField(modelReference, "path", JsonValue(StringView(asset->Text())));
             if (!result)
                 return UnexpectedSerializationError(result.error());
@@ -1175,7 +1172,7 @@ namespace elm::resource {
             return UnexpectedSerializationError(result.error());
 
         // Parents come before their children, as in the scene
-        JsonValue serializedNodes{ JsonValue::Type::Array };
+        JsonValue serializedNodes { JsonValue::Type::Array };
         for (const auto& node : scene.Nodes()) {
             auto serializedNode = MakeNode(scene, node, modelIndices);
             if (!serializedNode)
@@ -1462,7 +1459,7 @@ namespace elm::resource {
                 auto color = ReadFloatArray<4>(colorField, "instance.color");
                 if (!color)
                     return UnexpectedSerializationError(color.error());
-                model.color = Vector4{ (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
+                model.color = Vector4 { (*color)[0], (*color)[1], (*color)[2], (*color)[3] };
             }
             if (const auto nameField = serializedInstance->Find("name")) {
                 auto name = nameField->AsString();
@@ -1573,10 +1570,10 @@ namespace elm::resource {
         if (!file)
             return UnexpectedSerializationError("Failed to open file for reading: " + path.string(), "Serializer");
 
-        const String contents{ std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
+        const String contents { std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>() };
         if (file.bad())
             return UnexpectedSerializationError("Failed to read file: " + path.string(), "Serializer");
 
         return String(contents.begin(), contents.end());
     }
-}
+} // namespace elm::resource

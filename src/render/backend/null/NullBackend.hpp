@@ -31,7 +31,7 @@ namespace elm::render::null {
         [[nodiscard]] bool HasSurface(SurfaceId surface) const override;
         [[nodiscard]] TextureFormat GetSurfaceColorFormat() const override { return TextureFormat::RGBA8_UNORM_SRGB; }
         [[nodiscard]] TextureFormat GetSurfaceDepthFormat() const override { return TextureFormat::D32_FLOAT; }
-        void Present(SurfaceId) override { }
+        void Present(SurfaceId) override {}
 
         rhi::SubmitStats Submit(std::span<const rhi::CommandList* const> lists, const rhi::UploadAllocator& uploads) override;
 

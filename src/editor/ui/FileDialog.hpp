@@ -9,40 +9,40 @@
 
 namespace elm::ui {
 
-/// A modal dialog that picks a file. Open and SaveAs may be called anywhere in the frame, also inside a menu
-/// or a child window: the dialog opens in the next Draw, the ImGui popup has to share its ID scope.
-/// Draw belongs in one place of every frame. Owner: the window that shows it, thread: update (UI).
-class FileDialog {
-public:
-    void Open(StringView title, StringView extension, const Path& directory = { });
-    void SaveAs(StringView title, StringView extension, StringView defaultFileName, const Path& directory = { });
-    /// Keeps the dialog in this folder and below it (the project's assets), until the next Open or SaveAs.
-    void LimitTo(const Path& folder);
-    [[nodiscard]] auto Draw() -> std::optional<Path>;
+    /// A modal dialog that picks a file. Open and SaveAs may be called anywhere in the frame, also inside a menu
+    /// or a child window: the dialog opens in the next Draw, the ImGui popup has to share its ID scope.
+    /// Draw belongs in one place of every frame. Owner: the window that shows it, thread: update (UI).
+    class FileDialog {
+    public:
+        void Open(StringView title, StringView extension, const Path& directory = {});
+        void SaveAs(StringView title, StringView extension, StringView defaultFileName, const Path& directory = {});
+        /// Keeps the dialog in this folder and below it (the project's assets), until the next Open or SaveAs.
+        void LimitTo(const Path& folder);
+        [[nodiscard]] auto Draw() -> std::optional<Path>;
 
-private:
-    struct Entry {
-        Path path;
-        bool isDirectory { false };
+    private:
+        struct Entry {
+            Path path;
+            bool isDirectory { false };
+        };
+
+        void SetStartDirectory(const Path& directory);
+        [[nodiscard]] bool IsInsideLimit(const Path& directory) const;
+        void RefreshEntries();
+        [[nodiscard]] static auto PathToString(const Path& path) -> String;
+
+        String m_title;
+        String m_extension;
+        String m_error;
+        std::array<char, 260> m_saveFileName {};
+        Path m_directory;
+        /// LimitTo's folder, empty: the whole disk.
+        Path m_limit;
+        Path m_selectedPath;
+        Vector<Entry> m_entries;
+        bool m_saveMode { false };
+        /// Open or SaveAs waits for the next Draw.
+        bool m_openRequested { false };
     };
-
-    void SetStartDirectory(const Path& directory);
-    [[nodiscard]] bool IsInsideLimit(const Path& directory) const;
-    void RefreshEntries();
-    [[nodiscard]] static auto PathToString(const Path& path) -> String;
-
-    String m_title;
-    String m_extension;
-    String m_error;
-    std::array<char, 260> m_saveFileName { };
-    Path m_directory;
-    /// LimitTo's folder, empty: the whole disk.
-    Path m_limit;
-    Path m_selectedPath;
-    Vector<Entry> m_entries;
-    bool m_saveMode { false };
-    /// Open or SaveAs waits for the next Draw.
-    bool m_openRequested { false };
-};
 
 } // namespace elm::ui

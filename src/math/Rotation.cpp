@@ -31,7 +31,7 @@ namespace math {
     {
         const float length = std::sqrt(Dot(q, q));
         if (length <= 1e-8f)
-            return { };
+            return {};
         const float inverse = 1.0f / length;
         return { q.x * inverse, q.y * inverse, q.z * inverse, q.w * inverse };
     }
@@ -53,12 +53,10 @@ namespace math {
             fromWeight = std::sin(fromWeight * angle) / sine;
             toWeight = std::sin(toWeight * angle) / sine;
         }
-        return Normalize({
-            a.x * fromWeight + end.x * toWeight,
+        return Normalize({ a.x * fromWeight + end.x * toWeight,
             a.y * fromWeight + end.y * toWeight,
             a.z * fromWeight + end.z * toWeight,
-            a.w * fromWeight + end.w * toWeight
-        });
+            a.w * fromWeight + end.w * toWeight });
     }
 
     Vector3 Rotate(const Quaternion& q, const Vector3& v) noexcept

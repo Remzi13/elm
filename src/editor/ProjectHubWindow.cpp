@@ -37,7 +37,7 @@ namespace elm::editor {
     void ProjectHubWindow::DrawRecent()
     {
         ImGui::SeparatorText("Recent projects");
-        const Vector<Path> recent = m_desc.recent ? m_desc.recent() : Vector<Path> { };
+        const Vector<Path> recent = m_desc.recent ? m_desc.recent() : Vector<Path> {};
         if (recent.empty())
             ImGui::TextDisabled("None yet");
         for (const Path& file : recent) {

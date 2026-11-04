@@ -101,7 +101,7 @@ namespace elm::script {
         if (!hookError)
             return Fail(moduleName, hookError.error().message);
         Finish(moduleName, *hookError);
-        return { };
+        return {};
     }
 
     size_t HotReload::ReloadChanged()
@@ -180,7 +180,7 @@ namespace elm::script {
             lua_pop(L, 1);
             lua_pushboolean(L, 1);
         }
-        return { };
+        return {};
     }
 
     auto HotReload::Patch(int previous, int fresh) -> EngineResult<String>

@@ -63,7 +63,8 @@ namespace elm::script::bindings {
             std::visit([&](const auto& current) {
                 using V = std::decay_t<decltype(current)>;
                 settings.Set(entry->category, path, lua::StackTraits<V>::Check(L, 2));
-            }, entry->value);
+            },
+                entry->value);
             return 0;
         }
 

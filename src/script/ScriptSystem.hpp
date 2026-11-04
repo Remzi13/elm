@@ -11,7 +11,7 @@
 namespace elm {
     class Settings;
     struct CollisionEvent;
-}
+} // namespace elm
 
 namespace elm::script {
 
@@ -57,7 +57,7 @@ namespace elm::script {
         /// Opens the Lua state and registers the engine modules for the systems of ScriptDeps and the project
         /// open now. Modules are found under scriptRoot, the project's scripts folder; without it no module
         /// file is found.
-        [[nodiscard]] auto Init(Path scriptRoot = { }) -> EngineResult<void>;
+        [[nodiscard]] auto Init(Path scriptRoot = {}) -> EngineResult<void>;
         /// Starts the main module (on_start), the entry of the project; Play does it after Reset. An empty
         /// name or a missing module file is not an error: the scripts run without a main module.
         [[nodiscard]] auto Start(StringView mainModule) -> EngineResult<void>;
@@ -67,7 +67,7 @@ namespace elm::script {
         /// Applies a requested restart, reloads changed files (setting Script/HotReload), calls on_update.
         void Update(float deltaTime);
         /// After a physics step: the collisions of the step, then on_fixed_update.
-        void FixedUpdate(float fixedDeltaTime, std::span<const CollisionEvent> collisions = { });
+        void FixedUpdate(float fixedDeltaTime, std::span<const CollisionEvent> collisions = {});
         void Shutdown();
         [[nodiscard]] bool IsInitialized() const noexcept { return m_state.IsOpen(); }
         /// Play and Stop of the scripts with the scene and physics; the program applies its requests.

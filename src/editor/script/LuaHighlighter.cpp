@@ -8,17 +8,60 @@ namespace elm::script {
     namespace {
 
         constexpr std::array<StringView, 19> Keywords = {
-            "and", "break", "do", "else", "elseif", "end", "for", "function", "goto", "if",
-            "in", "local", "not", "or", "repeat", "return", "then", "until", "while",
+            "and",
+            "break",
+            "do",
+            "else",
+            "elseif",
+            "end",
+            "for",
+            "function",
+            "goto",
+            "if",
+            "in",
+            "local",
+            "not",
+            "or",
+            "repeat",
+            "return",
+            "then",
+            "until",
+            "while",
         };
 
         constexpr std::array<StringView, 3> Constants = { "nil", "true", "false" };
 
         constexpr std::array<StringView, 30> Builtins = {
-            "assert", "collectgarbage", "error", "getmetatable", "ipairs", "load", "next", "pairs", "pcall",
-            "print", "rawequal", "rawget", "rawlen", "rawset", "require", "select", "setmetatable",
-            "tonumber", "tostring", "type", "xpcall", "coroutine", "math", "string", "table", "utf8",
-            "package", "elm", "self", "_G",
+            "assert",
+            "collectgarbage",
+            "error",
+            "getmetatable",
+            "ipairs",
+            "load",
+            "next",
+            "pairs",
+            "pcall",
+            "print",
+            "rawequal",
+            "rawget",
+            "rawlen",
+            "rawset",
+            "require",
+            "select",
+            "setmetatable",
+            "tonumber",
+            "tostring",
+            "type",
+            "xpcall",
+            "coroutine",
+            "math",
+            "string",
+            "table",
+            "utf8",
+            "package",
+            "elm",
+            "self",
+            "_G",
         };
 
         template <size_t N>
@@ -34,7 +77,10 @@ namespace elm::script {
 
         class Tokenizer {
         public:
-            Tokenizer(StringView text, Vector<LuaSpan>& spans) : m_text(text), m_spans(spans) { }
+            Tokenizer(StringView text, Vector<LuaSpan>& spans)
+                : m_text(text)
+                , m_spans(spans)
+            {}
 
             void Run()
             {
