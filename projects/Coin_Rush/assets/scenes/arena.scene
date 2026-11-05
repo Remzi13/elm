@@ -1,0 +1,224 @@
+{
+   "formatVersion": 7,
+   "models": [
+      {
+         "path": "models/Ground Plane.model"
+      },
+      {
+         "path": "models/coin.model"
+      },
+      {
+         "path": "models/player.model"
+      },
+      {
+         "path": "models/hazard.model"
+      }
+   ],
+   "nodes": [
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.4,
+                  0.5,
+                  0.4,
+                  1
+               ],
+               "modelIndex": 0,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               5,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               5,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "ground"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -18.672889709472656
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               12.368322372436523
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_1"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               7.6025800704956055
+            ],
+            [
+               0,
+               1,
+               0,
+               0.7276638746261597
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "player"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6910274028778076
+            ],
+            [
+               0,
+               0,
+               1,
+               -16.049299240112305
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "hazard"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               6.360809326171875
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               12.368322372436523
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_2"
+      }
+   ]
+}
