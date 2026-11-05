@@ -2,7 +2,8 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # A game branch lives for weeks before it merges into main (plan.md)
+    branches: [main, 'game/**']
   pull_request:
     branches: [main]
 
