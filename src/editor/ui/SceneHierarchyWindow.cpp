@@ -5,6 +5,8 @@
 #include "editor/ui/EditorWidgets.hpp"
 #include "editor/ui/SceneEditShortcuts.hpp"
 
+#include "graphics/Camera.hpp"
+
 #include "model/ModelCatalog.hpp"
 
 #include "Scene/ModelComponent.hpp"
@@ -17,6 +19,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstring>
 #include <string>
 
@@ -28,6 +31,24 @@ namespace elm {
         constexpr const char* NodeDragPayload = "SCENE_NODE_DRAG";
         constexpr const char* AddNodePopup = "AddNodePopup";
         constexpr const char* ModelFileExtensions = ".model;.gltf;.glb";
+        /// Bounds of a node without a model when the camera frames it.
+        constexpr float NodeWithoutModelExtent = 0.5f;
+
+        /// Moves the camera back along its view until the node's world bounds fit in it; the direction stays.
+        void FrameNode(Camera& camera, const Scene& scene, const ModelCatalog& models, NodeId node)
+        {
+            const size_t index = scene.IndexOf(node);
+            if (index == Scene::NoNode)
+                return;
+            const auto* nodeModels = scene.FindComponents<ModelComponent>();
+            const ModelComponent* component = nodeModels ? nodeModels->Find(node) : nullptr;
+            const Model* model = component ? models.Get(component->model) : nullptr;
+            const Vector3 extent { NodeWithoutModelExtent, NodeWithoutModelExtent, NodeWithoutModelExtent };
+            const AABB local = model && !model->submeshes.empty() ? model->GetLocalBounds() : AABB { Vector3 {} - extent, extent };
+            const AABB bounds = local.Transformed(scene.WorldTransforms()[index]);
+            const float distance = bounds.GetExtent().Length() / std::sin(camera.fovRadians * 0.5f);
+            camera.SetPosition(bounds.GetCenter() - camera.GetForwardDirection() * distance);
+        }
 
         /// A column of the tree: the letter of a component, for each node that has one.
         struct ComponentChip {
@@ -276,8 +297,7 @@ namespace elm {
     {
         const bool hasChildren = !row.children.empty();
         const bool canClose = hasChildren && !IsSearching();
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick
-            | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         if (!canClose)
             flags |= ImGuiTreeNodeFlags_Leaf;
         else
@@ -296,6 +316,8 @@ namespace elm {
         }
         if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
             Select(row.id);
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !(m_deps.play.isPlaying && m_deps.play.isPlaying()))
+            FrameNode(m_deps.camera, m_deps.scene, m_deps.models, row.id);
 
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
             ImGui::SetDragDropPayload(NodeDragPayload, &row.id, sizeof(NodeId));

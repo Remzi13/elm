@@ -4,8 +4,11 @@
 #include "editor/ui/FileDialog.hpp"
 #include "editor/ui/IImGuiWindow.hpp"
 
+#include "script/EngineContext.hpp"
+
 namespace elm {
 
+    class Camera;
     class ModelCatalog;
     class Scene;
     class SceneDocument;
@@ -24,6 +27,9 @@ namespace elm {
         Selection& selection;
         /// Ctrl+S.
         const SceneFileRequests& sceneFile;
+        /// A double click on a row brings the node into its view; not in Play, the camera is the game's then.
+        Camera& camera;
+        const script::PlayRequests& play;
     };
 
     /// The tree of the scene's nodes: search, selection, adding, renaming, moving and removing nodes. The components

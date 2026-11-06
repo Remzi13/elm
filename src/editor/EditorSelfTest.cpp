@@ -498,7 +498,7 @@ line]] .. [==[a]]b]==])",
 
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
-                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile }, assets, assets / "models")
+                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play }, assets, assets / "models")
                 , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, gizmo, play, scripts, files, sceneFile },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
@@ -708,10 +708,10 @@ line]] .. [==[a]]b]==])",
             render::FrameWriter writer;
             SceneDocument document;
             SceneMenu menu;
+            Camera camera;
             SceneHierarchyWindow hierarchy;
             NodeInspectorWindow inspector;
             render::RenderResources resources;
-            Camera camera;
             ModelEditorWindow modelEditor;
         };
 
@@ -779,6 +779,33 @@ line]] .. [==[a]]b]==])",
             fixture.selection.node = parent;
             fixture.Click(WindowsFixture::RowCenter(1));
             report.Check(fixture.selection.node == NodeId {}, "tree::search_leaves_a_closed_parent_closed");
+        }
+
+        void RunTreeFocusTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            const Vector3 center { 10.0f, 2.0f, 30.0f };
+            (void)fixture.scene.AddNode("node", Matrix4x4::Translation(center));
+            fixture.scene.UpdateWorldTransforms();
+            fixture.Frame();
+            const auto doubleClick = [&] {
+                fixture.Click(WindowsFixture::RowCenter(0));
+                fixture.Click(WindowsFixture::RowCenter(0));
+                // Past the double click time: the next click starts a new count
+                for (int frame = 0; frame < 30; ++frame)
+                    fixture.Frame();
+            };
+
+            fixture.playing = true;
+            const Vector3 before = fixture.camera.GetPosition();
+            doubleClick();
+            report.Check((fixture.camera.GetPosition() - before).Length() < 1e-4f, "tree::no_double_click_framing_in_play");
+
+            fixture.playing = false;
+            doubleClick();
+            const Vector3 toNode = center - fixture.camera.GetPosition();
+            const float alignment = toNode.Normalized().Dot(fixture.camera.GetForwardDirection());
+            report.Check(toNode.Length() > 0.5f && toNode.Length() < 5.0f && alignment > 0.999f, "tree::a_double_click_frames_the_node");
         }
 
         void RunTreeEditTests(Report& report, const Path& assets)
@@ -1031,6 +1058,7 @@ line]] .. [==[a]]b]==])",
             RunTreeDropTests(report, assets);
             RunTreeSearchTests(report, assets);
             RunTreeEditTests(report, assets);
+            RunTreeFocusTests(report, assets);
             RunInspectorTests(report, assets);
             RunModelEditorTests(report, assets);
             RunSceneMenuTests(report, assets);

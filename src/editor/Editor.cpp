@@ -371,7 +371,7 @@ namespace elm {
         m_sceneFile = SceneFileRequests { .save = [this] { (void)m_sceneDocument->Save(); } };
         m_imgui->SetSceneMenu(&*m_sceneDocument, &m_edits);
         auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
-            SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile }, project.Assets(), project.Models());
+            SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile, m_graphics.GetViewCamera(), m_playRequests }, project.Assets(), project.Models());
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
             NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files, m_sceneFile },
             NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });
