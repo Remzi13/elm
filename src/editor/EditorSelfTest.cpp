@@ -7,6 +7,8 @@
 #include "editor/script/CodeIndent.hpp"
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
+#include "editor/script/ScriptEditorWindows.hpp"
+#include "editor/script/ScriptWindow.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/gizmo/GizmoSettings.hpp"
 #include "editor/ui/EditorToolbar.hpp"
@@ -1041,6 +1043,73 @@ line]] .. [==[a]]b]==])",
             report.Check(click("Stop") && stops == 1, "toolbar::stops_in_play");
         }
 
+        /// Tab in the Scripts window indents at the cursor, not where the last click left an empty selection.
+        void RunScriptEditorTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_script_editor_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root, error);
+            const fs::path script = root / "tabbed.lua";
+            report.Check(WriteTestFile(script, "local a = 1\n"), "script_editor::script_is_written");
+
+            HeadlessImGui imgui;
+            Settings settings;
+            script::ScriptSystem::RegisterSettings(settings);
+            script::ScriptSystem scripts({ .settings = &settings });
+            if (!scripts.Init(Path(String(root.generic_string().c_str())))) {
+                report.Check(false, "script_editor::script_init");
+                return;
+            }
+            const UniquePtr<script::ScriptWindow> window = script::CreateScriptWindow(scripts, settings);
+            window->OpenFile(Path(String(script.generic_string().c_str())));
+            render::FrameWriter writer;
+            const auto frame = [&] {
+                ImGui::NewFrame();
+                window->Render(writer);
+                ImGui::EndFrame();
+            };
+            const auto press = [&](ImGuiKey key) {
+                ImGui::GetIO().AddKeyEvent(key, true);
+                frame();
+                ImGui::GetIO().AddKeyEvent(key, false);
+                frame();
+            };
+            // The Editor tab and the document's tab are chosen over a few frames
+            for (int settle = 0; settle < 5; ++settle)
+                frame();
+            ImGuiWindow* field = nullptr;
+            for (ImGuiWindow* found : GImGui->Windows) {
+                if (StringView(found->Name).find("##text") != StringView::npos)
+                    field = found;
+            }
+            if (!field) {
+                report.Check(false, "script_editor::text_field_shown");
+                return;
+            }
+            // A click on the first line, then the cursor goes down to the empty second one by the keys
+            const ImVec2 firstLine(field->InnerRect.Min.x + 4.0f, field->InnerRect.Min.y + ImGui::GetFontSize() * 0.5f);
+            ImGui::GetIO().AddMousePosEvent(firstLine.x, firstLine.y);
+            frame();
+            ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+            frame();
+            ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+            frame();
+            press(ImGuiKey_DownArrow);
+            press(ImGuiKey_Tab);
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, true);
+            press(ImGuiKey_S);
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
+            frame();
+
+            File file;
+            auto read = file.Open(String(script.generic_string().c_str()), FileMode::Read).and_then([&] { return file.ReadAll(); });
+            const StringView saved = read ? read->ReadText(0, read->Size()).value_or(StringView {}) : StringView {};
+            report.Check(saved == "local a = 1\n    ", "script_editor::tab_indents_at_the_cursor", String(saved));
+            fs::remove_all(root, error);
+        }
+
         void RunSceneWindowsTests(Report& report)
         {
             namespace fs = std::filesystem;
@@ -1072,6 +1141,7 @@ line]] .. [==[a]]b]==])",
         Report report;
         RunHighlighterTests(report);
         RunCodeIndentTests(report);
+        RunScriptEditorTests(report);
         RunErrorLocationTests(report);
         RunEditModeTests(report);
         RunSceneEditsTests(report);

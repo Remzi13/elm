@@ -149,6 +149,9 @@ namespace elm::script {
 
         void IndentSelection(ImGuiInputTextCallbackData* data, IndentEdit edit)
         {
+            // Typing and the arrow keys move only the cursor: an empty selection stays where the last click left it
+            if (!data->HasSelection())
+                data->SelectionStart = data->SelectionEnd = data->CursorPos;
             const StringView text(data->Buf, static_cast<size_t>(data->BufTextLen));
             const auto begin = static_cast<size_t>((std::min)(data->SelectionStart, data->SelectionEnd));
             const auto end = static_cast<size_t>((std::max)(data->SelectionStart, data->SelectionEnd));
