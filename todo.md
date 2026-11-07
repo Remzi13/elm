@@ -72,9 +72,9 @@ Race:
 
 - [ ] [Main] сделать ревью все библиотек на качество кода через скил
 - [ ] [Main] убрать std::cout и std::err
-- [ ] [Main] убрать scenePreset and test scenes
-- [ ] [Core] отказатся от filestream и заменить File()
-- [ ] [Performance] проблема с загрузкой моделей и сцен текстовый формат очень долго грузится
+- [x] [Main] убрать scenePreset and test scenes
+- [x] [Core] отказатся от filestream и заменить File()
+- [x] [Performance] проблема с загрузкой моделей и сцен текстовый формат очень долго грузится
 
 ## Потом
 
