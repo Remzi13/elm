@@ -22,7 +22,7 @@ namespace elm::script::bindings {
             if (auto* entityScripts = Context(L).entityScripts)
                 entityScripts->DestroyAll();
         }
-      
+
         /// Removes every node and model; entity scripts get on_destroy first.
         void ClearScene(lua_State* L)
         {
@@ -99,7 +99,7 @@ namespace elm::script::bindings {
     void RegisterEngine(lua::State& state, EngineModuleContext context)
     {
         state.SetContext(std::move(context));
-        lua::Module(state, "elm.engine")            
+        lua::Module(state, "elm.engine")
             .Function<&ClearScene>("clear_scene")
             .Function<&SaveScene>("save_scene", { "file" })
             .Function<&LoadScene>("load_scene", { "file" })
