@@ -42,8 +42,8 @@ namespace elm {
         void GenerateVisualTexture(Vector<uint8_t>& outRgba, bool falseColor = true) const;
 
     private:
-        void RasterizeTriangleScreen(const Vector3& s0, const Vector3& s1, const Vector3& s2,
-            float invW0, float invW1, float invW2);
+        /// Screen x, y in pixels and NDC depth: depth is affine in screen space, so it interpolates linearly.
+        void RasterizeTriangleScreen(const Vector3& s0, const Vector3& s1, const Vector3& s2);
 
         uint32_t m_width { 256 };
         uint32_t m_height { 144 };

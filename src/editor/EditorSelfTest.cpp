@@ -10,6 +10,7 @@
 #include "editor/script/ScriptEditorWindows.hpp"
 #include "editor/script/ScriptWindow.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/culling/OcclusionCulling.hpp"
 #include "graphics/gizmo/GizmoSettings.hpp"
 #include "editor/ui/EditorToolbar.hpp"
 #include "editor/ui/ModelEditorWindow.hpp"
@@ -46,6 +47,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <numbers>
 #include <optional>
 #include <string>
 
@@ -170,6 +172,33 @@ line]] .. [==[a]]b]==])",
                     && runtime && runtime->file == "game/player.lua" && runtime->line == 40
                     && !FindErrorLocation("no location here.lua: at all"),
                 "editor::error_location");
+        }
+
+        // ── Culling ─────────────────────────────────────────────────────────────
+
+        /// The CPU occlusion culling of the view keeps what stands on a large floor seen from above.
+        void RunCullingTests(Report& report)
+        {
+            ModelCatalog models;
+            Model floor("Floor");
+            floor.AddSubmesh(GeometryPrimitives::CreateGroundPlane(50.0f, 50.0f));
+            Model cube("Cube");
+            cube.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            Scene scene;
+            const NodeId floorNode = scene.AddNode("floor");
+            scene.Components<ModelComponent>().Emplace(floorNode, ModelComponent { .model = models.Insert(floor) });
+            const NodeId cubeNode = scene.AddNode("cube", Matrix4x4::Translation(Vector3 { 7.0f, 0.5f, 12.0f }));
+            scene.Components<ModelComponent>().Emplace(cubeNode, ModelComponent { .model = models.Insert(cube) });
+            scene.UpdateWorldTransforms();
+
+            // Above and behind the floor, looking down at its centre (the Coin Rush camera)
+            const Camera camera(Vector3 { 0.0f, 35.0f, -35.0f }, 0.0f, -std::numbers::pi_v<float> / 4.0f);
+            Settings settings;
+            OcclusionCulling culling;
+            culling.RegisterSettings(settings);
+            culling.ExecuteCulling(scene, models, camera.GetViewProjectionMatrix(), settings);
+            const OccludeeInstance* standing = culling.FindOccludee(cubeNode);
+            report.Check(standing && standing->isVisible, "culling::a_floor_does_not_hide_what_stands_on_it");
         }
 
         // ── Edit mode ───────────────────────────────────────────────────────────
@@ -1143,6 +1172,7 @@ line]] .. [==[a]]b]==])",
         RunCodeIndentTests(report);
         RunScriptEditorTests(report);
         RunErrorLocationTests(report);
+        RunCullingTests(report);
         RunEditModeTests(report);
         RunSceneEditsTests(report);
         RunSceneWindowsTests(report);

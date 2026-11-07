@@ -26,8 +26,7 @@ namespace elm {
         std::fill(m_depthBuffer.begin(), m_depthBuffer.end(), clearDepth);
     }
 
-    void SoftwareDepthBuffer::RasterizeTriangleScreen(const Vector3& s0, const Vector3& s1, const Vector3& s2,
-        float invW0, float invW1, float invW2)
+    void SoftwareDepthBuffer::RasterizeTriangleScreen(const Vector3& s0, const Vector3& s1, const Vector3& s2)
     {
         // 2D orient / area
         const float area = (s1.x - s0.x) * (s2.y - s0.y) - (s1.y - s0.y) * (s2.x - s0.x);
@@ -52,11 +51,6 @@ namespace elm {
             return;
         }
 
-        // Perspective-correct depth interpolation: interpolate (z * invW) and invW
-        const float zInvW0 = s0.z * invW0;
-        const float zInvW1 = s1.z * invW1;
-        const float zInvW2 = s2.z * invW2;
-
         for (int y = minY; y <= maxY; ++y) {
             const float py = static_cast<float>(y) + 0.5f;
             const size_t rowOffset = static_cast<size_t>(y) * static_cast<size_t>(m_width);
@@ -70,14 +64,10 @@ namespace elm {
                 const float w2 = 1.0f - w0 - w1;
 
                 if (w0 >= -1e-4f && w1 >= -1e-4f && w2 >= -1e-4f) {
-                    const float interpolatedInvW = w0 * invW0 + w1 * invW1 + w2 * invW2;
-                    if (interpolatedInvW > 1e-7f) {
-                        const float interpolatedZ = (w0 * zInvW0 + w1 * zInvW1 + w2 * zInvW2) / interpolatedInvW;
-                        const size_t pixelIdx = rowOffset + static_cast<size_t>(x);
-
-                        if (interpolatedZ >= 0.0f && interpolatedZ < m_depthBuffer[pixelIdx]) {
-                            m_depthBuffer[pixelIdx] = interpolatedZ;
-                        }
+                    const float interpolatedZ = w0 * s0.z + w1 * s1.z + w2 * s2.z;
+                    const size_t pixelIdx = rowOffset + static_cast<size_t>(x);
+                    if (interpolatedZ >= 0.0f && interpolatedZ < m_depthBuffer[pixelIdx]) {
+                        m_depthBuffer[pixelIdx] = interpolatedZ;
                     }
                 }
             }
@@ -126,7 +116,7 @@ namespace elm {
             const Vector3 s0 = projectToScreen(p0);
             const Vector3 s1 = projectToScreen(p1);
             const Vector3 s2 = projectToScreen(p2);
-            RasterizeTriangleScreen(s0, s1, s2, 1.0f / p0.w, 1.0f / p1.w, 1.0f / p2.w);
+            RasterizeTriangleScreen(s0, s1, s2);
         } else if (inCount == 1) {
             // 1 vertex in front, 2 behind: produces 1 clipped triangle
             Vector4 v0 = p0, v1 = p1, v2 = p2;
@@ -144,7 +134,7 @@ namespace elm {
             const Vector3 s0 = projectToScreen(v0);
             const Vector3 s1 = projectToScreen(c01);
             const Vector3 s2 = projectToScreen(c02);
-            RasterizeTriangleScreen(s0, s1, s2, 1.0f / v0.w, 1.0f / c01.w, 1.0f / c02.w);
+            RasterizeTriangleScreen(s0, s1, s2);
         } else if (inCount == 2) {
             // 2 vertices in front, 1 behind: produces 2 clipped triangles (quad)
             Vector4 v0 = p0, v1 = p1, v2 = p2;
@@ -164,8 +154,8 @@ namespace elm {
             const Vector3 sc02 = projectToScreen(c02);
             const Vector3 sc12 = projectToScreen(c12);
 
-            RasterizeTriangleScreen(s0, s1, sc02, 1.0f / v0.w, 1.0f / v1.w, 1.0f / c02.w);
-            RasterizeTriangleScreen(s1, sc12, sc02, 1.0f / v1.w, 1.0f / c12.w, 1.0f / c02.w);
+            RasterizeTriangleScreen(s0, s1, sc02);
+            RasterizeTriangleScreen(s1, sc12, sc02);
         }
     }
 
