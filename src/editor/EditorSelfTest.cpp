@@ -529,7 +529,7 @@ line]] .. [==[a]]b]==])",
 
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
-                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play }, assets, assets / "models")
+                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play, [this] { inspector.Show(); } }, assets, assets / "models")
                 , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, gizmo, play, scripts, files, sceneFile },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
@@ -877,6 +877,18 @@ line]] .. [==[a]]b]==])",
             fixture.Frame();
             const bool deleted = fixture.ClickMenuItem("Delete Node");
             report.Check(deleted && fixture.scene.NodeCount() == 1 && !fixture.scene.Find(node), "tree::row_menu_deletes_the_node");
+
+            // Inspector closed, nothing selected: the row menu selects the node and brings Inspector forward
+            fixture.inspector.SetVisible(false);
+            fixture.selection.node = NodeId {};
+            fixture.Click(WindowsFixture::RowCenter(0), ImGuiMouseButton_Right);
+            fixture.Frame();
+            const bool opened = fixture.ClickMenuItem("Open Inspector");
+            fixture.Frame();
+            const ImGuiWindow* focused = GImGui->NavWindow;
+            report.Check(opened && fixture.inspector.IsVisible() && fixture.selection.node == fixture.scene.Nodes()[0].id && focused
+                    && StringView(focused->Name).find("NodeInspector") != StringView::npos,
+                "tree::row_menu_opens_inspector_on_the_node");
 
             fixture.Click(WindowsFixture::RowCenter(6));
             report.Check(fixture.selection.node == NodeId {}, "tree::a_click_on_empty_space_selects_nothing");

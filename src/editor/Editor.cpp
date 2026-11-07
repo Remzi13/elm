@@ -363,11 +363,13 @@ namespace elm {
         m_sceneDocument.emplace(SceneDocumentDeps { scene, models, m_edits, m_selection, m_playRequests }, project.Assets(), project.Scenes(), openedScene);
         m_sceneFile = SceneFileRequests { .save = [this] { (void)m_sceneDocument->Save(); } };
         m_imgui->SetSceneMenu(&*m_sceneDocument, &m_edits);
-        auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
-            SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile, m_graphics.GetViewCamera(), m_playRequests }, project.Assets(), project.Models());
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
             NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files, m_sceneFile },
             NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });
+        auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
+            SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile, m_graphics.GetViewCamera(), m_playRequests,
+                [window = inspector.get()] { window->Show(); } },
+            project.Assets(), project.Models());
         auto modelEditor = MakeUnique<ModelEditorWindow>(m_settings,
             ModelEditorDeps { m_graphics.GetRender().Resources(), scene, models, m_graphics.GetViewCamera() }, project.Assets(), project.Models());
         auto scripts = script::CreateScriptWindow(m_scripts, m_settings);

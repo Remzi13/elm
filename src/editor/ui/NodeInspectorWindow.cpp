@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cctype>
 #include <string>
+#include <utility>
 
 namespace elm {
     namespace {
@@ -185,11 +186,19 @@ namespace elm {
         return m_deps.play.isPlaying && m_deps.play.isPlaying();
     }
 
+    void NodeInspectorWindow::Show()
+    {
+        m_visible = true;
+        m_focusRequested = true;
+    }
+
     void NodeInspectorWindow::Render(render::FrameWriter&)
     {
         if (!m_visible)
             return;
 
+        if (std::exchange(m_focusRequested, false))
+            ImGui::SetNextWindowFocus();
         ImGui::SetNextWindowPos(ImVec2(340.0f, 60.0f), ImGuiCond_FirstUseEver);
         ImGui::SetNextWindowSize(ImVec2(420.0f, 560.0f), ImGuiCond_FirstUseEver);
         if (!ImGui::Begin(Name, &m_visible)) {

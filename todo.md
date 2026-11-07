@@ -41,7 +41,7 @@ Coin Rush:
 - [ ] ! верхнее меню: пункты меню Scene и окно Scene Hierarchy путаются, меню переработать (Coin Rush)
 - [ ] ! меню Project и окно Project (вкладка Settings) — два места про проект, объединить или развести по смыслу (Coin Rush)
 - [ ] ! меню Project надо перенести туда сборку полный рефакторин Project
-- [ ] ! правый клик по узлу в Scene Hierarchy: в меню пункт «открыть Inspector» (Coin Rush)
+- [x] ! правый клик по узлу в Scene Hierarchy: в меню пункт «открыть Inspector» (Coin Rush)
 - [ ] ! F5 запускает редактируемую сцену (Play Scene), а не стартовую сцену проекта с диска (Coin Rush)
 
 Brick Breaker:

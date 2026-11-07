@@ -373,6 +373,8 @@ namespace elm {
         Select(row.id);
         ImGui::TextDisabled("%s", row.name.c_str());
         ImGui::Separator();
+        if (ImGui::MenuItem("Open Inspector"))
+            m_deps.showInspector();
         if (ImGui::BeginMenu("Add Child")) {
             DrawAddNodeItems(row.id);
             ImGui::EndMenu();
