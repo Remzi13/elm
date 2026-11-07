@@ -15,7 +15,6 @@
 #include "resource/ResourceSystem.hpp"
 
 #include "Scene/SceneSystem.hpp"
-#include "Scene/TestScenes.hpp"
 
 #include "script/ScriptSystem.hpp"
 
@@ -45,9 +44,7 @@ namespace elm {
         /// Reads .settings, opens the window, starts rendering and physics; debug drawing with ELM_DEBUG_DRAW.
         [[nodiscard]] auto Init(const GameDesc& desc) -> EngineResult<void>;
         /// Opens the project to play from its folder or its .elmproject file: its scripts start.
-        [[nodiscard]] auto OpenProject(const Path& folderOrFile) -> EngineResult<void>;
-        /// A test scene in the scene, added to what is there.
-        void LoadTestScene(ScenePreset preset, uint32_t instanceCount);
+        [[nodiscard]] auto OpenProject(const Path& folderOrFile) -> EngineResult<void>;        
         /// Plays the project until the game ends.
         void Run();
         /// Ends the scripts and every system.

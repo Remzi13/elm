@@ -18,7 +18,6 @@
 #include "resource/ResourceSystem.hpp"
 
 #include "Scene/SceneSystem.hpp"
-#include "Scene/TestScenes.hpp"
 
 #include "script/ScriptSystem.hpp"
 
@@ -78,9 +77,6 @@ namespace elm {
         void ShowProjectHub();
         /// The project file opened last time, empty when there is none.
         [[nodiscard]] Path LastProject() const;
-        /// A test scene in the scene, added to what is there.
-        void LoadTestScene(ScenePreset preset, uint32_t instanceCount);
-
         /// The program elm next to this one, with this one's extension; an error when it is not there.
         [[nodiscard]] static auto FindPlayerExecutable() -> EngineResult<Path>;
 

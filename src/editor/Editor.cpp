@@ -239,13 +239,6 @@ namespace elm {
         m_resources.Close();
     }
 
-    void Editor::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
-    {
-        TestScenes::BuildScene(preset, instanceCount, m_scene.EditScene(), m_resources.GetModels());
-        // Another scene: the steps were about the nodes before
-        m_edits.Clear();
-    }
-
     void Editor::OpenProjectWindows(const project::Project& project)
     {
         const Path openedScene = OpenStartupScene(project);

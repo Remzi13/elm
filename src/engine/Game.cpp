@@ -99,11 +99,6 @@ namespace elm {
         return m_scripts.Init(m_resources.GetProject()->Scripts());
     }
 
-    void Game::LoadTestScene(ScenePreset preset, uint32_t instanceCount)
-    {
-        TestScenes::BuildScene(preset, instanceCount, m_scene.EditScene(), m_resources.GetModels());
-    }
-
     void Game::Run()
     {
         m_scripts.GetPlayMode().RequestPlay(script::PlayTarget::Project);

@@ -88,21 +88,6 @@ namespace {
         return std::nullopt;
     }
 
-    /// --scene <preset index> [--instances <count>]: a test scene in place of the startup scene.
-    void LoadTestSceneArgument(elm::Editor& editor, int argc, char** argv)
-    {
-        int scenePreset = -1;
-        uint32_t instanceCount = 1500;
-        for (int i = 1; i + 1 < argc; ++i) {
-            if (std::strcmp(argv[i], "--scene") == 0)
-                scenePreset = std::atoi(argv[i + 1]);
-            else if (std::strcmp(argv[i], "--instances") == 0)
-                instanceCount = static_cast<uint32_t>(std::atoi(argv[i + 1]));
-        }
-        if (scenePreset >= 0)
-            editor.LoadTestScene(static_cast<elm::ScenePreset>(scenePreset), instanceCount);
-    }
-
     int ReportFatal(const char* what, const elm::EngineError& error)
     {
         std::cerr << "[Fatal Error] " << what << ": " << error.message << std::endl;
@@ -129,7 +114,6 @@ namespace {
         if (projectPath.Empty() || !opened)
             editor.ShowProjectHub();
 
-        LoadTestSceneArgument(editor, argc, argv);
         editor.Run();
         editor.Shutdown();
         LOG_MESSAGE(log::Category::Core, "Main", "Application terminated gracefully.");

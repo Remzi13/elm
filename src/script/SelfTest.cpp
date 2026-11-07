@@ -27,7 +27,6 @@
 #include "Scene/SceneSnapshot.hpp"
 #include "Scene/SceneSystem.hpp"
 #include "Scene/ScriptComponent.hpp"
-#include "Scene/TestScenes.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/ModelMeshes.hpp"
 #include "graphics/debug/ColliderVisualizer.hpp"
