@@ -4,8 +4,11 @@
 #include "editor/ui/FileDialog.hpp"
 #include "editor/ui/IImGuiWindow.hpp"
 
+#include "script/EngineContext.hpp"
+
 namespace elm {
 
+    class Camera;
     class ModelCatalog;
     class Scene;
     class SceneDocument;
@@ -24,9 +27,13 @@ namespace elm {
         Selection& selection;
         /// Ctrl+S.
         const SceneFileRequests& sceneFile;
+        /// F brings the selected node into its view; not in Play, the camera is the game's then.
+        Camera& camera;
+        const script::PlayRequests& play;
     };
 
-    /// The tree of the scene's nodes: search, selection, adding, renaming, moving and removing nodes. The components
+    /// The tree of the scene's nodes: search, selection, adding, renaming, moving and removing nodes. A row ends with
+    /// icons: whether the node's model is shown (a click hides it) and the components the node has. The components
     /// of the selected node are Inspector's, scene files the Scene menu's.
     /// Owner: ImGuiSystem (a project window), thread: update (UI).
     class SceneHierarchyWindow final : public IImGuiWindow {
@@ -59,13 +66,14 @@ namespace elm {
         void DrawTree(const Vector<TreeRow>& rows);
         void DrawRow(const VisibleRow& visible, const Vector<TreeRow>& rows);
         void DrawRowName(const TreeRow& row);
+        /// The visibility of the node's model and its components, at the end of the row.
+        void DrawRowIcons(const TreeRow& row);
         void DrawRenameField(const TreeRow& row);
         void AcceptNodeDrop(NodeId newParent);
         void DrawRowMenu(const TreeRow& row);
         void DrawEmptySpace();
         /// Adds under parent, invalid: a root.
         void DrawAddNodeItems(NodeId parent);
-        void DrawNodeCount();
         void DrawModelDialog();
         /// A model file dropped from the Project window becomes a new root node.
         void AcceptDroppedModel();
@@ -81,6 +89,8 @@ namespace elm {
         char m_filter[128] { "" };
         /// The nodes whose children show, by NodeId::Raw: a stale id opens nothing.
         Set<uint32_t> m_openRows;
+        /// The node whose model shows or hides in the next frame, selected in this one.
+        NodeId m_visibilityToggle;
         NodeId m_renaming;
         String m_renameText;
         /// The rename field took the focus: leaving it ends the rename.

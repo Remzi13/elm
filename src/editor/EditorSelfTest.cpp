@@ -530,7 +530,7 @@ line]] .. [==[a]]b]==])",
 
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
-                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile }, assets, assets / "models")
+                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play }, assets, assets / "models")
                 , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
@@ -661,6 +661,14 @@ line]] .. [==[a]]b]==])",
                 return ImVec2(tree->InnerRect.GetCenter().x, tree->InnerRect.Min.y + (static_cast<float>(row) + 0.5f) * height);
             }
 
+            /// The icon of visibility of a row: the first of the icons at its end (four components follow).
+            [[nodiscard]] static ImVec2 RowEye(size_t row)
+            {
+                const ImGuiWindow* tree = FindWindow("TreeScrollArea");
+                const float slot = ImGui::GetFontSize() + 2.0f;
+                return ImVec2(tree->InnerRect.Max.x - GImGui->Style.CellPadding.x - slot * 4.5f, RowCenter(row).y);
+            }
+
             [[nodiscard]] static ImVec2 RowArrow(size_t row)
             {
                 const ImGuiWindow* tree = FindWindow("TreeScrollArea");
@@ -785,6 +793,30 @@ line]] .. [==[a]]b]==])",
             }
         }
 
+        void RunTreeIconTests(Report& report, const Path& assets)
+        {
+            WindowsFixture eyes(assets);
+            const NodeId cube = AddPrimitiveNode(eyes.scene, eyes.models, ModelPrimitive::Cube, NodeId {});
+            eyes.Frame();
+            eyes.Click(WindowsFixture::RowEye(0));
+            eyes.Frame();
+            const ModelComponent* model = eyes.scene.Components<ModelComponent>().Find(cube);
+            report.Check(eyes.selection.node == cube && !model->visible, "tree::the_eye_hides_the_model_and_selects_the_node");
+            eyes.Click(WindowsFixture::RowEye(0));
+            eyes.Frame();
+            report.Check(model->visible, "tree::the_eye_shows_it_again");
+
+            eyes.Click(WindowsFixture::RowCenter(0));
+            const Vector3 before = eyes.camera.GetPosition();
+            eyes.Press(ImGuiKey_F);
+            report.Check((eyes.camera.GetPosition() - before).Length() > 0.0f, "tree::f_brings_the_node_into_the_view");
+            eyes.playing = true;
+            const Vector3 inPlay = eyes.camera.GetPosition();
+            eyes.camera.SetPosition(before);
+            eyes.Press(ImGuiKey_F);
+            report.Check((eyes.camera.GetPosition() - before).Length() == 0.0f && (inPlay - before).Length() > 0.0f, "tree::f_leaves_the_camera_to_the_game_in_play");
+        }
+
         void RunTreeSearchTests(Report& report, const Path& assets)
         {
             WindowsFixture fixture(assets);
@@ -844,11 +876,11 @@ line]] .. [==[a]]b]==])",
 
             fixture.Click(WindowsFixture::RowCenter(0), ImGuiMouseButton_Right);
             fixture.Frame();
-            const bool duplicated = fixture.ClickMenuItem("Duplicate");
+            const bool duplicated = fixture.ClickMenuItem("###Duplicate");
             report.Check(duplicated && fixture.scene.NodeCount() == 2, "tree::row_menu_duplicates_the_node");
             fixture.Click(WindowsFixture::RowCenter(0), ImGuiMouseButton_Right);
             fixture.Frame();
-            const bool deleted = fixture.ClickMenuItem("Delete Node");
+            const bool deleted = fixture.ClickMenuItem("###Delete Node");
             report.Check(deleted && fixture.scene.NodeCount() == 1 && !fixture.scene.Find(node), "tree::row_menu_deletes_the_node");
 
             fixture.Click(WindowsFixture::RowCenter(6));
@@ -1074,6 +1106,7 @@ line]] .. [==[a]]b]==])",
             RunSceneDocumentTests(report, assets);
             RunTreeDropTests(report, assets);
             RunTreeSearchTests(report, assets);
+            RunTreeIconTests(report, assets);
             RunTreeEditTests(report, assets);
             RunInspectorTests(report, assets);
             RunModelEditorTests(report, assets);

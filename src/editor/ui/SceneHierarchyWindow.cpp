@@ -5,6 +5,8 @@
 #include "editor/ui/EditorWidgets.hpp"
 #include "editor/ui/SceneEditShortcuts.hpp"
 
+#include "graphics/Camera.hpp"
+
 #include "model/ModelCatalog.hpp"
 
 #include "Scene/ModelComponent.hpp"
@@ -29,17 +31,31 @@ namespace elm {
         constexpr const char* AddNodePopup = "AddNodePopup";
         constexpr const char* ModelFileExtensions = ".model;.gltf;.glb";
 
-        /// A column of the tree: the letter of a component, for each node that has one.
+        /// Icons: symbols of the icon font (EditorStyle), in UTF-8; in a label the id comes after ###.
+        constexpr const char* AddNodeButton = "\xE2\x9C\x9A###AddNode";               // U+271A
+        constexpr const char* ShownIcon = "\xE2\x97\x89";                             // U+25C9
+        constexpr const char* HiddenIcon = "\xE2\x97\x8B";                            // U+25CB
+        constexpr const char* AddChildItem = "\xE2\x9C\x9A  Add Child###Add Child";   // U+271A
+        constexpr const char* RenameItem = "\xE2\x9C\x8E  Rename###Rename";           // U+270E
+        constexpr const char* DuplicateItem = "\xE2\x9D\x90  Duplicate###Duplicate";  // U+2750
+        constexpr const char* UnparentItem = "\xE2\x86\xB0  Move to Root###Unparent"; // U+21B0
+        constexpr const char* DeleteItem = "\xE2\x9C\x96  Delete###Delete Node";      // U+2716
+
+        /// A column of the tree: the icon of a component, for each node that has one.
         struct ComponentChip {
-            const char* letter;
+            const char* icon;
             const char* name;
         };
         constexpr std::array<ComponentChip, 4> ComponentChips { {
-            { "M", "Model" },
-            { "R", "RigidBody" },
-            { "C", "Collider" },
-            { "S", "Script" },
+            { "\xE2\x96\xA3", "Model" },     // U+25A3
+            { "\xE2\x9A\x9B", "RigidBody" }, // U+269B
+            { "\xE2\x96\xA2", "Collider" },  // U+25A2
+            { "\xE2\x9C\x8E", "Script" },    // U+270E
         } };
+        /// The row of ComponentChips that a node with a model has: its visibility is the model's.
+        constexpr size_t ModelChip = 0;
+        /// The icon of visibility stands before the chips.
+        constexpr size_t RowIconCount = ComponentChips.size() + 1;
 
         bool ContainsNoCase(StringView text, StringView part)
         {
@@ -107,6 +123,11 @@ namespace elm {
             ImGui::End();
             return;
         }
+        // The node is selected by now, so the history sees the change as its edit
+        if (const NodeId toggled = std::exchange(m_visibilityToggle, NodeId {})) {
+            if (ModelComponent* model = m_deps.scene.Components<ModelComponent>().Find(toggled))
+                model->visible = !model->visible;
+        }
         if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)) {
             HandleSceneEditShortcuts(m_deps.edits, m_deps.sceneFile);
             HandleKeys();
@@ -115,7 +136,6 @@ namespace elm {
         DrawTree(ReadTreeRows());
         // After EndChild the tree is the last item: it is where models are dropped
         AcceptDroppedModel();
-        DrawNodeCount();
         DrawModelDialog();
         ImGui::End();
     }
@@ -131,16 +151,21 @@ namespace elm {
             RemoveSelected();
         else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
             DuplicateSelected();
+        // In Play the camera is the game's
+        else if (!io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false) && !(m_deps.play.isPlaying && m_deps.play.isPlaying()))
+            FrameNode(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.node);
     }
 
     void SceneHierarchyWindow::DrawToolbar()
     {
-        const float addWidth = ImGui::CalcTextSize("+ Add").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        const float addWidth = ImGui::GetFrameHeight();
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - addWidth - ImGui::GetStyle().ItemSpacing.x);
-        ImGui::InputTextWithHint("##TreeFilter", "Search nodes...", m_filter, sizeof(m_filter));
+        const String hint = "Search " + String(std::to_string(m_deps.scene.NodeCount()).c_str()) + " nodes...";
+        ImGui::InputTextWithHint("##TreeFilter", hint.c_str(), m_filter, sizeof(m_filter));
         ImGui::SameLine();
-        if (ImGui::Button("+ Add"))
+        if (ImGui::Button(AddNodeButton, ImVec2(addWidth, 0.0f)))
             ImGui::OpenPopup(AddNodePopup);
+        ImGui::SetItemTooltip("Add a node");
         if (ImGui::BeginPopup(AddNodePopup)) {
             DrawAddNodeItems(NodeId {});
             ImGui::EndPopup();
@@ -202,13 +227,11 @@ namespace elm {
 
     void SceneHierarchyWindow::DrawTree(const Vector<TreeRow>& rows)
     {
-        // The node count
-        const float footerHeight = ImGui::GetTextLineHeightWithSpacing();
-        ImGui::BeginChild("TreeScrollArea", ImVec2(0.0f, -footerHeight), false);
+        ImGui::BeginChild("TreeScrollArea", ImVec2(0.0f, 0.0f), false);
         const Vector<VisibleRow> visible = ListVisibleRows(rows);
         if (ImGui::BeginTable("TreeRows", 2, ImGuiTableFlags_NoSavedSettings)) {
             ImGui::TableSetupColumn("##Name", ImGuiTableColumnFlags_WidthStretch);
-            ImGui::TableSetupColumn("##Components", ImGuiTableColumnFlags_WidthFixed, ChipSlotWidth() * ComponentChips.size());
+            ImGui::TableSetupColumn("##Components", ImGuiTableColumnFlags_WidthFixed, ChipSlotWidth() * RowIconCount);
             ImGuiListClipper clipper;
             clipper.Begin(static_cast<int>(visible.size()));
             while (clipper.Step()) {
@@ -240,24 +263,40 @@ namespace elm {
             ImGui::Unindent(indent);
 
         ImGui::TableNextColumn();
+        DrawRowIcons(row);
+    }
+
+    void SceneHierarchyWindow::DrawRowIcons(const TreeRow& row)
+    {
         const ImVec2 cellMin = ImGui::GetCursorScreenPos();
         ImDrawList* drawList = ImGui::GetWindowDrawList();
         const float slot = ChipSlotWidth();
         const float height = ImGui::GetTextLineHeight();
-        for (size_t chip = 0; chip < ComponentChips.size(); ++chip) {
-            if (!row.hasComponent[chip])
-                continue;
-            const ImVec2 min(cellMin.x + slot * static_cast<float>(chip), cellMin.y);
-            const ImVec2 max(min.x + slot - 2.0f, min.y + height);
-            drawList->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_FrameBg), 3.0f);
-            const float textX = min.x + (max.x - min.x - ImGui::CalcTextSize(ComponentChips[chip].letter).x) * 0.5f;
-            drawList->AddText(ImVec2(textX, min.y), ImGui::GetColorU32(ImGuiCol_TextDisabled), ComponentChips[chip].letter);
-            if (ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(min, max))
-                ImGui::SetTooltip("%s", ComponentChips[chip].name);
+        const bool clicked = ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+        /// Draws the icon in its slot; true while the mouse is over it.
+        auto drawIcon = [&](size_t index, const char* icon, ImGuiCol color, const char* tooltip) {
+            const ImVec2 min(cellMin.x + slot * static_cast<float>(index), cellMin.y);
+            const ImVec2 max(min.x + slot, min.y + height);
+            drawList->AddText(ImVec2(min.x + (slot - ImGui::CalcTextSize(icon).x) * 0.5f, min.y), ImGui::GetColorU32(color), icon);
+            const bool hovered = ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(min, max);
+            if (hovered)
+                ImGui::SetTooltip("%s", tooltip);
+            return hovered;
+        };
+        // What a node without a model shows is not its own to hide
+        if (row.hasComponent[ModelChip]) {
+            const bool overEye = row.isHidden ? drawIcon(0, HiddenIcon, ImGuiCol_TextDisabled, "Hidden: click to show")
+                                              : drawIcon(0, ShownIcon, ImGuiCol_Text, "Shown: click to hide");
+            if (overEye && clicked)
+                m_visibilityToggle = row.id;
         }
-        const ImVec2 cellMax(cellMin.x + slot * static_cast<float>(ComponentChips.size()), cellMin.y + height);
-        // The letters are a part of the row
-        if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsMouseHoveringRect(cellMin, cellMax))
+        for (size_t chip = 0; chip < ComponentChips.size(); ++chip) {
+            if (row.hasComponent[chip])
+                (void)drawIcon(chip + 1, ComponentChips[chip].icon, ImGuiCol_TextDisabled, ComponentChips[chip].name);
+        }
+        const ImVec2 cellMax(cellMin.x + slot * static_cast<float>(RowIconCount), cellMin.y + height);
+        // The icons are a part of the row
+        if (clicked && ImGui::IsMouseHoveringRect(cellMin, cellMax))
             Select(row.id);
         ImGui::Dummy(ImVec2(cellMax.x - cellMin.x, height));
     }
@@ -341,18 +380,18 @@ namespace elm {
         Select(row.id);
         ImGui::TextDisabled("%s", row.name.c_str());
         ImGui::Separator();
-        if (ImGui::BeginMenu("Add Child")) {
+        if (ImGui::BeginMenu(AddChildItem)) {
             DrawAddNodeItems(row.id);
             ImGui::EndMenu();
         }
-        if (ImGui::MenuItem("Rename", "F2"))
+        if (ImGui::MenuItem(RenameItem, "F2"))
             StartRename(row.id);
-        if (ImGui::MenuItem("Duplicate", "Ctrl+D"))
+        if (ImGui::MenuItem(DuplicateItem, "Ctrl+D"))
             DuplicateSelected();
-        if (!row.isRoot && ImGui::MenuItem("Unparent (Move to Root)"))
+        if (!row.isRoot && ImGui::MenuItem(UnparentItem))
             (void)m_deps.scene.SetParent(row.id, NodeId {});
         ImGui::Separator();
-        if (ImGui::MenuItem("Delete Node", "Del"))
+        if (ImGui::MenuItem(DeleteItem, "Del"))
             RemoveSelected();
         ImGui::EndPopup();
     }
@@ -418,17 +457,6 @@ namespace elm {
             if (parent)
                 m_openRows.insert(parent.Raw());
             Select(added);
-        }
-    }
-
-    void SceneHierarchyWindow::DrawNodeCount()
-    {
-        ImGui::TextDisabled("%zu nodes", m_deps.scene.NodeCount());
-        constexpr const char* MenuHint = "Right click: menu";
-        const float hintWidth = ImGui::CalcTextSize(MenuHint).x;
-        if (ImGui::GetContentRegionAvail().x > hintWidth * 2.0f) {
-            ImGui::SameLine(ImGui::GetContentRegionMax().x - hintWidth);
-            ImGui::TextDisabled("%s", MenuHint);
         }
     }
 
