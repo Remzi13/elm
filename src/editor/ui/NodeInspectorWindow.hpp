@@ -14,7 +14,6 @@ namespace elm {
     class Scene;
     class SceneDocument;
     class SceneEdits;
-    struct GizmoSettings;
 
     /// What Inspector works with. Valid while the window lives: Editor destroys the project windows before the
     /// project closes.
@@ -27,8 +26,6 @@ namespace elm {
         SceneDocument& document;
         /// The node the window shows.
         const Selection& selection;
-        /// The gizmo mode the viewport reads, picked in the Transform section.
-        GizmoSettings& gizmo;
         /// Whether the game runs: script instances are there in Play only.
         const script::PlayRequests& play;
         const ScriptInspection& scripts;
@@ -65,7 +62,6 @@ namespace elm {
 
         void DrawTransformSection(NodeId node);
         void DrawTransformRows(NodeId node);
-        void DrawGizmoRow();
         /// Writes a transform in the space the window edits.
         void WriteTransform(NodeId node, const math::Matrix4x4& transform);
 

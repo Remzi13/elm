@@ -11,6 +11,10 @@ namespace elm {
         constexpr float FontSize = 16.0f;
         /// Editor data of the engine, not of a project.
         constexpr StringView FontFile = "resources/fonts/Roboto-Medium.ttf";
+        /// The text font has no symbols: the icons of the windows come from this one, merged into it.
+        constexpr StringView IconFontFile = "resources/fonts/DejaVuSans.ttf";
+        /// The blocks of Unicode the icons are taken from: arrows, circled operators, shapes, symbols, dingbats.
+        constexpr ImWchar IconGlyphRanges[] { 0x2190, 0x21FF, 0x2295, 0x2299, 0x25A0, 0x25FF, 0x2600, 0x26FF, 0x2700, 0x27BF, 0 };
 
         constexpr ImVec4 Rgba(float r, float g, float b, float a = 1.0f)
         {
@@ -27,8 +31,14 @@ namespace elm {
             ImFontConfig config;
             config.OversampleH = 3;
             config.OversampleV = 2;
-            if (io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), FontSize, &config))
+            if (io.Fonts->AddFontFromFileTTF(fontPath.string().c_str(), FontSize, &config)) {
+                // Without the icon font the icons show as the missing glyph, their tooltips still name them
+                const Path iconFontPath = FileSystem::Resolve(IconFontFile);
+                config.MergeMode = true;
+                if (FileSystem::Exists(iconFontPath))
+                    io.Fonts->AddFontFromFileTTF(iconFontPath.string().c_str(), FontSize, &config, IconGlyphRanges);
                 return;
+            }
         }
         // Without the font file the UI still works with the built-in bitmap font
         io.Fonts->AddFontDefault();

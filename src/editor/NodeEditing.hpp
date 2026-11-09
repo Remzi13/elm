@@ -14,9 +14,11 @@
 
 namespace elm {
 
+    class Camera;
     class Model;
     class ModelCatalog;
     class Scene;
+    struct ViewRay;
 
     /// What the editor's windows do to nodes and their components, without UI. Thread: update.
 
@@ -51,6 +53,14 @@ namespace elm {
     [[nodiscard]] NodeId DuplicateNode(Scene& scene, NodeId source);
     /// Removes the node. Returns the node that took its place in the scene, for the selection.
     [[nodiscard]] NodeId RemoveNodeFromPlace(Scene& scene, NodeId node);
+
+    /// The node the ray of the view reaches first, by the world bounds of the models; invalid when it reaches none.
+    /// Only what the view draws is picked: a node without a model or with a hidden one is passed, and so are
+    /// bounds the ray starts inside of.
+    [[nodiscard]] NodeId PickNode(const Scene& scene, const ModelCatalog& models, const ViewRay& ray);
+    /// Moves the camera back along its view until the node's world bounds fit in it (its model's, a cube of 1 for
+    /// a node without one); the direction stays. A stale node moves nothing.
+    void FrameNode(Camera& camera, const Scene& scene, const ModelCatalog& models, NodeId node);
 
     /// A collider around the model, for a flat model a thin one under it; the default one without a model.
     [[nodiscard]] Collider FitColliderToModel(const Model* model);

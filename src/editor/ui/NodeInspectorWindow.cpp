@@ -5,8 +5,6 @@
 #include "editor/ui/EditorWidgets.hpp"
 #include "editor/ui/SceneEditShortcuts.hpp"
 
-#include "graphics/gizmo/GizmoSettings.hpp"
-
 #include "math/Matrix.hpp"
 #include "math/Rotation.hpp"
 
@@ -311,7 +309,6 @@ namespace elm {
         float rotation[3] = { euler.x * Rad2Deg, euler.y * Rad2Deg, euler.z * Rad2Deg };
         float scale[3] = { trs.scale.x, trs.scale.y, trs.scale.z };
 
-        DrawGizmoRow();
         bool changed = false;
         ui::PropertyRow("Position");
         changed |= ui::DragAxes("##Position", position, 0.05f);
@@ -325,31 +322,6 @@ namespace elm {
             const math::Vector3 radians { rotation[0] * Deg2Rad, rotation[1] * Deg2Rad, rotation[2] * Deg2Rad };
             WriteTransform(node, math::ComposeTRS({ position[0], position[1], position[2] }, math::QuaternionFromEuler(radians), { scale[0], scale[1], scale[2] }));
         }
-    }
-
-    void NodeInspectorWindow::DrawGizmoRow()
-    {
-        GizmoSettings& gizmo = m_deps.gizmo;
-        constexpr struct {
-            const char* label;
-            const char* tooltip;
-            GizmoOperation operation;
-        } Operations[] {
-            { "Move", "The gizmo moves the node (W in the viewport)", GizmoOperation::Translate },
-            { "Rotate", "The gizmo rotates the node (E in the viewport)", GizmoOperation::Rotate },
-            { "Scale", "The gizmo scales the node, always along its own axes (R in the viewport)", GizmoOperation::Scale },
-        };
-        ui::PropertyRow("Gizmo");
-        for (const auto& item : Operations) {
-            if (ui::ToggleButton(item.label, gizmo.operation == item.operation))
-                gizmo.operation = item.operation;
-            ImGui::SetItemTooltip("%s", item.tooltip);
-            ImGui::SameLine();
-        }
-        const bool world = gizmo.space == GizmoSpace::World;
-        if (ImGui::Button(world ? "World###GizmoSpace" : "Local###GizmoSpace"))
-            gizmo.space = world ? GizmoSpace::Local : GizmoSpace::World;
-        ImGui::SetItemTooltip("The axes of the gizmo: click to switch. The values below have their own switch in the header.");
     }
 
     void NodeInspectorWindow::WriteTransform(NodeId node, const math::Matrix4x4& transform)

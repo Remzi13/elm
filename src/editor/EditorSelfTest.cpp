@@ -8,7 +8,6 @@
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
 #include "graphics/Camera.hpp"
-#include "graphics/gizmo/GizmoSettings.hpp"
 #include "editor/ui/EditorToolbar.hpp"
 #include "editor/ui/ModelEditorWindow.hpp"
 #include "editor/ui/NodeInspectorWindow.hpp"
@@ -396,6 +395,39 @@ line]] .. [==[a]]b]==])",
             report.Check(RemoveNodeFromPlace(scene, a) == copy, "nodes::removal_gives_the_next_node");
             report.Check(!RemoveNodeFromPlace(scene, copy) && scene.Empty(), "nodes::removing_the_last_node_gives_nothing");
 
+            {
+                // Two cubes on the view axis and a hidden one before them
+                Scene view;
+                ModelCatalog models;
+                const NodeId near = AddPrimitiveNode(view, models, ModelPrimitive::Cube, NodeId {});
+                const NodeId far = AddPrimitiveNode(view, models, ModelPrimitive::Cube, NodeId {});
+                const NodeId hidden = AddPrimitiveNode(view, models, ModelPrimitive::Cube, NodeId {});
+                const NodeId empty = view.AddNode("empty", Matrix4x4::Translation({ 0.0f, 0.0f, 2.0f }));
+                (void)view.SetLocalTransform(near, Matrix4x4::Translation({ 0.0f, 0.0f, 5.0f }));
+                (void)view.SetLocalTransform(far, Matrix4x4::Translation({ 0.0f, 0.0f, 9.0f }));
+                (void)view.SetLocalTransform(hidden, Matrix4x4::Translation({ 0.0f, 0.0f, 3.0f }));
+                view.Components<ModelComponent>().Find(hidden)->visible = false;
+                view.UpdateWorldTransforms();
+                const ViewRay ahead { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } };
+                report.Check(PickNode(view, models, ahead) == near, "nodes::a_click_picks_the_nearest_shown_model");
+                report.Check(!PickNode(view, models, ViewRay { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } }), "nodes::a_click_on_empty_space_picks_nothing");
+                report.Check(PickNode(view, models, ViewRay { { 0.0f, 0.0f, 5.0f }, { 0.0f, 0.0f, 1.0f } }) == far,
+                    "nodes::bounds_around_the_camera_are_not_picked");
+
+                Camera camera({ 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f);
+                const Vector3 forward = camera.GetForwardDirection();
+                FrameNode(camera, view, models, far);
+                const Vector3 toNode = Vector3 { 0.0f, 0.0f, 9.0f } - camera.GetPosition();
+                const float distance = toNode.Length();
+                report.Check(distance > 0.5f && (toNode - forward * distance).Length() < 1e-3f, "nodes::framing_puts_the_node_ahead_of_the_camera");
+                const Vector3 before = camera.GetPosition();
+                FrameNode(camera, view, models, empty);
+                report.Check((camera.GetPosition() - before).Length() > 1.0f, "nodes::a_node_without_a_model_is_framed_too");
+                const Vector3 framed = camera.GetPosition();
+                FrameNode(camera, view, models, NodeId {});
+                report.Check((camera.GetPosition() - framed).Length() == 0.0f, "nodes::a_stale_node_moves_nothing");
+            }
+
             namespace fs = std::filesystem;
             std::error_code error;
             const fs::path root = fs::temp_directory_path(error) / "elm_module_list_selftest";
@@ -499,7 +531,7 @@ line]] .. [==[a]]b]==])",
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
                 , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile }, assets, assets / "models")
-                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, gizmo, play, scripts, files, sceneFile },
+                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
             {
@@ -697,7 +729,6 @@ line]] .. [==[a]]b]==])",
             ModelCatalog models;
             SceneEdits edits { scene };
             Selection selection;
-            GizmoSettings gizmo { GizmoOperation::Translate, GizmoSpace::World };
             bool playing { false };
             /// While set, a button in the frame can be dragged as this file (ModelFilePayload).
             std::optional<String> draggedModelFile;
@@ -865,14 +896,6 @@ line]] .. [==[a]]b]==])",
                 const bool opened = fixture.ClickItem(window, menuButton);
                 const bool removed = opened && fixture.ClickMenuItem("Remove");
                 report.Check(removed && !fixture.scene.Components<RigidBody>().Contains(node), "inspector::section_menu_removes_the_component");
-            }
-            {
-                WindowsFixture fixture(assets);
-                fixture.selection.node = fixture.scene.AddNode("node");
-                fixture.Frame();
-                fixture.Frame();
-                report.Check(fixture.ClickInSection("Transform", "Rotate") && fixture.gizmo.operation == GizmoOperation::Rotate, "inspector::picks_the_gizmo_operation");
-                report.Check(fixture.ClickInSection("Transform", "###GizmoSpace") && fixture.gizmo.space == GizmoSpace::Local, "inspector::switches_the_gizmo_space");
             }
         }
 

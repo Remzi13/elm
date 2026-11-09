@@ -13,8 +13,8 @@
 
 namespace elm {
 
-    /// The node Scene Hierarchy marks, Inspector shows and the viewport's gizmo moves. Invalid when nothing is
-    /// selected; a node that went finds nothing, like any stale NodeId. Owner: Editor. Thread: update (UI).
+    /// The node Scene Hierarchy marks, Inspector shows and the viewport's gizmo moves; a click in the tree or on the
+    /// view selects it. Invalid when nothing is selected; a node that went finds nothing, like any stale NodeId. Owner: Editor. Thread: update (UI).
     struct Selection {
         NodeId node;
     };

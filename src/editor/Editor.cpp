@@ -361,9 +361,9 @@ namespace elm {
 
     void Editor::CreateEditorWindows()
     {
-        m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .debugDraw = &m_debugDraw.GetDebugDraw(), .runStandalone = [this] { RunStandalone(); } });
+        m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .runStandalone = [this] { RunStandalone(); } });
         m_imgui->AddWindow(MakeUnique<SocLabWindow>(m_settings, &m_graphics.GetCulling()));
-        m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
+        m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
         m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
         m_imgui->AddWindow(MakeUnique<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats }));
         m_imgui->AddWindow(MakeUnique<SettingsWindow>(m_settings));
@@ -379,7 +379,7 @@ namespace elm {
         auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
             SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile }, project.Assets(), project.Models());
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
-            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files, m_sceneFile },
+            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_playRequests, m_scriptInspection, m_files, m_sceneFile },
             NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });
         auto modelEditor = MakeUnique<ModelEditorWindow>(m_settings,
             ModelEditorDeps { m_graphics.GetRender().Resources(), scene, models, m_graphics.GetViewCamera() }, project.Assets(), project.Models());

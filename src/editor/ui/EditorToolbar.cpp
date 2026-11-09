@@ -1,7 +1,5 @@
 #include "editor/ui/EditorToolbar.hpp"
 
-#include "graphics/debug/DebugDraw.hpp"
-
 #include "script/EngineContext.hpp"
 
 #include "imgui.h"
@@ -20,33 +18,6 @@ namespace elm {
     } // namespace
 
     void EditorToolbar::Draw()
-    {
-        DrawDebugMenu();
-        DrawPlayControls();
-    }
-
-    void EditorToolbar::DrawDebugMenu()
-    {
-        if (!m_desc.debugDraw || !ImGui::BeginMenu("Debug"))
-            return;
-        // Checkbox per debug draw channel, grouped by the part of the name before the first '/'
-        String group;
-        for (const auto& channel : m_desc.debugDraw->GetChannels()) {
-            const String channelGroup = channel.name.substr(0, channel.name.find('/'));
-            if (channelGroup != group) {
-                ImGui::SeparatorText(channelGroup.c_str());
-                group = channelGroup;
-            }
-            bool enabled = channel.enabled;
-            ImGui::PushID(channel.name.c_str());
-            if (ImGui::Checkbox(channel.label.c_str(), &enabled))
-                m_desc.debugDraw->SetEnabled(channel.channel, enabled);
-            ImGui::PopID();
-        }
-        ImGui::EndMenu();
-    }
-
-    void EditorToolbar::DrawPlayControls()
     {
         if (!m_desc.play)
             return;
