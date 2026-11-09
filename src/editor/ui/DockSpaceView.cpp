@@ -24,9 +24,15 @@ namespace elm {
         ImGui::PopStyleVar(3);
 
         if (ImGui::BeginMenuBar()) {
+            if (ImGui::BeginMenu("File")) {
+                sceneMenu.DrawFileItems();
+                ImGui::Separator();
+                projectMenu.DrawFileItems();
+                ImGui::EndMenu();
+            }
+            sceneMenu.DrawEditMenu();
             projectMenu.DrawMenu();
-            sceneMenu.DrawMenus();
-            if (ImGui::BeginMenu("Windows")) {
+            if (ImGui::BeginMenu("Window")) {
                 if (ImGui::MenuItem("Show All")) {
                     for (const auto& window : windows) {
                         if (window) window->SetVisible(true);

@@ -504,7 +504,7 @@ line]] .. [==[a]]b]==])",
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
             {
                 play.isPlaying = [this] { return playing; };
-                menu.SetDocument(&document, &edits);
+                menu.SetDocument(SceneMenuDeps { &document, &edits, &scene, &selection });
                 // Side by side: new windows open on top of each other
                 Frame();
                 ImGui::SetWindowPos(SceneHierarchyWindow::Name, ImVec2(0.0f, 0.0f));
@@ -970,10 +970,13 @@ line]] .. [==[a]]b]==])",
             int stops = 0;
             script::PlayRequests play;
             play.isPlaying = [&] { return playing; };
+            int projectPlays = 0;
+            int standaloneRuns = 0;
             play.playScene = [&] { ++plays; };
+            play.playProject = [&] { ++projectPlays; };
             play.stop = [&] { ++stops; };
             EditorToolbar toolbar;
-            toolbar.SetDesc(EditorToolbarDesc { .play = &play });
+            toolbar.SetDesc(EditorToolbarDesc { .play = &play, .runStandalone = [&] { ++standaloneRuns; } });
             auto frame = [&] {
                 ImGui::NewFrame();
                 ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
@@ -1008,10 +1011,28 @@ line]] .. [==[a]]b]==])",
                 }
                 return false;
             };
-            report.Check(click("Play Scene") && plays == 1, "toolbar::plays_the_scene");
+            /// F5 with a modifier key, or without one (ImGuiMod_None).
+            auto pressF5 = [&](ImGuiKey modifier) {
+                ImGuiIO& io = ImGui::GetIO();
+                io.AddKeyEvent(modifier, true);
+                io.AddKeyEvent(ImGuiKey_F5, true);
+                frame();
+                io.AddKeyEvent(ImGuiKey_F5, false);
+                io.AddKeyEvent(modifier, false);
+                frame();
+            };
+            report.Check(click("Play") && plays == 1, "toolbar::plays_the_scene");
+            pressF5(ImGuiMod_None);
+            report.Check(plays == 2 && projectPlays == 0, "toolbar::f5_plays_the_scene");
+            pressF5(ImGuiMod_Shift);
+            report.Check(plays == 2 && projectPlays == 1, "toolbar::shift_f5_plays_the_project");
+            pressF5(ImGuiMod_Ctrl);
+            report.Check(plays == 2 && projectPlays == 1 && standaloneRuns == 1, "toolbar::ctrl_f5_runs_standalone");
             playing = true;
             frame();
             report.Check(click("Stop") && stops == 1, "toolbar::stops_in_play");
+            pressF5(ImGuiMod_None);
+            report.Check(stops == 2, "toolbar::f5_stops_in_play");
         }
 
         void RunSceneWindowsTests(Report& report)

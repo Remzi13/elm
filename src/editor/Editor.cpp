@@ -264,7 +264,7 @@ namespace elm {
         m_files = {};
         m_sceneFile = {};
         m_selection = {};
-        m_imgui->SetSceneMenu(nullptr, nullptr);
+        m_imgui->SetSceneMenu({});
         m_imgui->CloseProjectWindows();
         m_sceneDocument.reset();
         UpdateProjectMenu(nullptr);
@@ -286,6 +286,12 @@ namespace elm {
     {
         if (m_hub)
             m_hub->SetVisible(true);
+    }
+
+    void Editor::ShowProjectSettings()
+    {
+        if (auto* window = m_imgui->GetWindow<editor::ProjectWindow>())
+            window->ShowSettings();
     }
 
     namespace {
@@ -355,7 +361,7 @@ namespace elm {
 
     void Editor::CreateEditorWindows()
     {
-        m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .debugDraw = &m_debugDraw.GetDebugDraw() });
+        m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .debugDraw = &m_debugDraw.GetDebugDraw(), .runStandalone = [this] { RunStandalone(); } });
         m_imgui->AddWindow(MakeUnique<SocLabWindow>(m_settings, &m_graphics.GetCulling()));
         m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
         m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
@@ -369,7 +375,7 @@ namespace elm {
         ModelCatalog& models = m_resources.GetModels();
         m_sceneDocument.emplace(SceneDocumentDeps { scene, models, m_edits, m_selection, m_playRequests }, project.Assets(), project.Scenes(), openedScene);
         m_sceneFile = SceneFileRequests { .save = [this] { (void)m_sceneDocument->Save(); } };
-        m_imgui->SetSceneMenu(&*m_sceneDocument, &m_edits);
+        m_imgui->SetSceneMenu(SceneMenuDeps { &*m_sceneDocument, &m_edits, &scene, &m_selection });
         auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
             SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile }, project.Assets(), project.Models());
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
@@ -399,7 +405,7 @@ namespace elm {
             .open = [this](const Path& file) { m_requestedProject = file; },
             .recent = RecentProjects(),
             .showHub = [this] { ShowProjectHub(); },
-            .runStandalone = [this] { RunStandalone(); },
+            .showSettings = [this] { ShowProjectSettings(); },
             .buildGame = [this] { BuildGame(); } };
         if (project) {
             menu.name = project->Name();

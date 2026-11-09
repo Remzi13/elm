@@ -76,6 +76,8 @@ namespace elm {
         /// the open one stays. Its windows open with its startup scene, it becomes the last recent project.
         [[nodiscard]] auto OpenProject(const Path& folderOrFile) -> EngineResult<void>;
         void ShowProjectHub();
+        /// The Settings tab of the Project window, in front.
+        void ShowProjectSettings();
         /// The project file opened last time, empty when there is none.
         [[nodiscard]] Path LastProject() const;
         /// A test scene in the scene, added to what is there.

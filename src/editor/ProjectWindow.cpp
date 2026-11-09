@@ -51,6 +51,9 @@ namespace elm::editor {
     {
         if (!m_visible)
             return;
+        const bool showSettings = std::exchange(m_showSettings, false);
+        if (showSettings)
+            ImGui::SetNextWindowFocus();
         ImGui::SetNextWindowSize(ImVec2(320.0f, 480.0f), ImGuiCond_FirstUseEver);
         if (!ImGui::Begin(GetName().data(), &m_visible)) {
             ImGui::End();
@@ -61,7 +64,7 @@ namespace elm::editor {
                 DrawAssets();
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Settings")) {
+            if (ImGui::BeginTabItem("Settings", nullptr, showSettings ? ImGuiTabItemFlags_SetSelected : 0)) {
                 m_settingsPanel.Draw();
                 ImGui::EndTabItem();
             }
@@ -69,6 +72,12 @@ namespace elm::editor {
         }
         DrawNewFolderPopup();
         ImGui::End();
+    }
+
+    void ProjectWindow::ShowSettings()
+    {
+        m_visible = true;
+        m_showSettings = true;
     }
 
     void ProjectWindow::DrawAssets()

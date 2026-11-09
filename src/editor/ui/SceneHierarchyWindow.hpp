@@ -18,7 +18,7 @@ namespace elm {
         ModelCatalog& models;
         /// Undo and redo by the keys.
         SceneEdits& edits;
-        /// The status line shows its status, the window reports there what it does to the scene.
+        /// The window reports there what it does to the scene: the menu bar shows it.
         SceneDocument& document;
         /// The node the window marks, written by it.
         Selection& selection;
@@ -65,7 +65,7 @@ namespace elm {
         void DrawEmptySpace();
         /// Adds under parent, invalid: a root.
         void DrawAddNodeItems(NodeId parent);
-        void DrawStatusLine();
+        void DrawNodeCount();
         void DrawModelDialog();
         /// A model file dropped from the Project window becomes a new root node.
         void AcceptDroppedModel();

@@ -65,16 +65,6 @@ namespace elm {
             return store && store->Contains(node);
         }
 
-        ImVec4 StatusColor(StatusKind kind)
-        {
-            switch (kind) {
-            case StatusKind::Success: return ImVec4(0.4f, 0.85f, 0.5f, 1.0f);
-            case StatusKind::Failure: return ImVec4(1.0f, 0.4f, 0.4f, 1.0f);
-            case StatusKind::Info: break;
-            }
-            return ImVec4(0.7f, 0.7f, 0.75f, 1.0f);
-        }
-
         float ChipSlotWidth()
         {
             return ImGui::GetFontSize() + 2.0f;
@@ -125,7 +115,7 @@ namespace elm {
         DrawTree(ReadTreeRows());
         // After EndChild the tree is the last item: it is where models are dropped
         AcceptDroppedModel();
-        DrawStatusLine();
+        DrawNodeCount();
         DrawModelDialog();
         ImGui::End();
     }
@@ -212,8 +202,8 @@ namespace elm {
 
     void SceneHierarchyWindow::DrawTree(const Vector<TreeRow>& rows)
     {
-        // The status line and the node count
-        const float footerHeight = ImGui::GetTextLineHeightWithSpacing() * 2.0f;
+        // The node count
+        const float footerHeight = ImGui::GetTextLineHeightWithSpacing();
         ImGui::BeginChild("TreeScrollArea", ImVec2(0.0f, -footerHeight), false);
         const Vector<VisibleRow> visible = ListVisibleRows(rows);
         if (ImGui::BeginTable("TreeRows", 2, ImGuiTableFlags_NoSavedSettings)) {
@@ -431,15 +421,8 @@ namespace elm {
         }
     }
 
-    void SceneHierarchyWindow::DrawStatusLine()
+    void SceneHierarchyWindow::DrawNodeCount()
     {
-        const SceneStatus& status = m_deps.document.Status();
-        if (status.text.empty()) {
-            ImGui::NewLine();
-        } else {
-            ImGui::TextColored(StatusColor(status.kind), "%s", status.text.c_str());
-            ImGui::SetItemTooltip("%s", status.text.c_str());
-        }
         ImGui::TextDisabled("%zu nodes", m_deps.scene.NodeCount());
         constexpr const char* MenuHint = "Right click: menu";
         const float hintWidth = ImGui::CalcTextSize(MenuHint).x;

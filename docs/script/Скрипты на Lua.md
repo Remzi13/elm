@@ -219,7 +219,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 
 ## Окно Scripts
 
-`editor/script/ScriptWindow.*`, пункт «Scripts» в меню Windows. Окно только раскладывает свои части и выполняет
+`editor/script/ScriptWindow.*`, пункт «Scripts» в меню Window. Окно только раскладывает свои части и выполняет
 `/`-команды консоли. Каждая панель работает только со своими частями модуля: `ScriptStatusBar` (панель сверху),
 `ConsolePanel` (`ScriptConsole`), `ScriptEditor`, `ModulesPanel` (`ModuleLoader`, `HotReload`), `ApiPanel` (`lua::State`).
 Окно создаёт `script::CreateScriptWindow(scripts, settings)` (`editor/script/ScriptEditorWindows.*`),

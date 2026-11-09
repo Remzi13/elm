@@ -29,6 +29,8 @@ namespace elm::editor {
 
         [[nodiscard]] StringView GetName() const override { return "Project"; }
         void Render(render::FrameWriter& frame) override;
+        /// Shows the window in front of the others with the Settings tab open.
+        void ShowSettings();
 
     private:
         void DrawAssets();
@@ -55,6 +57,8 @@ namespace elm::editor {
         project::AssetPath m_newFolderParent;
         std::array<char, 64> m_newFolderName {};
         bool m_openNewFolder { false };
+        /// ShowSettings waits for the next frame.
+        bool m_showSettings { false };
         String m_status;
     };
 

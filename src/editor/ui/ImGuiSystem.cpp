@@ -82,9 +82,9 @@ namespace elm {
         m_projectMenu.SetProject(std::move(project));
     }
 
-    void ImGuiSystem::SetSceneMenu(SceneDocument* document, SceneEdits* edits)
+    void ImGuiSystem::SetSceneMenu(const SceneMenuDeps& deps)
     {
-        m_sceneMenu.SetDocument(document, edits);
+        m_sceneMenu.SetDocument(deps);
     }
 
     void ImGuiSystem::SetToolbar(const EditorToolbarDesc& desc)
