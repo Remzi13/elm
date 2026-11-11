@@ -28,47 +28,6 @@
          "components": {
             "Model": {
                "color": [
-                  1,
-                  1,
-                  1,
-                  1
-               ],
-               "modelIndex": 1,
-               "visible": true
-            }
-         },
-         "localTransform": [
-            [
-               1,
-               0,
-               0,
-               -3.85
-            ],
-            [
-               0,
-               1,
-               0,
-               0.2
-            ],
-            [
-               0,
-               0,
-               1,
-               -6.5
-            ],
-            [
-               0,
-               0,
-               0,
-               1
-            ]
-         ],
-         "name": "brick"
-      },
-      {
-         "components": {
-            "Model": {
-               "color": [
                   0.22,
                   0.25,
                   0.3,
@@ -433,6 +392,1646 @@
             ]
          ],
          "name": "life_3"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_1"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_2"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_3"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_4"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_5"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_6"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_7"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -6.5
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_1_8"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_1"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_2"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_3"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_4"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_5"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_6"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_7"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.9
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_2_8"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_1"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_2"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_3"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_4"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_5"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_6"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_7"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -5.3
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_3_8"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_1"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_2"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_3"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_4"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_5"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_6"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_7"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.7
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_4_8"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_1"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_2"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_3"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_4"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0.55
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_5"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               1.65
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_6"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               2.75
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_7"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  1,
+                  1,
+                  1,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               3.85
+            ],
+            [
+               0,
+               1,
+               0,
+               0.2
+            ],
+            [
+               0,
+               0,
+               1,
+               -4.1
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "brick_5_8"
       }
    ]
 }
