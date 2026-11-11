@@ -59,6 +59,8 @@ namespace elm {
 
         [[nodiscard]] StringView GetName() const override { return Name; }
         void Render(render::FrameWriter& frame) override;
+        /// Opens the window and brings it forward on the next frame (its tab in a dock too).
+        void Show();
 
     private:
         [[nodiscard]] bool IsPlaying() const;
@@ -100,6 +102,7 @@ namespace elm {
         NodeInspectorDeps m_deps;
         Folders m_folders;
         bool m_editLocalTransform { true };
+        bool m_focusRequested { false };
         char m_scriptFilter[128] { "" };
         Vector<String> m_scriptModules;
         ui::FileDialog m_modelDialog;

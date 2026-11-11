@@ -9,8 +9,6 @@ engine_add_library(Scene
     Scene.cpp
     SceneAsset.hpp
     SceneAsset.cpp
-    TestScenes.hpp
-    TestScenes.cpp
     Transform.hpp
     ComponentStore.hpp
     ScriptComponent.hpp

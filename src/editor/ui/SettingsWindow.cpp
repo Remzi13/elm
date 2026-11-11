@@ -89,11 +89,16 @@ namespace elm {
         m_visible = false;
     }
 
-    void SettingsWindow::Show(SettingsSection section)
+    void SettingsWindow::Show()
     {
         m_visible = true;
-        m_section = section;
         m_bringToFront = true;
+    }
+
+    void SettingsWindow::Show(SettingsSection section)
+    {
+        Show();
+        m_section = section;
     }
 
     void SettingsWindow::SetProject(const project::Project& project, editor::SetProjectEntry setEntry)

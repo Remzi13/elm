@@ -2,8 +2,8 @@
    "settings": {
       "Core/FileSystem/RootPath": ".",
       "Core/Log/File": "",
-      "Core/Project/Last": "projects/Race/Race.elmproject",
-      "Core/Project/Recent": "projects/Race/Race.elmproject\nprojects/Test/Test.elmproject\nprojects/Sandbox/Sandbox.elmproject",
+      "Core/Project/Last": "projects/Coin_Rush/Coin_Rush.elmproject",
+      "Core/Project/Recent": "projects/Coin_Rush/Coin_Rush.elmproject\nprojects/Race/Race.elmproject\nprojects/Test/Test.elmproject\nprojects/Sandbox/Sandbox.elmproject",
       "Render/Debug/Draw/Editor/Gizmo": true,
       "Render/Debug/Draw/Editor/WorldAxes": true,
       "Render/Debug/Draw/Physics/Colliders": true,

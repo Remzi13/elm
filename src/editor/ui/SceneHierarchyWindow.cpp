@@ -298,8 +298,7 @@ namespace elm {
     {
         const bool hasChildren = !row.children.empty();
         const bool canClose = hasChildren && !IsSearching();
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick
-            | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen;
         if (!canClose)
             flags |= ImGuiTreeNodeFlags_Leaf;
         else
@@ -318,6 +317,8 @@ namespace elm {
         }
         if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
             Select(row.id);
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !(m_deps.play.isPlaying && m_deps.play.isPlaying()))
+            FrameNode(m_deps.camera, m_deps.scene, m_deps.models, row.id);
 
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
             ImGui::SetDragDropPayload(NodeDragPayload, &row.id, sizeof(NodeId));
@@ -373,6 +374,8 @@ namespace elm {
         Select(row.id);
         ImGui::TextDisabled("%s", row.name.c_str());
         ImGui::Separator();
+        if (ImGui::MenuItem("Open Inspector"))
+            m_deps.showInspector();
         if (ImGui::BeginMenu(AddChildItem)) {
             DrawAddNodeItems(row.id);
             ImGui::EndMenu();

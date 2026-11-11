@@ -58,7 +58,7 @@ namespace elm {
             ImGui::EndMenuBar();
         }
         // Outside of the menu bar: the menu closes when an item is clicked
-        projectMenu.DrawPopups();
+        projectMenu.HandleShortcuts();
         sceneMenu.DrawPopups();
 
         ImGui::DockSpace(ImGui::GetID("MainDockSpace"), ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);

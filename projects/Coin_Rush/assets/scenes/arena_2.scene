@@ -1,0 +1,1075 @@
+{
+   "formatVersion": 7,
+   "models": [
+      {
+         "path": "models/Ground Plane.model"
+      },
+      {
+         "path": "models/player.model"
+      },
+      {
+         "path": "models/score_bar.model"
+      },
+      {
+         "path": "models/coin.model"
+      },
+      {
+         "path": "models/hazard.model"
+      }
+   ],
+   "nodes": [
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.4,
+                  0.5,
+                  0.4,
+                  1
+               ],
+               "modelIndex": 0,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               5,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               5,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "ground"
+      },
+      {
+         "components": {
+            "Script": {
+               "module": "game",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "game"
+      },
+      {
+         "components": {
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 2,
+               "visible": true
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               24.46282958984375
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6598491668701172
+            ],
+            [
+               0,
+               0,
+               1,
+               -23.65674591064453
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "score_bar"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.5,
+                  0.5,
+                  0.515
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0.014999986
+               ],
+               "radius": 0.515,
+               "shape": "box",
+               "trigger": false
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 1,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "kinematic"
+            },
+            "Script": {
+               "module": "player",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0.5
+            ],
+            [
+               0,
+               0,
+               1,
+               -20
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "player"
+      },
+      {
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coins"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -18
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               -18
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_1",
+         "parentIndex": 4
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               18
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               -18
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_2",
+         "parentIndex": 4
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -18
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               18
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_3",
+         "parentIndex": 4
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               18
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               18
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_4",
+         "parentIndex": 4
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               -8
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_5",
+         "parentIndex": 4
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               10
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_6",
+         "parentIndex": 4
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -10
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_7",
+         "parentIndex": 4
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.3,
+                  0.3,
+                  0.04
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 0.3,
+               "shape": "sphere",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 3,
+               "visible": true
+            },
+            "Script": {
+               "module": "coin",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               10
+            ],
+            [
+               0,
+               1,
+               0,
+               0.31396153569221497
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "coin_8",
+         "parentIndex": 4
+      },
+      {
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "hazards"
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.95,
+                  0.775,
+                  0.95
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0.17499998,
+                  0
+               ],
+               "radius": 0.95,
+               "shape": "box",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "kinematic"
+            },
+            "Script": {
+               "module": "hazard",
+               "props": {
+                  "offset": [
+                     24,
+                     0,
+                     0
+                  ],
+                  "speed": 0.6
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -12
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6910274028778076
+            ],
+            [
+               0,
+               0,
+               1,
+               -14
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "hazard_1",
+         "parentIndex": 13
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.95,
+                  0.775,
+                  0.95
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0.17499998,
+                  0
+               ],
+               "radius": 0.95,
+               "shape": "box",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "kinematic"
+            },
+            "Script": {
+               "module": "hazard",
+               "props": {
+                  "offset": [
+                     -24,
+                     0,
+                     0
+                  ],
+                  "speed": 0.8
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               12
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6910274028778076
+            ],
+            [
+               0,
+               0,
+               1,
+               14
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "hazard_2",
+         "parentIndex": 13
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.95,
+                  0.775,
+                  0.95
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0.17499998,
+                  0
+               ],
+               "radius": 0.95,
+               "shape": "box",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "kinematic"
+            },
+            "Script": {
+               "module": "hazard",
+               "props": {
+                  "offset": [
+                     0,
+                     0,
+                     24
+                  ],
+                  "speed": 0.7
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               -14
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6910274028778076
+            ],
+            [
+               0,
+               0,
+               1,
+               -12
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "hazard_3",
+         "parentIndex": 13
+      },
+      {
+         "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.95,
+                  0.775,
+                  0.95
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0.17499998,
+                  0
+               ],
+               "radius": 0.95,
+               "shape": "box",
+               "trigger": true
+            },
+            "Model": {
+               "color": [
+                  0.8,
+                  0.8,
+                  0.8,
+                  1
+               ],
+               "modelIndex": 4,
+               "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "kinematic"
+            },
+            "Script": {
+               "module": "hazard",
+               "props": {
+                  "offset": [
+                     0,
+                     0,
+                     -24
+                  ],
+                  "speed": 0.9
+               }
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               14
+            ],
+            [
+               0,
+               1,
+               0,
+               0.6910274028778076
+            ],
+            [
+               0,
+               0,
+               1,
+               12
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "hazard_4",
+         "parentIndex": 13
+      }
+   ]
+}

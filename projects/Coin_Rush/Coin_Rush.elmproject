@@ -1,0 +1,8 @@
+{
+   "entry": {
+      "mainModule": "main",
+      "startupScene": "scenes/arena.scene"
+   },
+   "formatVersion": 1,
+   "name": "Coin_Rush"
+}

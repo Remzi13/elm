@@ -43,21 +43,6 @@ namespace {
         return std::nullopt;
     }
 
-    /// --scene <preset index> [--instances <count>]: a test scene in place of the startup scene.
-    void LoadTestSceneArgument(elm::Game& game, int argc, char** argv)
-    {
-        int scenePreset = -1;
-        uint32_t instanceCount = 1500;
-        for (int i = 1; i + 1 < argc; ++i) {
-            if (std::strcmp(argv[i], "--scene") == 0)
-                scenePreset = std::atoi(argv[i + 1]);
-            else if (std::strcmp(argv[i], "--instances") == 0)
-                instanceCount = static_cast<uint32_t>(std::atoi(argv[i + 1]));
-        }
-        if (scenePreset >= 0)
-            game.LoadTestScene(static_cast<elm::ScenePreset>(scenePreset), instanceCount);
-    }
-
     int ReportFatal(const char* what, const elm::EngineError& error)
     {
         std::cerr << "[Fatal Error] " << what << ": " << error.message << std::endl;
@@ -90,7 +75,6 @@ int main(int argc, char** argv)
         return ReportFatal("Failed to initialize the game", init.error());
     if (const auto opened = game.OpenProject(*project); !opened)
         return ReportFatal("Failed to open the project", opened.error());
-    LoadTestSceneArgument(game, argc, argv);
 
     game.Run();
     game.Shutdown();

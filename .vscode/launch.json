@@ -2,10 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug EngineCore (gdb)",
+            "name": "Debug editor (gdb)",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Engine",
+            "program": "${workspaceFolder}/build/editor",
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

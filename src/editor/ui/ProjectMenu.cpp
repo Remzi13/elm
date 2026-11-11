@@ -6,12 +6,6 @@
 
 namespace elm {
 
-    namespace {
-
-        constexpr const char* ConfirmationPopup = "Close Project";
-
-    } // namespace
-
     void ProjectMenu::SetProject(ProjectMenuDesc project)
     {
         m_project = std::move(project);
@@ -19,90 +13,32 @@ namespace elm {
 
     void ProjectMenu::DrawFileItems()
     {
-        const bool hasProject = !m_project.file.Empty();
-        if (ImGui::MenuItem("New Project...") && m_project.showHub)
-            m_project.showHub();
-        if (ImGui::MenuItem("Open Project..."))
-            m_openFileDialog = true;
-        DrawRecent();
-        if (ImGui::MenuItem("Reload Project", nullptr, false, hasProject))
-            RequestOpen(m_project.file);
-        ImGui::Separator();
         if (ImGui::MenuItem("Settings...", "Ctrl+,") && m_project.showSettings)
             m_project.showSettings();
     }
 
     void ProjectMenu::DrawMenu()
     {
-        if (!ImGui::BeginMenu("Project", !m_project.file.Empty()))
+        if (!ImGui::BeginMenu("Project"))
             return;
-        ImGui::TextDisabled("%s", m_project.name.c_str());
+        if (ImGui::MenuItem("Open Project...") && m_project.showHub)
+            m_project.showHub();
+        ImGui::SetItemTooltip("The Project Hub: recent projects, open, create");
         ImGui::Separator();
-        if (ImGui::MenuItem("Project Settings...") && m_project.showProjectSettings)
+        const bool hasProject = !m_project.name.empty();
+        if (ImGui::MenuItem("Project Settings...", nullptr, false, hasProject) && m_project.showProjectSettings)
             m_project.showProjectSettings();
-        if (ImGui::MenuItem("Build Game") && m_project.buildGame)
+        if (ImGui::MenuItem("Build Game", nullptr, false, hasProject) && m_project.buildGame)
             m_project.buildGame();
+        ImGui::SetItemTooltip("Builds the saved files into Build/%s", m_project.name.c_str());
         ImGui::EndMenu();
     }
 
-    void ProjectMenu::DrawRecent()
-    {
-        if (!ImGui::BeginMenu("Recent Projects", !m_project.recent.empty()))
-            return;
-        for (const Path& file : m_project.recent) {
-            if (ImGui::MenuItem(file.string().c_str()))
-                RequestOpen(file);
-        }
-        ImGui::EndMenu();
-    }
-
-    void ProjectMenu::RequestOpen(const Path& file)
-    {
-        if (m_project.file.Empty()) {
-            if (m_project.open)
-                m_project.open(file);
-            return;
-        }
-        m_pendingFile = file;
-        m_openConfirmation = true;
-    }
-
-    void ProjectMenu::DrawPopups()
+    void ProjectMenu::HandleShortcuts()
     {
         const ImGuiIO& io = ImGui::GetIO();
         if (!io.WantTextInput && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Comma, false) && m_project.showSettings)
             m_project.showSettings();
-        // Projects usually lie next to each other: the dialog starts in the folder of the open one
-        if (std::exchange(m_openFileDialog, false)) {
-            const Path start = m_project.file.Empty() ? m_project.projectsFolder : m_project.file.Parent().Parent();
-            m_fileDialog.Open("Open Project", m_project.fileExtension, start);
-        }
-        if (const auto file = m_fileDialog.Draw())
-            RequestOpen(*file);
-        DrawConfirmation();
-    }
-
-    void ProjectMenu::DrawConfirmation()
-    {
-        if (std::exchange(m_openConfirmation, false))
-            ImGui::OpenPopup(ConfirmationPopup);
-        if (!ImGui::BeginPopupModal(ConfirmationPopup, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
-            return;
-        const bool reload = m_pendingFile == m_project.file;
-        ImGui::Text("%s project \"%s\"?", reload ? "Reload the" : "Close the", m_project.name.c_str());
-        ImGui::TextUnformatted("Unsaved changes of the scene, models and scripts are lost.");
-        if (ImGui::Button(reload ? "Reload" : "Open")) {
-            if (m_project.open && m_pendingFile)
-                m_project.open(*m_pendingFile);
-            m_pendingFile.reset();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel")) {
-            m_pendingFile.reset();
-            ImGui::CloseCurrentPopup();
-        }
-        ImGui::EndPopup();
     }
 
 } // namespace elm

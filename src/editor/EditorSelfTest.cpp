@@ -1,13 +1,17 @@
 #include "editor/EditorSelfTest.hpp"
 
 #include "editor/EditMode.hpp"
+#include "editor/ProjectHubWindow.hpp"
 #include "editor/NodeEditing.hpp"
 #include "editor/SceneDocument.hpp"
 #include "editor/SceneEdits.hpp"
 #include "editor/script/CodeIndent.hpp"
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
+#include "editor/script/ScriptEditorWindows.hpp"
+#include "editor/script/ScriptWindow.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/culling/OcclusionCulling.hpp"
 #include "graphics/debug/DebugDraw.hpp"
 #include "graphics/gizmo/GizmoSettings.hpp"
 #include "editor/ui/EditorToolbar.hpp"
@@ -17,6 +21,8 @@
 #include "editor/ui/SceneHierarchyWindow.hpp"
 #include "editor/ui/SceneMenu.hpp"
 #include "editor/ui/SettingsWindow.hpp"
+
+#include "project/Project.hpp"
 
 #include "core/File.hpp"
 
@@ -49,6 +55,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <numbers>
 #include <optional>
 #include <string>
 
@@ -173,6 +180,33 @@ line]] .. [==[a]]b]==])",
                     && runtime && runtime->file == "game/player.lua" && runtime->line == 40
                     && !FindErrorLocation("no location here.lua: at all"),
                 "editor::error_location");
+        }
+
+        // ── Culling ─────────────────────────────────────────────────────────────
+
+        /// The CPU occlusion culling of the view keeps what stands on a large floor seen from above.
+        void RunCullingTests(Report& report)
+        {
+            ModelCatalog models;
+            Model floor("Floor");
+            floor.AddSubmesh(GeometryPrimitives::CreateGroundPlane(50.0f, 50.0f));
+            Model cube("Cube");
+            cube.AddSubmesh(GeometryPrimitives::CreateCube(1.0f));
+            Scene scene;
+            const NodeId floorNode = scene.AddNode("floor");
+            scene.Components<ModelComponent>().Emplace(floorNode, ModelComponent { .model = models.Insert(floor) });
+            const NodeId cubeNode = scene.AddNode("cube", Matrix4x4::Translation(Vector3 { 7.0f, 0.5f, 12.0f }));
+            scene.Components<ModelComponent>().Emplace(cubeNode, ModelComponent { .model = models.Insert(cube) });
+            scene.UpdateWorldTransforms();
+
+            // Above and behind the floor, looking down at its centre (the Coin Rush camera)
+            const Camera camera(Vector3 { 0.0f, 35.0f, -35.0f }, 0.0f, -std::numbers::pi_v<float> / 4.0f);
+            Settings settings;
+            OcclusionCulling culling;
+            culling.RegisterSettings(settings);
+            culling.ExecuteCulling(scene, models, camera.GetViewProjectionMatrix(), settings);
+            const OccludeeInstance* standing = culling.FindOccludee(cubeNode);
+            report.Check(standing && standing->isVisible, "culling::a_floor_does_not_hide_what_stands_on_it");
         }
 
         // ── Edit mode ───────────────────────────────────────────────────────────
@@ -540,10 +574,13 @@ line]] .. [==[a]]b]==])",
             static constexpr float ScanStep = 8.0f;
             /// Where the Settings window writes, in the assets folder of the test.
             static constexpr const char* SettingsFileName = "editor.settings";
+            /// A menu bar with the scene's file name, right of Inspector, while showSceneBar is set.
+            static constexpr const char* SceneBarName = "SceneBar";
+            static constexpr ImVec2 SceneBarPosition { 850.0f, 900.0f };
 
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
-                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play }, assets, assets / "models")
+                , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play, [this] { inspector.Show(); } }, assets, assets / "models")
                 , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile, camera },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
@@ -551,6 +588,14 @@ line]] .. [==[a]]b]==])",
                 , debugDraw(settings)
                 , viewPort(resources, Size { 640, 360 })
                 , viewport(settings, EngineViewportDeps { scene, models, camera, viewPort, debugDraw, play, selection, gizmo, edits, sceneFile })
+                , hub(settings,
+                      editor::ProjectHubDesc {
+                          .recent = [this] { return recentProjects; },
+                          .openProject = [this] { return openProject; },
+                          .open = [this](const Path& file) { openedProject = file; },
+                          .create = {},
+                          .defaultLocation = assets,
+                      })
             {
                 viewport.SetVisible(false);
                 play.isPlaying = [this] { return playing; };
@@ -582,6 +627,17 @@ line]] .. [==[a]]b]==])",
                 modelEditor.Render(writer);
                 settingsWindow.Render(writer);
                 viewport.Render(writer);
+                hub.Render(writer);
+                if (showSceneBar) {
+                    ImGui::SetNextWindowPos(SceneBarPosition);
+                    ImGui::SetNextWindowSize(ImVec2(600.0f, 50.0f));
+                    ImGui::Begin(SceneBarName, nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_MenuBar);
+                    if (ImGui::BeginMenuBar()) {
+                        menu.DrawFileName();
+                        ImGui::EndMenuBar();
+                    }
+                    ImGui::End();
+                }
                 ImGui::EndFrame();
             }
 
@@ -698,9 +754,12 @@ line]] .. [==[a]]b]==])",
             /// Finds a widget by its ImGui id, moving the mouse over the window, and clicks it.
             bool ClickItem(ImGuiWindow* target, ImGuiID id)
             {
-                if (!target)
-                    return false;
-                const ImRect area = target->InnerRect;
+                return target && ClickItemIn(target->InnerRect, id);
+            }
+
+            /// The same over an area of the screen: a menu bar is outside of its window's inner rect.
+            bool ClickItemIn(const ImRect& area, ImGuiID id)
+            {
                 for (float y = area.Min.y + 1.0f; y < area.Max.y; y += ScanStep) {
                     for (float x = area.Min.x + 1.0f; x < area.Max.x; x += ScanStep) {
                         ImGui::GetIO().AddMousePosEvent(x, y);
@@ -758,6 +817,7 @@ line]] .. [==[a]]b]==])",
             SceneEdits edits { scene };
             Selection selection;
             bool playing { false };
+            bool showSceneBar { false };
             /// While set, a button in the frame can be dragged as this file (ModelFilePayload).
             std::optional<String> draggedModelFile;
             script::PlayRequests play;
@@ -767,10 +827,10 @@ line]] .. [==[a]]b]==])",
             render::FrameWriter writer;
             SceneDocument document;
             SceneMenu menu;
+            Camera camera;
             SceneHierarchyWindow hierarchy;
             NodeInspectorWindow inspector;
             render::RenderResources resources;
-            Camera camera;
             ModelEditorWindow modelEditor;
             /// Hidden until a test shows it.
             SettingsWindow settingsWindow;
@@ -779,6 +839,12 @@ line]] .. [==[a]]b]==])",
             render::ViewPort viewPort;
             /// Hidden until a test shows it.
             EngineViewportWindow viewport;
+            /// What the Project Hub sees and what it asked to open.
+            Vector<Path> recentProjects;
+            Path openProject;
+            std::optional<Path> openedProject;
+            /// Hidden until a test shows it.
+            editor::ProjectHubWindow hub;
         };
 
         void RunTreeDropTests(Report& report, const Path& assets)
@@ -907,6 +973,40 @@ line]] .. [==[a]]b]==])",
             FileSystem::RemoveAll(file, error);
         }
 
+        /// The Project Hub opens a project right away without one open, and asks first with one: unsaved changes
+        /// would be lost.
+        void RunProjectHubTests(Report& report, const Path& assets)
+        {
+            const Path sandbox("projects/Sandbox/Sandbox.elmproject");
+            const Path other("projects/Other/Other.elmproject");
+            WindowsFixture fixture(assets);
+            fixture.recentProjects = { sandbox, other };
+            fixture.hub.SetVisible(true);
+            fixture.Frame();
+            ImGui::SetWindowPos(editor::ProjectHubWindow::Name, ImVec2(900.0f, 0.0f));
+            fixture.Frame();
+            const auto clickRecent = [&](const Path& file) {
+                ImGuiWindow* window = WindowsFixture::FindWindow(editor::ProjectHubWindow::Name);
+                return fixture.ClickItem(window, ("###" + String(file.string().c_str())).c_str());
+            };
+
+            report.Check(clickRecent(other) && fixture.openedProject == other && !WindowsFixture::IsDialogOpen(),
+                "hub::without_a_project_a_recent_one_opens_right_away");
+
+            fixture.openedProject.reset();
+            fixture.openProject = sandbox;
+            const bool clicked = clickRecent(other);
+            fixture.Frame();
+            report.Check(clicked && !fixture.openedProject && WindowsFixture::IsDialogOpen(), "hub::with_a_project_open_another_asks_first");
+            report.Check(fixture.ClickItem(WindowsFixture::TopPopup(), "Cancel") && !fixture.openedProject && !WindowsFixture::IsDialogOpen(),
+                "hub::cancel_keeps_the_project");
+
+            const bool reloadClicked = clickRecent(sandbox);
+            fixture.Frame();
+            report.Check(reloadClicked && fixture.ClickItem(WindowsFixture::TopPopup(), "Reload") && fixture.openedProject == sandbox,
+                "hub::a_click_on_the_open_project_reloads_it_after_the_question");
+        }
+
         void RunTreeSearchTests(Report& report, const Path& assets)
         {
             WindowsFixture fixture(assets);
@@ -932,6 +1032,33 @@ line]] .. [==[a]]b]==])",
             fixture.selection.node = parent;
             fixture.Click(WindowsFixture::RowCenter(1));
             report.Check(fixture.selection.node == NodeId {}, "tree::search_leaves_a_closed_parent_closed");
+        }
+
+        void RunTreeFocusTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            const Vector3 center { 10.0f, 2.0f, 30.0f };
+            (void)fixture.scene.AddNode("node", Matrix4x4::Translation(center));
+            fixture.scene.UpdateWorldTransforms();
+            fixture.Frame();
+            const auto doubleClick = [&] {
+                fixture.Click(WindowsFixture::RowCenter(0));
+                fixture.Click(WindowsFixture::RowCenter(0));
+                // Past the double click time: the next click starts a new count
+                for (int frame = 0; frame < 30; ++frame)
+                    fixture.Frame();
+            };
+
+            fixture.playing = true;
+            const Vector3 before = fixture.camera.GetPosition();
+            doubleClick();
+            report.Check((fixture.camera.GetPosition() - before).Length() < 1e-4f, "tree::no_double_click_framing_in_play");
+
+            fixture.playing = false;
+            doubleClick();
+            const Vector3 toNode = center - fixture.camera.GetPosition();
+            const float alignment = toNode.Normalized().Dot(fixture.camera.GetForwardDirection());
+            report.Check(toNode.Length() > 0.5f && toNode.Length() < 5.0f && alignment > 0.999f, "tree::a_double_click_frames_the_node");
         }
 
         void RunTreeEditTests(Report& report, const Path& assets)
@@ -972,6 +1099,18 @@ line]] .. [==[a]]b]==])",
             fixture.Frame();
             const bool deleted = fixture.ClickMenuItem("###Delete Node");
             report.Check(deleted && fixture.scene.NodeCount() == 1 && !fixture.scene.Find(node), "tree::row_menu_deletes_the_node");
+
+            // Inspector closed, nothing selected: the row menu selects the node and brings Inspector forward
+            fixture.inspector.SetVisible(false);
+            fixture.selection.node = NodeId {};
+            fixture.Click(WindowsFixture::RowCenter(0), ImGuiMouseButton_Right);
+            fixture.Frame();
+            const bool opened = fixture.ClickMenuItem("Open Inspector");
+            fixture.Frame();
+            const ImGuiWindow* focused = GImGui->NavWindow;
+            report.Check(opened && fixture.inspector.IsVisible() && fixture.selection.node == fixture.scene.Nodes()[0].id && focused
+                    && StringView(focused->Name).find("NodeInspector") != StringView::npos,
+                "tree::row_menu_opens_inspector_on_the_node");
 
             fixture.Click(WindowsFixture::RowCenter(6));
             report.Check(fixture.selection.node == NodeId {}, "tree::a_click_on_empty_space_selects_nothing");
@@ -1118,6 +1257,45 @@ line]] .. [==[a]]b]==])",
             report.Check(!WindowsFixture::IsDialogOpen() && fixture.scene.Empty(), "menu::a_saved_scene_is_replaced_right_away");
         }
 
+        /// The file name in the menu bar lists the project's scenes; a scene written later is in the list next time.
+        void RunSceneListTests(Report& report, const Path& testRoot)
+        {
+            const project::Project project(testRoot / "List" / "List.elmproject",
+                project::ProjectDesc { .name = "List", .entry = { .startupScene = project::AssetPath::FromString("scenes/a.scene"), .mainModule = {} } });
+            const Path assets = project.Assets();
+            std::error_code error;
+            (void)FileSystem::CreateDirectories(project.Scenes(), error);
+            const auto writeScene = [&](const char* file) {
+                Scene scene;
+                (void)scene.AddNode(file);
+                const ModelCatalog noModels;
+                return resource::Serializer::SaveScene(scene, noModels, assets, project.Scenes() / file).has_value();
+            };
+            report.Check(writeScene("a.scene") && writeScene("b.scene"), "scene_list::scenes_written");
+
+            WindowsFixture fixture(assets);
+            fixture.menu.SetDocument(SceneMenuDeps { &fixture.document, &fixture.edits, &fixture.scene, &fixture.selection, &project });
+            fixture.showSceneBar = true;
+            fixture.Frame();
+            ImGuiWindow* bar = WindowsFixture::FindWindow(WindowsFixture::SceneBarName);
+            const auto openList = [&] {
+                return bar && fixture.ClickItemIn(bar->MenuBarRect(), ImHashStr("###SceneList", 0, bar->GetID("##menubar")));
+            };
+            const auto openedFrom = [&](const char* item) {
+                const bool clicked = openList() && fixture.ClickMenuItem(item);
+                fixture.Frame();
+                fixture.Frame();
+                return clicked;
+            };
+            report.Check(openedFrom("scenes/b.scene") && fixture.document.File() == project.Scenes() / "b.scene"
+                    && fixture.scene.NodeCount() == 1 && fixture.scene.Nodes()[0].name == "b.scene",
+                "scene_list::a_scene_of_the_list_opens");
+
+            report.Check(writeScene("c.scene"), "scene_list::a_later_scene_written");
+            report.Check(openedFrom("scenes/c.scene") && fixture.document.File() == project.Scenes() / "c.scene",
+                "scene_list::a_later_scene_is_listed");
+        }
+
         void RunToolbarTests(Report& report)
         {
             HeadlessImGui imgui;
@@ -1191,6 +1369,73 @@ line]] .. [==[a]]b]==])",
             report.Check(stops == 2, "toolbar::f5_stops_in_play");
         }
 
+        /// Tab in the Scripts window indents at the cursor, not where the last click left an empty selection.
+        void RunScriptEditorTests(Report& report)
+        {
+            namespace fs = std::filesystem;
+            std::error_code error;
+            const fs::path root = fs::temp_directory_path(error) / "elm_script_editor_selftest";
+            fs::remove_all(root, error);
+            fs::create_directories(root, error);
+            const fs::path script = root / "tabbed.lua";
+            report.Check(WriteTestFile(script, "local a = 1\n"), "script_editor::script_is_written");
+
+            HeadlessImGui imgui;
+            Settings settings;
+            script::ScriptSystem::RegisterSettings(settings);
+            script::ScriptSystem scripts({ .settings = &settings });
+            if (!scripts.Init(Path(String(root.generic_string().c_str())))) {
+                report.Check(false, "script_editor::script_init");
+                return;
+            }
+            const UniquePtr<script::ScriptWindow> window = script::CreateScriptWindow(scripts, settings);
+            window->OpenFile(Path(String(script.generic_string().c_str())));
+            render::FrameWriter writer;
+            const auto frame = [&] {
+                ImGui::NewFrame();
+                window->Render(writer);
+                ImGui::EndFrame();
+            };
+            const auto press = [&](ImGuiKey key) {
+                ImGui::GetIO().AddKeyEvent(key, true);
+                frame();
+                ImGui::GetIO().AddKeyEvent(key, false);
+                frame();
+            };
+            // The Editor tab and the document's tab are chosen over a few frames
+            for (int settle = 0; settle < 5; ++settle)
+                frame();
+            ImGuiWindow* field = nullptr;
+            for (ImGuiWindow* found : GImGui->Windows) {
+                if (StringView(found->Name).find("##text") != StringView::npos)
+                    field = found;
+            }
+            if (!field) {
+                report.Check(false, "script_editor::text_field_shown");
+                return;
+            }
+            // A click on the first line, then the cursor goes down to the empty second one by the keys
+            const ImVec2 firstLine(field->InnerRect.Min.x + 4.0f, field->InnerRect.Min.y + ImGui::GetFontSize() * 0.5f);
+            ImGui::GetIO().AddMousePosEvent(firstLine.x, firstLine.y);
+            frame();
+            ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+            frame();
+            ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+            frame();
+            press(ImGuiKey_DownArrow);
+            press(ImGuiKey_Tab);
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, true);
+            press(ImGuiKey_S);
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
+            frame();
+
+            File file;
+            auto read = file.Open(String(script.generic_string().c_str()), FileMode::Read).and_then([&] { return file.ReadAll(); });
+            const StringView saved = read ? read->ReadText(0, read->Size()).value_or(StringView {}) : StringView {};
+            report.Check(saved == "local a = 1\n    ", "script_editor::tab_indents_at_the_cursor", String(saved));
+            fs::remove_all(root, error);
+        }
+
         void RunSceneWindowsTests(Report& report)
         {
             namespace fs = std::filesystem;
@@ -1209,12 +1454,15 @@ line]] .. [==[a]]b]==])",
             RunTreeSearchTests(report, assets);
             RunTreeIconTests(report, assets);
             RunSettingsWindowTests(report, assets);
+            RunProjectHubTests(report, assets);
             RunViewMenuTests(report, assets);
             RunSceneStatusTests(report, assets);
             RunTreeEditTests(report, assets);
+            RunTreeFocusTests(report, assets);
             RunInspectorTests(report, assets);
             RunModelEditorTests(report, assets);
             RunSceneMenuTests(report, assets);
+            RunSceneListTests(report, assets / "scene_list");
             fs::remove_all(root, error);
         }
 
@@ -1225,7 +1473,9 @@ line]] .. [==[a]]b]==])",
         Report report;
         RunHighlighterTests(report);
         RunCodeIndentTests(report);
+        RunScriptEditorTests(report);
         RunErrorLocationTests(report);
+        RunCullingTests(report);
         RunEditModeTests(report);
         RunSceneEditsTests(report);
         RunSceneWindowsTests(report);

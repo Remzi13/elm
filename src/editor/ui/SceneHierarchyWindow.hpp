@@ -27,9 +27,11 @@ namespace elm {
         Selection& selection;
         /// Ctrl+S.
         const SceneFileRequests& sceneFile;
-        /// F brings the selected node into its view; not in Play, the camera is the game's then.
+        /// F and a double click on a row bring the node into its view; not in Play, the camera is the game's then.
         Camera& camera;
         const script::PlayRequests& play;
+        /// Opens Inspector on the selected node (the row menu).
+        std::function<void()> showInspector;
     };
 
     /// The tree of the scene's nodes: search, selection, adding, renaming, moving and removing nodes. A row ends with

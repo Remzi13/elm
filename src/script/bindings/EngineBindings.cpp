@@ -3,8 +3,9 @@
 #include "script/entity/EntityScripts.hpp"
 
 #include "project/Project.hpp"
+
 #include "model/ModelCatalog.hpp"
-#include "Scene/TestScenes.hpp"
+
 #include "resource/Serializer.hpp"
 
 namespace elm::script::bindings {
@@ -20,18 +21,6 @@ namespace elm::script::bindings {
         {
             if (auto* entityScripts = Context(L).entityScripts)
                 entityScripts->DestroyAll();
-        }
-
-        /// Replaces the scene and all models with a built-in test scene (0 Box, 1 WallAndGrid,
-        /// 2 RoomsAndCorridors, 3 PhysicsSandbox).
-        void LoadTestScene(lua_State* L, uint32_t preset, std::optional<uint32_t> instances)
-        {
-            if (preset > static_cast<uint32_t>(ScenePreset::PhysicsSandbox))
-                luaL_argerror(L, 1, "preset must be 0..3");
-            auto& scene = SceneOf(L);
-            auto& models = ModelsOf(L);
-            EndEntityScripts(L);
-            TestScenes::BuildScene(static_cast<ScenePreset>(preset), instances.value_or(1500), scene, models);
         }
 
         /// Removes every node and model; entity scripts get on_destroy first.
@@ -111,7 +100,6 @@ namespace elm::script::bindings {
     {
         state.SetContext(std::move(context));
         lua::Module(state, "elm.engine")
-            .Function<&LoadTestScene>("load_test_scene", { "preset", "instances" })
             .Function<&ClearScene>("clear_scene")
             .Function<&SaveScene>("save_scene", { "file" })
             .Function<&LoadScene>("load_scene", { "file" })

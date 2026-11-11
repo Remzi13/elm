@@ -18,7 +18,6 @@
 #include "resource/ResourceSystem.hpp"
 
 #include "Scene/SceneSystem.hpp"
-#include "Scene/TestScenes.hpp"
 
 #include "script/ScriptSystem.hpp"
 
@@ -80,9 +79,6 @@ namespace elm {
         void ShowProjectHub();
         /// The project file opened last time, empty when there is none.
         [[nodiscard]] Path LastProject() const;
-        /// A test scene in the scene, added to what is there.
-        void LoadTestScene(ScenePreset preset, uint32_t instanceCount);
-
         /// The program elm next to this one, with this one's extension; an error when it is not there.
         [[nodiscard]] static auto FindPlayerExecutable() -> EngineResult<Path>;
 
@@ -158,6 +154,8 @@ namespace elm {
         SceneFileRequests m_sceneFile;
         /// The open scene as a file; there while the project windows are open.
         std::optional<SceneDocument> m_sceneDocument;
+        /// What the main window's title says now: the open scene and project.
+        String m_windowTitle;
         /// The Profiler's, updated every frame.
         FrameStats m_frameStats;
 
