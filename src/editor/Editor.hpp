@@ -33,6 +33,8 @@
 
 namespace elm {
 
+    class SettingsWindow;
+
     namespace editor {
         class ProjectHubWindow;
     }
@@ -158,6 +160,8 @@ namespace elm {
         UniquePtr<ImGuiSystem> m_imgui;
         /// Owned by m_imgui: an editor window, it outlives projects.
         editor::ProjectHubWindow* m_hub { nullptr };
+        /// Made with the editor's windows (CreateEditorWindows), it lives until Shutdown.
+        SettingsWindow* m_settingsWindow { nullptr };
         /// Asked for by the windows, applied at the start of the next frame, outside of any window.
         std::optional<Path> m_requestedProject;
         bool m_initialized { false };

@@ -1,7 +1,11 @@
 #include "editor/ui/SceneMenu.hpp"
 
+#include "editor/NodeEditing.hpp"
 #include "editor/SceneDocument.hpp"
 #include "editor/SceneEdits.hpp"
+#include "editor/ui/EditorServices.hpp"
+
+#include "Scene/Scene.hpp"
 
 #include "imgui.h"
 
@@ -14,37 +18,44 @@ namespace elm {
         constexpr const char* ConfirmationPopup = "Unsaved Scene";
         constexpr ImVec4 ModifiedColor { 1.0f, 0.75f, 0.3f, 1.0f };
         constexpr const char* ModifiedMark = "* unsaved";
+        /// The end of a status cut short: the dots of the text font.
+        constexpr const char* Ellipsis = "...";
+
+        ImVec4 StatusColor(SceneStatus::Kind kind)
+        {
+            switch (kind) {
+            case SceneStatus::Kind::Success: return { 0.4f, 0.85f, 0.5f, 1.0f };
+            case SceneStatus::Kind::Failure: return { 1.0f, 0.4f, 0.4f, 1.0f };
+            case SceneStatus::Kind::Info: break;
+            }
+            return { 0.7f, 0.7f, 0.75f, 1.0f };
+        }
 
     } // namespace
 
-    void SceneMenu::SetDocument(SceneDocument* document, SceneEdits* edits)
+    void SceneMenu::SetDocument(const SceneMenuDeps& deps)
     {
-        m_document = document;
-        m_edits = edits;
+        m_document = deps.document;
+        m_edits = deps.edits;
+        m_scene = deps.scene;
+        m_selection = deps.selection;
         m_requested.reset();
         m_pending.reset();
     }
 
-    void SceneMenu::DrawMenus()
+    void SceneMenu::DrawFileItems()
     {
-        DrawSceneMenu();
-        DrawEditMenu();
-    }
-
-    void SceneMenu::DrawSceneMenu()
-    {
-        if (!ImGui::BeginMenu("Scene", m_document != nullptr))
-            return;
-        if (ImGui::MenuItem("New"))
+        // A disabled item is not clicked: the document is there in every branch below
+        ImGui::BeginDisabled(m_document == nullptr);
+        if (ImGui::MenuItem("New Scene"))
             RequestNew();
-        if (ImGui::MenuItem("Open...")) {
+        if (ImGui::MenuItem("Open Scene...")) {
             m_openDialog.Open("Open Scene", ".scene", m_document->ScenesFolder());
             m_openDialog.LimitTo(m_document->AssetsFolder());
         }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Save", "Ctrl+S"))
+        if (ImGui::MenuItem("Save Scene", "Ctrl+S"))
             (void)m_document->Save();
-        if (ImGui::MenuItem("Save As...")) {
+        if (ImGui::MenuItem("Save Scene As...")) {
             m_saveDialog.SaveAs("Save Scene", ".scene", m_document->File().Filename().string().c_str(), m_document->ScenesFolder());
             m_saveDialog.LimitTo(m_document->AssetsFolder());
         }
@@ -53,7 +64,7 @@ namespace elm {
             m_importDialog.Open("Import glTF Scene", ".gltf;.glb", m_document->AssetsFolder());
         if (ImGui::MenuItem("Export glTF..."))
             m_exportDialog.SaveAs("Export Scene to glTF", ".gltf", "scene.gltf", m_document->ScenesFolder());
-        ImGui::EndMenu();
+        ImGui::EndDisabled();
     }
 
     void SceneMenu::DrawEditMenu()
@@ -64,6 +75,15 @@ namespace elm {
             (void)m_edits->Undo();
         if (ImGui::MenuItem("Redo", "Ctrl+Y", false, m_edits->CanRedo()))
             (void)m_edits->Redo();
+        ImGui::Separator();
+        // No shortcuts shown: Ctrl+D and Del are Scene Hierarchy's, while it has the focus
+        const bool selected = m_scene && m_selection && m_scene->Find(m_selection->node);
+        if (ImGui::MenuItem("Duplicate", nullptr, false, selected)) {
+            m_selection->node = DuplicateNode(*m_scene, m_selection->node);
+            m_document->Report(SceneStatus::Kind::Info, "Duplicated node.");
+        }
+        if (ImGui::MenuItem("Delete", nullptr, false, selected))
+            m_selection->node = RemoveNodeFromPlace(*m_scene, m_selection->node);
         ImGui::EndMenu();
     }
 
@@ -78,12 +98,34 @@ namespace elm {
         if (modified)
             width += ImGui::CalcTextSize(ModifiedMark).x + style.ItemSpacing.x;
         const float x = ImGui::GetWindowContentRegionMax().x - width;
+        DrawStatus(x - style.ItemSpacing.x);
         if (x > ImGui::GetCursorPosX())
             ImGui::SetCursorPosX(x);
         ImGui::TextDisabled("%s", name.c_str());
         if (modified) {
             ImGui::TextColored(ModifiedColor, "%s", ModifiedMark);
         }
+    }
+
+    void SceneMenu::DrawStatus(float right)
+    {
+        const SceneStatus& status = m_document->Status();
+        const float room = right - ImGui::GetCursorPosX();
+        const float ellipsisWidth = ImGui::CalcTextSize(Ellipsis).x;
+        if (status.text.empty() || room <= ellipsisWidth)
+            return;
+        // Against the file name. A longer text is cut short: what is drawn is what takes room in the bar, so the
+        // file name stays at its place; the tooltip has the text whole
+        String shown = status.text;
+        if (ImGui::CalcTextSize(shown.c_str()).x > room) {
+            const char* cut = nullptr;
+            const char* text = status.text.c_str();
+            (void)ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), room - ellipsisWidth, 0.0f, text, text + status.text.size(), &cut);
+            shown = String(text, cut) + Ellipsis;
+        }
+        ImGui::SetCursorPosX(right - ImGui::CalcTextSize(shown.c_str()).x);
+        ImGui::TextColored(StatusColor(status.kind), "%s", shown.c_str());
+        ImGui::SetItemTooltip("%s", status.text.c_str());
     }
 
     void SceneMenu::DrawPopups()

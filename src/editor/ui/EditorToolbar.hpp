@@ -1,10 +1,8 @@
 #pragma once
 
-namespace elm {
+#include <functional>
 
-    namespace graphics {
-        class DebugDraw;
-    }
+namespace elm {
 
     namespace script {
         struct PlayRequests;
@@ -14,12 +12,12 @@ namespace elm {
     struct EditorToolbarDesc {
         /// Play and Stop.
         const script::PlayRequests* play { nullptr };
-        /// The channels of the Debug menu.
-        graphics::DebugDraw* debugDraw { nullptr };
+        /// Runs the open project in a player process of its own, from its files; nothing without a project.
+        std::function<void()> runStandalone;
     };
 
-    /// The controls of the main menu bar that are not menus of a file: the Debug menu, Play and Stop (F5 plays the
-    /// project, Shift+F5 the edited scene, either stops). What is not set is not shown.
+    /// The controls of the main menu bar that are not menus: in the middle of the bar, every way to start the game. Play (F5) plays the edited scene; the arrow beside it lists Play Scene, Play
+    /// Project (Shift+F5) and Run Standalone (Ctrl+F5). In Play there is Stop (F5). What is not set is not shown.
     /// Owner: ImGuiSystem, thread: update (inside the ImGui frame).
     class EditorToolbar {
     public:
@@ -29,8 +27,7 @@ namespace elm {
         void Draw();
 
     private:
-        void DrawDebugMenu();
-        void DrawPlayControls();
+        void DrawStartMenu(const script::PlayRequests& play);
 
         EditorToolbarDesc m_desc;
     };

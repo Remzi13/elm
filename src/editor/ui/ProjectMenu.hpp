@@ -15,25 +15,33 @@ namespace elm {
         Path file;
         /// Extension of project files, for the Open dialog.
         String fileExtension;
+        /// Where the Open dialog starts without an open project.
+        Path projectsFolder;
         /// A request: the engine switches projects at the start of the next update, outside of any window.
         std::function<void(const Path& file)> open;
         /// Project files opened before, the last one first.
         Vector<Path> recent;
         /// Shows the Project Hub: create a project, open one.
         std::function<void()> showHub;
-        /// Runs the open project in a player process of its own, from its files (Ctrl+F5).
-        std::function<void()> runStandalone;
+        /// Shows the Settings window (File → Settings, Ctrl+,).
+        std::function<void()> showSettings;
+        /// Shows the Settings window on the open project's entry: its startup scene and main module.
+        std::function<void()> showProjectSettings;
         /// Builds the open project into a game folder, Build/<Name>.
         std::function<void()> buildGame;
     };
 
-    /// The Project menu of the main menu bar: opens another project (a recent one, a file) or reloads the open
-    /// one, after a confirmation, since unsaved changes are lost; shows the Project Hub. Without a project only
-    /// the hub and the recent projects are offered. Owner: ImGuiSystem, thread: update (inside the ImGui frame).
+    /// The project in the main menu bar. Its items of the File menu open another project (a new one in the Project
+    /// Hub, a file, a recent one) or reload the open one, after a confirmation, since unsaved changes are lost, and
+    /// the last one shows the Settings window (Ctrl+,). The Project menu is the open project: its settings and
+    /// Build Game; off without a project.
+    /// Owner: ImGuiSystem, thread: update (inside the ImGui frame).
     class ProjectMenu {
     public:
         void SetProject(ProjectMenuDesc project);
 
+        /// Inside the File menu.
+        void DrawFileItems();
         /// Inside the menu bar.
         void DrawMenu();
         /// Outside of the menu bar: popups opened from a menu would live in the menu's ID scope.
@@ -41,7 +49,6 @@ namespace elm {
 
     private:
         void DrawRecent();
-        void RunStandalone();
         /// Asks before closing an open project, opens right away without one.
         void RequestOpen(const Path& file);
         void DrawConfirmation();

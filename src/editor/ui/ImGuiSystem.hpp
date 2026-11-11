@@ -59,11 +59,11 @@ namespace elm {
         void AddProjectWindow(UniquePtr<IImGuiWindow> window);
         /// Destroys the project windows; the windows of the next project open as these were.
         void CloseProjectWindows();
-        /// The open project the Project menu shows and how it asks the engine for another one.
+        /// The open project the File and Project menus show and how it asks the engine for another one.
         void SetProjectMenu(ProjectMenuDesc project);
-        /// The open scene the Scene and Edit menus work on; nullptrs without a project.
-        void SetSceneMenu(SceneDocument* document, SceneEdits* edits);
-        /// What Play, Stop, the Debug menu and the gizmo mode of the menu bar work on.
+        /// The open scene the File and Edit menus work on; empty without a project.
+        void SetSceneMenu(const SceneMenuDeps& deps);
+        /// What Play, Stop and the Debug menu of the menu bar work on.
         void SetToolbar(const EditorToolbarDesc& desc);
         /// Replaces the scene with a scene file at the start of the next frame, outside of any window; asks
         /// first when the scene has unsaved changes.

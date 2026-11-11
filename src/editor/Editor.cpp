@@ -46,6 +46,8 @@ namespace elm {
         constexpr const char* LogSource = "Editor";
         constexpr StringView MainWindowTitle = "C++23 3D Engine - Direct3D 12 & Jolt Physics";
         constexpr Size MainWindowSize { 1280, 720 };
+        /// Where new projects go and where looking for one starts, under the root of the engine.
+        constexpr StringView ProjectsFolder = "projects";
 
     } // namespace
 
@@ -107,7 +109,7 @@ namespace elm {
                 .recent = [this] { return RecentProjects(); },
                 .open = [this](const Path& file) { m_requestedProject = file; },
                 .create = [this](const Path& location, StringView name) { return CreateProject(location, name); },
-                .defaultLocation = FileSystem::Resolve("projects"),
+                .defaultLocation = FileSystem::Resolve(Path(ProjectsFolder)),
             });
         UpdateProjectMenu(nullptr);
         AddVisualizers();
@@ -190,6 +192,7 @@ namespace elm {
         // The UI's surfaces and textures go before rendering, with its thread stopped
         m_graphics.StopRendering();
         m_hub = nullptr;
+        m_settingsWindow = nullptr;
         m_imgui->Shutdown();
         m_platform.GetInput().RemoveSubscriber(&m_cameraController);
         // Scripts go first: they may still talk to the other systems in on_shutdown
@@ -247,6 +250,7 @@ namespace elm {
         RememberProject(project.File());
         CreateProjectWindows(project, openedScene);
         UpdateProjectMenu(&project);
+        m_settingsWindow->SetProject(project, [this](project::ProjectEntry entry) { return SetProjectEntry(std::move(entry)); });
         if (m_hub)
             m_hub->SetVisible(false);
     }
@@ -257,8 +261,9 @@ namespace elm {
         m_files = {};
         m_sceneFile = {};
         m_selection = {};
-        m_imgui->SetSceneMenu(nullptr, nullptr);
+        m_imgui->SetSceneMenu({});
         m_imgui->CloseProjectWindows();
+        m_settingsWindow->ClearProject();
         m_sceneDocument.reset();
         UpdateProjectMenu(nullptr);
     }
@@ -348,12 +353,12 @@ namespace elm {
 
     void Editor::CreateEditorWindows()
     {
-        m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .debugDraw = &m_debugDraw.GetDebugDraw() });
+        m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .runStandalone = [this] { RunStandalone(); } });
         m_imgui->AddWindow(MakeUnique<SocLabWindow>(m_settings, &m_graphics.GetCulling()));
-        m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
+        m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
         m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
         m_imgui->AddWindow(MakeUnique<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats }));
-        m_imgui->AddWindow(MakeUnique<SettingsWindow>(m_settings));
+        m_settingsWindow = &m_imgui->EmplaceWindow<SettingsWindow>(m_settings, Settings::DefaultFilePath());
     }
 
     void Editor::CreateProjectWindows(const project::Project& project, const Path& openedScene)
@@ -362,9 +367,9 @@ namespace elm {
         ModelCatalog& models = m_resources.GetModels();
         m_sceneDocument.emplace(SceneDocumentDeps { scene, models, m_edits, m_selection, m_playRequests }, project.Assets(), project.Scenes(), openedScene);
         m_sceneFile = SceneFileRequests { .save = [this] { (void)m_sceneDocument->Save(); } };
-        m_imgui->SetSceneMenu(&*m_sceneDocument, &m_edits);
+        m_imgui->SetSceneMenu(SceneMenuDeps { &*m_sceneDocument, &m_edits, &scene, &m_selection });
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
-            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_gizmo, m_playRequests, m_scriptInspection, m_files, m_sceneFile },
+            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_playRequests, m_scriptInspection, m_files, m_sceneFile, m_graphics.GetViewCamera() },
             NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });
         auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
             SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile, m_graphics.GetViewCamera(), m_playRequests,
@@ -391,10 +396,12 @@ namespace elm {
     void Editor::UpdateProjectMenu(const project::Project* project)
     {
         ProjectMenuDesc menu { .fileExtension = String(project::Project::FileExtension),
+            .projectsFolder = FileSystem::Resolve(Path(ProjectsFolder)),
             .open = [this](const Path& file) { m_requestedProject = file; },
             .recent = RecentProjects(),
             .showHub = [this] { ShowProjectHub(); },
-            .runStandalone = [this] { RunStandalone(); },
+            .showSettings = [this] { m_settingsWindow->Show(SettingsSection::Editor); },
+            .showProjectSettings = [this] { m_settingsWindow->Show(SettingsSection::Project); },
             .buildGame = [this] { BuildGame(); } };
         if (project) {
             menu.name = project->Name();

@@ -2,6 +2,8 @@
 
 #include "core/Unexpected.hpp"
 
+#include "graphics/Camera.hpp"
+
 #include "math/Matrix.hpp"
 #include "math/Primitivs.hpp"
 
@@ -14,12 +16,43 @@
 #include "Scene/Scene.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <optional>
 
 namespace elm {
 
     namespace {
 
         constexpr math::Vector4 DefaultModelColor { 0.8f, 0.8f, 0.8f, 1.0f };
+        /// Bounds of a node without a model when the camera frames it.
+        constexpr float NodeWithoutModelExtent = 0.5f;
+
+        /// How far along the ray it enters the bounds; nothing when it misses them or starts inside.
+        std::optional<float> EnterDistance(const ViewRay& ray, const AABB& bounds)
+        {
+            const float origin[3] { ray.origin.x, ray.origin.y, ray.origin.z };
+            const float direction[3] { ray.direction.x, ray.direction.y, ray.direction.z };
+            const float low[3] { bounds.minBounds.x, bounds.minBounds.y, bounds.minBounds.z };
+            const float high[3] { bounds.maxBounds.x, bounds.maxBounds.y, bounds.maxBounds.z };
+            float enter = 0.0f;
+            float leave = std::numeric_limits<float>::max();
+            for (int axis = 0; axis < 3; ++axis) {
+                // Along the slab: the ray is in it all the way or never
+                if (direction[axis] == 0.0f) {
+                    if (origin[axis] < low[axis] || origin[axis] > high[axis])
+                        return std::nullopt;
+                    continue;
+                }
+                const float first = (low[axis] - origin[axis]) / direction[axis];
+                const float second = (high[axis] - origin[axis]) / direction[axis];
+                enter = (std::max)(enter, (std::min)(first, second));
+                leave = (std::min)(leave, (std::max)(first, second));
+            }
+            if (enter > leave || enter <= 0.0f)
+                return std::nullopt;
+            return enter;
+        }
 
     } // namespace
 
@@ -104,6 +137,43 @@ namespace elm {
         return scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
     }
 
+    NodeId PickNode(const Scene& scene, const ModelCatalog& models, const ViewRay& ray)
+    {
+        const auto* nodeModels = scene.FindComponents<ModelComponent>();
+        if (!nodeModels)
+            return {};
+        NodeId picked;
+        float nearest = std::numeric_limits<float>::max();
+        const auto nodes = scene.Nodes();
+        for (size_t index = 0; index < nodes.size(); ++index) {
+            const ModelComponent* component = nodeModels->Find(nodes[index].id);
+            const Model* model = component && component->visible ? models.Get(component->model) : nullptr;
+            if (!model || model->submeshes.empty())
+                continue;
+            const auto distance = EnterDistance(ray, model->GetLocalBounds().Transformed(scene.WorldTransforms()[index]));
+            if (distance && *distance < nearest) {
+                nearest = *distance;
+                picked = nodes[index].id;
+            }
+        }
+        return picked;
+    }
+
+    void FrameNode(Camera& camera, const Scene& scene, const ModelCatalog& models, NodeId node)
+    {
+        const size_t index = scene.IndexOf(node);
+        if (index == Scene::NoNode)
+            return;
+        const auto* nodeModels = scene.FindComponents<ModelComponent>();
+        const ModelComponent* component = nodeModels ? nodeModels->Find(node) : nullptr;
+        const Model* model = component ? models.Get(component->model) : nullptr;
+        const Vector3 extent { NodeWithoutModelExtent, NodeWithoutModelExtent, NodeWithoutModelExtent };
+        const AABB local = model && !model->submeshes.empty() ? model->GetLocalBounds() : AABB { Vector3 {} - extent, extent };
+        const AABB bounds = local.Transformed(scene.WorldTransforms()[index]);
+        const float distance = bounds.GetExtent().Length() / std::sin(camera.fovRadians * 0.5f);
+        camera.SetPosition(bounds.GetCenter() - camera.GetForwardDirection() * distance);
+    }
+
     Collider FitColliderToModel(const Model* model)
     {
         Collider collider;
@@ -158,6 +228,19 @@ namespace elm {
     void RemoveOverride(ScriptComponent& script, StringView name)
     {
         std::erase_if(script.props, [&](const auto& prop) { return prop.first == name; });
+    }
+
+    Path ScriptModuleFile(const Path& scriptsFolder, StringView module)
+    {
+        if (module.empty())
+            return {};
+        String relative(module);
+        std::replace(relative.begin(), relative.end(), '.', '/');
+        const Path file = scriptsFolder / (relative + ".lua");
+        if (FileSystem::Exists(file))
+            return file;
+        const Path init = scriptsFolder / relative / "init.lua";
+        return FileSystem::Exists(init) ? init : Path {};
     }
 
     Vector<String> ListScriptModules(const Path& scriptsFolder)

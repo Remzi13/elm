@@ -219,7 +219,7 @@ local state = elm.script.persist("demo.spinner", { cubes = {}, direction = 1 })
 
 ## Окно Scripts
 
-`editor/script/ScriptWindow.*`, пункт «Scripts» в меню Windows. Окно только раскладывает свои части и выполняет
+`editor/script/ScriptWindow.*`, пункт «Scripts» в меню Window. Окно только раскладывает свои части и выполняет
 `/`-команды консоли. Каждая панель работает только со своими частями модуля: `ScriptStatusBar` (панель сверху),
 `ConsolePanel` (`ScriptConsole`), `ScriptEditor`, `ModulesPanel` (`ModuleLoader`, `HotReload`), `ApiPanel` (`lua::State`).
 Окно создаёт `script::CreateScriptWindow(scripts, settings)` (`editor/script/ScriptEditorWindows.*`),
@@ -230,7 +230,7 @@ ImGui — `CodeIndent`, `LuaHighlighter`, `ErrorLocation` (`FindErrorLocation`: 
 Lua) — лежит там же, в `editor/script/`; её проверяет `editor --editor-selftest` (`editor/EditorSelfTest.cpp`).
 
 - **Панель сверху:** состояние главного модуля (running / stopped с текстом ошибки и кнопкой
-  перезагрузки / not running), память Lua, флажок Hot reload, кнопки «Reload changed» и «Restart».
+  перезагрузки / not running), память Lua, кнопки «Reload changed» и «Restart». Hot reload включается в окне Settings, раздел Editor.
 - **Console:** строка Lua выполняется в живом движке. Для выражения печатается его значение,
   `print` внутри команды выводится сюда же. Tab дополняет имена (`elm.sc` → `elm.scene`,
   `v:` → методы объекта), стрелки листают историю. Команды консоли: `/help`, `/clear`,

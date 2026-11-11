@@ -828,7 +828,7 @@ namespace elm {
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Scene", hasModel)) {
+        if (ImGui::BeginMenu("Model", hasModel)) {
             if (ImGui::MenuItem("Apply to Scene", nullptr, false, IsSceneModelAlive()))
                 ApplyToScene();
             if (ImGui::MenuItem("Add to Scene"))

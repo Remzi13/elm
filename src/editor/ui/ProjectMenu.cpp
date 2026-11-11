@@ -17,37 +17,37 @@ namespace elm {
         m_project = std::move(project);
     }
 
-    void ProjectMenu::DrawMenu()
+    void ProjectMenu::DrawFileItems()
     {
-        if (!ImGui::BeginMenu("Project"))
-            return;
         const bool hasProject = !m_project.file.Empty();
-        ImGui::TextDisabled("%s", hasProject ? m_project.name.c_str() : "No project");
-        ImGui::Separator();
-        if (ImGui::MenuItem("Project Hub...") && m_project.showHub)
+        if (ImGui::MenuItem("New Project...") && m_project.showHub)
             m_project.showHub();
-        if (hasProject && ImGui::MenuItem("Open Project..."))
+        if (ImGui::MenuItem("Open Project..."))
             m_openFileDialog = true;
         DrawRecent();
-        if (hasProject && ImGui::MenuItem("Reload Project"))
+        if (ImGui::MenuItem("Reload Project", nullptr, false, hasProject))
             RequestOpen(m_project.file);
         ImGui::Separator();
-        if (hasProject && ImGui::MenuItem("Run Standalone", "Ctrl+F5"))
-            RunStandalone();
-        if (hasProject && ImGui::MenuItem("Build Game") && m_project.buildGame)
+        if (ImGui::MenuItem("Settings...", "Ctrl+,") && m_project.showSettings)
+            m_project.showSettings();
+    }
+
+    void ProjectMenu::DrawMenu()
+    {
+        if (!ImGui::BeginMenu("Project", !m_project.file.Empty()))
+            return;
+        ImGui::TextDisabled("%s", m_project.name.c_str());
+        ImGui::Separator();
+        if (ImGui::MenuItem("Project Settings...") && m_project.showProjectSettings)
+            m_project.showProjectSettings();
+        if (ImGui::MenuItem("Build Game") && m_project.buildGame)
             m_project.buildGame();
         ImGui::EndMenu();
     }
 
-    void ProjectMenu::RunStandalone()
-    {
-        if (!m_project.file.Empty() && m_project.runStandalone)
-            m_project.runStandalone();
-    }
-
     void ProjectMenu::DrawRecent()
     {
-        if (!ImGui::BeginMenu("Recent", !m_project.recent.empty()))
+        if (!ImGui::BeginMenu("Recent Projects", !m_project.recent.empty()))
             return;
         for (const Path& file : m_project.recent) {
             if (ImGui::MenuItem(file.string().c_str()))
@@ -70,11 +70,13 @@ namespace elm {
     void ProjectMenu::DrawPopups()
     {
         const ImGuiIO& io = ImGui::GetIO();
-        if (!io.WantTextInput && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F5, false))
-            RunStandalone();
+        if (!io.WantTextInput && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Comma, false) && m_project.showSettings)
+            m_project.showSettings();
         // Projects usually lie next to each other: the dialog starts in the folder of the open one
-        if (std::exchange(m_openFileDialog, false))
-            m_fileDialog.Open("Open Project", m_project.fileExtension, m_project.file.Parent().Parent());
+        if (std::exchange(m_openFileDialog, false)) {
+            const Path start = m_project.file.Empty() ? m_project.projectsFolder : m_project.file.Parent().Parent();
+            m_fileDialog.Open("Open Project", m_project.fileExtension, start);
+        }
         if (const auto file = m_fileDialog.Draw())
             RequestOpen(*file);
         DrawConfirmation();

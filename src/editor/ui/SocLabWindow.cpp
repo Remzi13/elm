@@ -10,9 +10,6 @@
 namespace elm {
 
     namespace {
-        static constexpr std::array<uint32_t, 5> ResolutionWidths = { 64, 128, 256, 320, 512 };
-        static constexpr std::array<uint32_t, 5> ResolutionHeights = { 36, 72, 144, 180, 288 };
-
         ImTextureID ToTextureId(render::TextureHandle texture)
         {
             if (!texture.IsValid())
@@ -22,19 +19,6 @@ namespace elm {
             return reinterpret_cast<ImTextureID>(value);
         }
     } // namespace
-
-    void SocLabWindow::SetResolutionIndex(int index) noexcept
-    {
-        m_currentResolution = std::clamp(index, 0, static_cast<int>(ResolutionWidths.size()) - 1);
-    }
-
-    void SocLabWindow::ApplyResolution()
-    {
-        const uint32_t width = ResolutionWidths[m_currentResolution];
-        const uint32_t height = ResolutionHeights[m_currentResolution];
-        m_settings.Set(Settings::Category::Render, OcclusionCulling::ResolutionWidthSetting, width);
-        m_settings.Set(Settings::Category::Render, OcclusionCulling::ResolutionHeightSetting, height);
-    }
 
     void SocLabWindow::Render(render::FrameWriter&)
     {
@@ -83,39 +67,6 @@ namespace elm {
                         }
                     }
                 }
-            }
-        }
-
-        if (ImGui::CollapsingHeader("Culling Algorithms", ImGuiTreeNodeFlags_DefaultOpen)) {
-            auto enableFrustumCulling = m_settings.Get<bool>(Settings::Category::Render,
-                OcclusionCulling::EnableFrustumCullingSetting);
-            if (ImGui::Checkbox("Enable Frustum Culling", &enableFrustumCulling)) {
-                m_settings.Set(Settings::Category::Render, OcclusionCulling::EnableFrustumCullingSetting,
-                    enableFrustumCulling);
-            }
-            auto enableOcclusionCulling = m_settings.Get<bool>(Settings::Category::Render,
-                OcclusionCulling::EnableOcclusionCullingSetting);
-            if (ImGui::Checkbox("Enable Software Occlusion Culling", &enableOcclusionCulling)) {
-                m_settings.Set(Settings::Category::Render, OcclusionCulling::EnableOcclusionCullingSetting,
-                    enableOcclusionCulling);
-            }
-            auto depthBias = m_settings.Get<float>(Settings::Category::Render, OcclusionCulling::DepthBiasSetting);
-            if (ImGui::SliderFloat("Depth Bias", &depthBias, 0.0f, 0.01f, "%.4f")) {
-                m_settings.Set(Settings::Category::Render, OcclusionCulling::DepthBiasSetting, depthBias);
-            }
-            const uint32_t currentWidth =
-                m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCulling::ResolutionWidthSetting);
-            const uint32_t currentHeight =
-                m_settings.Get<uint32_t>(Settings::Category::Render, OcclusionCulling::ResolutionHeightSetting);
-            for (size_t index = 0; index < ResolutionWidths.size(); ++index) {
-                if (ResolutionWidths[index] == currentWidth && ResolutionHeights[index] == currentHeight) {
-                    m_currentResolution = static_cast<int>(index);
-                    break;
-                }
-            }
-            const char* resolutions[] = { "64x36", "128x72", "256x144 (Recommended)", "320x180", "512x288" };
-            if (ImGui::Combo("SOC Buffer Res", &m_currentResolution, resolutions, IM_ARRAYSIZE(resolutions))) {
-                ApplyResolution();
             }
         }
 

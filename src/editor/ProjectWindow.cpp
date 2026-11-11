@@ -43,7 +43,6 @@ namespace elm::editor {
         , m_files(files)
         , m_setEntry(std::move(setEntry))
         , m_assets(project.Assets())
-        , m_settingsPanel(project, m_setEntry, m_assets)
     {
     }
 
@@ -56,17 +55,7 @@ namespace elm::editor {
             ImGui::End();
             return;
         }
-        if (ImGui::BeginTabBar("ProjectTabs")) {
-            if (ImGui::BeginTabItem("Assets")) {
-                DrawAssets();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Settings")) {
-                m_settingsPanel.Draw();
-                ImGui::EndTabItem();
-            }
-            ImGui::EndTabBar();
-        }
+        DrawAssets();
         DrawNewFolderPopup();
         ImGui::End();
     }

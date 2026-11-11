@@ -145,11 +145,11 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `script::MakeProjectPlayStart` | `PlayStart` открытого проекта для `PlayMode::SetStartSource` | `script` |
 | `Editor` | программа-редактор, корень композиции: те же системы полями и кадр `RunFrame`; окна, меню Project, Hub, смена и создание проекта, Run Standalone, Build Game, режим Edit | `editor` |
 | `SceneEdits` | история правок сцены в редакторе (`editor/SceneEdits.*`): шаг узла (выбранный узел до и после кадра UI, жест — один шаг) и шаг структуры (вся сцена до правки, по `Scene::StructureRevision`); Undo/Redo, замирает в Play, очищается при смене сцены и проекта; знает, изменена ли сцена с последнего сохранения (`MarkSaved`, `IsModified`) | `editor` |
-| `SceneDocument`, `SceneStatus` | открытая сцена как файл (`editor/SceneDocument.*`): какой файл, есть ли несохранённые правки, New, Open, Save, Save As, glTF, в Play ничего не сохраняет и не заменяет; последнее сообщение для строки статуса. Владелец `Editor`, пока открыт проект | `editor` |
-| `EditorToolbar`, `EditorToolbarDesc` | верхняя панель в строке меню: меню Debug, Play и Stop. Вьюпорт только показывает, режим гизмо — в Inspector | `editor/ui` |
-| `SceneMenu` | меню Scene и Edit и имя файла сцены в строке меню, вопрос о несохранённых правках | `editor/ui` |
-| `SceneHierarchyWindow`, `NodeInspectorWindow` | окна сцены: дерево узлов; выбранный узел и его компоненты (заголовок Inspector) | `editor/ui` |
-| `ModelPrimitive`, `NodeEditing` | модели без файла; что окна делают с узлами и компонентами без UI (`editor/NodeEditing.*`) | `editor` |
+| `SceneDocument`, `SceneStatus` | открытая сцена как файл (`editor/SceneDocument.*`): какой файл, есть ли несохранённые правки, New, Open, Save, Save As, glTF, в Play ничего не сохраняет и не заменяет; последнее сообщение о сцене, его показывает строка меню. Владелец `Editor`, пока открыт проект | `editor` |
+| `EditorToolbar`, `EditorToolbarDesc` | верхняя панель в строке меню: посередине запуск иконками — ▶ Play Scene (F5), список ▾ с Play Scene, Play Project (Shift+F5), Run Standalone (Ctrl+F5), в Play — ■ Stop. Режим гизмо и каналы отладки — в меню вида в углу вьюпорта (`EngineViewportWindow`) | `editor/ui` |
+| `SceneMenu`, `SceneMenuDeps` | сцена в строке меню: её пункты меню File, меню Edit (Undo, Redo, Duplicate и Delete выбранного узла), справа сообщение о сцене (`SceneStatus`) и имя файла; вопрос о несохранённых правках | `editor/ui` |
+| `SceneHierarchyWindow`, `NodeInspectorWindow` | окна сцены: дерево узлов с иконками видимости и компонентов в строке; выбранный узел и его компоненты (заголовок Inspector) | `editor/ui` |
+| `ModelPrimitive`, `NodeEditing` | модели без файла; что окна делают с узлами и компонентами без UI (`editor/NodeEditing.*`), в том числе `PickNode` (узел под лучом вида) и `FrameNode` (камера на узел) | `editor` |
 | `ui::InputString`, `ui::ToggleButton`, `ui::BeginPropertyGrid`, `ui::DragAxes` | общие виджеты окон (`editor/ui/EditorWidgets.*`) | `editor/ui` |
 | `resource::ResourceSystem` | открытый проект и его модели (`ModelCatalog`): `ReadProject`, `Open`/`Close`, `SetEntry`, `LoadStartupScene`. О GPU и скриптах не знает | `resource` |
 | `resource::Serializer`, `GltfExporter`, `JsonValue` | `.model` (двоичный), `.scene`/`.elmproject` (JSON через glaze), экспорт glTF | `resource` |
@@ -157,11 +157,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели `.model` в `assets/models/`, тот же файл по содержимому не добавляет ничего нового; модель вместе с её файлом | `resource` |
 | `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `ResourceSystem`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |
-| `ProjectMenu`, `ProjectMenuDesc` | меню Project редактора; открытый проект для него, недавние проекты, запрос `open` (применяется в начале update) | `editor/ui` |
+| `ProjectMenu`, `ProjectMenuDesc` | проект в строке меню: пункты смены проекта в меню File (New, Open, Recent, Reload) и File → Settings (Ctrl+,), меню Project открытого проекта (Project Settings, Build Game); запрос `open` применяется в начале update | `editor/ui` |
+| `SettingsWindow`, `SettingsSection` | окно Settings: разделы Project (точка входа), Editor, Rendering; каждая настройка рисуется явно по ключу, служебные не видны, изменение сразу пишется в файл | `editor/ui` |
 | `project::AssetType`, `ProjectAssets`, `AssetEntry` | тип файла ассета по расширению; дерево папки `assets` для окон | `project` |
 | `resource::ProjectTemplate` | новый проект на диске: `.elmproject`, папки ассетов, `main.lua`, настройка LuaLS | `resource` |
 | `resource::ProjectBuilder`, `BuildDesc` | сборка игры в `Build/<Имя>/`: программа, шейдеры, проект без `source/`, `.settings` | `resource` |
-| `editor::ProjectWindow`, `ProjectSettingsPanel`, `ProjectHubWindow` | окна редактора, которым нужен проект: Project (вкладки Assets и Settings — точка входа), старт без проекта | `editor` |
+| `editor::ProjectWindow`, `ProjectSettingsPanel`, `ProjectHubWindow` | окна редактора, которым нужен проект: Project (ассеты); раздел Project окна Settings (точка входа); старт без проекта | `editor` |
 | `script::ScriptSystem` | система скриптов: Lua-машина, сборка частей и биндингов, порядок в кадре, Shutdown, Play и Stop (`PlayMode`, `GetPlayMode`). Системы движка получает в конструкторе (`ScriptDeps`). Части внутренние для модуля | `script` |
 | `ScriptDeps`, `EngineContext`, `ScriptTime`, `PlayRequests` | системы движка для `ScriptSystem` (конструктор, любая может отсутствовать); что из них видят биндинги (собирает `Init`, с открытым проектом); время кадра; запросы Play/Stop | `script` |
 | `ModulePaths`, `ModuleLoader`, `LoadedModule` | имя модуля ↔ файл; `require` и загруженные модули | `script/module` |

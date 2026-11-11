@@ -1,5 +1,7 @@
 #include "editor/ui/EngineViewportWindow.hpp"
 
+#include "editor/NodeEditing.hpp"
+#include "editor/ui/EditorWidgets.hpp"
 #include "editor/ui/SceneEditShortcuts.hpp"
 
 #include "core/Log.hpp"
@@ -26,19 +28,22 @@ namespace elm {
             return reinterpret_cast<ImTextureID>(value);
         }
 
-        /// W, E, R. Not with the right mouse button: the fly camera has WASD and QE then.
-        void HandleGizmoKeys(GizmoSettings& gizmo)
-        {
-            const ImGuiIO& io = ImGui::GetIO();
-            if (io.WantTextInput || io.KeyCtrl || ImGui::IsMouseDown(ImGuiMouseButton_Right))
-                return;
-            if (ImGui::IsKeyPressed(ImGuiKey_W, false))
-                gizmo.operation = GizmoOperation::Translate;
-            else if (ImGui::IsKeyPressed(ImGuiKey_E, false))
-                gizmo.operation = GizmoOperation::Rotate;
-            else if (ImGui::IsKeyPressed(ImGuiKey_R, false))
-                gizmo.operation = GizmoOperation::Scale;
-        }
+        /// Icons of the view menu: symbols of the icon font (EditorStyle), in UTF-8, with the id after ###.
+        constexpr const char* MenuIcon = "\xE2\x98\xB0###ViewMenu";      // U+2630
+        constexpr const char* MoveIcon = "\xE2\x9C\xA5###Move";          // U+2725
+        constexpr const char* RotateIcon = "\xE2\x86\xBB###Rotate";      // U+21BB
+        constexpr const char* ScaleIcon = "\xE2\x87\xB2###Scale";        // U+21F2
+        constexpr const char* WorldIcon = "\xE2\x8A\x95###GizmoSpace";   // U+2295
+        constexpr const char* LocalIcon = "\xE2\x8A\x99###GizmoSpace";   // U+2299
+        constexpr const char* DebugIcon = "\xE2\x9A\x91###DebugSection"; // U+2691
+        /// Behind the view menu and its buttons: the scene shows through.
+        constexpr ImU32 MenuBackColor = IM_COL32(18, 18, 22, 90);
+        constexpr float MenuControlAlpha = 0.35f;
+        /// Under the mouse a control is easier to see, yet not solid.
+        constexpr float MenuHoveredAlpha = 0.7f;
+        constexpr float MenuPadding = 6.0f;
+        /// World units the camera moves along its view per notch of the wheel.
+        constexpr float WheelStep = 1.0f;
 
         /// Under every label, one pixel down and right: readable on light and dark scenes.
         constexpr ImU32 LabelShadowColor = IM_COL32(0, 0, 0, 200);
@@ -109,10 +114,10 @@ namespace elm {
         m_focused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
         if (m_focused)
             HandleSceneEditShortcuts(m_deps.edits, m_deps.sceneFile);
-        // In Play the keys are the game's
+        // In Play the keys and the mouse are the game's
         const bool playing = m_deps.play.isPlaying && m_deps.play.isPlaying();
         if (m_focused && !playing)
-            HandleGizmoKeys(m_deps.gizmo);
+            HandleKeys();
 
         const Scene::Node* selected = scene.Find(m_deps.selection.node);
         // A node the user hid gets no gizmo; a node without a model is not hidden
@@ -132,18 +137,137 @@ namespace elm {
                 ImGui::Image(texture, available);
                 // A widget over the image takes the mouse: without one, dragging on it moves the window
                 ImGui::SetCursorScreenPos(imagePosition);
+                // The view menu lies on the canvas and takes the mouse there
+                ImGui::SetNextItemAllowOverlap();
                 ImGui::InvisibleButton("##ViewportCanvas", available, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
                 // Popups and other windows on top of the image block the hover
-                m_hovered = ImGui::IsItemHovered();
+                const bool overCanvas = ImGui::IsItemHovered();
+                // Under the view menu: it is drawn after them
                 DrawDebugLabels(m_deps.debugDraw.GetPublishedLabels(), camera, imagePosition, available);
+                m_hovered = !DrawViewMenu(imagePosition) && overCanvas;
 
+                const graphics::GizmoInput input = ReadGizmoInput(camera, imagePosition, available, m_hovered);
                 if (selectedShown)
-                    UpdateGizmo(selected->id, ReadGizmoInput(camera, imagePosition, available, m_hovered));
+                    UpdateGizmo(selected->id, input);
                 else if (m_gizmo)
                     m_gizmo->Reset();
+                if (m_hovered && !playing)
+                    HandleMouse(input);
             }
         }
         ImGui::End();
+    }
+
+    bool EngineViewportWindow::DrawViewMenu(ImVec2 corner)
+    {
+        // The background goes under the controls, though their size is known only after them
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        drawList->ChannelsSplit(2);
+        drawList->ChannelsSetCurrent(1);
+        ImVec4 button = ImGui::GetStyleColorVec4(ImGuiCol_Button);
+        ImVec4 frame = ImGui::GetStyleColorVec4(ImGuiCol_FrameBg);
+        ImVec4 buttonHovered = ImGui::GetStyleColorVec4(ImGuiCol_ButtonHovered);
+        ImVec4 frameHovered = ImGui::GetStyleColorVec4(ImGuiCol_FrameBgHovered);
+        button.w *= MenuControlAlpha;
+        frame.w *= MenuControlAlpha;
+        buttonHovered.w *= MenuHoveredAlpha;
+        frameHovered.w *= MenuHoveredAlpha;
+        ImGui::PushStyleColor(ImGuiCol_Button, button);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, frame);
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, buttonHovered);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, frameHovered);
+        ImGui::SetCursorScreenPos(ImVec2(corner.x + MenuPadding * 2.0f, corner.y + MenuPadding * 2.0f));
+        ImGui::BeginGroup();
+        if (ui::ToggleButton(MenuIcon, m_menuOpen))
+            m_menuOpen = !m_menuOpen;
+        ImGui::SetItemTooltip("The controls of the view");
+        if (m_menuOpen) {
+            ImGui::SameLine();
+            DrawGizmoSection();
+            ImGui::SameLine();
+            DrawDebugSection();
+        }
+        ImGui::EndGroup();
+        ImGui::PopStyleColor(4);
+        const ImVec2 from { ImGui::GetItemRectMin().x - MenuPadding, ImGui::GetItemRectMin().y - MenuPadding };
+        const ImVec2 to { ImGui::GetItemRectMax().x + MenuPadding, ImGui::GetItemRectMax().y + MenuPadding };
+        drawList->ChannelsSetCurrent(0);
+        drawList->AddRectFilled(from, to, MenuBackColor, ImGui::GetStyle().FrameRounding);
+        drawList->ChannelsMerge();
+        return ImGui::IsMouseHoveringRect(from, to);
+    }
+
+    void EngineViewportWindow::DrawGizmoSection()
+    {
+        GizmoSettings& gizmo = m_deps.gizmo;
+        constexpr struct {
+            const char* label;
+            const char* tooltip;
+            GizmoOperation operation;
+        } Operations[] {
+            { MoveIcon, "Move: the gizmo moves the node (W)", GizmoOperation::Translate },
+            { RotateIcon, "Rotate: the gizmo rotates the node (E)", GizmoOperation::Rotate },
+            { ScaleIcon, "Scale: the gizmo scales the node, always along its own axes (R)", GizmoOperation::Scale },
+        };
+        for (const auto& item : Operations) {
+            if (ui::ToggleButton(item.label, gizmo.operation == item.operation))
+                gizmo.operation = item.operation;
+            ImGui::SetItemTooltip("%s", item.tooltip);
+            ImGui::SameLine();
+        }
+        const bool world = gizmo.space == GizmoSpace::World;
+        if (ImGui::Button(world ? WorldIcon : LocalIcon))
+            gizmo.space = world ? GizmoSpace::Local : GizmoSpace::World;
+        ImGui::SetItemTooltip(world ? "World: the gizmo follows the axes of the world. Click for the node's own" : "Local: the gizmo follows the node's own axes. Click for the world's");
+    }
+
+    void EngineViewportWindow::DrawDebugSection()
+    {
+        if (ui::ToggleButton(DebugIcon, m_debugSectionOpen))
+            m_debugSectionOpen = !m_debugSectionOpen;
+        ImGui::SetItemTooltip("Debug draw: what the view draws over the scene");
+        if (!m_debugSectionOpen)
+            return;
+        // Checkbox per debug draw channel, grouped by the part of the name before the first '/'
+        String group;
+        for (const auto& channel : m_deps.debugDraw.GetChannels()) {
+            const String channelGroup = channel.name.substr(0, channel.name.find('/'));
+            if (channelGroup != group) {
+                ImGui::TextDisabled("%s", channelGroup.c_str());
+                group = channelGroup;
+            }
+            bool enabled = channel.enabled;
+            ImGui::PushID(channel.name.c_str());
+            if (ImGui::Checkbox(channel.label.c_str(), &enabled))
+                m_deps.debugDraw.SetEnabled(channel.channel, enabled);
+            ImGui::PopID();
+        }
+    }
+
+    void EngineViewportWindow::HandleKeys()
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        if (io.WantTextInput || io.KeyCtrl || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+            return;
+        GizmoSettings& gizmo = m_deps.gizmo;
+        if (ImGui::IsKeyPressed(ImGuiKey_W, false))
+            gizmo.operation = GizmoOperation::Translate;
+        else if (ImGui::IsKeyPressed(ImGuiKey_E, false))
+            gizmo.operation = GizmoOperation::Rotate;
+        else if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+            gizmo.operation = GizmoOperation::Scale;
+        else if (ImGui::IsKeyPressed(ImGuiKey_F, false))
+            FrameNode(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.node);
+    }
+
+    void EngineViewportWindow::HandleMouse(const graphics::GizmoInput& input)
+    {
+        // A press on a handle of the gizmo is its drag, not a pick
+        const bool onGizmo = m_gizmo && (m_gizmo->IsDragging() || m_gizmo->GetHovered() != graphics::GizmoAxis::None);
+        if (input.pressed && !onGizmo)
+            m_deps.selection.node = PickNode(m_deps.scene, m_deps.models, input.ray);
+        if (const float wheel = ImGui::GetIO().MouseWheel; wheel != 0.0f)
+            m_deps.camera.Translate(m_deps.camera.GetForwardDirection() * (wheel * WheelStep));
     }
 
     void EngineViewportWindow::UpdateGizmo(NodeId node, const graphics::GizmoInput& input)

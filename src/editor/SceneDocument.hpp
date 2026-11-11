@@ -16,7 +16,7 @@ namespace elm {
         struct PlayRequests;
     }
 
-    /// The last thing that happened to the scene, for the status line of Scene Hierarchy.
+    /// The last thing that happened to the scene, shown in the main menu bar (SceneMenu).
     struct SceneStatus {
         enum class Kind : uint8_t {
             Info,

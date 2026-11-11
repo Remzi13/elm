@@ -3,7 +3,6 @@
 #include "editor/script/ScriptWindowActions.hpp"
 
 namespace elm {
-    class Settings;
 }
 
 namespace elm::script {
@@ -16,7 +15,7 @@ namespace elm::script {
     class MainModule;
 
     /// The bar on top of the Scripts window: the state of the main module and of the entity scripts,
-    /// Lua memory, hot reload, Reload changed, Rebuild scene, Edit main, Restart.
+    /// Lua memory, Reload changed, Rebuild scene, Edit main, Restart.
     /// Owner: ScriptWindow, thread: update (UI).
     class ScriptStatusBar {
     public:
@@ -36,7 +35,7 @@ namespace elm::script {
             std::function<void()> requestRestart;
         };
 
-        ScriptStatusBar(Settings& settings, Parts parts, Actions actions);
+        ScriptStatusBar(Parts parts, Actions actions);
 
         void Draw();
         /// main.build_scene(), the result goes to the console.
@@ -48,7 +47,6 @@ namespace elm::script {
         void DrawButtons();
         void DrawMainError();
 
-        Settings& m_settings;
         Parts m_parts;
         Actions m_actions;
     };

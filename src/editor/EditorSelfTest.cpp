@@ -11,12 +11,15 @@
 #include "editor/script/ScriptWindow.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/culling/OcclusionCulling.hpp"
+#include "graphics/debug/DebugDraw.hpp"
 #include "graphics/gizmo/GizmoSettings.hpp"
 #include "editor/ui/EditorToolbar.hpp"
+#include "editor/ui/EngineViewportWindow.hpp"
 #include "editor/ui/ModelEditorWindow.hpp"
 #include "editor/ui/NodeInspectorWindow.hpp"
 #include "editor/ui/SceneHierarchyWindow.hpp"
 #include "editor/ui/SceneMenu.hpp"
+#include "editor/ui/SettingsWindow.hpp"
 
 #include "core/File.hpp"
 
@@ -24,6 +27,7 @@
 
 #include "render/api/FrameWriter.hpp"
 #include "render/api/RenderResources.hpp"
+#include "render/ViewPort.hpp"
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -35,6 +39,7 @@
 
 #include "resource/ResourceSystem.hpp"
 #include "resource/Serializer.hpp"
+#include "resource/SettingsFile.hpp"
 
 #include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
@@ -427,6 +432,39 @@ line]] .. [==[a]]b]==])",
             report.Check(RemoveNodeFromPlace(scene, a) == copy, "nodes::removal_gives_the_next_node");
             report.Check(!RemoveNodeFromPlace(scene, copy) && scene.Empty(), "nodes::removing_the_last_node_gives_nothing");
 
+            {
+                // Two cubes on the view axis and a hidden one before them
+                Scene view;
+                ModelCatalog models;
+                const NodeId near = AddPrimitiveNode(view, models, ModelPrimitive::Cube, NodeId {});
+                const NodeId far = AddPrimitiveNode(view, models, ModelPrimitive::Cube, NodeId {});
+                const NodeId hidden = AddPrimitiveNode(view, models, ModelPrimitive::Cube, NodeId {});
+                const NodeId empty = view.AddNode("empty", Matrix4x4::Translation({ 0.0f, 0.0f, 2.0f }));
+                (void)view.SetLocalTransform(near, Matrix4x4::Translation({ 0.0f, 0.0f, 5.0f }));
+                (void)view.SetLocalTransform(far, Matrix4x4::Translation({ 0.0f, 0.0f, 9.0f }));
+                (void)view.SetLocalTransform(hidden, Matrix4x4::Translation({ 0.0f, 0.0f, 3.0f }));
+                view.Components<ModelComponent>().Find(hidden)->visible = false;
+                view.UpdateWorldTransforms();
+                const ViewRay ahead { { 0.0f, 0.0f, 0.0f }, { 0.0f, 0.0f, 1.0f } };
+                report.Check(PickNode(view, models, ahead) == near, "nodes::a_click_picks_the_nearest_shown_model");
+                report.Check(!PickNode(view, models, ViewRay { { 0.0f, 0.0f, 0.0f }, { 0.0f, 1.0f, 0.0f } }), "nodes::a_click_on_empty_space_picks_nothing");
+                report.Check(PickNode(view, models, ViewRay { { 0.0f, 0.0f, 5.0f }, { 0.0f, 0.0f, 1.0f } }) == far,
+                    "nodes::bounds_around_the_camera_are_not_picked");
+
+                Camera camera({ 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f);
+                const Vector3 forward = camera.GetForwardDirection();
+                FrameNode(camera, view, models, far);
+                const Vector3 toNode = Vector3 { 0.0f, 0.0f, 9.0f } - camera.GetPosition();
+                const float distance = toNode.Length();
+                report.Check(distance > 0.5f && (toNode - forward * distance).Length() < 1e-3f, "nodes::framing_puts_the_node_ahead_of_the_camera");
+                const Vector3 before = camera.GetPosition();
+                FrameNode(camera, view, models, empty);
+                report.Check((camera.GetPosition() - before).Length() > 1.0f, "nodes::a_node_without_a_model_is_framed_too");
+                const Vector3 framed = camera.GetPosition();
+                FrameNode(camera, view, models, NodeId {});
+                report.Check((camera.GetPosition() - framed).Length() == 0.0f, "nodes::a_stale_node_moves_nothing");
+            }
+
             namespace fs = std::filesystem;
             std::error_code error;
             const fs::path root = fs::temp_directory_path(error) / "elm_module_list_selftest";
@@ -437,6 +475,11 @@ line]] .. [==[a]]b]==])",
                 report.Check(WriteTestFile(root / module, ""), "nodes::script_module_is_written");
             const Vector<String> modules = ListScriptModules(Path(String(root.generic_string().c_str())));
             report.Check(modules == Vector<String> { "game", "game.npc.guard", "main" }, "nodes::script_modules_by_require_names");
+            const Path scripts(String(root.generic_string().c_str()));
+            report.Check(ScriptModuleFile(scripts, "game.npc.guard") == scripts / "game" / "npc" / "guard.lua"
+                    && ScriptModuleFile(scripts, "game") == scripts / "game" / "init.lua",
+                "nodes::a_module_names_its_file");
+            report.Check(ScriptModuleFile(scripts, "game.npc").Empty() && ScriptModuleFile(scripts, "").Empty(), "nodes::a_module_without_a_file_names_none");
             fs::remove_all(root, error);
         }
 
@@ -526,16 +569,23 @@ line]] .. [==[a]]b]==])",
         /// Scene Hierarchy, Inspector, Model Editor and the Scene menu on a scene of their own, in a fresh ImGui.
         struct WindowsFixture {
             static constexpr float ScanStep = 8.0f;
+            /// Where the Settings window writes, in the assets folder of the test.
+            static constexpr const char* SettingsFileName = "editor.settings";
 
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
                 , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play, [this] { inspector.Show(); } }, assets, assets / "models")
-                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, gizmo, play, scripts, files, sceneFile },
+                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile, camera },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
+                , settingsWindow(settings, assets / SettingsFileName)
+                , debugDraw(settings)
+                , viewPort(resources, Size { 640, 360 })
+                , viewport(settings, EngineViewportDeps { scene, models, camera, viewPort, debugDraw, play, selection, gizmo, edits, sceneFile })
             {
+                viewport.SetVisible(false);
                 play.isPlaying = [this] { return playing; };
-                menu.SetDocument(&document, &edits);
+                menu.SetDocument(SceneMenuDeps { &document, &edits, &scene, &selection });
                 // Side by side: new windows open on top of each other
                 Frame();
                 ImGui::SetWindowPos(SceneHierarchyWindow::Name, ImVec2(0.0f, 0.0f));
@@ -561,6 +611,8 @@ line]] .. [==[a]]b]==])",
                 hierarchy.Render(writer);
                 inspector.Render(writer);
                 modelEditor.Render(writer);
+                settingsWindow.Render(writer);
+                viewport.Render(writer);
                 ImGui::EndFrame();
             }
 
@@ -660,6 +712,14 @@ line]] .. [==[a]]b]==])",
                 return ImVec2(tree->InnerRect.GetCenter().x, tree->InnerRect.Min.y + (static_cast<float>(row) + 0.5f) * height);
             }
 
+            /// The icon of visibility of a row: the first of the icons at its end (four components follow).
+            [[nodiscard]] static ImVec2 RowEye(size_t row)
+            {
+                const ImGuiWindow* tree = FindWindow("TreeScrollArea");
+                const float slot = ImGui::GetFontSize() + 2.0f;
+                return ImVec2(tree->InnerRect.Max.x - GImGui->Style.CellPadding.x - slot * 4.5f, RowCenter(row).y);
+            }
+
             [[nodiscard]] static ImVec2 RowArrow(size_t row)
             {
                 const ImGuiWindow* tree = FindWindow("TreeScrollArea");
@@ -728,7 +788,6 @@ line]] .. [==[a]]b]==])",
             ModelCatalog models;
             SceneEdits edits { scene };
             Selection selection;
-            GizmoSettings gizmo { GizmoOperation::Translate, GizmoSpace::World };
             bool playing { false };
             /// While set, a button in the frame can be dragged as this file (ModelFilePayload).
             std::optional<String> draggedModelFile;
@@ -744,6 +803,13 @@ line]] .. [==[a]]b]==])",
             NodeInspectorWindow inspector;
             render::RenderResources resources;
             ModelEditorWindow modelEditor;
+            /// Hidden until a test shows it.
+            SettingsWindow settingsWindow;
+            GizmoSettings gizmo { GizmoOperation::Translate, GizmoSpace::World };
+            graphics::DebugDraw debugDraw;
+            render::ViewPort viewPort;
+            /// Hidden until a test shows it.
+            EngineViewportWindow viewport;
         };
 
         void RunTreeDropTests(Report& report, const Path& assets)
@@ -783,6 +849,93 @@ line]] .. [==[a]]b]==])",
                 std::error_code error;
                 FileSystem::RemoveAll(file, error);
             }
+        }
+
+        void RunTreeIconTests(Report& report, const Path& assets)
+        {
+            WindowsFixture eyes(assets);
+            const NodeId cube = AddPrimitiveNode(eyes.scene, eyes.models, ModelPrimitive::Cube, NodeId {});
+            eyes.Frame();
+            eyes.Click(WindowsFixture::RowEye(0));
+            eyes.Frame();
+            const ModelComponent* model = eyes.scene.Components<ModelComponent>().Find(cube);
+            report.Check(eyes.selection.node == cube && !model->visible, "tree::the_eye_hides_the_model_and_selects_the_node");
+            eyes.Click(WindowsFixture::RowEye(0));
+            eyes.Frame();
+            report.Check(model->visible, "tree::the_eye_shows_it_again");
+
+            eyes.Click(WindowsFixture::RowCenter(0));
+            const Vector3 before = eyes.camera.GetPosition();
+            eyes.Press(ImGuiKey_F);
+            report.Check((eyes.camera.GetPosition() - before).Length() > 0.0f, "tree::f_brings_the_node_into_the_view");
+            eyes.playing = true;
+            const Vector3 inPlay = eyes.camera.GetPosition();
+            eyes.camera.SetPosition(before);
+            eyes.Press(ImGuiKey_F);
+            report.Check((eyes.camera.GetPosition() - before).Length() == 0.0f && (inPlay - before).Length() > 0.0f, "tree::f_leaves_the_camera_to_the_game_in_play");
+        }
+
+        /// The view menu in the corner of the viewport lies over the image and takes the clicks there.
+        void RunViewMenuTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            fixture.viewport.SetVisible(true);
+            fixture.Frame();
+            fixture.Frame();
+            ImGuiWindow* window = WindowsFixture::FindWindow("Engine Viewport");
+            const bool opened = fixture.ClickItem(window, "###ViewMenu");
+            const bool rotate = opened && fixture.ClickItem(window, "###Rotate");
+            report.Check(rotate && fixture.gizmo.operation == GizmoOperation::Rotate, "viewport::the_view_menu_picks_the_gizmo_operation");
+            const bool space = fixture.ClickItem(window, "###GizmoSpace");
+            report.Check(space && fixture.gizmo.space == GizmoSpace::Local, "viewport::the_view_menu_switches_the_gizmo_space");
+        }
+
+        /// A long status of the scene is cut short in the menu bar: the scene's file name stays in the bar.
+        void RunSceneStatusTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            fixture.document.Report(SceneStatus::Kind::Failure, String(400, 'x'));
+            constexpr float BarWidth = 500.0f;
+            float nameEnd = 0.0f;
+            float barEnd = 0.0f;
+            for (int frame = 0; frame < 2; ++frame) {
+                ImGui::NewFrame();
+                ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+                ImGui::SetNextWindowSize(ImVec2(BarWidth, 100.0f));
+                ImGui::Begin("StatusHost", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_MenuBar);
+                if (ImGui::BeginMenuBar()) {
+                    fixture.menu.DrawFileName();
+                    nameEnd = ImGui::GetItemRectMax().x;
+                    barEnd = ImGui::GetCurrentWindow()->MenuBarRect().Max.x;
+                    ImGui::EndMenuBar();
+                }
+                ImGui::End();
+                ImGui::EndFrame();
+            }
+            report.Check(nameEnd > 0.0f && nameEnd <= barEnd, "menu::a_long_status_leaves_the_file_name_in_the_bar",
+                (std::to_string(nameEnd) + " > " + std::to_string(barEnd)).c_str());
+        }
+
+        /// A setting changed in the Settings window is in its file right away: nothing to save.
+        void RunSettingsWindowTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            fixture.settingsWindow.Show(SettingsSection::Editor);
+            fixture.Frame();
+            fixture.Frame();
+            ImGuiWindow* section = WindowsFixture::FindWindow("Settings/Section_");
+            const ImGuiID grid = section ? section->GetID("Grid") : 0;
+            const bool clicked = fixture.ClickItem(section, ImHashStr("##Value", 0, ImHashStr("Start in Play", 0, grid)));
+            const Path file = assets / WindowsFixture::SettingsFileName;
+            Settings written;
+            written.Register(Settings::Category::Script, script::PlayMode::PlayOnStartSetting, "", false);
+            const bool read = resource::ReadSettingsFile(written, file).has_value();
+            report.Check(clicked && fixture.settings.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting),
+                "settings::a_checkbox_changes_the_setting");
+            report.Check(read && written.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting),
+                "settings::a_change_is_written_at_once");
+            std::error_code error;
+            FileSystem::RemoveAll(file, error);
         }
 
         void RunTreeSearchTests(Report& report, const Path& assets)
@@ -871,11 +1024,11 @@ line]] .. [==[a]]b]==])",
 
             fixture.Click(WindowsFixture::RowCenter(0), ImGuiMouseButton_Right);
             fixture.Frame();
-            const bool duplicated = fixture.ClickMenuItem("Duplicate");
+            const bool duplicated = fixture.ClickMenuItem("###Duplicate");
             report.Check(duplicated && fixture.scene.NodeCount() == 2, "tree::row_menu_duplicates_the_node");
             fixture.Click(WindowsFixture::RowCenter(0), ImGuiMouseButton_Right);
             fixture.Frame();
-            const bool deleted = fixture.ClickMenuItem("Delete Node");
+            const bool deleted = fixture.ClickMenuItem("###Delete Node");
             report.Check(deleted && fixture.scene.NodeCount() == 1 && !fixture.scene.Find(node), "tree::row_menu_deletes_the_node");
 
             // Inspector closed, nothing selected: the row menu selects the node and brings Inspector forward
@@ -907,8 +1060,8 @@ line]] .. [==[a]]b]==])",
                 fixture.selection.node = node;
                 fixture.Frame();
                 fixture.Frame();
-                const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "+ Add Component");
-                const bool menuOpened = opened && fixture.ClickMenuItem("Model");
+                const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "###AddComponent");
+                const bool menuOpened = opened && fixture.ClickMenuItem("###Model");
                 const bool chosen = menuOpened && fixture.ClickMenuItem("Browse from Disk...");
                 report.Check(chosen && WindowsFixture::IsDialogOpen(), "inspector::add_component_opens_the_model_dialog");
                 report.Check(chosen && !fixture.scene.Components<ModelComponent>().Contains(node), "inspector::add_component_waits_for_the_chosen_model");
@@ -920,7 +1073,7 @@ line]] .. [==[a]]b]==])",
                 fixture.selection.node = node;
                 fixture.Frame();
                 fixture.Frame();
-                const bool chosen = fixture.ClickInSection("Model", "Browse...");
+                const bool chosen = fixture.ClickInSection("Model", "###Browse");
                 report.Check(chosen && WindowsFixture::IsDialogOpen(), "inspector::browse_opens_the_model_dialog");
             }
             {
@@ -931,18 +1084,21 @@ line]] .. [==[a]]b]==])",
                 fixture.Frame();
                 fixture.Frame();
                 ImGuiWindow* window = WindowsFixture::FindWindow(NodeInspectorWindow::Name);
-                const ImGuiID menuButton = ImHashStr("...", 0, window->GetID("RigidBody"));
-                const bool opened = fixture.ClickItem(window, menuButton);
-                const bool removed = opened && fixture.ClickMenuItem("Remove");
-                report.Check(removed && !fixture.scene.Components<RigidBody>().Contains(node), "inspector::section_menu_removes_the_component");
-            }
-            {
-                WindowsFixture fixture(assets);
-                fixture.selection.node = fixture.scene.AddNode("node");
+                // The header of the node: the model's visibility and the view on the node
+                (void)fixture.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = fixture.models.Insert(MakePrimitiveModel(ModelPrimitive::Cube)), .color = {}, .visible = true });
                 fixture.Frame();
-                fixture.Frame();
-                report.Check(fixture.ClickInSection("Transform", "Rotate") && fixture.gizmo.operation == GizmoOperation::Rotate, "inspector::picks_the_gizmo_operation");
-                report.Check(fixture.ClickInSection("Transform", "###GizmoSpace") && fixture.gizmo.space == GizmoSpace::Local, "inspector::switches_the_gizmo_space");
+                const bool hidden = fixture.ClickItem(window, "###Visible");
+                report.Check(hidden && !fixture.scene.Components<ModelComponent>().Find(node)->visible, "inspector::the_header_hides_the_model");
+                const Vector3 cameraBefore = fixture.camera.GetPosition();
+                const bool framed = fixture.ClickItem(window, "###Frame");
+                report.Check(framed && (fixture.camera.GetPosition() - cameraBefore).Length() > 0.0f, "inspector::the_header_brings_the_node_into_the_view");
+                const ImGuiID resetButton = ImHashStr("###SectionReset", 0, window->GetID("RigidBody"));
+                fixture.scene.Components<RigidBody>().Find(node)->mass = 7.0f;
+                const bool reset = fixture.ClickItem(window, resetButton);
+                report.Check(reset && fixture.scene.Components<RigidBody>().Find(node)->mass == 1.0f, "inspector::the_header_resets_the_component");
+                const ImGuiID removeButton = ImHashStr("###SectionRemove", 0, window->GetID("RigidBody"));
+                const bool removed = fixture.ClickItem(window, removeButton);
+                report.Check(removed && !fixture.scene.Components<RigidBody>().Contains(node), "inspector::the_header_removes_the_component");
             }
         }
 
@@ -1040,10 +1196,13 @@ line]] .. [==[a]]b]==])",
             int stops = 0;
             script::PlayRequests play;
             play.isPlaying = [&] { return playing; };
+            int projectPlays = 0;
+            int standaloneRuns = 0;
             play.playScene = [&] { ++plays; };
+            play.playProject = [&] { ++projectPlays; };
             play.stop = [&] { ++stops; };
             EditorToolbar toolbar;
-            toolbar.SetDesc(EditorToolbarDesc { .play = &play });
+            toolbar.SetDesc(EditorToolbarDesc { .play = &play, .runStandalone = [&] { ++standaloneRuns; } });
             auto frame = [&] {
                 ImGui::NewFrame();
                 ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
@@ -1078,10 +1237,28 @@ line]] .. [==[a]]b]==])",
                 }
                 return false;
             };
-            report.Check(click("Play Scene") && plays == 1, "toolbar::plays_the_scene");
+            /// F5 with a modifier key, or without one (ImGuiMod_None).
+            auto pressF5 = [&](ImGuiKey modifier) {
+                ImGuiIO& io = ImGui::GetIO();
+                io.AddKeyEvent(modifier, true);
+                io.AddKeyEvent(ImGuiKey_F5, true);
+                frame();
+                io.AddKeyEvent(ImGuiKey_F5, false);
+                io.AddKeyEvent(modifier, false);
+                frame();
+            };
+            report.Check(click("###Play") && plays == 1, "toolbar::plays_the_scene");
+            pressF5(ImGuiMod_None);
+            report.Check(plays == 2 && projectPlays == 0, "toolbar::f5_plays_the_scene");
+            pressF5(ImGuiMod_Shift);
+            report.Check(plays == 2 && projectPlays == 1, "toolbar::shift_f5_plays_the_project");
+            pressF5(ImGuiMod_Ctrl);
+            report.Check(plays == 2 && projectPlays == 1 && standaloneRuns == 1, "toolbar::ctrl_f5_runs_standalone");
             playing = true;
             frame();
-            report.Check(click("Stop") && stops == 1, "toolbar::stops_in_play");
+            report.Check(click("###Stop") && stops == 1, "toolbar::stops_in_play");
+            pressF5(ImGuiMod_None);
+            report.Check(stops == 2, "toolbar::f5_stops_in_play");
         }
 
         /// Tab in the Scripts window indents at the cursor, not where the last click left an empty selection.
@@ -1167,6 +1344,10 @@ line]] .. [==[a]]b]==])",
             RunSceneDocumentTests(report, assets);
             RunTreeDropTests(report, assets);
             RunTreeSearchTests(report, assets);
+            RunTreeIconTests(report, assets);
+            RunSettingsWindowTests(report, assets);
+            RunViewMenuTests(report, assets);
+            RunSceneStatusTests(report, assets);
             RunTreeEditTests(report, assets);
             RunTreeFocusTests(report, assets);
             RunInspectorTests(report, assets);

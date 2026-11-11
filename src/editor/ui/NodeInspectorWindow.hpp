@@ -10,11 +10,11 @@
 
 namespace elm {
 
+    class Camera;
     class ModelCatalog;
     class Scene;
     class SceneDocument;
     class SceneEdits;
-    struct GizmoSettings;
 
     /// What Inspector works with. Valid while the window lives: Editor destroys the project windows before the
     /// project closes.
@@ -27,8 +27,6 @@ namespace elm {
         SceneDocument& document;
         /// The node the window shows.
         const Selection& selection;
-        /// The gizmo mode the viewport reads, picked in the Transform section.
-        GizmoSettings& gizmo;
         /// Whether the game runs: script instances are there in Play only.
         const script::PlayRequests& play;
         const ScriptInspection& scripts;
@@ -36,9 +34,13 @@ namespace elm {
         const FileOpener& files;
         /// Ctrl+S.
         const SceneFileRequests& sceneFile;
+        /// The button of the node's header brings the node into its view; not in Play.
+        Camera& camera;
     };
 
-    /// The selected node: its name, parent, transform and components, written directly to the scene.
+    /// The selected node: its name, parent, transform and components, written directly to the scene. The header has
+    /// the name with the buttons of the model's visibility and of the view on the node; a component's section has
+    /// reset and remove on its header and a menu for what only it does.
     /// Owner: ImGuiSystem (a project window), thread: update (UI).
     class NodeInspectorWindow final : public IImGuiWindow {
     public:
@@ -67,7 +69,6 @@ namespace elm {
 
         void DrawTransformSection(NodeId node);
         void DrawTransformRows(NodeId node);
-        void DrawGizmoRow();
         /// Writes a transform in the space the window edits.
         void WriteTransform(NodeId node, const math::Matrix4x4& transform);
 

@@ -27,6 +27,7 @@ engine_add_executable(editor
     ui/EditorToolbar.hpp
     ui/EditorWidgets.cpp
     ui/EditorWidgets.hpp
+    ui/ComponentIcons.hpp
     ui/EngineViewportWindow.cpp
     ui/EngineViewportWindow.hpp
     ui/FileDialog.cpp

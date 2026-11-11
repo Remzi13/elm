@@ -46,7 +46,7 @@ namespace elm::script {
               { [this](ConsoleLineKind kind, StringView text) { Print(kind, text); }, [this](StringView module) { Edit(module); },
                   [this](StringView message) { EditLocation(message); } })
         , m_api(desc.state, [this](StringView text) { InsertIntoConsole(text); })
-        , m_statusBar(settings, { desc.state, desc.mainModule, desc.entityScripts, desc.hotReload },
+        , m_statusBar({ desc.state, desc.mainModule, desc.entityScripts, desc.hotReload },
               { [this](ConsoleLineKind kind, StringView text) { Print(kind, text); }, [this](StringView module) { Edit(module); },
                   [this](StringView message) { EditLocation(message); }, desc.requestRestart })
     {
