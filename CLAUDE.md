@@ -157,11 +157,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `resource::AssetImport`, `ProjectModel` | импорт в проект: оригинал в `assets/source/`, модели `.model` в `assets/models/`, тот же файл по содержимому не добавляет ничего нового; модель вместе с её файлом | `resource` |
 | `project::Project`, `ProjectDesc`, `ProjectEntry` | открытый проект игры: файл `<Name>.elmproject`, папки ассетов (`Scenes()`, `Models()`, `Scripts()`), точка входа (`startupScene`, `mainModule`). Владелец `ResourceSystem`, update | `project` |
 | `project::AssetPath` | файл папки `assets` проекта: `models/Cube.model`, `/`, без `..` и корня. `Project::Resolve` / `AssetPathOf` переводят в путь и обратно | `project` |
-| `ProjectMenu`, `ProjectMenuDesc` | проект в строке меню: пункты смены проекта в меню File (New, Open, Recent, Reload) и меню Project открытого проекта (Project Settings, Build Game); запрос `open` применяется в начале update | `editor/ui` |
+| `ProjectMenu`, `ProjectMenuDesc` | проект в строке меню: пункты смены проекта в меню File (New, Open, Recent, Reload) и File → Settings (Ctrl+,), меню Project открытого проекта (Project Settings, Build Game); запрос `open` применяется в начале update | `editor/ui` |
+| `SettingsWindow`, `SettingsSection` | окно Settings: разделы Project (точка входа), Editor, Rendering; каждая настройка рисуется явно по ключу, служебные не видны, изменение сразу пишется в файл | `editor/ui` |
 | `project::AssetType`, `ProjectAssets`, `AssetEntry` | тип файла ассета по расширению; дерево папки `assets` для окон | `project` |
 | `resource::ProjectTemplate` | новый проект на диске: `.elmproject`, папки ассетов, `main.lua`, настройка LuaLS | `resource` |
 | `resource::ProjectBuilder`, `BuildDesc` | сборка игры в `Build/<Имя>/`: программа, шейдеры, проект без `source/`, `.settings` | `resource` |
-| `editor::ProjectWindow`, `ProjectSettingsPanel`, `ProjectHubWindow` | окна редактора, которым нужен проект: Project (вкладки Assets и Settings — точка входа), старт без проекта | `editor` |
+| `editor::ProjectWindow`, `ProjectSettingsPanel`, `ProjectHubWindow` | окна редактора, которым нужен проект: Project (ассеты); раздел Project окна Settings (точка входа); старт без проекта | `editor` |
 | `script::ScriptSystem` | система скриптов: Lua-машина, сборка частей и биндингов, порядок в кадре, Shutdown, Play и Stop (`PlayMode`, `GetPlayMode`). Системы движка получает в конструкторе (`ScriptDeps`). Части внутренние для модуля | `script` |
 | `ScriptDeps`, `EngineContext`, `ScriptTime`, `PlayRequests` | системы движка для `ScriptSystem` (конструктор, любая может отсутствовать); что из них видят биндинги (собирает `Init`, с открытым проектом); время кадра; запросы Play/Stop | `script` |
 | `ModulePaths`, `ModuleLoader`, `LoadedModule` | имя модуля ↔ файл; `require` и загруженные модули | `script/module` |

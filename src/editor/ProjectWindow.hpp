@@ -16,11 +16,10 @@
 
 namespace elm::editor {
 
-    /// The open project (docs/project/Проекты.md#Окно Project). The Assets tab: a tree of the assets folder,
+    /// The assets of the open project (docs/project/Проекты.md#Окно Project): a tree of the assets folder,
     /// search by name and a filter by AssetType. A double click opens a scene in Scene Hierarchy, a model in
     /// the Model Editor and a script in the Scripts window; a model is dragged into Scene Hierarchy. The
-    /// context menu makes folders and sets the startup scene. The Settings tab: the project's entry
-    /// (ProjectSettingsPanel).
+    /// context menu makes folders and sets the startup scene; the rest of the entry is in the Settings window.
     /// Owner: ImGuiSystem (a project window: it lives as long as the project is open), thread: update.
     class ProjectWindow final : public IImGuiWindow {
     public:
@@ -29,8 +28,6 @@ namespace elm::editor {
 
         [[nodiscard]] StringView GetName() const override { return "Project"; }
         void Render(render::FrameWriter& frame) override;
-        /// Shows the window in front of the others with the Settings tab open.
-        void ShowSettings();
 
     private:
         void DrawAssets();
@@ -49,16 +46,12 @@ namespace elm::editor {
         const FileOpener& m_files;
         SetProjectEntry m_setEntry;
         project::ProjectAssets m_assets;
-        /// After m_assets: it reads them.
-        ProjectSettingsPanel m_settingsPanel;
         std::array<char, 128> m_search {};
         std::optional<project::AssetType> m_typeFilter;
         /// The folder New Folder makes a folder in; empty: the assets folder.
         project::AssetPath m_newFolderParent;
         std::array<char, 64> m_newFolderName {};
         bool m_openNewFolder { false };
-        /// ShowSettings waits for the next frame.
-        bool m_showSettings { false };
         String m_status;
     };
 

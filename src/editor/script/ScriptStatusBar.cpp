@@ -7,15 +7,12 @@
 #include "script/reload/HotReload.hpp"
 #include "editor/script/ScriptWindowStyle.hpp"
 
-#include "core/Settings.hpp"
-
 #include "imgui.h"
 
 namespace elm::script {
 
-    ScriptStatusBar::ScriptStatusBar(Settings& settings, Parts parts, Actions actions)
-        : m_settings(settings)
-        , m_parts(parts)
+    ScriptStatusBar::ScriptStatusBar(Parts parts, Actions actions)
+        : m_parts(parts)
         , m_actions(std::move(actions))
     {
     }
@@ -73,12 +70,6 @@ namespace elm::script {
 
     void ScriptStatusBar::DrawButtons()
     {
-        bool hotReload = m_settings.Get<bool>(Settings::Category::Script, ScriptSystem::HotReloadSetting, true);
-        if (ImGui::Checkbox("Hot reload", &hotReload))
-            m_settings.Set(Settings::Category::Script, ScriptSystem::HotReloadSetting, hotReload);
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("Reload a module as soon as its file is saved");
-        ImGui::SameLine();
         if (ImGui::Button("Reload changed")) {
             const size_t reloaded = m_parts.hotReload.ReloadChanged();
             m_actions.print(ConsoleLineKind::Info, "Reloaded " + String(std::to_string(reloaded)) + " changed module(s)");

@@ -27,6 +27,9 @@ namespace elm {
         DrawRecent();
         if (ImGui::MenuItem("Reload Project", nullptr, false, hasProject))
             RequestOpen(m_project.file);
+        ImGui::Separator();
+        if (ImGui::MenuItem("Settings...", "Ctrl+,") && m_project.showSettings)
+            m_project.showSettings();
     }
 
     void ProjectMenu::DrawMenu()
@@ -35,8 +38,8 @@ namespace elm {
             return;
         ImGui::TextDisabled("%s", m_project.name.c_str());
         ImGui::Separator();
-        if (ImGui::MenuItem("Project Settings...") && m_project.showSettings)
-            m_project.showSettings();
+        if (ImGui::MenuItem("Project Settings...") && m_project.showProjectSettings)
+            m_project.showProjectSettings();
         if (ImGui::MenuItem("Build Game") && m_project.buildGame)
             m_project.buildGame();
         ImGui::EndMenu();
@@ -66,6 +69,9 @@ namespace elm {
 
     void ProjectMenu::DrawPopups()
     {
+        const ImGuiIO& io = ImGui::GetIO();
+        if (!io.WantTextInput && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Comma, false) && m_project.showSettings)
+            m_project.showSettings();
         // Projects usually lie next to each other: the dialog starts in the folder of the open one
         if (std::exchange(m_openFileDialog, false))
             m_fileDialog.Open("Open Project", m_project.fileExtension, m_project.file.Parent().Parent());

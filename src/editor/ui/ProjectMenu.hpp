@@ -21,15 +21,18 @@ namespace elm {
         Vector<Path> recent;
         /// Shows the Project Hub: create a project, open one.
         std::function<void()> showHub;
-        /// Shows the entry of the open project: its startup scene and main module.
+        /// Shows the Settings window (File → Settings, Ctrl+,).
         std::function<void()> showSettings;
+        /// Shows the Settings window on the open project's entry: its startup scene and main module.
+        std::function<void()> showProjectSettings;
         /// Builds the open project into a game folder, Build/<Name>.
         std::function<void()> buildGame;
     };
 
     /// The project in the main menu bar. Its items of the File menu open another project (a new one in the Project
-    /// Hub, a file, a recent one) or reload the open one, after a confirmation, since unsaved changes are lost. The
-    /// Project menu is the open project: its settings and Build Game; off without a project.
+    /// Hub, a file, a recent one) or reload the open one, after a confirmation, since unsaved changes are lost, and
+    /// the last one shows the Settings window (Ctrl+,). The Project menu is the open project: its settings and
+    /// Build Game; off without a project.
     /// Owner: ImGuiSystem, thread: update (inside the ImGui frame).
     class ProjectMenu {
     public:

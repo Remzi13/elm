@@ -190,6 +190,7 @@ namespace elm {
         // The UI's surfaces and textures go before rendering, with its thread stopped
         m_graphics.StopRendering();
         m_hub = nullptr;
+        m_settingsWindow = nullptr;
         m_imgui->Shutdown();
         m_platform.GetInput().RemoveSubscriber(&m_cameraController);
         // Scripts go first: they may still talk to the other systems in on_shutdown
@@ -254,6 +255,7 @@ namespace elm {
         RememberProject(project.File());
         CreateProjectWindows(project, openedScene);
         UpdateProjectMenu(&project);
+        m_settingsWindow->SetProject(project, [this](project::ProjectEntry entry) { return SetProjectEntry(std::move(entry)); });
         if (m_hub)
             m_hub->SetVisible(false);
     }
@@ -266,6 +268,7 @@ namespace elm {
         m_selection = {};
         m_imgui->SetSceneMenu({});
         m_imgui->CloseProjectWindows();
+        m_settingsWindow->ClearProject();
         m_sceneDocument.reset();
         UpdateProjectMenu(nullptr);
     }
@@ -286,12 +289,6 @@ namespace elm {
     {
         if (m_hub)
             m_hub->SetVisible(true);
-    }
-
-    void Editor::ShowProjectSettings()
-    {
-        if (auto* window = m_imgui->GetWindow<editor::ProjectWindow>())
-            window->ShowSettings();
     }
 
     namespace {
@@ -366,7 +363,7 @@ namespace elm {
         m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
         m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
         m_imgui->AddWindow(MakeUnique<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats }));
-        m_imgui->AddWindow(MakeUnique<SettingsWindow>(m_settings));
+        m_settingsWindow = &m_imgui->EmplaceWindow<SettingsWindow>(m_settings, Settings::DefaultFilePath());
     }
 
     void Editor::CreateProjectWindows(const project::Project& project, const Path& openedScene)
@@ -405,7 +402,8 @@ namespace elm {
             .open = [this](const Path& file) { m_requestedProject = file; },
             .recent = RecentProjects(),
             .showHub = [this] { ShowProjectHub(); },
-            .showSettings = [this] { ShowProjectSettings(); },
+            .showSettings = [this] { m_settingsWindow->Show(SettingsSection::Editor); },
+            .showProjectSettings = [this] { m_settingsWindow->Show(SettingsSection::Project); },
             .buildGame = [this] { BuildGame(); } };
         if (project) {
             menu.name = project->Name();

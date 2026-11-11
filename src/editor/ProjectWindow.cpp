@@ -43,7 +43,6 @@ namespace elm::editor {
         , m_files(files)
         , m_setEntry(std::move(setEntry))
         , m_assets(project.Assets())
-        , m_settingsPanel(project, m_setEntry, m_assets)
     {
     }
 
@@ -51,33 +50,14 @@ namespace elm::editor {
     {
         if (!m_visible)
             return;
-        const bool showSettings = std::exchange(m_showSettings, false);
-        if (showSettings)
-            ImGui::SetNextWindowFocus();
         ImGui::SetNextWindowSize(ImVec2(320.0f, 480.0f), ImGuiCond_FirstUseEver);
         if (!ImGui::Begin(GetName().data(), &m_visible)) {
             ImGui::End();
             return;
         }
-        if (ImGui::BeginTabBar("ProjectTabs")) {
-            if (ImGui::BeginTabItem("Assets")) {
-                DrawAssets();
-                ImGui::EndTabItem();
-            }
-            if (ImGui::BeginTabItem("Settings", nullptr, showSettings ? ImGuiTabItemFlags_SetSelected : 0)) {
-                m_settingsPanel.Draw();
-                ImGui::EndTabItem();
-            }
-            ImGui::EndTabBar();
-        }
+        DrawAssets();
         DrawNewFolderPopup();
         ImGui::End();
-    }
-
-    void ProjectWindow::ShowSettings()
-    {
-        m_visible = true;
-        m_showSettings = true;
     }
 
     void ProjectWindow::DrawAssets()

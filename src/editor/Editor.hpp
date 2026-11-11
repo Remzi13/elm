@@ -34,6 +34,8 @@
 
 namespace elm {
 
+    class SettingsWindow;
+
     namespace editor {
         class ProjectHubWindow;
     }
@@ -76,8 +78,6 @@ namespace elm {
         /// the open one stays. Its windows open with its startup scene, it becomes the last recent project.
         [[nodiscard]] auto OpenProject(const Path& folderOrFile) -> EngineResult<void>;
         void ShowProjectHub();
-        /// The Settings tab of the Project window, in front.
-        void ShowProjectSettings();
         /// The project file opened last time, empty when there is none.
         [[nodiscard]] Path LastProject() const;
         /// A test scene in the scene, added to what is there.
@@ -164,6 +164,8 @@ namespace elm {
         UniquePtr<ImGuiSystem> m_imgui;
         /// Owned by m_imgui: an editor window, it outlives projects.
         editor::ProjectHubWindow* m_hub { nullptr };
+        /// Made with the editor's windows (CreateEditorWindows), it lives until Shutdown.
+        SettingsWindow* m_settingsWindow { nullptr };
         /// Asked for by the windows, applied at the start of the next frame, outside of any window.
         std::optional<Path> m_requestedProject;
         bool m_initialized { false };

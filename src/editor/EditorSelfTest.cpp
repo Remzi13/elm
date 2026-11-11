@@ -13,6 +13,7 @@
 #include "editor/ui/NodeInspectorWindow.hpp"
 #include "editor/ui/SceneHierarchyWindow.hpp"
 #include "editor/ui/SceneMenu.hpp"
+#include "editor/ui/SettingsWindow.hpp"
 
 #include "core/File.hpp"
 
@@ -31,6 +32,7 @@
 
 #include "resource/ResourceSystem.hpp"
 #include "resource/Serializer.hpp"
+#include "resource/SettingsFile.hpp"
 
 #include "script/PlayMode.hpp"
 #include "script/ScriptSystem.hpp"
@@ -532,6 +534,8 @@ line]] .. [==[a]]b]==])",
         /// Scene Hierarchy, Inspector, Model Editor and the Scene menu on a scene of their own, in a fresh ImGui.
         struct WindowsFixture {
             static constexpr float ScanStep = 8.0f;
+            /// Where the Settings window writes, in the assets folder of the test.
+            static constexpr const char* SettingsFileName = "editor.settings";
 
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
@@ -539,6 +543,7 @@ line]] .. [==[a]]b]==])",
                 , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile, camera },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
+                , settingsWindow(settings, assets / SettingsFileName)
             {
                 play.isPlaying = [this] { return playing; };
                 menu.SetDocument(SceneMenuDeps { &document, &edits, &scene, &selection });
@@ -567,6 +572,7 @@ line]] .. [==[a]]b]==])",
                 hierarchy.Render(writer);
                 inspector.Render(writer);
                 modelEditor.Render(writer);
+                settingsWindow.Render(writer);
                 ImGui::EndFrame();
             }
 
@@ -757,6 +763,8 @@ line]] .. [==[a]]b]==])",
             render::RenderResources resources;
             Camera camera;
             ModelEditorWindow modelEditor;
+            /// Hidden until a test shows it.
+            SettingsWindow settingsWindow;
         };
 
         void RunTreeDropTests(Report& report, const Path& assets)
@@ -820,6 +828,28 @@ line]] .. [==[a]]b]==])",
             eyes.camera.SetPosition(before);
             eyes.Press(ImGuiKey_F);
             report.Check((eyes.camera.GetPosition() - before).Length() == 0.0f && (inPlay - before).Length() > 0.0f, "tree::f_leaves_the_camera_to_the_game_in_play");
+        }
+
+        /// A setting changed in the Settings window is in its file right away: nothing to save.
+        void RunSettingsWindowTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            fixture.settingsWindow.Show(SettingsSection::Editor);
+            fixture.Frame();
+            fixture.Frame();
+            ImGuiWindow* section = WindowsFixture::FindWindow("Settings/Section_");
+            const ImGuiID grid = section ? section->GetID("Grid") : 0;
+            const bool clicked = fixture.ClickItem(section, ImHashStr("##Value", 0, ImHashStr("Start in Play", 0, grid)));
+            const Path file = assets / WindowsFixture::SettingsFileName;
+            Settings written;
+            written.Register(Settings::Category::Script, script::PlayMode::PlayOnStartSetting, "", false);
+            const bool read = resource::ReadSettingsFile(written, file).has_value();
+            report.Check(clicked && fixture.settings.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting),
+                "settings::a_checkbox_changes_the_setting");
+            report.Check(read && written.Get<bool>(Settings::Category::Script, script::PlayMode::PlayOnStartSetting),
+                "settings::a_change_is_written_at_once");
+            std::error_code error;
+            FileSystem::RemoveAll(file, error);
         }
 
         void RunTreeSearchTests(Report& report, const Path& assets)
@@ -1123,6 +1153,7 @@ line]] .. [==[a]]b]==])",
             RunTreeDropTests(report, assets);
             RunTreeSearchTests(report, assets);
             RunTreeIconTests(report, assets);
+            RunSettingsWindowTests(report, assets);
             RunTreeEditTests(report, assets);
             RunInspectorTests(report, assets);
             RunModelEditorTests(report, assets);
