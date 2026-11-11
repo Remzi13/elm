@@ -2,6 +2,7 @@
 
 #include "editor/NodeEditing.hpp"
 #include "editor/SceneDocument.hpp"
+#include "editor/ui/ComponentIcons.hpp"
 #include "editor/ui/EditorWidgets.hpp"
 #include "editor/ui/SceneEditShortcuts.hpp"
 
@@ -41,17 +42,9 @@ namespace elm {
         constexpr const char* UnparentItem = "\xE2\x86\xB0  Move to Root###Unparent"; // U+21B0
         constexpr const char* DeleteItem = "\xE2\x9C\x96  Delete###Delete Node";      // U+2716
 
-        /// A column of the tree: the icon of a component, for each node that has one.
-        struct ComponentChip {
-            const char* icon;
-            const char* name;
-        };
-        constexpr std::array<ComponentChip, 4> ComponentChips { {
-            { "\xE2\x96\xA3", "Model" },     // U+25A3
-            { "\xE2\x9A\x9B", "RigidBody" }, // U+269B
-            { "\xE2\x96\xA2", "Collider" },  // U+25A2
-            { "\xE2\x9C\x8E", "Script" },    // U+270E
-        } };
+        /// The columns of the tree: the icon of a component, for each node that has one.
+        constexpr std::array<ComponentType, 4> ComponentChips { ComponentType::Model, ComponentType::RigidBody, ComponentType::Collider,
+            ComponentType::Script };
         /// The row of ComponentChips that a node with a model has: its visibility is the model's.
         constexpr size_t ModelChip = 0;
         /// The icon of visibility stands before the chips.
@@ -292,7 +285,7 @@ namespace elm {
         }
         for (size_t chip = 0; chip < ComponentChips.size(); ++chip) {
             if (row.hasComponent[chip])
-                (void)drawIcon(chip + 1, ComponentChips[chip].icon, ImGuiCol_TextDisabled, ComponentChips[chip].name);
+                (void)drawIcon(chip + 1, ui::ComponentIcon(ComponentChips[chip]), ImGuiCol_TextDisabled, ComponentTypeName(ComponentChips[chip]));
         }
         const ImVec2 cellMax(cellMin.x + slot * static_cast<float>(RowIconCount), cellMin.y + height);
         // The icons are a part of the row

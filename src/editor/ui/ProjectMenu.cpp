@@ -73,8 +73,10 @@ namespace elm {
         if (!io.WantTextInput && io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Comma, false) && m_project.showSettings)
             m_project.showSettings();
         // Projects usually lie next to each other: the dialog starts in the folder of the open one
-        if (std::exchange(m_openFileDialog, false))
-            m_fileDialog.Open("Open Project", m_project.fileExtension, m_project.file.Parent().Parent());
+        if (std::exchange(m_openFileDialog, false)) {
+            const Path start = m_project.file.Empty() ? m_project.projectsFolder : m_project.file.Parent().Parent();
+            m_fileDialog.Open("Open Project", m_project.fileExtension, start);
+        }
         if (const auto file = m_fileDialog.Draw())
             RequestOpen(*file);
         DrawConfirmation();

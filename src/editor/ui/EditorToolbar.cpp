@@ -24,7 +24,7 @@ namespace elm {
         constexpr const char* StartMenuPopup = "StartMenuPopup";
 
         /// A square button with the icon in its color.
-        bool IconButton(const char* label, const ImVec4& color)
+        [[nodiscard]] bool IconButton(const char* label, const ImVec4& color)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, color);
             const bool pressed = ImGui::Button(label, ImVec2(ImGui::GetFrameHeight(), 0.0f));

@@ -9,7 +9,6 @@
 
 #include "imgui.h"
 
-#include <algorithm>
 #include <utility>
 
 namespace elm {
@@ -19,6 +18,8 @@ namespace elm {
         constexpr const char* ConfirmationPopup = "Unsaved Scene";
         constexpr ImVec4 ModifiedColor { 1.0f, 0.75f, 0.3f, 1.0f };
         constexpr const char* ModifiedMark = "* unsaved";
+        /// The end of a status cut short: the dots of the text font.
+        constexpr const char* Ellipsis = "...";
 
         ImVec4 StatusColor(SceneStatus::Kind kind)
         {
@@ -75,11 +76,13 @@ namespace elm {
         if (ImGui::MenuItem("Redo", "Ctrl+Y", false, m_edits->CanRedo()))
             (void)m_edits->Redo();
         ImGui::Separator();
-        // The keys are Scene Hierarchy's, while it has the focus
+        // No shortcuts shown: Ctrl+D and Del are Scene Hierarchy's, while it has the focus
         const bool selected = m_scene && m_selection && m_scene->Find(m_selection->node);
-        if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, selected))
+        if (ImGui::MenuItem("Duplicate", nullptr, false, selected)) {
             m_selection->node = DuplicateNode(*m_scene, m_selection->node);
-        if (ImGui::MenuItem("Delete", "Del", false, selected))
+            m_document->Report(SceneStatus::Kind::Info, "Duplicated node.");
+        }
+        if (ImGui::MenuItem("Delete", nullptr, false, selected))
             m_selection->node = RemoveNodeFromPlace(*m_scene, m_selection->node);
         ImGui::EndMenu();
     }
@@ -107,16 +110,21 @@ namespace elm {
     void SceneMenu::DrawStatus(float right)
     {
         const SceneStatus& status = m_document->Status();
-        const float left = ImGui::GetCursorPosX();
-        if (status.text.empty() || right <= left)
+        const float room = right - ImGui::GetCursorPosX();
+        const float ellipsisWidth = ImGui::CalcTextSize(Ellipsis).x;
+        if (status.text.empty() || room <= ellipsisWidth)
             return;
-        // Against the file name; a text longer than the room is cut at the name, the tooltip has it whole
-        ImGui::SetCursorPosX((std::max)(left, right - ImGui::CalcTextSize(status.text.c_str()).x));
-        const ImVec2 from = ImGui::GetCursorScreenPos();
-        const float cutAt = from.x + right - ImGui::GetCursorPosX();
-        ImGui::PushClipRect(from, ImVec2(cutAt, from.y + ImGui::GetFrameHeight()), true);
-        ImGui::TextColored(StatusColor(status.kind), "%s", status.text.c_str());
-        ImGui::PopClipRect();
+        // Against the file name. A longer text is cut short: what is drawn is what takes room in the bar, so the
+        // file name stays at its place; the tooltip has the text whole
+        String shown = status.text;
+        if (ImGui::CalcTextSize(shown.c_str()).x > room) {
+            const char* cut = nullptr;
+            const char* text = status.text.c_str();
+            (void)ImGui::GetFont()->CalcTextSizeA(ImGui::GetFontSize(), room - ellipsisWidth, 0.0f, text, text + status.text.size(), &cut);
+            shown = String(text, cut) + Ellipsis;
+        }
+        ImGui::SetCursorPosX(right - ImGui::CalcTextSize(shown.c_str()).x);
+        ImGui::TextColored(StatusColor(status.kind), "%s", shown.c_str());
         ImGui::SetItemTooltip("%s", status.text.c_str());
     }
 

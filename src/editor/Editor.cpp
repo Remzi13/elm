@@ -46,6 +46,8 @@ namespace elm {
         constexpr const char* LogSource = "Editor";
         constexpr StringView MainWindowTitle = "C++23 3D Engine - Direct3D 12 & Jolt Physics";
         constexpr Size MainWindowSize { 1280, 720 };
+        /// Where new projects go and where looking for one starts, under the root of the engine.
+        constexpr StringView ProjectsFolder = "projects";
 
     } // namespace
 
@@ -107,7 +109,7 @@ namespace elm {
                 .recent = [this] { return RecentProjects(); },
                 .open = [this](const Path& file) { m_requestedProject = file; },
                 .create = [this](const Path& location, StringView name) { return CreateProject(location, name); },
-                .defaultLocation = FileSystem::Resolve("projects"),
+                .defaultLocation = FileSystem::Resolve(Path(ProjectsFolder)),
             });
         UpdateProjectMenu(nullptr);
         AddVisualizers();
@@ -399,6 +401,7 @@ namespace elm {
     void Editor::UpdateProjectMenu(const project::Project* project)
     {
         ProjectMenuDesc menu { .fileExtension = String(project::Project::FileExtension),
+            .projectsFolder = FileSystem::Resolve(Path(ProjectsFolder)),
             .open = [this](const Path& file) { m_requestedProject = file; },
             .recent = RecentProjects(),
             .showHub = [this] { ShowProjectHub(); },

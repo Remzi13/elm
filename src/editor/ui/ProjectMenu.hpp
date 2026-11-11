@@ -15,6 +15,8 @@ namespace elm {
         Path file;
         /// Extension of project files, for the Open dialog.
         String fileExtension;
+        /// Where the Open dialog starts without an open project.
+        Path projectsFolder;
         /// A request: the engine switches projects at the start of the next update, outside of any window.
         std::function<void(const Path& file)> open;
         /// Project files opened before, the last one first.

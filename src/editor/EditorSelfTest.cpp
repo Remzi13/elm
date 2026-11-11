@@ -8,7 +8,10 @@
 #include "editor/script/ErrorLocation.hpp"
 #include "editor/script/LuaHighlighter.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/debug/DebugDraw.hpp"
+#include "graphics/gizmo/GizmoSettings.hpp"
 #include "editor/ui/EditorToolbar.hpp"
+#include "editor/ui/EngineViewportWindow.hpp"
 #include "editor/ui/ModelEditorWindow.hpp"
 #include "editor/ui/NodeInspectorWindow.hpp"
 #include "editor/ui/SceneHierarchyWindow.hpp"
@@ -21,6 +24,7 @@
 
 #include "render/api/FrameWriter.hpp"
 #include "render/api/RenderResources.hpp"
+#include "render/ViewPort.hpp"
 
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -544,7 +548,11 @@ line]] .. [==[a]]b]==])",
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
                 , settingsWindow(settings, assets / SettingsFileName)
+                , debugDraw(settings)
+                , viewPort(resources, Size { 640, 360 })
+                , viewport(settings, EngineViewportDeps { scene, models, camera, viewPort, debugDraw, play, selection, gizmo, edits, sceneFile })
             {
+                viewport.SetVisible(false);
                 play.isPlaying = [this] { return playing; };
                 menu.SetDocument(SceneMenuDeps { &document, &edits, &scene, &selection });
                 // Side by side: new windows open on top of each other
@@ -573,6 +581,7 @@ line]] .. [==[a]]b]==])",
                 inspector.Render(writer);
                 modelEditor.Render(writer);
                 settingsWindow.Render(writer);
+                viewport.Render(writer);
                 ImGui::EndFrame();
             }
 
@@ -765,6 +774,11 @@ line]] .. [==[a]]b]==])",
             ModelEditorWindow modelEditor;
             /// Hidden until a test shows it.
             SettingsWindow settingsWindow;
+            GizmoSettings gizmo { GizmoOperation::Translate, GizmoSpace::World };
+            graphics::DebugDraw debugDraw;
+            render::ViewPort viewPort;
+            /// Hidden until a test shows it.
+            EngineViewportWindow viewport;
         };
 
         void RunTreeDropTests(Report& report, const Path& assets)
@@ -828,6 +842,47 @@ line]] .. [==[a]]b]==])",
             eyes.camera.SetPosition(before);
             eyes.Press(ImGuiKey_F);
             report.Check((eyes.camera.GetPosition() - before).Length() == 0.0f && (inPlay - before).Length() > 0.0f, "tree::f_leaves_the_camera_to_the_game_in_play");
+        }
+
+        /// The view menu in the corner of the viewport lies over the image and takes the clicks there.
+        void RunViewMenuTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            fixture.viewport.SetVisible(true);
+            fixture.Frame();
+            fixture.Frame();
+            ImGuiWindow* window = WindowsFixture::FindWindow("Engine Viewport");
+            const bool opened = fixture.ClickItem(window, "###ViewMenu");
+            const bool rotate = opened && fixture.ClickItem(window, "###Rotate");
+            report.Check(rotate && fixture.gizmo.operation == GizmoOperation::Rotate, "viewport::the_view_menu_picks_the_gizmo_operation");
+            const bool space = fixture.ClickItem(window, "###GizmoSpace");
+            report.Check(space && fixture.gizmo.space == GizmoSpace::Local, "viewport::the_view_menu_switches_the_gizmo_space");
+        }
+
+        /// A long status of the scene is cut short in the menu bar: the scene's file name stays in the bar.
+        void RunSceneStatusTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            fixture.document.Report(SceneStatus::Kind::Failure, String(400, 'x'));
+            constexpr float BarWidth = 500.0f;
+            float nameEnd = 0.0f;
+            float barEnd = 0.0f;
+            for (int frame = 0; frame < 2; ++frame) {
+                ImGui::NewFrame();
+                ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+                ImGui::SetNextWindowSize(ImVec2(BarWidth, 100.0f));
+                ImGui::Begin("StatusHost", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_MenuBar);
+                if (ImGui::BeginMenuBar()) {
+                    fixture.menu.DrawFileName();
+                    nameEnd = ImGui::GetItemRectMax().x;
+                    barEnd = ImGui::GetCurrentWindow()->MenuBarRect().Max.x;
+                    ImGui::EndMenuBar();
+                }
+                ImGui::End();
+                ImGui::EndFrame();
+            }
+            report.Check(nameEnd > 0.0f && nameEnd <= barEnd, "menu::a_long_status_leaves_the_file_name_in_the_bar",
+                (std::to_string(nameEnd) + " > " + std::to_string(barEnd)).c_str());
         }
 
         /// A setting changed in the Settings window is in its file right away: nothing to save.
@@ -1154,6 +1209,8 @@ line]] .. [==[a]]b]==])",
             RunTreeSearchTests(report, assets);
             RunTreeIconTests(report, assets);
             RunSettingsWindowTests(report, assets);
+            RunViewMenuTests(report, assets);
+            RunSceneStatusTests(report, assets);
             RunTreeEditTests(report, assets);
             RunInspectorTests(report, assets);
             RunModelEditorTests(report, assets);

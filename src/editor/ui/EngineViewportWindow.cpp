@@ -142,8 +142,9 @@ namespace elm {
                 ImGui::InvisibleButton("##ViewportCanvas", available, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
                 // Popups and other windows on top of the image block the hover
                 const bool overCanvas = ImGui::IsItemHovered();
-                m_hovered = !DrawViewMenu(imagePosition) && overCanvas;
+                // Under the view menu: it is drawn after them
                 DrawDebugLabels(m_deps.debugDraw.GetPublishedLabels(), camera, imagePosition, available);
+                m_hovered = !DrawViewMenu(imagePosition) && overCanvas;
 
                 const graphics::GizmoInput input = ReadGizmoInput(camera, imagePosition, available, m_hovered);
                 if (selectedShown)

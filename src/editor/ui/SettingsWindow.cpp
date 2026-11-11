@@ -44,7 +44,7 @@ namespace elm {
         constexpr float MaxDepthBias = 0.01f;
 
         /// A row with a checkbox for a bool setting; true when it changed.
-        bool DrawFlag(Settings& settings, Settings::Category category, StringView key, const char* label, const char* tooltip)
+        [[nodiscard]] bool DrawFlag(Settings& settings, Settings::Category category, StringView key, const char* label, const char* tooltip)
         {
             ui::PropertyRow(label);
             bool value = settings.Get<bool>(category, key);
@@ -58,7 +58,7 @@ namespace elm {
         }
 
         /// The culling depth buffer: one of DepthBufferSizes; true when it changed.
-        bool DrawDepthBufferSize(Settings& settings)
+        [[nodiscard]] bool DrawDepthBufferSize(Settings& settings)
         {
             using Culling = OcclusionCulling;
             const uint32_t width = settings.Get<uint32_t>(Settings::Category::Render, Culling::ResolutionWidthSetting);
