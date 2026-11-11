@@ -9,6 +9,8 @@ local Game = {
         bar_length = 20,
         ground = "ground",
         max_hits = 3,
+        next_scene = "", 
+        next_delay = 2,
     },
 }
 
@@ -19,6 +21,16 @@ local LOSE_COLOR = Vector4(0.55, 0.20, 0.25, 1)
 function Game:add_coin()
     self.total = (self.total or 0) + 1
     self:show_score()
+end
+
+function Game:on_update(dt)
+    if self.next_in then
+        self.next_in = self.next_in -dt
+    end
+end
+
+function Game:wants_next_scene()
+    return self.next_in ~= nil and self.next_in <= 0
 end
 
 function Game:on_start()
@@ -37,6 +49,9 @@ function Game:collect()
     print(string.format("Coin Rush: %d / %d", self.taken, self.total))
     if self.taken == self.total then
         self:finish(WIN_COLOR, "all coins taken")
+        if self.next_scene ~= "" then
+            self.next_in = self.next_delay
+        end
     end
 end
 

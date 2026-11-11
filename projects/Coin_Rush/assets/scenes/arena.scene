@@ -133,7 +133,9 @@
          "components": {
             "Script": {
                "module": "game",
-               "props": {}
+               "props": {
+                  "next_scene": "scenes/arena_2.scene"
+               }
             }
          },
          "localTransform": [
