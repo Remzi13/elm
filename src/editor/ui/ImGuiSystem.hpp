@@ -18,7 +18,6 @@
 #include <atomic>
 #include <memory>
 #include <span>
-#include <type_traits>
 #include <utility>
 
 struct ImGuiViewport;
@@ -55,6 +54,9 @@ namespace elm {
 
         // Window management
         void AddWindow(UniquePtr<IImGuiWindow> window);
+        /// A window that a menu item opens (Project Hub, Settings): not in the Window menu, its visibility is not
+        /// saved.
+        void AddDialogWindow(UniquePtr<IImGuiWindow> window);
         /// A window bound to the open project: CloseProjectWindows destroys it.
         void AddProjectWindow(UniquePtr<IImGuiWindow> window);
         /// Destroys the project windows; the windows of the next project open as these were.
@@ -68,15 +70,6 @@ namespace elm {
         /// Replaces the scene with a scene file at the start of the next frame, outside of any window; asks
         /// first when the scene has unsaved changes.
         void OpenSceneFile(const Path& file);
-        template <typename T, typename... Args>
-        [[nodiscard]] T& EmplaceWindow(Settings& settings, Args&&... args)
-        {
-            static_assert(std::is_base_of_v<IImGuiWindow, T>);
-            auto window = MakeUnique<T>(settings, std::forward<Args>(args)...);
-            T& result = *window;
-            AddWindow(std::move(window));
-            return result;
-        }
         [[nodiscard]] std::span<const UniquePtr<IImGuiWindow>> GetWindows() const noexcept { return m_windows; }
 
         template <typename T>
@@ -145,6 +138,8 @@ namespace elm {
         EditorToolbar m_toolbar;
         bool m_inspectorPlaced { false };
         Vector<UniquePtr<IImGuiWindow>> m_windows;
+        // Drawn after m_windows, out of the Window menu
+        Vector<UniquePtr<IImGuiWindow>> m_dialogWindows;
         // The windows of m_windows that CloseProjectWindows destroys
         Vector<const IImGuiWindow*> m_projectWindows;
         // Visibility read from imgui.ini, also for windows added after the load

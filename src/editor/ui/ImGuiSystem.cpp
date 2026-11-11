@@ -59,6 +59,12 @@ namespace elm {
         }
     }
 
+    void ImGuiSystem::AddDialogWindow(UniquePtr<IImGuiWindow> window)
+    {
+        if (window)
+            m_dialogWindows.push_back(std::move(window));
+    }
+
     void ImGuiSystem::AddProjectWindow(UniquePtr<IImGuiWindow> window)
     {
         if (!window) return;
@@ -441,6 +447,10 @@ namespace elm {
                 window->Render(frameWriter);
             }
         }
+        for (const auto& window : m_dialogWindows) {
+            if (window->IsVisible())
+                window->Render(frameWriter);
+        }
         ImGui::Render();
         // Creates/destroys platform windows, renderer callbacks record viewport events
         ImGui::UpdatePlatformWindows();
@@ -573,6 +583,7 @@ namespace elm {
         m_platformDestroyWindow = nullptr;
         m_projectWindows.clear();
         m_windows.clear();
+        m_dialogWindows.clear();
         m_initialized = false;
     }
 

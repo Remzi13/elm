@@ -1,6 +1,7 @@
 #include "editor/EditorSelfTest.hpp"
 
 #include "editor/EditMode.hpp"
+#include "editor/ProjectHubWindow.hpp"
 #include "editor/NodeEditing.hpp"
 #include "editor/SceneDocument.hpp"
 #include "editor/SceneEdits.hpp"
@@ -587,6 +588,14 @@ line]] .. [==[a]]b]==])",
                 , debugDraw(settings)
                 , viewPort(resources, Size { 640, 360 })
                 , viewport(settings, EngineViewportDeps { scene, models, camera, viewPort, debugDraw, play, selection, gizmo, edits, sceneFile })
+                , hub(settings,
+                      editor::ProjectHubDesc {
+                          .recent = [this] { return recentProjects; },
+                          .openProject = [this] { return openProject; },
+                          .open = [this](const Path& file) { openedProject = file; },
+                          .create = {},
+                          .defaultLocation = assets,
+                      })
             {
                 viewport.SetVisible(false);
                 play.isPlaying = [this] { return playing; };
@@ -618,6 +627,7 @@ line]] .. [==[a]]b]==])",
                 modelEditor.Render(writer);
                 settingsWindow.Render(writer);
                 viewport.Render(writer);
+                hub.Render(writer);
                 if (showSceneBar) {
                     ImGui::SetNextWindowPos(SceneBarPosition);
                     ImGui::SetNextWindowSize(ImVec2(600.0f, 50.0f));
@@ -829,6 +839,12 @@ line]] .. [==[a]]b]==])",
             render::ViewPort viewPort;
             /// Hidden until a test shows it.
             EngineViewportWindow viewport;
+            /// What the Project Hub sees and what it asked to open.
+            Vector<Path> recentProjects;
+            Path openProject;
+            std::optional<Path> openedProject;
+            /// Hidden until a test shows it.
+            editor::ProjectHubWindow hub;
         };
 
         void RunTreeDropTests(Report& report, const Path& assets)
@@ -955,6 +971,40 @@ line]] .. [==[a]]b]==])",
                 "settings::a_change_is_written_at_once");
             std::error_code error;
             FileSystem::RemoveAll(file, error);
+        }
+
+        /// The Project Hub opens a project right away without one open, and asks first with one: unsaved changes
+        /// would be lost.
+        void RunProjectHubTests(Report& report, const Path& assets)
+        {
+            const Path sandbox("projects/Sandbox/Sandbox.elmproject");
+            const Path other("projects/Other/Other.elmproject");
+            WindowsFixture fixture(assets);
+            fixture.recentProjects = { sandbox, other };
+            fixture.hub.SetVisible(true);
+            fixture.Frame();
+            ImGui::SetWindowPos(editor::ProjectHubWindow::Name, ImVec2(900.0f, 0.0f));
+            fixture.Frame();
+            const auto clickRecent = [&](const Path& file) {
+                ImGuiWindow* window = WindowsFixture::FindWindow(editor::ProjectHubWindow::Name);
+                return fixture.ClickItem(window, ("###" + String(file.string().c_str())).c_str());
+            };
+
+            report.Check(clickRecent(other) && fixture.openedProject == other && !WindowsFixture::IsDialogOpen(),
+                "hub::without_a_project_a_recent_one_opens_right_away");
+
+            fixture.openedProject.reset();
+            fixture.openProject = sandbox;
+            const bool clicked = clickRecent(other);
+            fixture.Frame();
+            report.Check(clicked && !fixture.openedProject && WindowsFixture::IsDialogOpen(), "hub::with_a_project_open_another_asks_first");
+            report.Check(fixture.ClickItem(WindowsFixture::TopPopup(), "Cancel") && !fixture.openedProject && !WindowsFixture::IsDialogOpen(),
+                "hub::cancel_keeps_the_project");
+
+            const bool reloadClicked = clickRecent(sandbox);
+            fixture.Frame();
+            report.Check(reloadClicked && fixture.ClickItem(WindowsFixture::TopPopup(), "Reload") && fixture.openedProject == sandbox,
+                "hub::a_click_on_the_open_project_reloads_it_after_the_question");
         }
 
         void RunTreeSearchTests(Report& report, const Path& assets)
@@ -1404,6 +1454,7 @@ line]] .. [==[a]]b]==])",
             RunTreeSearchTests(report, assets);
             RunTreeIconTests(report, assets);
             RunSettingsWindowTests(report, assets);
+            RunProjectHubTests(report, assets);
             RunViewMenuTests(report, assets);
             RunSceneStatusTests(report, assets);
             RunTreeEditTests(report, assets);

@@ -52,6 +52,39 @@ namespace elm {
         /// Where new projects go and where looking for one starts, under the root of the engine.
         constexpr StringView ProjectsFolder = "projects";
 
+        Path NormalizeProjectPath(const Path& file)
+        {
+            if (file.IsRelative())
+                return file;
+            const Path root = FileSystem::RootPath();
+            if (!root.Empty()) {
+                const Path relative = file.LexicallyRelative(root);
+                const std::string relStr = relative.generic_string();
+                if (!relStr.empty() && !relStr.starts_with(".."))
+                    return Path(relStr.c_str());
+            }
+            return file;
+        }
+
+        Path ResolveExistingProjectPath(const Path& path)
+        {
+            if (path.Empty())
+                return path;
+            const Path resolved = FileSystem::Resolve(path);
+            if (FileSystem::Exists(resolved))
+                return path.IsRelative() ? path : NormalizeProjectPath(resolved);
+
+            // Fallback for paths from other OS / machines (e.g. C:/.../projects/Race/Race.elmproject)
+            const std::string text = path.generic_string();
+            const size_t projPos = text.find("projects/");
+            if (projPos != std::string::npos) {
+                const Path relative(text.substr(projPos).c_str());
+                if (FileSystem::Exists(FileSystem::Resolve(relative)))
+                    return relative;
+            }
+            return path;
+        }
+
     } // namespace
 
     Editor::Editor()
@@ -106,14 +139,18 @@ namespace elm {
         if (auto init = m_imgui->Init(m_platform.GetWindow(), m_graphics.GetRender(), "Engine Debug UI"); !init)
             return init;
         CreateEditorWindows();
-        m_hub = &m_imgui->EmplaceWindow<editor::ProjectHubWindow>(
-            m_settings,
+        auto hub = MakeUnique<editor::ProjectHubWindow>(m_settings,
             editor::ProjectHubDesc {
                 .recent = [this] { return RecentProjects(); },
+                .openProject = [this] {
+                    const project::Project* project = m_resources.GetProject();
+                    return project ? NormalizeProjectPath(project->File()) : Path {}; },
                 .open = [this](const Path& file) { m_requestedProject = file; },
                 .create = [this](const Path& location, StringView name) { return CreateProject(location, name); },
                 .defaultLocation = FileSystem::Resolve(Path(ProjectsFolder)),
             });
+        m_hub = hub.get();
+        m_imgui->AddDialogWindow(std::move(hub));
         UpdateProjectMenu(nullptr);
         AddVisualizers();
         // The editor starts in Edit mode: physics and scripts wait for Play
@@ -299,43 +336,6 @@ namespace elm {
             m_hub->SetVisible(true);
     }
 
-    namespace {
-
-        Path NormalizeProjectPath(const Path& file)
-        {
-            if (file.IsRelative())
-                return file;
-            const Path root = FileSystem::RootPath();
-            if (!root.Empty()) {
-                const Path relative = file.LexicallyRelative(root);
-                const std::string relStr = relative.generic_string();
-                if (!relStr.empty() && !relStr.starts_with(".."))
-                    return Path(relStr.c_str());
-            }
-            return file;
-        }
-
-        Path ResolveExistingProjectPath(const Path& path)
-        {
-            if (path.Empty())
-                return path;
-            const Path resolved = FileSystem::Resolve(path);
-            if (FileSystem::Exists(resolved))
-                return path.IsRelative() ? path : NormalizeProjectPath(resolved);
-
-            // Fallback for paths from other OS / machines (e.g. C:/.../projects/Race/Race.elmproject)
-            const std::string text = path.generic_string();
-            const size_t projPos = text.find("projects/");
-            if (projPos != std::string::npos) {
-                const Path relative(text.substr(projPos).c_str());
-                if (FileSystem::Exists(FileSystem::Resolve(relative)))
-                    return relative;
-            }
-            return path;
-        }
-
-    } // namespace
-
     Path Editor::LastProject() const
     {
         const String text = m_settings.Get<String>(Settings::Category::Core, LastProjectSetting);
@@ -371,7 +371,9 @@ namespace elm {
         m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
         m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
         m_imgui->AddWindow(MakeUnique<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats }));
-        m_settingsWindow = &m_imgui->EmplaceWindow<SettingsWindow>(m_settings, Settings::DefaultFilePath());
+        auto settingsWindow = MakeUnique<SettingsWindow>(m_settings, Settings::DefaultFilePath());
+        m_settingsWindow = settingsWindow.get();
+        m_imgui->AddDialogWindow(std::move(settingsWindow));
     }
 
     void Editor::CreateProjectWindows(const project::Project& project, const Path& openedScene)
@@ -408,19 +410,13 @@ namespace elm {
 
     void Editor::UpdateProjectMenu(const project::Project* project)
     {
-        ProjectMenuDesc menu { .fileExtension = String(project::Project::FileExtension),
-            .projectsFolder = FileSystem::Resolve(Path(ProjectsFolder)),
-            .open = [this](const Path& file) { m_requestedProject = file; },
-            .recent = RecentProjects(),
+        m_imgui->SetProjectMenu(ProjectMenuDesc {
+            .name = project ? project->Name() : String {},
             .showHub = [this] { ShowProjectHub(); },
-            .showSettings = [this] { m_settingsWindow->Show(SettingsSection::Editor); },
+            .showSettings = [this] { m_settingsWindow->Show(); },
             .showProjectSettings = [this] { m_settingsWindow->Show(SettingsSection::Project); },
-            .buildGame = [this] { BuildGame(); } };
-        if (project) {
-            menu.name = project->Name();
-            menu.file = project->File();
-        }
-        m_imgui->SetProjectMenu(std::move(menu));
+            .buildGame = [this] { BuildGame(); },
+        });
     }
 
     Vector<Path> Editor::RecentProjects() const
