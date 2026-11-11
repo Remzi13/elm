@@ -1122,7 +1122,7 @@ line]] .. [==[a]]b]==])",
                 io.AddKeyEvent(modifier, false);
                 frame();
             };
-            report.Check(click("Play") && plays == 1, "toolbar::plays_the_scene");
+            report.Check(click("###Play") && plays == 1, "toolbar::plays_the_scene");
             pressF5(ImGuiMod_None);
             report.Check(plays == 2 && projectPlays == 0, "toolbar::f5_plays_the_scene");
             pressF5(ImGuiMod_Shift);
@@ -1131,7 +1131,7 @@ line]] .. [==[a]]b]==])",
             report.Check(plays == 2 && projectPlays == 1 && standaloneRuns == 1, "toolbar::ctrl_f5_runs_standalone");
             playing = true;
             frame();
-            report.Check(click("Stop") && stops == 1, "toolbar::stops_in_play");
+            report.Check(click("###Stop") && stops == 1, "toolbar::stops_in_play");
             pressF5(ImGuiMod_None);
             report.Check(stops == 2, "toolbar::f5_stops_in_play");
         }
