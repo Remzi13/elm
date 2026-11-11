@@ -26,6 +26,22 @@
    "nodes": [
       {
          "components": {
+            "Collider": {
+               "halfExtents": [
+                  1,
+                  0.2,
+                  0.2
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0,
+                  0
+               ],
+               "radius": 1,
+               "shape": "box",
+               "trigger": false
+            },
             "Model": {
                "color": [
                   1,
@@ -35,6 +51,10 @@
                ],
                "modelIndex": 0,
                "visible": true
+            },
+            "Script": {
+               "module": "paddle",
+               "props": {}
             }
          },
          "localTransform": [
@@ -67,6 +87,22 @@
       },
       {
          "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.19999999,
+                  0.2,
+                  0.19999999
+               ],
+               "halfHeight": 1.4901161E-8,
+               "offset": [
+                  7.450581E-9,
+                  0,
+                  -7.450581E-9
+               ],
+               "radius": 0.19999999,
+               "shape": "sphere",
+               "trigger": false
+            },
             "Model": {
                "color": [
                   1,
@@ -1888,6 +1924,22 @@
       },
       {
          "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.25,
+                  0.3,
+                  8.25
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0.3,
+                  0
+               ],
+               "radius": 8.25,
+               "shape": "box",
+               "trigger": false
+            },
             "Model": {
                "color": [
                   1,
@@ -1897,6 +1949,15 @@
                ],
                "modelIndex": 4,
                "visible": true
+            },
+            "RigidBody": {
+               "angularDamping": 0.05,
+               "friction": 0.5,
+               "gravityScale": 1,
+               "linearDamping": 0.05,
+               "mass": 1,
+               "restitution": 0,
+               "type": "kinematic"
             }
          },
          "localTransform": [
@@ -1930,6 +1991,22 @@
       },
       {
          "components": {
+            "Collider": {
+               "halfExtents": [
+                  0.25,
+                  0.3,
+                  8.25
+               ],
+               "halfHeight": 0,
+               "offset": [
+                  0,
+                  0.3,
+                  0
+               ],
+               "radius": 8.25,
+               "shape": "box",
+               "trigger": false
+            },
             "Model": {
                "color": [
                   1,
@@ -2009,7 +2086,7 @@
                1
             ]
          ],
-         "name": "floor",
+         "name": "ground",
          "parentIndex": 43
       },
       {
@@ -2166,6 +2243,41 @@
          ],
          "name": "life_1",
          "parentIndex": 48
+      },
+      {
+         "components": {
+            "Script": {
+               "module": "game",
+               "props": {}
+            }
+         },
+         "localTransform": [
+            [
+               1,
+               0,
+               0,
+               0
+            ],
+            [
+               0,
+               1,
+               0,
+               0
+            ],
+            [
+               0,
+               0,
+               1,
+               0
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "game"
       }
    ]
 }
