@@ -379,7 +379,7 @@ namespace elm {
         auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
             SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile, m_graphics.GetViewCamera(), m_playRequests }, project.Assets(), project.Models());
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
-            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_playRequests, m_scriptInspection, m_files, m_sceneFile },
+            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_playRequests, m_scriptInspection, m_files, m_sceneFile, m_graphics.GetViewCamera() },
             NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });
         auto modelEditor = MakeUnique<ModelEditorWindow>(m_settings,
             ModelEditorDeps { m_graphics.GetRender().Resources(), scene, models, m_graphics.GetViewCamera() }, project.Assets(), project.Models());

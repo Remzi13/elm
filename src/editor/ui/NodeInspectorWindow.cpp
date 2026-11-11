@@ -8,6 +8,8 @@
 #include "math/Matrix.hpp"
 #include "math/Rotation.hpp"
 
+#include "graphics/Camera.hpp"
+
 #include "model/ModelCatalog.hpp"
 
 #include "Scene/ModelComponent.hpp"
@@ -29,7 +31,35 @@ namespace elm {
         constexpr float Rad2Deg = 180.0f / 3.14159265358979323846f;
         constexpr float Deg2Rad = 3.14159265358979323846f / 180.0f;
         constexpr const char* SectionMenuPopup = "SectionMenu";
-        constexpr const char* SectionMenuButton = "...";
+        // Icons: symbols of the icon font (EditorStyle), in UTF-8; in a label the id comes after ###
+        constexpr const char* SectionMenuButton = "\xE2\x98\xB0###SectionMenu";                  // U+2630
+        constexpr const char* SectionResetButton = "\xE2\x86\xBA###SectionReset";                // U+21BA
+        constexpr const char* SectionRemoveButton = "\xE2\x9C\x96###SectionRemove";              // U+2716
+        constexpr const char* TransformTitle = "\xE2\x9C\xA5  Transform###Transform";            // U+2725
+        constexpr const char* ModelTitle = "\xE2\x96\xA3  Model###Model";                        // U+25A3
+        constexpr const char* RigidBodyTitle = "\xE2\x9A\x9B  RigidBody###RigidBody";            // U+269B
+        constexpr const char* ColliderTitle = "\xE2\x96\xA2  Collider###Collider";               // U+25A2
+        constexpr const char* ScriptTitle = "\xE2\x9C\x8E  Script###Script";                     // U+270E
+        constexpr const char* WorldSpaceButton = "\xE2\x8A\x95###ValueSpace";                    // U+2295
+        constexpr const char* LocalSpaceButton = "\xE2\x8A\x99###ValueSpace";                    // U+2299
+        constexpr const char* ShownButton = "\xE2\x97\x89###Visible";                            // U+25C9
+        constexpr const char* HiddenButton = "\xE2\x97\x8B###Visible";                           // U+25CB
+        constexpr const char* FrameButton = "\xE2\x97\x8E###Frame";                              // U+25CE
+        constexpr const char* ParentIcon = "\xE2\x86\xB0";                                       // U+21B0
+        constexpr const char* BrowseButton = "\xE2\x9B\x81###Browse";                            // U+26C1
+        constexpr const char* PickModuleButton = "\xE2\x96\xBE###PickModule";                    // U+25BE
+        constexpr const char* EditScriptButton = "\xE2\x9C\x8E###EditScript";                    // U+270E
+        constexpr const char* ReloadModuleButton = "\xE2\x86\xBB  Reload module###ReloadModule"; // U+21BB
+        constexpr const char* RetryButton = "\xE2\x86\xBB  Try again###Retry";                   // U+21BB
+        constexpr const char* ResetPropButton = "\xE2\x86\xBA###ResetProp";                      // U+21BA
+        constexpr const char* RemovePropButton = "\xE2\x9C\x96###RemoveProp";                    // U+2716
+        constexpr const char* AddComponentButton = "\xE2\x9C\x9A  Add Component###AddComponent"; // U+271A
+        constexpr const char* AddColliderButton = "\xE2\x9C\x9A  Collider###AddCollider";        // U+271A
+        constexpr const char* AddRigidBodyButton = "\xE2\x9C\x9A  RigidBody###AddRigidBody";     // U+271A
+        constexpr const char* AddModelItem = "\xE2\x96\xA3  Model###Model";                      // U+25A3
+        constexpr const char* AddRigidBodyItem = "\xE2\x9A\x9B  RigidBody###RigidBody";          // U+269B
+        constexpr const char* AddColliderItem = "\xE2\x96\xA2  Collider###Collider";             // U+25A2
+        constexpr const char* AddScriptItem = "\xE2\x9C\x8E  Script###Script";                   // U+270E
         constexpr const char* ModelFileExtensions = ".model;.gltf;.glb";
         constexpr math::Vector4 DefaultModelColor { 0.8f, 0.8f, 0.8f, 1.0f };
 
@@ -55,35 +85,42 @@ namespace elm {
                 != text.end();
         }
 
+        /// What is shown of the label, without the id after ##.
         float SmallButtonWidth(const char* label)
         {
-            return ImGui::CalcTextSize(label).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+            return ImGui::CalcTextSize(label, nullptr, true).x + ImGui::GetStyle().FramePadding.x * 2.0f;
         }
 
-        /// The header of a section with room for what lies on it and the button of its menu at the right edge.
-        bool DrawSectionHeader(const char* title)
-        {
-            const bool open = ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
-            ImGui::SameLine(ImGui::GetContentRegionMax().x - SmallButtonWidth(SectionMenuButton));
-            if (ImGui::SmallButton(SectionMenuButton))
-                ImGui::OpenPopup(SectionMenuPopup);
-            return open;
-        }
+        /// What the header of a component's section says.
+        struct SectionHeader {
+            bool open { false };
+            ComponentAction action { ComponentAction::None };
+        };
 
-        /// The menu of a component's section: its own items, then Reset and Remove.
-        template <typename OwnItems>
-        ComponentAction DrawComponentMenu(const OwnItems& ownItems)
+        /// The header of a component's section and the buttons at its right edge: the section's own menu when it has
+        /// one (the caller draws SectionMenuPopup), reset and remove.
+        SectionHeader DrawSectionHeader(const char* title, bool hasMenu)
         {
-            ComponentAction action = ComponentAction::None;
-            if (!ImGui::BeginPopup(SectionMenuPopup))
-                return action;
-            ownItems();
-            if (ImGui::MenuItem("Reset"))
-                action = ComponentAction::Reset;
-            if (ImGui::MenuItem("Remove"))
-                action = ComponentAction::Remove;
-            ImGui::EndPopup();
-            return action;
+            SectionHeader header;
+            header.open = ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+            const float spacing = ImGui::GetStyle().ItemSpacing.x;
+            const float removeX = ImGui::GetContentRegionMax().x - SmallButtonWidth(SectionRemoveButton);
+            const float resetX = removeX - spacing - SmallButtonWidth(SectionResetButton);
+            if (hasMenu) {
+                ImGui::SameLine(resetX - spacing - SmallButtonWidth(SectionMenuButton));
+                if (ImGui::SmallButton(SectionMenuButton))
+                    ImGui::OpenPopup(SectionMenuPopup);
+                ImGui::SetItemTooltip("More actions");
+            }
+            ImGui::SameLine(resetX);
+            if (ImGui::SmallButton(SectionResetButton))
+                header.action = ComponentAction::Reset;
+            ImGui::SetItemTooltip("Reset the component to its defaults");
+            ImGui::SameLine(removeX);
+            if (ImGui::SmallButton(SectionRemoveButton))
+                header.action = ComponentAction::Remove;
+            ImGui::SetItemTooltip("Remove the component");
+            return header;
         }
 
         RigidBody NewRigidBody()
@@ -216,15 +253,39 @@ namespace elm {
 
     void NodeInspectorWindow::DrawNodeRows(NodeId node)
     {
-        if (!ui::BeginPropertyGrid())
-            return;
-        ui::PropertyRow("Name");
-        String name = m_deps.scene.Find(node)->name;
+        Scene& scene = m_deps.scene;
+        const ImGuiStyle& style = ImGui::GetStyle();
+        ModelComponent* model = scene.Components<ModelComponent>().Find(node);
+        // The name takes what the buttons after it leave
+        float buttonsWidth = ImGui::GetFrameHeight() + style.ItemSpacing.x;
+        if (model)
+            buttonsWidth += ImGui::GetFrameHeight() + style.ItemSpacing.x;
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - buttonsWidth);
+        String name = scene.Find(node)->name;
         if (ui::InputString("##Name", name))
-            (void)m_deps.scene.SetName(node, name);
-        ui::PropertyRow("Parent");
+            (void)scene.SetName(node, name);
+        ImGui::SetItemTooltip("Name");
+        const ImVec2 square(ImGui::GetFrameHeight(), ImGui::GetFrameHeight());
+        if (model) {
+            ImGui::SameLine();
+            if (ImGui::Button(model->visible ? ShownButton : HiddenButton, square))
+                model->visible = !model->visible;
+            ImGui::SetItemTooltip(model->visible ? "Shown: click to hide the model" : "Hidden: click to show the model");
+        }
+        ImGui::SameLine();
+        // In Play the camera is the game's
+        ImGui::BeginDisabled(IsPlaying());
+        if (ImGui::Button(FrameButton, square))
+            FrameNode(m_deps.camera, scene, m_deps.models, node);
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip("Bring the node into the view (F in the viewport and the tree)");
+
+        ImGui::AlignTextToFramePadding();
+        ImGui::TextDisabled("%s", ParentIcon);
+        ImGui::SetItemTooltip("Parent");
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(-FLT_MIN);
         DrawParentCombo(node);
-        ui::EndPropertyGrid();
     }
 
     void NodeInspectorWindow::DrawParentCombo(NodeId node)
@@ -260,22 +321,18 @@ namespace elm {
     void NodeInspectorWindow::DrawTransformSection(NodeId node)
     {
         ImGui::PushID("Transform");
-        const bool open = ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
+        const bool open = ImGui::CollapsingHeader(TransformTitle, ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_AllowOverlap);
 
-        // Which space the values are in, then the menu
-        const ImGuiStyle& style = ImGui::GetStyle();
+        // Which space the values are in, then the menu of resets
         const float menuX = ImGui::GetContentRegionMax().x - SmallButtonWidth(SectionMenuButton);
-        const float worldX = menuX - style.ItemSpacing.x - SmallButtonWidth("World");
-        const float localX = worldX - style.ItemSpacing.x - SmallButtonWidth("Local");
-        ImGui::SameLine(localX);
-        if (ui::SmallToggleButton("Local", m_editLocalTransform))
-            m_editLocalTransform = true;
-        ImGui::SameLine(worldX);
-        if (ui::SmallToggleButton("World", !m_editLocalTransform))
-            m_editLocalTransform = false;
+        ImGui::SameLine(menuX - ImGui::GetStyle().ItemSpacing.x - SmallButtonWidth(WorldSpaceButton));
+        if (ImGui::SmallButton(m_editLocalTransform ? LocalSpaceButton : WorldSpaceButton))
+            m_editLocalTransform = !m_editLocalTransform;
+        ImGui::SetItemTooltip(m_editLocalTransform ? "Local: the values are relative to the parent. Click for the world's" : "World: the values are in the world. Click for the parent's");
         ImGui::SameLine(menuX);
         if (ImGui::SmallButton(SectionMenuButton))
             ImGui::OpenPopup(SectionMenuPopup);
+        ImGui::SetItemTooltip("Reset the transform");
 
         if (ImGui::BeginPopup(SectionMenuPopup)) {
             const Scene& scene = m_deps.scene;
@@ -342,8 +399,10 @@ namespace elm {
         if (!component)
             return;
         ImGui::PushID("Model");
-        const bool open = DrawSectionHeader("Model");
-        const ComponentAction action = DrawComponentMenu([&] {
+        const SectionHeader header = DrawSectionHeader(ModelTitle, true);
+        const bool open = header.open;
+        const ComponentAction action = header.action;
+        if (ImGui::BeginPopup(SectionMenuPopup)) {
             if (ImGui::BeginMenu("Set Primitive")) {
                 for (const ModelPrimitive primitive : ModelPrimitives) {
                     if (ImGui::MenuItem(ModelPrimitiveName(primitive)))
@@ -353,7 +412,8 @@ namespace elm {
             }
             if (ImGui::MenuItem("Open in Model Editor", nullptr, false, m_deps.models.Get(component->model) != nullptr) && m_deps.files.sceneModel)
                 m_deps.files.sceneModel(component->model);
-        });
+            ImGui::EndPopup();
+        }
         if (action == ComponentAction::Remove) {
             scene.Components<ModelComponent>().Remove(node);
         } else {
@@ -376,9 +436,8 @@ namespace elm {
         const Model* model = models.Get(component.model);
 
         ui::PropertyRow("Model");
-        constexpr const char* BrowseLabel = "Browse...";
         const ImGuiStyle& style = ImGui::GetStyle();
-        const float browseWidth = ImGui::CalcTextSize(BrowseLabel).x + style.FramePadding.x * 2.0f;
+        const float browseWidth = ImGui::GetFrameHeight();
         ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - browseWidth - style.ItemSpacing.x);
         if (ImGui::BeginCombo("##Model", FormatModelLabel(model, component.model).c_str())) {
             models.ForEach([&](ModelHandler handle, const Model& item) {
@@ -397,13 +456,12 @@ namespace elm {
             }
         }
         ImGui::SameLine();
-        if (ImGui::Button(BrowseLabel))
+        if (ImGui::Button(BrowseButton, ImVec2(browseWidth, 0.0f)))
             OpenModelDialog(node);
+        ImGui::SetItemTooltip("A model from disk");
 
         ui::PropertyRow("Color");
         ImGui::ColorEdit4("##Color", &component.color.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-        ui::PropertyRow("Visible");
-        ImGui::Checkbox("##Visible", &component.visible);
         ui::EndPropertyGrid();
     }
 
@@ -448,8 +506,9 @@ namespace elm {
         if (!body)
             return;
         ImGui::PushID("RigidBody");
-        const bool open = DrawSectionHeader("RigidBody");
-        const ComponentAction action = DrawComponentMenu([] {});
+        const SectionHeader header = DrawSectionHeader(RigidBodyTitle, false);
+        const bool open = header.open;
+        const ComponentAction action = header.action;
         if (action == ComponentAction::Remove) {
             scene.Components<RigidBody>().Remove(node);
         } else {
@@ -494,7 +553,7 @@ namespace elm {
         const auto* colliders = scene.FindComponents<Collider>();
         if (!colliders || !colliders->Contains(node)) {
             ImGui::TextColored(NoticeColor, "A RigidBody needs a Collider to collide.");
-            if (ImGui::SmallButton("+ Add Collider"))
+            if (ImGui::SmallButton(AddColliderButton))
                 scene.Components<Collider>().Emplace(node, FitColliderToModel(FindNodeModel(scene, m_deps.models, node)));
         }
     }
@@ -507,15 +566,18 @@ namespace elm {
             return;
         const Model* model = FindNodeModel(scene, m_deps.models, node);
         ImGui::PushID("Collider");
-        const bool open = DrawSectionHeader("Collider");
-        const ComponentAction action = DrawComponentMenu([&] {
+        const SectionHeader header = DrawSectionHeader(ColliderTitle, true);
+        const bool open = header.open;
+        const ComponentAction action = header.action;
+        if (ImGui::BeginPopup(SectionMenuPopup)) {
             if (ImGui::MenuItem("Fit to Model", nullptr, false, model != nullptr)) {
                 Collider fitted = FitColliderToModel(model);
                 fitted.shape = collider->shape;
                 fitted.trigger = collider->trigger;
                 *collider = fitted;
             }
-        });
+            ImGui::EndPopup();
+        }
         if (action == ComponentAction::Remove) {
             scene.Components<Collider>().Remove(node);
         } else {
@@ -566,7 +628,7 @@ namespace elm {
         const auto* bodies = scene.FindComponents<RigidBody>();
         if (!bodies || !bodies->Contains(node)) {
             ImGui::TextDisabled("Static: immovable collision geometry");
-            if (ImGui::SmallButton("+ Add RigidBody"))
+            if (ImGui::SmallButton(AddRigidBodyButton))
                 scene.Components<RigidBody>().Emplace(node, NewRigidBody());
         }
     }
@@ -577,8 +639,9 @@ namespace elm {
         if (!scene.Components<ScriptComponent>().Find(node))
             return;
         ImGui::PushID("Script");
-        const bool open = DrawSectionHeader("Script");
-        const ComponentAction action = DrawComponentMenu([] {});
+        const SectionHeader header = DrawSectionHeader(ScriptTitle, false);
+        const bool open = header.open;
+        const ComponentAction action = header.action;
         if (action == ComponentAction::Remove) {
             // The instance ends first, as with entity:remove("Script")
             if (m_deps.scripts.endInstance)
@@ -619,18 +682,25 @@ namespace elm {
     void NodeInspectorWindow::DrawScriptModulePicker(ScriptComponent& script)
     {
         const ImGuiStyle& style = ImGui::GetStyle();
-        constexpr const char* PickLabel = "...##PickModule";
-        const float pickWidth = ImGui::CalcTextSize("...").x + style.FramePadding.x * 2.0f;
-        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - pickWidth - style.ItemSpacing.x);
+        const ImVec2 square(ImGui::GetFrameHeight(), ImGui::GetFrameHeight());
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - (square.x + style.ItemSpacing.x) * 2.0f);
         String module = script.module;
         if (ui::InputString("##Module", module))
             script.module = module;
         ImGui::SameLine();
-        if (ImGui::Button(PickLabel)) {
+        if (ImGui::Button(PickModuleButton, square)) {
             m_scriptModules = ListScriptModules(m_folders.scripts);
             m_scriptFilter[0] = '\0';
             ImGui::OpenPopup("PickModulePopup");
         }
+        ImGui::SetItemTooltip("Pick a script of the project");
+        ImGui::SameLine();
+        const Path file = ScriptModuleFile(m_folders.scripts, script.module);
+        ImGui::BeginDisabled(file.Empty() || !m_deps.files.script);
+        if (ImGui::Button(EditScriptButton, square))
+            m_deps.files.script(file);
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip("Open the script in the Scripts window");
         if (ImGui::BeginPopup("PickModulePopup")) {
             ImGui::SetNextItemWidth(200.0f);
             ImGui::InputTextWithHint("##ScriptFilter", "Filter scripts...", m_scriptFilter, sizeof(m_scriptFilter));
@@ -658,7 +728,7 @@ namespace elm {
             ImGui::PushStyleColor(ImGuiCol_Text, ScriptErrorColor);
             ImGui::TextWrapped("%s", state.error.c_str());
             ImGui::PopStyleColor();
-            if (ImGui::SmallButton("Reload module") && scripts.reloadModule)
+            if (ImGui::SmallButton(ReloadModuleButton) && scripts.reloadModule)
                 scripts.reloadModule(state.module);
         } else if (state.kind == ScriptInstanceState::Kind::Running) {
             ImGui::TextColored(ScriptRunningColor, "Running");
@@ -677,7 +747,7 @@ namespace elm {
             ImGui::PushStyleColor(ImGuiCol_Text, ScriptErrorColor);
             ImGui::TextWrapped("%s", defaults.error().message.c_str());
             ImGui::PopStyleColor();
-            if (ImGui::SmallButton("Try again") && scripts.forgetDefaults)
+            if (ImGui::SmallButton(RetryButton) && scripts.forgetDefaults)
                 scripts.forgetDefaults();
             return;
         }
@@ -708,10 +778,9 @@ namespace elm {
         if (isOverridden)
             ImGui::PushStyleColor(ImGuiCol_Text, OverrideColor);
         ui::PropertyRow(name.c_str());
-        constexpr const char* ResetLabel = "Reset";
         if (isOverridden) {
             const ImGuiStyle& style = ImGui::GetStyle();
-            const float resetWidth = SmallButtonWidth(ResetLabel) + style.ItemSpacing.x;
+            const float resetWidth = SmallButtonWidth(ResetPropButton) + style.ItemSpacing.x;
             ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - resetWidth);
         }
         const bool changed = DrawScriptValue(value, scene);
@@ -724,7 +793,7 @@ namespace elm {
         }
         if (isOverridden) {
             ImGui::SameLine();
-            if (ImGui::SmallButton(ResetLabel)) {
+            if (ImGui::SmallButton(ResetPropButton)) {
                 RemoveOverride(*script, name);
                 if (scripts.setField)
                     scripts.setField(node, name, fallback);
@@ -747,7 +816,8 @@ namespace elm {
             ImGui::PushID(name.c_str());
             ImGui::TextColored(ScriptErrorColor, "%s: not a prop of the script", name.c_str());
             ImGui::SameLine();
-            const bool remove = ImGui::SmallButton("Remove");
+            const bool remove = ImGui::SmallButton(RemovePropButton);
+            ImGui::SetItemTooltip("Remove the value");
             ImGui::PopID();
             if (remove)
                 script.props.erase(script.props.begin() + static_cast<std::ptrdiff_t>(index));
@@ -760,21 +830,21 @@ namespace elm {
     {
         Scene& scene = m_deps.scene;
         ImGui::Spacing();
-        if (ImGui::Button("+ Add Component", ImVec2(-FLT_MIN, 0.0f))) {
+        if (ImGui::Button(AddComponentButton, ImVec2(-FLT_MIN, 0.0f))) {
             m_scriptModules = ListScriptModules(m_folders.scripts);
             ImGui::OpenPopup("AddComponentPopup");
         }
         if (!ImGui::BeginPopup("AddComponentPopup"))
             return;
-        if (ImGui::BeginMenu("Model", !scene.Components<ModelComponent>().Contains(node))) {
+        if (ImGui::BeginMenu(AddModelItem, !scene.Components<ModelComponent>().Contains(node))) {
             DrawAddModelMenu(node);
             ImGui::EndMenu();
         }
-        if (ImGui::MenuItem("RigidBody", nullptr, false, !scene.Components<RigidBody>().Contains(node)))
+        if (ImGui::MenuItem(AddRigidBodyItem, nullptr, false, !scene.Components<RigidBody>().Contains(node)))
             scene.Components<RigidBody>().Emplace(node, NewRigidBody());
-        if (ImGui::MenuItem("Collider", nullptr, false, !scene.Components<Collider>().Contains(node)))
+        if (ImGui::MenuItem(AddColliderItem, nullptr, false, !scene.Components<Collider>().Contains(node)))
             scene.Components<Collider>().Emplace(node, FitColliderToModel(FindNodeModel(scene, m_deps.models, node)));
-        if (ImGui::BeginMenu("Script", !scene.Components<ScriptComponent>().Contains(node))) {
+        if (ImGui::BeginMenu(AddScriptItem, !scene.Components<ScriptComponent>().Contains(node))) {
             DrawAddScriptMenu(node);
             ImGui::EndMenu();
         }

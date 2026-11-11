@@ -73,5 +73,7 @@ namespace elm {
 
     /// The Lua modules under the scripts folder by their require names, sorted: game/init.lua is game.
     [[nodiscard]] Vector<String> ListScriptModules(const Path& scriptsFolder);
+    /// The file of a module of that list: game.npc is game/npc.lua, or game/npc/init.lua. Empty when there is none.
+    [[nodiscard]] Path ScriptModuleFile(const Path& scriptsFolder, StringView module);
 
 } // namespace elm

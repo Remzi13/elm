@@ -438,6 +438,11 @@ line]] .. [==[a]]b]==])",
                 report.Check(WriteTestFile(root / module, ""), "nodes::script_module_is_written");
             const Vector<String> modules = ListScriptModules(Path(String(root.generic_string().c_str())));
             report.Check(modules == Vector<String> { "game", "game.npc.guard", "main" }, "nodes::script_modules_by_require_names");
+            const Path scripts(String(root.generic_string().c_str()));
+            report.Check(ScriptModuleFile(scripts, "game.npc.guard") == scripts / "game" / "npc" / "guard.lua"
+                    && ScriptModuleFile(scripts, "game") == scripts / "game" / "init.lua",
+                "nodes::a_module_names_its_file");
+            report.Check(ScriptModuleFile(scripts, "game.npc").Empty() && ScriptModuleFile(scripts, "").Empty(), "nodes::a_module_without_a_file_names_none");
             fs::remove_all(root, error);
         }
 
@@ -531,7 +536,7 @@ line]] .. [==[a]]b]==])",
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
                 , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play }, assets, assets / "models")
-                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile },
+                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile, camera },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
             {
@@ -900,8 +905,8 @@ line]] .. [==[a]]b]==])",
                 fixture.selection.node = node;
                 fixture.Frame();
                 fixture.Frame();
-                const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "+ Add Component");
-                const bool menuOpened = opened && fixture.ClickMenuItem("Model");
+                const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "###AddComponent");
+                const bool menuOpened = opened && fixture.ClickMenuItem("###Model");
                 const bool chosen = menuOpened && fixture.ClickMenuItem("Browse from Disk...");
                 report.Check(chosen && WindowsFixture::IsDialogOpen(), "inspector::add_component_opens_the_model_dialog");
                 report.Check(chosen && !fixture.scene.Components<ModelComponent>().Contains(node), "inspector::add_component_waits_for_the_chosen_model");
@@ -913,7 +918,7 @@ line]] .. [==[a]]b]==])",
                 fixture.selection.node = node;
                 fixture.Frame();
                 fixture.Frame();
-                const bool chosen = fixture.ClickInSection("Model", "Browse...");
+                const bool chosen = fixture.ClickInSection("Model", "###Browse");
                 report.Check(chosen && WindowsFixture::IsDialogOpen(), "inspector::browse_opens_the_model_dialog");
             }
             {
@@ -924,10 +929,21 @@ line]] .. [==[a]]b]==])",
                 fixture.Frame();
                 fixture.Frame();
                 ImGuiWindow* window = WindowsFixture::FindWindow(NodeInspectorWindow::Name);
-                const ImGuiID menuButton = ImHashStr("...", 0, window->GetID("RigidBody"));
-                const bool opened = fixture.ClickItem(window, menuButton);
-                const bool removed = opened && fixture.ClickMenuItem("Remove");
-                report.Check(removed && !fixture.scene.Components<RigidBody>().Contains(node), "inspector::section_menu_removes_the_component");
+                // The header of the node: the model's visibility and the view on the node
+                (void)fixture.scene.Components<ModelComponent>().Emplace(node, ModelComponent { .model = fixture.models.Insert(MakePrimitiveModel(ModelPrimitive::Cube)), .color = {}, .visible = true });
+                fixture.Frame();
+                const bool hidden = fixture.ClickItem(window, "###Visible");
+                report.Check(hidden && !fixture.scene.Components<ModelComponent>().Find(node)->visible, "inspector::the_header_hides_the_model");
+                const Vector3 cameraBefore = fixture.camera.GetPosition();
+                const bool framed = fixture.ClickItem(window, "###Frame");
+                report.Check(framed && (fixture.camera.GetPosition() - cameraBefore).Length() > 0.0f, "inspector::the_header_brings_the_node_into_the_view");
+                const ImGuiID resetButton = ImHashStr("###SectionReset", 0, window->GetID("RigidBody"));
+                fixture.scene.Components<RigidBody>().Find(node)->mass = 7.0f;
+                const bool reset = fixture.ClickItem(window, resetButton);
+                report.Check(reset && fixture.scene.Components<RigidBody>().Find(node)->mass == 1.0f, "inspector::the_header_resets_the_component");
+                const ImGuiID removeButton = ImHashStr("###SectionRemove", 0, window->GetID("RigidBody"));
+                const bool removed = fixture.ClickItem(window, removeButton);
+                report.Check(removed && !fixture.scene.Components<RigidBody>().Contains(node), "inspector::the_header_removes_the_component");
             }
         }
 

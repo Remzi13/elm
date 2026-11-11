@@ -230,6 +230,19 @@ namespace elm {
         std::erase_if(script.props, [&](const auto& prop) { return prop.first == name; });
     }
 
+    Path ScriptModuleFile(const Path& scriptsFolder, StringView module)
+    {
+        if (module.empty())
+            return {};
+        String relative(module);
+        std::replace(relative.begin(), relative.end(), '.', '/');
+        const Path file = scriptsFolder / (relative + ".lua");
+        if (FileSystem::Exists(file))
+            return file;
+        const Path init = scriptsFolder / relative / "init.lua";
+        return FileSystem::Exists(init) ? init : Path {};
+    }
+
     Vector<String> ListScriptModules(const Path& scriptsFolder)
     {
         Vector<String> modules;
