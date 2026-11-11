@@ -154,6 +154,8 @@ namespace elm {
         SceneFileRequests m_sceneFile;
         /// The open scene as a file; there while the project windows are open.
         std::optional<SceneDocument> m_sceneDocument;
+        /// What the main window's title says now: the open scene and project.
+        String m_windowTitle;
         /// The Profiler's, updated every frame.
         FrameStats m_frameStats;
 

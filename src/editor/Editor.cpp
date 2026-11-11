@@ -44,7 +44,10 @@ namespace elm {
     namespace {
 
         constexpr const char* LogSource = "Editor";
-        constexpr StringView MainWindowTitle = "C++23 3D Engine - Direct3D 12 & Jolt Physics";
+        /// The end of the window title; before it go the open scene and project.
+        constexpr StringView MainWindowTitle = "elm Editor";
+        constexpr StringView TitleSeparator = " - ";
+        constexpr StringView TitleModifiedMark = "*";
         constexpr Size MainWindowSize { 1280, 720 };
         /// Where new projects go and where looking for one starts, under the root of the engine.
         constexpr StringView ProjectsFolder = "projects";
@@ -174,6 +177,16 @@ namespace elm {
         if (!frame)
             return;
         BuildUi(frame);
+        // After the UI: it may have opened another scene. The window system is told only of a change
+        String title(MainWindowTitle);
+        if (const project::Project* project = m_resources.GetProject(); project && m_sceneDocument) {
+            const StringView modified = m_sceneDocument->IsModified() ? TitleModifiedMark : StringView {};
+            title = m_sceneDocument->ShownName() + String(modified) + String(TitleSeparator) + project->Name() + String(TitleSeparator) + title;
+        }
+        if (title != m_windowTitle) {
+            m_platform.GetWindow().SetTitle(title);
+            m_windowTitle = std::move(title);
+        }
         // The UI may have moved nodes since Simulate; graphics only reads the scene
         m_scene.UpdateTransforms();
         m_graphics.DrawWorld(frame, m_platform.GetWindow().GetFramebufferSize());
@@ -367,7 +380,7 @@ namespace elm {
         ModelCatalog& models = m_resources.GetModels();
         m_sceneDocument.emplace(SceneDocumentDeps { scene, models, m_edits, m_selection, m_playRequests }, project.Assets(), project.Scenes(), openedScene);
         m_sceneFile = SceneFileRequests { .save = [this] { (void)m_sceneDocument->Save(); } };
-        m_imgui->SetSceneMenu(SceneMenuDeps { &*m_sceneDocument, &m_edits, &scene, &m_selection });
+        m_imgui->SetSceneMenu(SceneMenuDeps { &*m_sceneDocument, &m_edits, &scene, &m_selection, &project });
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
             NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_playRequests, m_scriptInspection, m_files, m_sceneFile, m_graphics.GetViewCamera() },
             NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });

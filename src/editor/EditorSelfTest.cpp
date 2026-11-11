@@ -21,6 +21,8 @@
 #include "editor/ui/SceneMenu.hpp"
 #include "editor/ui/SettingsWindow.hpp"
 
+#include "project/Project.hpp"
+
 #include "core/File.hpp"
 
 #include "model/ModelCatalog.hpp"
@@ -571,6 +573,9 @@ line]] .. [==[a]]b]==])",
             static constexpr float ScanStep = 8.0f;
             /// Where the Settings window writes, in the assets folder of the test.
             static constexpr const char* SettingsFileName = "editor.settings";
+            /// A menu bar with the scene's file name, right of Inspector, while showSceneBar is set.
+            static constexpr const char* SceneBarName = "SceneBar";
+            static constexpr ImVec2 SceneBarPosition { 850.0f, 900.0f };
 
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
@@ -613,6 +618,16 @@ line]] .. [==[a]]b]==])",
                 modelEditor.Render(writer);
                 settingsWindow.Render(writer);
                 viewport.Render(writer);
+                if (showSceneBar) {
+                    ImGui::SetNextWindowPos(SceneBarPosition);
+                    ImGui::SetNextWindowSize(ImVec2(600.0f, 50.0f));
+                    ImGui::Begin(SceneBarName, nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_MenuBar);
+                    if (ImGui::BeginMenuBar()) {
+                        menu.DrawFileName();
+                        ImGui::EndMenuBar();
+                    }
+                    ImGui::End();
+                }
                 ImGui::EndFrame();
             }
 
@@ -729,9 +744,12 @@ line]] .. [==[a]]b]==])",
             /// Finds a widget by its ImGui id, moving the mouse over the window, and clicks it.
             bool ClickItem(ImGuiWindow* target, ImGuiID id)
             {
-                if (!target)
-                    return false;
-                const ImRect area = target->InnerRect;
+                return target && ClickItemIn(target->InnerRect, id);
+            }
+
+            /// The same over an area of the screen: a menu bar is outside of its window's inner rect.
+            bool ClickItemIn(const ImRect& area, ImGuiID id)
+            {
                 for (float y = area.Min.y + 1.0f; y < area.Max.y; y += ScanStep) {
                     for (float x = area.Min.x + 1.0f; x < area.Max.x; x += ScanStep) {
                         ImGui::GetIO().AddMousePosEvent(x, y);
@@ -789,6 +807,7 @@ line]] .. [==[a]]b]==])",
             SceneEdits edits { scene };
             Selection selection;
             bool playing { false };
+            bool showSceneBar { false };
             /// While set, a button in the frame can be dragged as this file (ModelFilePayload).
             std::optional<String> draggedModelFile;
             script::PlayRequests play;
@@ -1188,6 +1207,45 @@ line]] .. [==[a]]b]==])",
             report.Check(!WindowsFixture::IsDialogOpen() && fixture.scene.Empty(), "menu::a_saved_scene_is_replaced_right_away");
         }
 
+        /// The file name in the menu bar lists the project's scenes; a scene written later is in the list next time.
+        void RunSceneListTests(Report& report, const Path& testRoot)
+        {
+            const project::Project project(testRoot / "List" / "List.elmproject",
+                project::ProjectDesc { .name = "List", .entry = { .startupScene = project::AssetPath::FromString("scenes/a.scene"), .mainModule = {} } });
+            const Path assets = project.Assets();
+            std::error_code error;
+            (void)FileSystem::CreateDirectories(project.Scenes(), error);
+            const auto writeScene = [&](const char* file) {
+                Scene scene;
+                (void)scene.AddNode(file);
+                const ModelCatalog noModels;
+                return resource::Serializer::SaveScene(scene, noModels, assets, project.Scenes() / file).has_value();
+            };
+            report.Check(writeScene("a.scene") && writeScene("b.scene"), "scene_list::scenes_written");
+
+            WindowsFixture fixture(assets);
+            fixture.menu.SetDocument(SceneMenuDeps { &fixture.document, &fixture.edits, &fixture.scene, &fixture.selection, &project });
+            fixture.showSceneBar = true;
+            fixture.Frame();
+            ImGuiWindow* bar = WindowsFixture::FindWindow(WindowsFixture::SceneBarName);
+            const auto openList = [&] {
+                return bar && fixture.ClickItemIn(bar->MenuBarRect(), ImHashStr("###SceneList", 0, bar->GetID("##menubar")));
+            };
+            const auto openedFrom = [&](const char* item) {
+                const bool clicked = openList() && fixture.ClickMenuItem(item);
+                fixture.Frame();
+                fixture.Frame();
+                return clicked;
+            };
+            report.Check(openedFrom("scenes/b.scene") && fixture.document.File() == project.Scenes() / "b.scene"
+                    && fixture.scene.NodeCount() == 1 && fixture.scene.Nodes()[0].name == "b.scene",
+                "scene_list::a_scene_of_the_list_opens");
+
+            report.Check(writeScene("c.scene"), "scene_list::a_later_scene_written");
+            report.Check(openedFrom("scenes/c.scene") && fixture.document.File() == project.Scenes() / "c.scene",
+                "scene_list::a_later_scene_is_listed");
+        }
+
         void RunToolbarTests(Report& report)
         {
             HeadlessImGui imgui;
@@ -1353,6 +1411,7 @@ line]] .. [==[a]]b]==])",
             RunInspectorTests(report, assets);
             RunModelEditorTests(report, assets);
             RunSceneMenuTests(report, assets);
+            RunSceneListTests(report, assets / "scene_list");
             fs::remove_all(root, error);
         }
 
