@@ -82,8 +82,10 @@ namespace elm {
 
         void Select(NodeId node);
         void StartRename(NodeId node);
-        void DuplicateSelected();
+        void DuplicateSelected(const math::Vector3& offset = { 1.0f, 0.0f, 0.0f });
+        void SnapSelectedToGround();
         void RemoveSelected();
+        void DrawDuplicateArrayDialog();
 
         SceneHierarchyDeps m_deps;
         Path m_assets;
@@ -100,6 +102,11 @@ namespace elm {
         ui::FileDialog m_modelDialog;
         /// Where the node with the chosen model goes.
         NodeId m_modelDialogParent;
+        bool m_openDuplicateArrayDialog { false };
+        int m_arrayCountX { 8 };
+        int m_arrayCountZ { 5 };
+        float m_arrayStepX { 1.1f };
+        float m_arrayStepZ { 0.6f };
     };
 
 } // namespace elm

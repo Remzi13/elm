@@ -432,8 +432,31 @@ line]] .. [==[a]]b]==])",
             const NodeId copy = DuplicateNode(scene, a);
             report.Check(scene.Find(copy) && scene.Find(copy)->name == "a Copy" && scene.Components<Collider>().Contains(copy),
                 "nodes::a_copy_has_the_components");
-            report.Check(RemoveNodeFromPlace(scene, a) == copy, "nodes::removal_gives_the_next_node");
-            report.Check(!RemoveNodeFromPlace(scene, copy) && scene.Empty(), "nodes::removing_the_last_node_gives_nothing");
+            const NodeId copyInPlace = DuplicateNode(scene, a, { 0.0f, 0.0f, 0.0f });
+            report.Check(scene.Find(copyInPlace) && scene.Find(copyInPlace)->localTransform(0, 3) == scene.Find(a)->localTransform(0, 3),
+                "nodes::duplicate_in_place_keeps_position");
+            const auto array = DuplicateNodeArray(scene, a, 2, 3, 1.1f, 0.6f);
+            report.Check(array.size() == 5, "nodes::duplicate_array_creates_grid");
+
+            Scene testScene;
+            const NodeId na = testScene.AddNode("na");
+            const NodeId nb = DuplicateNode(testScene, na);
+            report.Check(RemoveNodeFromPlace(testScene, na) == nb, "nodes::removal_gives_the_next_node");
+            report.Check(!RemoveNodeFromPlace(testScene, nb) && testScene.Empty(), "nodes::removing_the_last_node_gives_nothing");
+
+            {
+                Scene snapScene;
+                ModelCatalog snapModels;
+                const NodeId floor = AddPrimitiveNode(snapScene, snapModels, ModelPrimitive::GroundPlane, NodeId {});
+                (void)floor;
+                const NodeId floating = AddPrimitiveNode(snapScene, snapModels, ModelPrimitive::Cube, NodeId {});
+                (void)snapScene.SetLocalTransform(floating, Matrix4x4::Translation({ 0.0f, 5.0f, 0.0f }));
+                snapScene.UpdateWorldTransforms();
+                const bool snapped = SnapNodeToGround(snapScene, snapModels, floating);
+                snapScene.UpdateWorldTransforms();
+                const float yAfter = snapScene.WorldTransforms()[snapScene.IndexOf(floating)](1, 3);
+                report.Check(snapped && std::abs(yAfter - 0.5f) < 0.1f, "nodes::snap_to_ground_aligns_bottom");
+            }
 
             {
                 // Two cubes on the view axis and a hidden one before them
@@ -923,6 +946,8 @@ line]] .. [==[a]]b]==])",
             report.Check(rotate && fixture.gizmo.operation == GizmoOperation::Rotate, "viewport::the_view_menu_picks_the_gizmo_operation");
             const bool space = fixture.ClickItem(window, "###GizmoSpace");
             report.Check(space && fixture.gizmo.space == GizmoSpace::Local, "viewport::the_view_menu_switches_the_gizmo_space");
+            const bool snap = fixture.ClickItem(window, "###GizmoSnap");
+            report.Check(snap && fixture.gizmo.snap, "viewport::the_view_menu_toggles_gizmo_snap");
         }
 
         /// A long status of the scene is cut short in the menu bar: the scene's file name stays in the bar.

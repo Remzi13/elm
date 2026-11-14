@@ -130,6 +130,7 @@ namespace elm {
         // After EndChild the tree is the last item: it is where models are dropped
         AcceptDroppedModel();
         DrawModelDialog();
+        DrawDuplicateArrayDialog();
         ImGui::End();
     }
 
@@ -142,8 +143,12 @@ namespace elm {
             StartRename(m_deps.selection.node);
         else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
             RemoveSelected();
+        else if (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_D, false))
+            DuplicateSelected({ 0.0f, 0.0f, 0.0f });
         else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
-            DuplicateSelected();
+            DuplicateSelected({ 1.0f, 0.0f, 0.0f });
+        else if (ImGui::IsKeyPressed(ImGuiKey_End, false))
+            SnapSelectedToGround();
         // In Play the camera is the game's
         else if (!io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false) && !(m_deps.play.isPlaying && m_deps.play.isPlaying()))
             FrameNode(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.node);
@@ -383,7 +388,13 @@ namespace elm {
         if (ImGui::MenuItem(RenameItem, "F2"))
             StartRename(row.id);
         if (ImGui::MenuItem(DuplicateItem, "Ctrl+D"))
-            DuplicateSelected();
+            DuplicateSelected({ 1.0f, 0.0f, 0.0f });
+        if (ImGui::MenuItem("Duplicate in Place", "Ctrl+Shift+D"))
+            DuplicateSelected({ 0.0f, 0.0f, 0.0f });
+        if (ImGui::MenuItem("Duplicate Array..."))
+            m_openDuplicateArrayDialog = true;
+        if (ImGui::MenuItem("Snap to Ground", "End"))
+            SnapSelectedToGround();
         if (!row.isRoot && ImGui::MenuItem(UnparentItem))
             (void)m_deps.scene.SetParent(row.id, NodeId {});
         ImGui::Separator();
@@ -510,10 +521,45 @@ namespace elm {
         m_renameFocused = false;
     }
 
-    void SceneHierarchyWindow::DuplicateSelected()
+    void SceneHierarchyWindow::DuplicateSelected(const math::Vector3& offset)
     {
-        m_deps.selection.node = DuplicateNode(m_deps.scene, m_deps.selection.node);
+        m_deps.selection.node = DuplicateNode(m_deps.scene, m_deps.selection.node, offset);
         m_deps.document.Report(StatusKind::Info, "Duplicated node.");
+    }
+
+    void SceneHierarchyWindow::SnapSelectedToGround()
+    {
+        if (SnapNodeToGround(m_deps.scene, m_deps.models, m_deps.selection.node))
+            m_deps.document.Report(StatusKind::Info, "Snapped node to ground.");
+    }
+
+    void SceneHierarchyWindow::DrawDuplicateArrayDialog()
+    {
+        if (m_openDuplicateArrayDialog) {
+            ImGui::OpenPopup("Duplicate Array");
+            m_openDuplicateArrayDialog = false;
+        }
+        if (ImGui::BeginPopupModal("Duplicate Array", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::Text("Create a grid of duplicates:");
+            ImGui::InputInt("Count X", &m_arrayCountX);
+            ImGui::InputInt("Count Z", &m_arrayCountZ);
+            ImGui::InputFloat("Step X", &m_arrayStepX, 0.1f, 1.0f, "%.2f");
+            ImGui::InputFloat("Step Z", &m_arrayStepZ, 0.1f, 1.0f, "%.2f");
+
+            if (m_arrayCountX < 1) m_arrayCountX = 1;
+            if (m_arrayCountZ < 1) m_arrayCountZ = 1;
+
+            if (ImGui::Button("Create", ImVec2(120, 0))) {
+                const auto created = DuplicateNodeArray(m_deps.scene, m_deps.selection.node, m_arrayCountX, m_arrayCountZ, m_arrayStepX, m_arrayStepZ);
+                m_deps.document.Report(StatusKind::Info, String("Created ") + std::to_string(created.size()).c_str() + " array nodes.");
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
+        }
     }
 
     void SceneHierarchyWindow::RemoveSelected()

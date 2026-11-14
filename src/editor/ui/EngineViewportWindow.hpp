@@ -65,6 +65,7 @@ namespace elm {
         /// Over the image, from its corner. Returns whether the mouse is over the menu: the view is not under it.
         [[nodiscard]] bool DrawViewMenu(ImVec2 corner);
         void DrawGizmoSection();
+        void DrawCameraSection();
         void DrawDebugSection();
         /// W, E, R and F. Not with the right mouse button: the fly camera has WASD and QE then.
         void HandleKeys();

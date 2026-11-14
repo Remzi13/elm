@@ -114,18 +114,95 @@ namespace elm {
         return id;
     }
 
-    NodeId DuplicateNode(Scene& scene, NodeId source)
+    NodeId DuplicateNode(Scene& scene, NodeId source, const math::Vector3& offset)
     {
         const Scene::Node* found = scene.Find(source);
         if (!found)
             return {};
         auto transform = found->localTransform;
-        transform(0, 3) += 1.0f;
+        transform(0, 3) += offset.x;
+        transform(1, 3) += offset.y;
+        transform(2, 3) += offset.z;
         const String name = found->name + " Copy";
         const NodeId parent = found->parent;
         const NodeId copy = scene.AddNode(name, transform, parent);
         scene.CopyComponents(source, copy);
         return copy;
+    }
+
+    Vector<NodeId> DuplicateNodeArray(Scene& scene, NodeId source, int countX, int countZ, float stepX, float stepZ)
+    {
+        Vector<NodeId> created;
+        const Scene::Node* found = scene.Find(source);
+        if (!found || countX < 1 || countZ < 1)
+            return created;
+
+        const auto baseTransform = found->localTransform;
+        const String baseName = found->name;
+        const NodeId parent = found->parent;
+
+        for (int z = 0; z < countZ; ++z) {
+            for (int x = 0; x < countX; ++x) {
+                if (x == 0 && z == 0)
+                    continue;
+                auto transform = baseTransform;
+                transform(0, 3) += static_cast<float>(x) * stepX;
+                transform(2, 3) += static_cast<float>(z) * stepZ;
+                const String name = baseName + "_" + std::to_string(z).c_str() + "_" + std::to_string(x).c_str();
+                const NodeId copy = scene.AddNode(name, transform, parent);
+                scene.CopyComponents(source, copy);
+                created.push_back(copy);
+            }
+        }
+        return created;
+    }
+
+    bool SnapNodeToGround(Scene& scene, const ModelCatalog& models, NodeId node)
+    {
+        const size_t index = scene.IndexOf(node);
+        if (index == Scene::NoNode)
+            return false;
+
+        const auto* nodeModels = scene.FindComponents<ModelComponent>();
+        const ModelComponent* comp = nodeModels ? nodeModels->Find(node) : nullptr;
+        const Model* model = comp ? models.Get(comp->model) : nullptr;
+        const Vector3 extent { NodeWithoutModelExtent, NodeWithoutModelExtent, NodeWithoutModelExtent };
+        const AABB local = model && !model->submeshes.empty() ? model->GetLocalBounds() : AABB { Vector3 {} - extent, extent };
+        const AABB nodeBounds = local.Transformed(scene.WorldTransforms()[index]);
+        const float currentBottomY = nodeBounds.minBounds.y;
+
+        float groundY = 0.0f;
+        bool foundSurface = false;
+        float highestUnderneath = -1e9f;
+
+        const auto nodes = scene.Nodes();
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            if (nodes[i].id == node)
+                continue;
+            const ModelComponent* otherComp = nodeModels ? nodeModels->Find(nodes[i].id) : nullptr;
+            const Model* otherModel = otherComp && otherComp->visible ? models.Get(otherComp->model) : nullptr;
+            if (!otherModel || otherModel->submeshes.empty())
+                continue;
+            const AABB otherBounds = otherModel->GetLocalBounds().Transformed(scene.WorldTransforms()[i]);
+            const bool overlapX = otherBounds.minBounds.x <= nodeBounds.maxBounds.x && otherBounds.maxBounds.x >= nodeBounds.minBounds.x;
+            const bool overlapZ = otherBounds.minBounds.z <= nodeBounds.maxBounds.z && otherBounds.maxBounds.z >= nodeBounds.minBounds.z;
+            if (overlapX && overlapZ && otherBounds.maxBounds.y <= currentBottomY + 0.05f) {
+                if (otherBounds.maxBounds.y > highestUnderneath) {
+                    highestUnderneath = otherBounds.maxBounds.y;
+                    foundSurface = true;
+                }
+            }
+        }
+        if (foundSurface)
+            groundY = highestUnderneath;
+
+        const float dy = groundY - currentBottomY;
+        if (std::abs(dy) < 1e-4f)
+            return false;
+
+        math::Matrix4x4 world = scene.WorldTransforms()[index];
+        world(1, 3) += dy;
+        return scene.SetWorldTransform(node, world);
     }
 
     NodeId RemoveNodeFromPlace(Scene& scene, NodeId node)

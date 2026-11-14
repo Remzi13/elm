@@ -185,6 +185,8 @@ namespace elm {
             ImGui::SameLine();
             DrawGizmoSection();
             ImGui::SameLine();
+            DrawCameraSection();
+            ImGui::SameLine();
             DrawDebugSection();
         }
         ImGui::EndGroup();
@@ -219,6 +221,52 @@ namespace elm {
         if (ImGui::Button(world ? WorldIcon : LocalIcon))
             gizmo.space = world ? GizmoSpace::Local : GizmoSpace::World;
         ImGui::SetItemTooltip(world ? "World: the gizmo follows the axes of the world. Click for the node's own" : "Local: the gizmo follows the node's own axes. Click for the world's");
+
+        constexpr const char* SnapIcon = "\xE2\x96\xA6###GizmoSnap";   // U+25A6 ▦
+        ImGui::SameLine();
+        if (ui::ToggleButton(SnapIcon, gizmo.snap))
+            gizmo.snap = !gizmo.snap;
+        ImGui::SetItemTooltip(gizmo.snap ? "Snap is ON (grid: %.2g, angle: %.0f deg). Click to toggle, right-click for settings, hold Ctrl while dragging"
+                                         : "Snap is OFF. Click to toggle, right-click for settings, hold Ctrl while dragging",
+                              gizmo.snapTranslate, gizmo.snapRotate);
+        if (ImGui::BeginPopupContextItem("GizmoSnapPopup")) {
+            ImGui::TextDisabled("Snap Settings");
+            ImGui::Separator();
+            ImGui::Checkbox("Snap Enabled", &gizmo.snap);
+            ImGui::DragFloat("Grid Step", &gizmo.snapTranslate, 0.1f, 0.05f, 50.0f, "%.2f");
+            ImGui::DragFloat("Angle Step", &gizmo.snapRotate, 1.0f, 1.0f, 90.0f, "%.0f deg");
+            ImGui::EndPopup();
+        }
+    }
+
+    void EngineViewportWindow::DrawCameraSection()
+    {
+        constexpr const char* CameraPresetIcon = "\xE2\x97\x8E###CameraPresets"; // U+25CE ◎
+        constexpr float Pi = 3.14159265358979323846f;
+        if (ImGui::Button(CameraPresetIcon))
+            ImGui::OpenPopup("CameraPresetsPopup");
+        ImGui::SetItemTooltip("Camera view presets and speed");
+        if (ImGui::BeginPopup("CameraPresetsPopup")) {
+            ImGui::TextDisabled("View Presets");
+            if (ImGui::MenuItem("Top View (XZ)")) {
+                const auto pos = m_deps.camera.GetPosition();
+                m_deps.camera.SetPosition({ pos.x, (std::max)(pos.y, 15.0f), pos.z });
+                m_deps.camera.SetOrientation(0.0f, -1.55f);
+            }
+            if (ImGui::MenuItem("Front View (XY)")) {
+                const auto pos = m_deps.camera.GetPosition();
+                m_deps.camera.SetPosition({ pos.x, pos.y, (std::min)(pos.z, -10.0f) });
+                m_deps.camera.SetOrientation(0.0f, 0.0f);
+            }
+            if (ImGui::MenuItem("Side View (ZY)")) {
+                const auto pos = m_deps.camera.GetPosition();
+                m_deps.camera.SetPosition({ (std::min)(pos.x, -10.0f), pos.y, pos.z });
+                m_deps.camera.SetOrientation(Pi * 0.5f, 0.0f);
+            }
+            ImGui::Separator();
+            ImGui::DragFloat("Move Speed", &m_deps.camera.moveSpeed, 0.5f, 0.5f, 200.0f, "%.1f");
+            ImGui::EndPopup();
+        }
     }
 
     void EngineViewportWindow::DrawDebugSection()
@@ -258,6 +306,8 @@ namespace elm {
             gizmo.operation = GizmoOperation::Scale;
         else if (ImGui::IsKeyPressed(ImGuiKey_F, false))
             FrameNode(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.node);
+        else if (ImGui::IsKeyPressed(ImGuiKey_End, false))
+            SnapNodeToGround(m_deps.scene, m_deps.models, m_deps.selection.node);
     }
 
     void EngineViewportWindow::HandleMouse(const graphics::GizmoInput& input)
@@ -266,8 +316,15 @@ namespace elm {
         const bool onGizmo = m_gizmo && (m_gizmo->IsDragging() || m_gizmo->GetHovered() != graphics::GizmoAxis::None);
         if (input.pressed && !onGizmo)
             m_deps.selection.node = PickNode(m_deps.scene, m_deps.models, input.ray);
-        if (const float wheel = ImGui::GetIO().MouseWheel; wheel != 0.0f)
-            m_deps.camera.Translate(m_deps.camera.GetForwardDirection() * (wheel * WheelStep));
+        if (const float wheel = ImGui::GetIO().MouseWheel; wheel != 0.0f) {
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
+                constexpr float SpeedFactor = 1.25f;
+                const float factor = wheel > 0.0f ? SpeedFactor : (1.0f / SpeedFactor);
+                m_deps.camera.moveSpeed = std::clamp(m_deps.camera.moveSpeed * factor, 0.5f, 200.0f);
+            } else {
+                m_deps.camera.Translate(m_deps.camera.GetForwardDirection() * (wheel * WheelStep));
+            }
+        }
     }
 
     void EngineViewportWindow::UpdateGizmo(NodeId node, const graphics::GizmoInput& input)
@@ -281,7 +338,10 @@ namespace elm {
         }
         Scene& scene = m_deps.scene;
         const Matrix4x4& world = scene.WorldTransforms()[scene.IndexOf(node)];
-        if (const auto moved = m_gizmo->Update(world, m_deps.gizmo, input); moved && !scene.SetWorldTransform(node, *moved)) {
+        GizmoSettings effectiveSettings = m_deps.gizmo;
+        if (ImGui::GetIO().KeyCtrl)
+            effectiveSettings.snap = !effectiveSettings.snap;
+        if (const auto moved = m_gizmo->Update(world, effectiveSettings, input); moved && !scene.SetWorldTransform(node, *moved)) {
             ERROR_MESSAGE(log::Category::Core, "EngineViewportWindow",
                 "Unable to update the selected node transform because its parent transform is singular");
         }

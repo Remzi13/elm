@@ -49,8 +49,14 @@ namespace elm {
     [[nodiscard]] EngineResult<ModelHandler> ModelFromFile(ModelCatalog& models, const Path& file, const Path& assetsFolder);
     /// A node that draws the model. parent invalid: a root.
     [[nodiscard]] NodeId AddModelNode(Scene& scene, ModelHandler model, const String& name, NodeId parent);
-    /// A copy of the node with its components next to it, 1 along x; invalid for a stale node.
-    [[nodiscard]] NodeId DuplicateNode(Scene& scene, NodeId source);
+    /// A copy of the node with its components, offset along local axes (default 1 along x); invalid for a stale node.
+    [[nodiscard]] NodeId DuplicateNode(Scene& scene, NodeId source, const math::Vector3& offset = { 1.0f, 0.0f, 0.0f });
+    /// Duplicates source in an N x M grid (countX along local X with stepX, countZ along local Z with stepZ).
+    /// Returns the list of created node IDs.
+    [[nodiscard]] Vector<NodeId> DuplicateNodeArray(Scene& scene, NodeId source, int countX, int countZ, float stepX, float stepZ);
+    /// Moves the node along world Y so its bottom sits on the surface below it (or y = 0 if nothing beneath).
+    /// Returns true if the transform was changed.
+    bool SnapNodeToGround(Scene& scene, const ModelCatalog& models, NodeId node);
     /// Removes the node. Returns the node that took its place in the scene, for the selection.
     [[nodiscard]] NodeId RemoveNodeFromPlace(Scene& scene, NodeId node);
 

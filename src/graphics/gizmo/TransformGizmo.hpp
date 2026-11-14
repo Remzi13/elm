@@ -71,6 +71,7 @@ namespace elm::graphics {
             GizmoAxis axis { GizmoAxis::None };
             math::Matrix4x4 startWorld;
             Handles startHandles;
+            GizmoSettings settings;
             /// Move and scale: position of the mouse along the axis.
             float startParameter { 0.0f };
             /// Rotate: from the center to the mouse in the plane of the ring, unit length.
@@ -78,8 +79,9 @@ namespace elm::graphics {
         };
 
         [[nodiscard]] GizmoAxis FindHovered(const ViewRay& ray) const;
-        [[nodiscard]] std::optional<Drag> StartDrag(GizmoAxis axis, const math::Matrix4x4& world, const ViewRay& ray) const;
-        [[nodiscard]] static std::optional<math::Matrix4x4> DragTo(const Drag& drag, const ViewRay& ray);
+        [[nodiscard]] std::optional<Drag> StartDrag(GizmoAxis axis, const math::Matrix4x4& world, const ViewRay& ray,
+            const GizmoSettings& settings) const;
+        [[nodiscard]] static std::optional<math::Matrix4x4> DragTo(const Drag& drag, const ViewRay& ray, bool snap);
 
         DebugChannel m_channel;
         std::optional<Handles> m_handles;

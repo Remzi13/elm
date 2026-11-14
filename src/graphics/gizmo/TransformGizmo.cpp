@@ -119,11 +119,11 @@ namespace elm::graphics {
             m_drag.reset();
         if (m_drag) {
             m_hovered = GizmoAxis::None;
-            return DragTo(*m_drag, input.ray);
+            return DragTo(*m_drag, input.ray, settings.snap);
         }
         m_hovered = input.overView ? FindHovered(input.ray) : GizmoAxis::None;
         if (input.pressed && m_hovered != GizmoAxis::None)
-            m_drag = StartDrag(m_hovered, world, input.ray);
+            m_drag = StartDrag(m_hovered, world, input.ray, settings);
         return std::nullopt;
     }
 
@@ -156,11 +156,12 @@ namespace elm::graphics {
         return hovered;
     }
 
-    std::optional<TransformGizmo::Drag> TransformGizmo::StartDrag(GizmoAxis axis, const Matrix4x4& world, const ViewRay& ray) const
+    std::optional<TransformGizmo::Drag> TransformGizmo::StartDrag(GizmoAxis axis, const Matrix4x4& world, const ViewRay& ray,
+        const GizmoSettings& settings) const
     {
         const Handles& handles = *m_handles;
         const Vector3& direction = handles.axes[AxisIndex(axis)];
-        Drag drag { axis, world, handles };
+        Drag drag { axis, world, handles, settings, 0.0f, Vector3 {} };
         if (handles.operation == GizmoOperation::Rotate) {
             const auto hit = HitPlane(ray, handles.center, direction);
             if (!hit)
@@ -175,7 +176,7 @@ namespace elm::graphics {
         return drag;
     }
 
-    std::optional<Matrix4x4> TransformGizmo::DragTo(const Drag& drag, const ViewRay& ray)
+    std::optional<Matrix4x4> TransformGizmo::DragTo(const Drag& drag, const ViewRay& ray, bool snap)
     {
         const Handles& start = drag.startHandles;
         const size_t index = AxisIndex(drag.axis);
@@ -184,14 +185,24 @@ namespace elm::graphics {
             const auto hit = HitPlane(ray, start.center, axis);
             if (!hit)
                 return std::nullopt;
-            const float angle = AngleAround(drag.startDirection, (*hit - start.center).Normalized(), axis);
+            float angle = AngleAround(drag.startDirection, (*hit - start.center).Normalized(), axis);
+            if (snap && drag.settings.snapRotate > 0.0f) {
+                constexpr float Deg2Rad = 3.14159265358979323846f / 180.0f;
+                const float stepRad = drag.settings.snapRotate * Deg2Rad;
+                angle = std::round(angle / stepRad) * stepRad;
+            }
             return RotationAround(start.center, axis, angle) * drag.startWorld;
         }
         const auto along = ClosestOnLine(ray, start.center, axis);
         if (!along)
             return std::nullopt;
-        if (start.operation == GizmoOperation::Translate)
-            return Matrix4x4::Translation(axis * (*along - drag.startParameter)) * drag.startWorld;
+        if (start.operation == GizmoOperation::Translate) {
+            float delta = *along - drag.startParameter;
+            if (snap && drag.settings.snapTranslate > 0.0f) {
+                delta = std::round(delta / drag.settings.snapTranslate) * drag.settings.snapTranslate;
+            }
+            return Matrix4x4::Translation(axis * delta) * drag.startWorld;
+        }
 
         std::array<float, 3> factors { 1.0f, 1.0f, 1.0f };
         factors[index] = (std::max)(*along / drag.startParameter, MinScaleFactor);
