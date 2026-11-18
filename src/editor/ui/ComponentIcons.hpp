@@ -13,6 +13,8 @@ namespace elm::ui {
         case ComponentType::RigidBody: return "\xE2\x9A\x9B"; // U+269B
         case ComponentType::Collider: return "\xE2\x96\xA2";  // U+25A2
         case ComponentType::Script: return "\xC6\x92";        // U+0192, of the text font
+        case ComponentType::Camera: return "\xE2\x97\x8E";    // U+25CE ◎
+        case ComponentType::Light: return "\xE2\x98\x80";     // U+2600 ☀
         }
         return "";
     }

@@ -15,10 +15,12 @@ namespace elm {
         RigidBody,
         Collider,
         Model,
+        Camera,
+        Light,
     };
 
     inline constexpr std::array AllComponentTypes { ComponentType::Script, ComponentType::RigidBody, ComponentType::Collider,
-        ComponentType::Model };
+        ComponentType::Model, ComponentType::Camera, ComponentType::Light };
 
     // Names of the component types in scene files and scripts
 
@@ -29,6 +31,8 @@ namespace elm {
         case ComponentType::RigidBody: return "RigidBody";
         case ComponentType::Collider: return "Collider";
         case ComponentType::Model: return "Model";
+        case ComponentType::Camera: return "Camera";
+        case ComponentType::Light: return "Light";
         }
         return "?";
     }

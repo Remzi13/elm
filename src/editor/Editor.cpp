@@ -9,6 +9,8 @@
 #include "script/ProjectPlayStart.hpp"
 
 #include "graphics/FrameStats.hpp"
+#include "graphics/SceneCamera.hpp"
+#include "graphics/debug/CameraAndLightVisualizer.hpp"
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
 #include "graphics/debug/WorldAxesVisualizer.hpp"
@@ -93,7 +95,8 @@ namespace elm {
         , m_debugDraw(m_settings)
         , m_scripts({ .scene = &m_scene, .physics = &m_physics, .resources = &m_resources, .input = &m_platform.GetInput(), .camera = &m_graphics.GetViewCamera(), .settings = &m_settings, .debugDraw = &m_debugDraw.GetDebugDraw() })
         , m_cameraController(m_graphics.GetViewCamera())
-        , m_editMode(m_scene, m_scripts)
+        , m_pilot(m_scene.EditScene(), m_graphics.GetViewCamera())
+        , m_editMode(m_scene, m_scripts, m_graphics.GetViewCamera())
         , m_edits(m_scene.EditScene())
         , m_playRequests(m_scripts.GetPlayMode().Requests())
         , m_scriptInspection(script::MakeScriptInspection(m_scripts))
@@ -181,6 +184,10 @@ namespace elm {
         // frame, the keys from the input the last Simulate dispatched
         m_cameraController.SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
         m_cameraController.SetEnabled(!m_scripts.GetPlayMode().IsPlaying());
+        // Piloting is an edit of the selected camera node: Play and another selection end it
+        if (m_scripts.GetPlayMode().IsPlaying() || m_selection.node != m_pilot.Piloted())
+            m_pilot.Stop();
+        m_pilot.FollowNode();
         m_cameraController.Update(deltaTime);
         Simulate(deltaTime);
         // The SocLab window shows the culling depth buffer; the game never makes the texture
@@ -205,6 +212,9 @@ namespace elm {
         m_scripts.Update(deltaTime);
         // Scripts move nodes through local transforms
         m_scene.UpdateTransforms();
+        // Edit keeps the free camera of the editor
+        if (m_scripts.GetPlayMode().IsPlaying())
+            (void)graphics::ViewThroughCamera(m_scene.GetScene(), m_scene.GetScene().ActiveCamera(), m_graphics.GetViewCamera());
         m_graphics.Cull();
     }
 
@@ -353,7 +363,10 @@ namespace elm {
         m_edits.SetFrozen(m_scripts.GetPlayMode().IsPlaying());
         m_edits.BeginFrame(m_selection.node);
         m_imgui->BuildFrame(frame);
-        m_edits.EndFrame(m_imgui->IsWidgetHeld());
+        // After the windows: the view menu and the wheel move the view too
+        m_pilot.FollowView();
+        // A flight of the piloted camera is one step, like a drag
+        m_edits.EndFrame(m_imgui->IsWidgetHeld() || m_cameraController.IsMoving());
     }
 
     void Editor::AddVisualizers()
@@ -362,13 +375,14 @@ namespace elm {
         m_debugDraw.AddVisualizer(MakeUnique<graphics::WorldAxesVisualizer>(debugDraw));
         m_debugDraw.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_scene.GetScene(), debugDraw));
         m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_physics.FrameLog(), debugDraw));
+        m_debugDraw.AddVisualizer(MakeUnique<graphics::CameraAndLightVisualizer>(m_scene.GetScene(), m_graphics.GetViewCamera(), debugDraw));
     }
 
     void Editor::CreateEditorWindows()
     {
         m_imgui->SetToolbar(EditorToolbarDesc { .play = &m_playRequests, .runStandalone = [this] { RunStandalone(); } });
         m_imgui->AddWindow(MakeUnique<SocLabWindow>(m_settings, &m_graphics.GetCulling()));
-        m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile }));
+        m_imgui->AddWindow(MakeUnique<EngineViewportWindow>(m_settings, EngineViewportDeps { m_scene.EditScene(), m_resources.GetModels(), m_graphics.GetViewCamera(), m_graphics.GetViewPort(), m_debugDraw.GetDebugDraw(), m_playRequests, m_selection, m_gizmo, m_edits, m_sceneFile, m_pilot }));
         m_imgui->AddWindow(MakeUnique<LogWindow>(m_settings));
         m_imgui->AddWindow(MakeUnique<ProfilerWindow>(m_settings, ProfilerDeps { m_graphics.GetRender(), m_frameStats }));
         auto settingsWindow = MakeUnique<SettingsWindow>(m_settings, Settings::DefaultFilePath());
@@ -384,7 +398,7 @@ namespace elm {
         m_sceneFile = SceneFileRequests { .save = [this] { (void)m_sceneDocument->Save(); } };
         m_imgui->SetSceneMenu(SceneMenuDeps { &*m_sceneDocument, &m_edits, &scene, &m_selection, &project });
         auto inspector = MakeUnique<NodeInspectorWindow>(m_settings,
-            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_playRequests, m_scriptInspection, m_files, m_sceneFile, m_graphics.GetViewCamera() },
+            NodeInspectorDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_playRequests, m_scriptInspection, m_files, m_sceneFile, m_graphics.GetViewCamera(), m_pilot },
             NodeInspectorWindow::Folders { project.Assets(), project.Models(), project.Scripts() });
         auto hierarchy = MakeUnique<SceneHierarchyWindow>(m_settings,
             SceneHierarchyDeps { scene, models, m_edits, *m_sceneDocument, m_selection, m_sceneFile, m_graphics.GetViewCamera(), m_playRequests,

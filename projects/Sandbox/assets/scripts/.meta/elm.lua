@@ -503,6 +503,12 @@ function elm.models.load(path) end
 ---@return Model?
 function elm.models.find(name) end
 
+---@return Entity?
+function elm.camera.active() end
+
+---@param entity Entity
+function elm.camera.set_active(entity) end
+
 ---@return Vector3
 function elm.camera.position() end
 
@@ -540,10 +546,6 @@ function elm.camera.fov() end
 
 ---@param radians number
 function elm.camera.set_fov(radians) end
-
----@param preset integer
----@param instances integer?
-function elm.engine.load_test_scene(preset, instances) end
 
 function elm.engine.clear_scene() end
 

@@ -1,5 +1,6 @@
 #include "editor/ui/NodeInspectorWindow.hpp"
 
+#include "editor/CameraPilot.hpp"
 #include "editor/NodeEditing.hpp"
 #include "editor/SceneDocument.hpp"
 #include "editor/ui/ComponentIcons.hpp"
@@ -10,9 +11,12 @@
 #include "math/Rotation.hpp"
 
 #include "graphics/Camera.hpp"
+#include "graphics/SceneCamera.hpp"
 
 #include "model/ModelCatalog.hpp"
 
+#include "Scene/CameraComponent.hpp"
+#include "Scene/LightComponent.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/Scene.hpp"
@@ -43,6 +47,7 @@ namespace elm {
         constexpr const char* ShownButton = "\xE2\x97\x89###Visible";                            // U+25C9
         constexpr const char* HiddenButton = "\xE2\x97\x8B###Visible";                           // U+25CB
         constexpr const char* FrameButton = "\xE2\x97\x8E###Frame";                              // U+25CE
+        constexpr const char* PilotButton = "\xE2\x9C\x88###Pilot";                              // U+2708
         constexpr const char* ParentIcon = "\xE2\x86\xB0";                                       // U+21B0
         constexpr const char* BrowseButton = "\xE2\x9B\x81###Browse";                            // U+26C1
         constexpr const char* PickModuleButton = "\xE2\x96\xBE###PickModule";                    // U+25BE
@@ -251,6 +256,8 @@ namespace elm {
             DrawRigidBodySection(node);
             DrawColliderSection(node);
             DrawScriptSection(node);
+            DrawCameraSection(node);
+            DrawLightSection(node);
             DrawAddComponent(node);
         } else {
             ImGui::TextDisabled("No node selected");
@@ -840,6 +847,118 @@ namespace elm {
         }
     }
 
+    void NodeInspectorWindow::DrawCameraSection(NodeId node)
+    {
+        Scene& scene = m_deps.scene;
+        CameraComponent* camera = scene.Components<CameraComponent>().Find(node);
+        if (!camera)
+            return;
+        ImGui::PushID("Camera");
+        const SectionHeader header = DrawSectionHeader(ComponentType::Camera, true);
+        DrawCameraActions(node);
+        if (header.action == ComponentAction::Remove) {
+            scene.Components<CameraComponent>().Remove(node);
+        } else {
+            if (header.action == ComponentAction::Reset)
+                *camera = CameraComponent {};
+            if (header.open)
+                DrawCameraRows(node);
+        }
+        ImGui::PopID();
+    }
+
+    void NodeInspectorWindow::DrawCameraActions(NodeId node)
+    {
+        const bool playing = m_deps.play.isPlaying && m_deps.play.isPlaying();
+        const bool piloting = m_deps.pilot.Piloted() == node;
+        // Before the section's menu button, which DrawSectionHeader put to the left of reset and remove
+        const float spacing = ImGui::GetStyle().ItemSpacing.x;
+        const float menuX = ImGui::GetContentRegionMax().x - SmallButtonWidth(SectionRemoveButton) - SmallButtonWidth(SectionResetButton)
+            - SmallButtonWidth(SectionMenuButton) - spacing * 2.0f;
+        ImGui::SameLine(menuX - spacing - SmallButtonWidth(PilotButton));
+        ImGui::BeginDisabled(playing);
+        if (ui::SmallToggleButton(PilotButton, piloting)) {
+            if (piloting)
+                m_deps.pilot.Stop();
+            else
+                m_deps.pilot.Start(node);
+        }
+        ImGui::EndDisabled();
+        ImGui::SetItemTooltip(piloting ? "Piloting: the view looks through this camera, right mouse + WASD move it. Click or Esc to stop"
+                                       : "Pilot: look through this camera and move it with the view (right mouse + WASD)");
+        if (!ImGui::BeginPopup(SectionMenuPopup))
+            return;
+        Scene& scene = m_deps.scene;
+        if (ImGui::MenuItem("Align to View", nullptr, false, !playing))
+            (void)graphics::AlignCameraToView(scene, node, m_deps.camera);
+        if (ImGui::MenuItem("Set Active Camera", nullptr, scene.ActiveCamera() == node, scene.ActiveCamera() != node))
+            (void)scene.SetActiveCamera(node);
+        ImGui::EndPopup();
+    }
+
+    void NodeInspectorWindow::DrawCameraRows(NodeId node)
+    {
+        if (!ui::BeginPropertyGrid())
+            return;
+        CameraComponent& camera = *m_deps.scene.Components<CameraComponent>().Find(node);
+
+        ui::PropertyRow("Field of View");
+        ImGui::DragFloat("##Fov", &camera.fovDegrees, 0.5f, 1.0f, 179.0f, "%.1f deg", ImGuiSliderFlags_AlwaysClamp);
+        ui::PropertyRow("Near Plane");
+        ImGui::DragFloat("##NearPlane", &camera.nearPlane, 0.01f, 0.001f, camera.farPlane, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+        ui::PropertyRow("Far Plane");
+        ImGui::DragFloat("##FarPlane", &camera.farPlane, 0.5f, camera.nearPlane, 1.0e6f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+        ui::EndPropertyGrid();
+    }
+
+    void NodeInspectorWindow::DrawLightSection(NodeId node)
+    {
+        Scene& scene = m_deps.scene;
+        LightComponent* light = scene.Components<LightComponent>().Find(node);
+        if (!light)
+            return;
+        ImGui::PushID("Light");
+        const SectionHeader header = DrawSectionHeader(ComponentType::Light, false);
+        if (header.action == ComponentAction::Remove) {
+            scene.Components<LightComponent>().Remove(node);
+        } else {
+            if (header.action == ComponentAction::Reset)
+                *light = LightComponent {};
+            if (header.open)
+                DrawLightRows(node);
+        }
+        ImGui::PopID();
+    }
+
+    void NodeInspectorWindow::DrawLightRows(NodeId node)
+    {
+        if (!ui::BeginPropertyGrid())
+            return;
+        LightComponent& light = *m_deps.scene.Components<LightComponent>().Find(node);
+
+        ui::PropertyRow("Type");
+        const char* types[] = { "Directional", "Point", "Spot" };
+        int type = static_cast<int>(light.type);
+        if (ImGui::Combo("##Type", &type, types, IM_ARRAYSIZE(types)))
+            light.type = static_cast<LightType>(type);
+
+        ui::PropertyRow("Color");
+        ImGui::ColorEdit4("##Color", &light.color.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+        ui::PropertyRow("Intensity");
+        ImGui::DragFloat("##Intensity", &light.intensity, 0.02f, 0.0f, 1.0e6f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+        if (light.type != LightType::Directional) {
+            ui::PropertyRow("Range");
+            ImGui::DragFloat("##Range", &light.range, 0.05f, 0.001f, 1.0e6f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+        }
+        if (light.type == LightType::Spot) {
+            ui::PropertyRow("Inner Cone");
+            ImGui::DragFloat("##InnerCone", &light.innerConeAngle, 0.5f, 0.0f, light.outerConeAngle, "%.1f deg", ImGuiSliderFlags_AlwaysClamp);
+            ui::PropertyRow("Outer Cone");
+            ImGui::DragFloat("##OuterCone", &light.outerConeAngle, 0.5f, light.innerConeAngle, 179.0f, "%.1f deg", ImGuiSliderFlags_AlwaysClamp);
+        }
+        ui::EndPropertyGrid();
+    }
+
     void NodeInspectorWindow::DrawAddComponent(NodeId node)
     {
         Scene& scene = m_deps.scene;
@@ -862,6 +981,10 @@ namespace elm {
             DrawAddScriptMenu(node);
             ImGui::EndMenu();
         }
+        if (ImGui::MenuItem(ComponentLabel(ComponentType::Camera).c_str(), nullptr, false, !scene.Components<CameraComponent>().Contains(node)))
+            scene.Components<CameraComponent>().Emplace(node, CameraComponent {});
+        if (ImGui::MenuItem(ComponentLabel(ComponentType::Light).c_str(), nullptr, false, !scene.Components<LightComponent>().Contains(node)))
+            scene.Components<LightComponent>().Emplace(node, LightComponent {});
         ImGui::EndPopup();
     }
 

@@ -1,5 +1,7 @@
 #include "graphics/CameraController.hpp"
 
+#include <algorithm>
+
 namespace elm {
 
     bool CameraController::OnKeyEvent(const KeyEvent& event)
@@ -52,6 +54,11 @@ namespace elm {
         if (!m_viewportFocused && !m_rightMouseDown) {
             m_keys.fill(false);
         }
+    }
+
+    bool CameraController::IsMoving() const noexcept
+    {
+        return m_rightMouseDown || std::ranges::any_of(m_keys, [](bool held) { return held; });
     }
 
     void CameraController::SetEnabled(bool enabled) noexcept

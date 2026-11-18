@@ -21,6 +21,8 @@ namespace elm {
 
         // Off in Play: the camera belongs to the game. Turning off drops held keys and the right button
         void SetEnabled(bool enabled) noexcept;
+        /// The right button or a key is held: the camera may move this frame.
+        [[nodiscard]] bool IsMoving() const noexcept;
 
         // IInputSubscriber interface
         bool OnKeyEvent(const KeyEvent& event) override;

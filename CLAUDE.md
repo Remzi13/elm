@@ -81,10 +81,12 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `NodeIdTable` | выдаёт `NodeId` и знает индекс живого узла; поколения слотов, id из Play после Stop не оживают | `Scene` |
 | `IComponentStore`, `ComponentStore<T>` | компоненты одного типа по `NodeId` (sparse set), `scene.Components<T>()` | `ComponentStores` |
 | `ComponentStores` | по хранилищу на каждый `ComponentType`, создаются при первом обращении | `Scene`, `SceneAsset` |
-| `ComponentType`, `SceneComponent` | закрытый список типов компонентов (`Script`, `RigidBody`, `Collider`, `Model`), имена — `ComponentTypeName`/`ComponentTypeFromName` | — |
+| `ComponentType`, `SceneComponent` | закрытый список типов компонентов (`Script`, `RigidBody`, `Collider`, `Model`, `Camera`, `Light`), имена — `ComponentTypeName`/`ComponentTypeFromName` | — |
 | `ModelComponent` | что узел рисует: модель (`ModelHandler`), цвет, `visible` (флаг пользователя, отсечение его не меняет). У узла без модели его нет | `Scene` |
 | `ScriptComponent` | Lua-модуль узла и переопределённые `props` (`ScriptValue`) | `Scene` |
 | `RigidBody`, `Collider`, `BodyType`, `ColliderShape` | физические данные узла | `Scene` |
+| `CameraComponent`, активная камера | камера узла: угол обзора, плоскости; смотрит вдоль +Z узла. В Play вид смотрит через активную камеру сцены: `Scene::ActiveCamera` (выбранная `SetActiveCamera`, иначе первая), в файле `activeCamera`, в Lua `elm.camera.active/set_active` | `Scene` |
+| `LightComponent`, `LightType` | источник света узла: тип, цвет, интенсивность, дальность, конусы. Рендер его пока не использует, видно только в отладочной отрисовке | `Scene` |
 | `CollisionEvent` | начало и конец контакта за шаг физики | `PhysicsSystem` |
 | `RayHit`, `RayQuery`, `PhysicsFrameLog` | попадание луча; вызов `CastRay` и его итог; журнал кадра `PhysicsSystem::FrameLog` (лучи и начавшиеся контакты всех шагов) (`Scene/PhysicsComponents.hpp`) | `PhysicsSystem` |
 | `SceneAsset`, `SceneAsset::Node` | сцена из файла до `Scene::Append`: узлы без id, родитель — индекс в ассете. Компоненты и ссылки на узлы — по `SceneAsset::NodeRef(index)`, модель в `ModelComponent` — `SceneAsset::ModelRef(index)` | вызывающий |
@@ -107,10 +109,13 @@ elm — 3D-движок с редактором на C++23: рендер чер�
 | `DebugDraw`, `DebugChannel`, `DebugPen`, `DebugLabel`, `IDebugVisualizer` | отладочная отрисовка вида (`graphics/debug`, `elm::graphics`): каналы (вкл/выкл в `Settings`), формы, текст (`DebugLabel`, рисует окно вьюпорта через ImGui), время жизни; визуализаторы состояния. Только update. Пишет в кадр сам: `WriteTo(FrameWriter&)` |
 | `DebugDrawing` | отладочная отрисовка вида целиком: `DebugDraw` и визуализаторы, `BeginFrame`/`EndFrame`; для вьюпорта движка — у программы (`Editor`, `elm` с `ELM_DEBUG_DRAW`), движок получает только `DebugDraw*` для скриптов |
 | `WorldAxesVisualizer` | оси мира в начале координат, канал `Editor/WorldAxes` |
+| `CameraAndLightVisualizer` | каркасы `CameraComponent` и `LightComponent` узлов, каналы `Scene/Cameras`, `Scene/Lights`; только редактор |
+| `graphics::ViewThroughCamera`, `AlignCameraToView` | вид встаёт на узел с `CameraComponent` и узел на вид (`graphics/SceneCamera.*`): Play (программы после трансформов и до culling), `elm.camera`, Pilot, Align to View |
+| `CameraPilot` | Pilot редактора (`editor/CameraPilot.*`): вид смотрит через выбранную камеру, свободная камера двигает её узел; владелец `Editor`, включают Inspector и вьюпорт |
 | `ColliderVisualizer` | каркасы `Collider` узлов по компонентам (в Edit тоже), каналы `Physics/Colliders`, `Physics/Triggers` |
 | `PhysicsVisualizer` | лучи и начавшиеся контакты кадра по `PhysicsFrameLog`, каналы `Physics/Raycasts`, `Physics/Contacts` |
 | `TransformGizmo`, `GizmoInput`, `GizmoAxis` | свой гизмо вьюпорта (`graphics/gizmo`): ручки перемещения, вращения, масштаба через `DebugDraw` (канал `Editor/Gizmo`), перетаскивание левой кнопкой. Режим — `GizmoSettings` |
-| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget`, `EditMode` | `script::PlayMode` (владелец `ScriptSystem`, `GetPlayMode`) — идёт ли игра: Play со свежей Lua-машиной, стартовой сценой и главным модулем, Stop останавливает скрипты и физику; запросы применяет программа (`GetRequest`/`ApplyRequest`). `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). Режим Edit — `EditMode` редактора (`editor/EditMode.*`): снимок сцены вокруг Play, возврат после Stop |
+| Edit / Play, `PlayMode`, `PlayStart`, `PlayTarget`, `EditMode` | `script::PlayMode` (владелец `ScriptSystem`, `GetPlayMode`) — идёт ли игра: Play со свежей Lua-машиной, стартовой сценой и главным модулем, Stop останавливает скрипты и физику; запросы применяет программа (`GetRequest`/`ApplyRequest`). `PlayStart` — сцена и главный модуль, с которых начинается Play; `PlayTarget` — Project (стартовая сцена) или Scene (редактируемая). Режим Edit — `EditMode` редактора (`editor/EditMode.*`): снимок сцены и камеры вида вокруг Play, возврат после Stop |
 
 **Рендер** (`src/render`, `elm::render`)
 

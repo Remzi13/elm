@@ -35,6 +35,8 @@ namespace elm {
         /// of a script. The model of a ModelComponent is ModelRef(model index). Scene::Append turns them all
         /// into the ids the nodes get and the handles the models got.
         ComponentStores components;
+        /// The node the view looks through in Play (Scene::SetActiveCamera), NoNode for the scene's first camera.
+        size_t activeCameraIndex { NoNode };
 
         [[nodiscard]] static NodeId NodeRef(size_t nodeIndex) noexcept { return NodeId::FromRaw(static_cast<uint32_t>(nodeIndex + 1)); }
         /// Node index of a NodeRef, NoNode for an empty reference.

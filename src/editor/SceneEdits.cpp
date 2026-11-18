@@ -161,7 +161,8 @@ namespace elm {
         if (!found)
             return std::nullopt;
         return NodeState { found->name, found->localTransform, FindComponent<ScriptComponent>(scene, node),
-            FindComponent<RigidBody>(scene, node), FindComponent<Collider>(scene, node), FindComponent<ModelComponent>(scene, node) };
+            FindComponent<RigidBody>(scene, node), FindComponent<Collider>(scene, node), FindComponent<ModelComponent>(scene, node),
+            FindComponent<CameraComponent>(scene, node), FindComponent<LightComponent>(scene, node) };
     }
 
     void SceneEdits::Apply(Scene& scene, NodeId node, const NodeState& state)
@@ -172,6 +173,8 @@ namespace elm {
         PutComponent(scene, node, state.rigidBody);
         PutComponent(scene, node, state.collider);
         PutComponent(scene, node, state.model);
+        PutComponent(scene, node, state.camera);
+        PutComponent(scene, node, state.light);
     }
 
 } // namespace elm

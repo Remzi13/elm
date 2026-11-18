@@ -1,5 +1,6 @@
 #include "editor/ui/EngineViewportWindow.hpp"
 
+#include "editor/CameraPilot.hpp"
 #include "editor/NodeEditing.hpp"
 #include "editor/ui/EditorWidgets.hpp"
 #include "editor/ui/SceneEditShortcuts.hpp"
@@ -36,6 +37,7 @@ namespace elm {
         constexpr const char* WorldIcon = "\xE2\x8A\x95###GizmoSpace";   // U+2295
         constexpr const char* LocalIcon = "\xE2\x8A\x99###GizmoSpace";   // U+2299
         constexpr const char* DebugIcon = "\xE2\x9A\x91###DebugSection"; // U+2691
+        constexpr const char* PilotIcon = "\xE2\x9C\x88";                // U+2708
         /// Behind the view menu and its buttons: the scene shows through.
         constexpr ImU32 MenuBackColor = IM_COL32(18, 18, 22, 90);
         constexpr float MenuControlAlpha = 0.35f;
@@ -123,7 +125,8 @@ namespace elm {
         // A node the user hid gets no gizmo; a node without a model is not hidden
         const auto* nodeModels = scene.FindComponents<ModelComponent>();
         const ModelComponent* selectedModel = selected && nodeModels ? nodeModels->Find(selected->id) : nullptr;
-        const bool selectedShown = selected && (!selectedModel || selectedModel->visible);
+        // The piloted camera is where the view is: its handles would surround the eye
+        const bool selectedShown = selected && (!selectedModel || selectedModel->visible) && selected->id != m_deps.pilot.Piloted();
 
         if (auto texture = ToTextureId(viewPort.GetColorTexture())) {
             const ImVec2 available = ImGui::GetContentRegionAvail();
@@ -181,6 +184,7 @@ namespace elm {
         if (ui::ToggleButton(MenuIcon, m_menuOpen))
             m_menuOpen = !m_menuOpen;
         ImGui::SetItemTooltip("The controls of the view");
+        DrawPilotButton();
         if (m_menuOpen) {
             ImGui::SameLine();
             DrawGizmoSection();
@@ -197,6 +201,18 @@ namespace elm {
         drawList->AddRectFilled(from, to, MenuBackColor, ImGui::GetStyle().FrameRounding);
         drawList->ChannelsMerge();
         return ImGui::IsMouseHoveringRect(from, to);
+    }
+
+    void EngineViewportWindow::DrawPilotButton()
+    {
+        const Scene::Node* piloted = m_deps.scene.Find(m_deps.pilot.Piloted());
+        if (!piloted)
+            return;
+        ImGui::SameLine();
+        const String label = String(PilotIcon) + "  " + piloted->name + "###Pilot";
+        if (ui::ToggleButton(label.c_str(), true))
+            m_deps.pilot.Stop();
+        ImGui::SetItemTooltip("Piloting: the view looks through this camera, right mouse + WASD move it. Click or Esc to stop");
     }
 
     void EngineViewportWindow::DrawGizmoSection()
@@ -222,13 +238,13 @@ namespace elm {
             gizmo.space = world ? GizmoSpace::Local : GizmoSpace::World;
         ImGui::SetItemTooltip(world ? "World: the gizmo follows the axes of the world. Click for the node's own" : "Local: the gizmo follows the node's own axes. Click for the world's");
 
-        constexpr const char* SnapIcon = "\xE2\x96\xA6###GizmoSnap";   // U+25A6 ▦
+        constexpr const char* SnapIcon = "\xE2\x96\xA6###GizmoSnap"; // U+25A6 ▦
         ImGui::SameLine();
         if (ui::ToggleButton(SnapIcon, gizmo.snap))
             gizmo.snap = !gizmo.snap;
         ImGui::SetItemTooltip(gizmo.snap ? "Snap is ON (grid: %.2g, angle: %.0f deg). Click to toggle, right-click for settings, hold Ctrl while dragging"
                                          : "Snap is OFF. Click to toggle, right-click for settings, hold Ctrl while dragging",
-                              gizmo.snapTranslate, gizmo.snapRotate);
+            gizmo.snapTranslate, gizmo.snapRotate);
         if (ImGui::BeginPopupContextItem("GizmoSnapPopup")) {
             ImGui::TextDisabled("Snap Settings");
             ImGui::Separator();
@@ -308,6 +324,8 @@ namespace elm {
             FrameNode(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.node);
         else if (ImGui::IsKeyPressed(ImGuiKey_End, false))
             SnapNodeToGround(m_deps.scene, m_deps.models, m_deps.selection.node);
+        else if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+            m_deps.pilot.Stop();
     }
 
     void EngineViewportWindow::HandleMouse(const graphics::GizmoInput& input)

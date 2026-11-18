@@ -3,6 +3,8 @@ engine_add_executable(editor
     Editor.cpp
     EditMode.hpp
     EditMode.cpp
+    CameraPilot.hpp
+    CameraPilot.cpp
     SceneEdits.hpp
     SceneEdits.cpp
     SceneDocument.hpp

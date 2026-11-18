@@ -14,6 +14,7 @@
 namespace elm {
 
     class Camera;
+    class CameraPilot;
     class ModelCatalog;
     class Scene;
     class SceneEdits;
@@ -42,6 +43,8 @@ namespace elm {
         SceneEdits& edits;
         /// Ctrl+S while the viewport has the focus.
         const SceneFileRequests& sceneFile;
+        /// While a camera is piloted, its button beside the view menu and Esc stop it; it gets no gizmo.
+        CameraPilot& pilot;
     };
 
     /// The engine view and what is done in it. The image fills the window; in its top left corner lies the view menu,
@@ -64,6 +67,8 @@ namespace elm {
     private:
         /// Over the image, from its corner. Returns whether the mouse is over the menu: the view is not under it.
         [[nodiscard]] bool DrawViewMenu(ImVec2 corner);
+        /// The piloted camera's name beside the menu button, while there is one: a click stops piloting.
+        void DrawPilotButton();
         void DrawGizmoSection();
         void DrawCameraSection();
         void DrawDebugSection();

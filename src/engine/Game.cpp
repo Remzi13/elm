@@ -10,6 +10,8 @@
 
 #include "script/ProjectPlayStart.hpp"
 
+#include "graphics/SceneCamera.hpp"
+
 #if defined(ELM_DEBUG_DRAW)
 #include "graphics/debug/ColliderVisualizer.hpp"
 #include "graphics/debug/PhysicsVisualizer.hpp"
@@ -139,6 +141,7 @@ namespace elm {
         m_scripts.Update(deltaTime);
         // Scripts move nodes through local transforms
         m_scene.UpdateTransforms();
+        (void)graphics::ViewThroughCamera(m_scene.GetScene(), m_scene.GetScene().ActiveCamera(), m_graphics.GetViewCamera());
         m_graphics.Cull();
     }
 

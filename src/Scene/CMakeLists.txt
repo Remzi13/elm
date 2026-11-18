@@ -14,6 +14,8 @@ engine_add_library(Scene
     ScriptComponent.hpp
     PhysicsComponents.hpp
     ModelComponent.hpp
+    CameraComponent.hpp
+    LightComponent.hpp
     SceneSnapshot.hpp
     SceneSnapshot.cpp
     SceneSystem.hpp

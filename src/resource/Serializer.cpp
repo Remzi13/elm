@@ -8,7 +8,9 @@
 #include "project/Project.hpp"
 #include "resource/SerializationError.hpp"
 
+#include "Scene/CameraComponent.hpp"
 #include "Scene/ComponentTypes.hpp"
+#include "Scene/LightComponent.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/ScriptComponent.hpp"
@@ -385,6 +387,38 @@ namespace elm::resource {
             return std::optional<JsonValue>(std::move(*serialized));
         }
 
+        auto MakeCamera(const CameraComponent& camera) -> EngineResult<JsonValue>
+        {
+            JsonValue serialized { JsonValue::Type::Object };
+            auto result = SetFields(serialized,
+                {
+                    { "fovDegrees", ShortNumber(camera.fovDegrees) },
+                    { "nearPlane", ShortNumber(camera.nearPlane) },
+                    { "farPlane", ShortNumber(camera.farPlane) },
+                });
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            return serialized;
+        }
+
+        auto MakeLight(const LightComponent& light) -> EngineResult<JsonValue>
+        {
+            JsonValue serialized { JsonValue::Type::Object };
+            auto result = SetFields(serialized,
+                {
+                    { "type", JsonValue(LightTypeName(light.type)) },
+                    { "intensity", ShortNumber(light.intensity) },
+                    { "range", ShortNumber(light.range) },
+                    { "innerConeAngle", ShortNumber(light.innerConeAngle) },
+                    { "outerConeAngle", ShortNumber(light.outerConeAngle) },
+                });
+            if (result)
+                result = SetResult(serialized, "color", MakeShortArray({ light.color.x, light.color.y, light.color.z, light.color.w }));
+            if (!result)
+                return UnexpectedSerializationError(result.error());
+            return serialized;
+        }
+
         auto MakeComponent(const Scene& scene, NodeId node, ComponentType type, const ModelIndices& modelIndices)
             -> EngineResult<std::optional<JsonValue>>
         {
@@ -397,6 +431,10 @@ namespace elm::resource {
                 return MakeComponentOf<Collider>(scene, node, MakeCollider);
             case ComponentType::Model:
                 return MakeComponentOf<ModelComponent>(scene, node, [&](const ModelComponent& model) { return MakeModel(model, modelIndices); });
+            case ComponentType::Camera:
+                return MakeComponentOf<CameraComponent>(scene, node, MakeCamera);
+            case ComponentType::Light:
+                return MakeComponentOf<LightComponent>(scene, node, MakeLight);
             }
             return UnexpectedSerializationError("Scene node has an unknown component type", "Serializer");
         }
@@ -640,6 +678,37 @@ namespace elm::resource {
             return model;
         }
 
+        auto ReadCamera(const JsonValue& serialized) -> EngineResult<CameraComponent>
+        {
+            CameraComponent camera;
+            for (auto result : {
+                     ReadFloatInto(serialized, "fovDegrees", camera.fovDegrees),
+                     ReadFloatInto(serialized, "nearPlane", camera.nearPlane),
+                     ReadFloatInto(serialized, "farPlane", camera.farPlane),
+                 }) {
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            return camera;
+        }
+
+        auto ReadLight(const JsonValue& serialized) -> EngineResult<LightComponent>
+        {
+            LightComponent light;
+            for (auto result : {
+                     ReadEnumInto(serialized, "type", &LightTypeFromName, light.type),
+                     ReadVector4Into(serialized, "color", light.color),
+                     ReadFloatInto(serialized, "intensity", light.intensity),
+                     ReadFloatInto(serialized, "range", light.range),
+                     ReadFloatInto(serialized, "innerConeAngle", light.innerConeAngle),
+                     ReadFloatInto(serialized, "outerConeAngle", light.outerConeAngle),
+                 }) {
+                if (!result)
+                    return UnexpectedSerializationError(result.error());
+            }
+            return light;
+        }
+
         template <SceneComponent T>
         auto StoreComponent(EngineResult<T> component, NodeId node, ComponentStores& components) -> EngineResult<void>
         {
@@ -681,6 +750,12 @@ namespace elm::resource {
                     break;
                 case ComponentType::Model:
                     stored = StoreComponent(ReadModel(component, counts.modelCount), node, components);
+                    break;
+                case ComponentType::Camera:
+                    stored = StoreComponent(ReadCamera(component), node, components);
+                    break;
+                case ComponentType::Light:
+                    stored = StoreComponent(ReadLight(component), node, components);
                     break;
                 }
                 if (!stored)
@@ -1171,8 +1246,9 @@ namespace elm::resource {
         const Path& path) -> EngineResult<void>
     {
         JsonValue document { JsonValue::Type::Object };
-        // 7: models are referenced by their asset paths (6: model, color and visible are the Model component)
-        auto result = SetField(document, "formatVersion", JsonValue(7.0));
+        // 8: Camera and Light components (7: models are referenced by their asset paths, 6: model, color and
+        // visible are the Model component)
+        auto result = SetField(document, "formatVersion", JsonValue(8.0));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
@@ -1211,6 +1287,8 @@ namespace elm::resource {
                 return UnexpectedSerializationError(result.error());
         }
         result = SetField(document, "nodes", std::move(serializedNodes));
+        if (const size_t activeCamera = scene.IndexOf(scene.ActiveCamera()); result && activeCamera != Scene::NoNode)
+            result = SetField(document, "activeCamera", JsonValue(static_cast<double>(activeCamera)));
         if (!result)
             return UnexpectedSerializationError(result.error());
 
@@ -1251,7 +1329,7 @@ namespace elm::resource {
         auto formatVersion = ReadUnsigned<uint32_t>(*versionField, "formatVersion");
         if (!formatVersion)
             return UnexpectedSerializationError(formatVersion.error());
-        if (*formatVersion < 4 || *formatVersion > 7)
+        if (*formatVersion < 4 || *formatVersion > 8)
             return UnexpectedSerializationError("Unsupported scene file version", "Serializer");
 
         SceneAsset loaded;
@@ -1313,6 +1391,12 @@ namespace elm::resource {
                     return UnexpectedSerializationError(components.error());
             }
             loaded.nodes.push_back(std::move(*node));
+        }
+        if (const auto activeCameraField = document.Find("activeCamera")) {
+            auto activeCamera = ReadUnsigned<size_t>(*activeCameraField, "activeCamera");
+            if (!activeCamera || *activeCamera >= loaded.nodes.size())
+                return UnexpectedSerializationError("Invalid activeCamera: not a node of the scene", "Serializer");
+            loaded.activeCameraIndex = *activeCamera;
         }
 
         for (size_t nodeIndex = 0; nodeIndex < loaded.nodes.size(); ++nodeIndex) {

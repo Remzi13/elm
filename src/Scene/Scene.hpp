@@ -73,9 +73,16 @@ namespace elm {
         [[nodiscard]] NodeId IdOf(size_t nodeIndex) const noexcept { return nodeIndex < m_nodes.size() ? m_nodes[nodeIndex].id : NodeId {}; }
         [[nodiscard]] size_t NodeCount() const noexcept { return m_nodes.size(); }
         [[nodiscard]] bool Empty() const noexcept { return m_nodes.empty(); }
-        /// Changes whenever nodes are added, removed or moved in the hierarchy, or the scene is cleared or
-        /// restored; not on edits of a node's name, transform or components. The editor's history compares it.
+        /// Changes whenever nodes are added, removed or moved in the hierarchy, the active camera changes, or the
+        /// scene is cleared or restored; not on edits of a node's name, transform or components. The editor's
+        /// history compares it.
         [[nodiscard]] uint64_t StructureRevision() const noexcept { return m_structureRevision; }
+
+        /// The camera the view looks through in Play: the node SetActiveCamera chose while it lives and has a
+        /// CameraComponent, otherwise the first node with one (parents before children); an invalid id without any.
+        [[nodiscard]] NodeId ActiveCamera() const;
+        /// False, and nothing changes, for a node without a CameraComponent.
+        bool SetActiveCamera(NodeId camera);
 
         /// Components of type T keyed by node id, the store is created on first use. A node's
         /// components go away with it (RemoveNode, Clear); copies of nodes do not take them along.
@@ -106,6 +113,8 @@ namespace elm {
         Vector<math::Matrix4x4> m_worldTransforms;
         NodeIdTable m_ids;
         ComponentStores m_components;
+        /// As SetActiveCamera chose it; ActiveCamera() falls back when it is gone.
+        NodeId m_activeCamera;
         bool m_transformsDirty { false };
         uint64_t m_structureRevision { 0 };
     };

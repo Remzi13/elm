@@ -11,6 +11,8 @@ engine_add_library(graphics
     GraphicsSystem.hpp
     GraphicsSystem.cpp
     GameView.cpp
+    SceneCamera.hpp
+    SceneCamera.cpp
 
     culling/SoftwareDepthBuffer.hpp
     culling/SoftwareDepthBuffer.cpp
@@ -23,6 +25,8 @@ engine_add_library(graphics
     debug/IDebugVisualizer.hpp
     debug/ColliderVisualizer.hpp
     debug/ColliderVisualizer.cpp
+    debug/CameraAndLightVisualizer.hpp
+    debug/CameraAndLightVisualizer.cpp
     debug/PhysicsVisualizer.hpp
     debug/PhysicsVisualizer.cpp
     debug/WorldAxesVisualizer.hpp

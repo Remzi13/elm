@@ -15,10 +15,11 @@ namespace elm {
 
     } // namespace
 
-    EditMode::EditMode(SceneSystem& scene, script::ScriptSystem& scripts)
+    EditMode::EditMode(SceneSystem& scene, script::ScriptSystem& scripts, Camera& view)
         : m_play(scripts.GetPlayMode())
         , m_scene(scene)
         , m_scripts(scripts)
+        , m_view(view)
     {
     }
 
@@ -46,6 +47,7 @@ namespace elm {
             return;
         }
         m_snapshot = MakeUnique<SceneSnapshot>(m_scene.TakeSnapshot());
+        m_editView = m_view;
         m_play.ApplyRequest();
         // No start for the target (the startup scene could not be read): nothing changed
         if (!m_play.IsPlaying())
@@ -66,6 +68,7 @@ namespace elm {
             return;
         m_scene.Restore(std::move(*m_snapshot));
         m_snapshot.reset();
+        m_view = m_editView;
         // The game's Lua state goes with it: Edit gets a fresh one, without the main module
         if (auto reset = m_scripts.Reset(); !reset)
             ERROR_MESSAGE(log::Category::Script, LogSource, "%s", reset.error().message.c_str());

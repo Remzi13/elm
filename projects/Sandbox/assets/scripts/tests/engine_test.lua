@@ -55,4 +55,34 @@ function tests.camera()
     expect.near(camera.fov(), 1.2)
 end
 
+-- With a Camera node in the scene elm.camera is the active camera node
+function tests.camera_is_the_active_camera_node()
+    local camera = elm.camera
+    expect.eq(camera.active(), nil, "no camera node yet")
+    local a = elm.scene.spawn("camera a")
+    local b = elm.scene.spawn("camera b")
+    local plain = elm.scene.spawn("plain")
+    elm_test.add_camera(a)
+    elm_test.add_camera(b)
+    expect.eq(camera.active(), a, "the first camera")
+    camera.set_active(b)
+    expect.eq(camera.active(), b)
+    expect.error(function() camera.set_active(plain) end, "no Camera component")
+
+    camera.set_position(Vector3(1, 2, 3))
+    expect.eq(b.position, Vector3(1, 2, 3), "the node follows the camera")
+    camera.look_at(Vector3(1, 2, 10))
+    expect.near(camera.forward().z, 1, 1e-4)
+    b.position = Vector3(5, 0, 0)
+    expect.eq(camera.position(), Vector3(5, 0, 0), "the camera follows the node")
+    camera.set_fov(1.0)
+    expect.near(camera.fov(), 1.0, 1e-5)
+
+    b:destroy()
+    expect.eq(camera.active(), a, "back to the first camera")
+    a:destroy()
+    plain:destroy()
+    expect.eq(camera.active(), nil)
+end
+
 return tests

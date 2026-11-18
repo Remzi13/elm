@@ -1,5 +1,6 @@
 #include "editor/EditorSelfTest.hpp"
 
+#include "editor/CameraPilot.hpp"
 #include "editor/EditMode.hpp"
 #include "editor/ProjectHubWindow.hpp"
 #include "editor/NodeEditing.hpp"
@@ -11,6 +12,7 @@
 #include "editor/script/ScriptEditorWindows.hpp"
 #include "editor/script/ScriptWindow.hpp"
 #include "graphics/Camera.hpp"
+#include "graphics/SceneCamera.hpp"
 #include "graphics/culling/OcclusionCulling.hpp"
 #include "graphics/debug/DebugDraw.hpp"
 #include "graphics/gizmo/GizmoSettings.hpp"
@@ -32,6 +34,8 @@
 #include "render/api/RenderResources.hpp"
 #include "render/ViewPort.hpp"
 
+#include "Scene/CameraComponent.hpp"
+#include "Scene/LightComponent.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/Scene.hpp"
@@ -209,6 +213,102 @@ line]] .. [==[a]]b]==])",
             report.Check(standing && standing->isVisible, "culling::a_floor_does_not_hide_what_stands_on_it");
         }
 
+        /// In Play the view looks through the scene's active camera: the chosen one, else the first.
+        void RunSceneCameraTests(Report& report)
+        {
+            Scene scene;
+            Camera view;
+            const Vector3 freePosition = view.GetPosition();
+            report.Check(!scene.ActiveCamera() && !graphics::ViewThroughCamera(scene, scene.ActiveCamera(), view)
+                    && view.GetPosition() == freePosition,
+                "scene_camera::without_a_camera_the_view_stays");
+
+            // Turned to look along +X
+            const Matrix4x4 turned = Matrix4x4::Translation({ 1.0f, 2.0f, 3.0f }) * Matrix4x4::RotationY(std::numbers::pi_v<float> * 0.5f);
+            const NodeId first = scene.AddNode("first", turned);
+            const NodeId second = scene.AddNode("second", Matrix4x4::Translation({ 9.0f, 0.0f, 0.0f }));
+            const NodeId plain = scene.AddNode("plain");
+            scene.Components<CameraComponent>().Emplace(second);
+            scene.Components<CameraComponent>().Emplace(first, CameraComponent { .fovDegrees = 90.0f, .nearPlane = 0.5f, .farPlane = 50.0f });
+            scene.UpdateWorldTransforms();
+            report.Check(scene.ActiveCamera() == first && graphics::ViewThroughCamera(scene, scene.ActiveCamera(), view),
+                "scene_camera::the_first_camera_is_active");
+            const Vector3 forward = view.GetForwardDirection();
+            report.Check(view.GetPosition() == Vector3 { 1.0f, 2.0f, 3.0f } && std::abs(forward.x - 1.0f) < 1e-5f && std::abs(forward.y) < 1e-5f
+                    && std::abs(forward.z) < 1e-5f,
+                "scene_camera::the_view_looks_along_the_node_z");
+            report.Check(std::abs(view.fovRadians - std::numbers::pi_v<float> * 0.5f) < 1e-5f && view.zNear == 0.5f && view.zFar == 50.0f,
+                "scene_camera::the_view_takes_the_camera_settings");
+
+            const uint64_t revision = scene.StructureRevision();
+            report.Check(!scene.SetActiveCamera(plain) && scene.ActiveCamera() == first && scene.StructureRevision() == revision,
+                "scene_camera::a_node_without_a_camera_is_not_active");
+            report.Check(scene.SetActiveCamera(second) && scene.ActiveCamera() == second && scene.StructureRevision() != revision
+                    && scene.Clone().ActiveCamera() == second,
+                "scene_camera::the_chosen_camera_is_active");
+            scene.Components<CameraComponent>().Remove(second);
+            report.Check(scene.ActiveCamera() == first, "scene_camera::without_its_camera_the_first_is_active");
+
+            // Align to View: the node goes where the view is and keeps its scale
+            const NodeId scaled = scene.AddNode("scaled", Matrix4x4::Scaling({ 2.0f, 2.0f, 2.0f }));
+            scene.Components<CameraComponent>().Emplace(scaled);
+            Camera placed(Vector3 { 4.0f, 5.0f, 6.0f }, 0.5f, -0.25f);
+            report.Check(graphics::AlignCameraToView(scene, scaled, placed) && !graphics::AlignCameraToView(scene, plain, placed),
+                "scene_camera::align_to_view_needs_a_camera");
+            Camera through;
+            const Matrix4x4& world = scene.WorldTransforms()[scene.IndexOf(scaled)];
+            const float scale = Vector3 { world(0, 0), world(1, 0), world(2, 0) }.Length();
+            report.Check(graphics::ViewThroughCamera(scene, scaled, through) && through.GetPosition() == placed.GetPosition()
+                    && std::abs(through.GetYaw() - 0.5f) < 1e-5f && std::abs(through.GetPitch() + 0.25f) < 1e-5f && std::abs(scale - 2.0f) < 1e-5f,
+                "scene_camera::align_to_view_round_trip");
+        }
+
+        /// Piloting a camera node: the view looks through it, the free camera's moves go to the node as one step.
+        void RunCameraPilotTests(Report& report)
+        {
+            Scene scene;
+            Camera view;
+            const float editorFov = view.fovRadians;
+            CameraPilot pilot(scene, view);
+            const NodeId plain = scene.AddNode("plain");
+            const NodeId camera = scene.AddNode("camera", Matrix4x4::Translation({ 1.0f, 2.0f, 3.0f }));
+            scene.Components<CameraComponent>().Emplace(camera, CameraComponent { .fovDegrees = 90.0f });
+            scene.UpdateWorldTransforms();
+            // After the nodes: their adding is no step
+            SceneEdits edits(scene);
+
+            pilot.Start(plain);
+            report.Check(!pilot.Piloted(), "pilot::a_node_without_a_camera_is_not_piloted");
+            pilot.Start(camera);
+            report.Check(pilot.Piloted() == camera && view.GetPosition() == Vector3 { 1.0f, 2.0f, 3.0f }
+                    && std::abs(view.fovRadians - std::numbers::pi_v<float> * 0.5f) < 1e-5f,
+                "pilot::the_view_looks_through_the_camera");
+
+            // A flight over two frames, as Editor::RunFrame and BuildUi go
+            auto flyFrame = [&](const Vector3& offset, bool held) {
+                pilot.FollowNode();
+                view.Translate(offset);
+                edits.BeginFrame(camera);
+                pilot.FollowView();
+                edits.EndFrame(held);
+                scene.UpdateWorldTransforms();
+            };
+            flyFrame({ 1.0f, 0.0f, 0.0f }, true);
+            flyFrame({ 1.0f, 0.0f, 0.0f }, false);
+            report.Check(scene.WorldTransforms()[scene.IndexOf(camera)](0, 3) == 3.0f, "pilot::the_node_follows_the_view");
+            report.Check(edits.Undo() && scene.Find(camera)->localTransform(0, 3) == 1.0f && !edits.CanUndo(), "pilot::a_flight_is_one_step");
+            scene.UpdateWorldTransforms();
+            pilot.FollowNode();
+            report.Check(view.GetPosition() == Vector3 { 1.0f, 2.0f, 3.0f }, "pilot::the_view_follows_the_node");
+
+            pilot.Stop();
+            report.Check(!pilot.Piloted() && view.fovRadians == editorFov, "pilot::stop_gives_the_view_its_lens_back");
+            pilot.Start(camera);
+            (void)scene.RemoveNode(camera);
+            pilot.FollowNode();
+            report.Check(!pilot.Piloted() && view.fovRadians == editorFov, "pilot::a_removed_camera_ends_piloting");
+        }
+
         // ── Edit mode ───────────────────────────────────────────────────────────
 
         /// Where node `a` is along x: the mover script walks it there in Play.
@@ -265,7 +365,9 @@ line]] .. [==[a]]b]==])",
                 report.Check(false, "edit::script_init");
                 return;
             }
-            EditMode editMode(sceneSystem, scripts);
+            Camera view;
+            const Vector3 editViewPosition = view.GetPosition();
+            EditMode editMode(sceneSystem, scripts, view);
 
             const NodeId a = scene.AddNode("a");
             const NodeId b = scene.AddNode("b");
@@ -292,6 +394,8 @@ line]] .. [==[a]]b]==])",
             (void)scene.RemoveNode(b);
             (void)scene.AddNode("spawned");
             models.Remove(cube);
+            // As a script or the scene's camera moves it
+            view.SetPosition({ 100.0f, 0.0f, 0.0f });
 
             play.RequestStop();
             frame();
@@ -299,6 +403,7 @@ line]] .. [==[a]]b]==])",
             report.Check(!play.IsPlaying() && scene.NodeCount() == 2 && scene.Find(a) && scene.Find(b) && PositionX(scene, a) == 0.0f
                     && scene.Components<Collider>().Contains(a) && model && models.Get(model->model) && physics.GetNumBodies() == 0,
                 "edit::stop_brings_the_edited_scene_back");
+            report.Check(view.GetPosition() == editViewPosition, "edit::stop_brings_the_view_camera_back");
 
             play.RequestPlay(PlayTarget::Project);
             frame();
@@ -350,6 +455,11 @@ line]] .. [==[a]]b]==])",
             report.Check(edits.Undo() && scene.Find(a)->name == "a" && x(a) == 4.0f, "edits::separate_edits_are_separate_steps");
             frame(a, false, [&] { (void)scene.SetName(a, "other"); });
             report.Check(!edits.CanRedo(), "edits::a_new_edit_drops_redo");
+            frame(a, false, [&] { scene.Components<CameraComponent>().Emplace(a); });
+            frame(a, false, [&] { scene.Components<CameraComponent>().Find(a)->fovDegrees = 30.0f; });
+            report.Check(edits.Undo() && scene.Components<CameraComponent>().Find(a)->fovDegrees == CameraComponent {}.fovDegrees,
+                "edits::undo_a_camera_edit");
+            report.Check(edits.Undo() && !scene.Components<CameraComponent>().Contains(a), "edits::undo_takes_the_camera_away");
 
             // Structure: undo brings a removed node back with its id
             const NodeId b = scene.AddNode("b");
@@ -604,13 +714,13 @@ line]] .. [==[a]]b]==])",
             explicit WindowsFixture(const Path& assets)
                 : document(SceneDocumentDeps { scene, models, edits, selection, play }, assets, assets / "scenes", assets / "scenes" / "opened.scene")
                 , hierarchy(settings, SceneHierarchyDeps { scene, models, edits, document, selection, sceneFile, camera, play, [this] { inspector.Show(); } }, assets, assets / "models")
-                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile, camera },
+                , inspector(settings, NodeInspectorDeps { scene, models, edits, document, selection, play, scripts, files, sceneFile, camera, pilot },
                       NodeInspectorWindow::Folders { assets, assets / "models", assets / "scripts" })
                 , modelEditor(settings, ModelEditorDeps { resources, scene, models, camera }, assets, assets / "models")
                 , settingsWindow(settings, assets / SettingsFileName)
                 , debugDraw(settings)
                 , viewPort(resources, Size { 640, 360 })
-                , viewport(settings, EngineViewportDeps { scene, models, camera, viewPort, debugDraw, play, selection, gizmo, edits, sceneFile })
+                , viewport(settings, EngineViewportDeps { scene, models, camera, viewPort, debugDraw, play, selection, gizmo, edits, sceneFile, pilot })
                 , hub(settings,
                       editor::ProjectHubDesc {
                           .recent = [this] { return recentProjects; },
@@ -760,12 +870,15 @@ line]] .. [==[a]]b]==])",
                 return ImVec2(tree->InnerRect.GetCenter().x, tree->InnerRect.Min.y + (static_cast<float>(row) + 0.5f) * height);
             }
 
-            /// The icon of visibility of a row: the first of the icons at its end (four components follow).
+            /// The icon of visibility of a row: the first of the icons at its end.
             [[nodiscard]] static ImVec2 RowEye(size_t row)
             {
                 const ImGuiWindow* tree = FindWindow("TreeScrollArea");
                 const float slot = ImGui::GetFontSize() + 2.0f;
-                return ImVec2(tree->InnerRect.Max.x - GImGui->Style.CellPadding.x - slot * 4.5f, RowCenter(row).y);
+                constexpr size_t ComponentCount = 6;
+                constexpr size_t IconCount = ComponentCount + 1;
+                return ImVec2(tree->InnerRect.Max.x - GImGui->Style.CellPadding.x - slot * (static_cast<float>(IconCount) - 0.5f),
+                    RowCenter(row).y);
             }
 
             [[nodiscard]] static ImVec2 RowArrow(size_t row)
@@ -851,6 +964,7 @@ line]] .. [==[a]]b]==])",
             SceneDocument document;
             SceneMenu menu;
             Camera camera;
+            CameraPilot pilot { scene, camera };
             SceneHierarchyWindow hierarchy;
             NodeInspectorWindow inspector;
             render::RenderResources resources;
@@ -1159,6 +1273,53 @@ line]] .. [==[a]]b]==])",
                 const bool chosen = menuOpened && fixture.ClickMenuItem("Browse from Disk...");
                 report.Check(chosen && WindowsFixture::IsDialogOpen(), "inspector::add_component_opens_the_model_dialog");
                 report.Check(chosen && !fixture.scene.Components<ModelComponent>().Contains(node), "inspector::add_component_waits_for_the_chosen_model");
+            }
+            {
+                WindowsFixture fixture(assets);
+                const NodeId node = fixture.scene.AddNode("camera");
+                fixture.selection.node = node;
+                fixture.Frame();
+                fixture.Frame();
+                const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "###AddComponent");
+                const bool cameraAdded = opened && fixture.ClickMenuItem("###Camera");
+                fixture.Frame();
+                report.Check(cameraAdded && fixture.scene.Components<CameraComponent>().Contains(node),
+                    "inspector::add_camera_component");
+            }
+            {
+                WindowsFixture fixture(assets);
+                const NodeId node = fixture.scene.AddNode("light");
+                fixture.selection.node = node;
+                fixture.Frame();
+                fixture.Frame();
+                const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "###AddComponent");
+                const bool lightAdded = opened && fixture.ClickMenuItem("###Light");
+                fixture.Frame();
+                report.Check(lightAdded && fixture.scene.Components<LightComponent>().Contains(node),
+                    "inspector::add_light_component");
+            }
+            {
+                WindowsFixture fixture(assets);
+                const NodeId node = fixture.scene.AddNode("camera");
+                fixture.scene.Components<CameraComponent>().Emplace(node);
+                fixture.selection.node = node;
+                fixture.Frame();
+                fixture.Frame();
+                ImGuiWindow* inspector = WindowsFixture::FindWindow(NodeInspectorWindow::Name);
+                const bool clicked = inspector && fixture.ClickItem(inspector, ImHashStr("###Pilot", 0, inspector->GetID("Camera")));
+                report.Check(clicked && fixture.pilot.Piloted() == node, "inspector::pilot_button_pilots_the_camera");
+            }
+            {
+                WindowsFixture fixture(assets);
+                const NodeId first = fixture.scene.AddNode("first");
+                const NodeId second = fixture.scene.AddNode("second");
+                fixture.scene.Components<CameraComponent>().Emplace(first);
+                fixture.scene.Components<CameraComponent>().Emplace(second);
+                fixture.Frame();
+                fixture.Click(WindowsFixture::RowCenter(1), ImGuiMouseButton_Right);
+                fixture.Frame();
+                const bool chosen = fixture.ClickMenuItem("###Set Active Camera");
+                report.Check(chosen && fixture.scene.ActiveCamera() == second, "tree::row_menu_sets_the_active_camera");
             }
             {
                 WindowsFixture fixture(assets);
@@ -1501,6 +1662,8 @@ line]] .. [==[a]]b]==])",
         RunScriptEditorTests(report);
         RunErrorLocationTests(report);
         RunCullingTests(report);
+        RunSceneCameraTests(report);
+        RunCameraPilotTests(report);
         RunEditModeTests(report);
         RunSceneEditsTests(report);
         RunSceneWindowsTests(report);

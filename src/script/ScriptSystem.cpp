@@ -236,7 +236,7 @@ namespace elm::script {
         bindings::RegisterInput(m_state, m_engine.input);
         bindings::RegisterScene(m_state, m_engine.scene, m_engine.models, *m_entityScripts);
         bindings::RegisterModels(m_state, m_engine.models, m_engine.project);
-        bindings::RegisterCamera(m_state, m_engine.camera);
+        bindings::RegisterCamera(m_state, m_engine.camera, m_engine.scene);
         bindings::RegisterEngine(m_state, { m_engine.scene, m_engine.models, m_entityScripts.get(), m_engine.play, m_engine.project });
         bindings::RegisterPhysics(m_state, m_engine.physics, m_engine.scene, m_engine.models);
         bindings::RegisterDebug(m_state, m_engine.debugDraw);

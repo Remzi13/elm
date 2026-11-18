@@ -31,7 +31,9 @@ namespace elm::script::bindings {
     void RegisterScene(lua::State& state, Scene* scene, ModelCatalog* models, EntityScripts& entityScripts);
     /// elm.models and the Model class; model files are taken from the project's assets folder.
     void RegisterModels(lua::State& state, ModelCatalog* models, const project::Project* project);
-    void RegisterCamera(lua::State& state, Camera* camera);
+    /// elm.camera: the active camera node of the scene (Scene::ActiveCamera), or the view camera itself while the
+    /// scene has no camera node.
+    void RegisterCamera(lua::State& state, Camera* camera, Scene* scene);
     /// elm.physics, the RigidBody and Collider components.
     void RegisterPhysics(lua::State& state, PhysicsSystem* physics, Scene* scene, ModelCatalog* models);
 

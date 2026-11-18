@@ -4,6 +4,8 @@
 
 #include "math/Matrix.hpp"
 
+#include "Scene/CameraComponent.hpp"
+#include "Scene/LightComponent.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/NodeId.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -68,6 +70,8 @@ namespace elm {
             std::optional<RigidBody> rigidBody;
             std::optional<Collider> collider;
             std::optional<ModelComponent> model;
+            std::optional<CameraComponent> camera;
+            std::optional<LightComponent> light;
 
             bool operator==(const NodeState&) const = default;
         };

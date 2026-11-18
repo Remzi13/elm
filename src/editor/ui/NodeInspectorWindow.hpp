@@ -11,6 +11,7 @@
 namespace elm {
 
     class Camera;
+    class CameraPilot;
     class ModelCatalog;
     class Scene;
     class SceneDocument;
@@ -34,8 +35,10 @@ namespace elm {
         const FileOpener& files;
         /// Ctrl+S.
         const SceneFileRequests& sceneFile;
-        /// The button of the node's header brings the node into its view; not in Play.
+        /// The button of the node's header brings the node into its view; not in Play. Align to View reads it.
         Camera& camera;
+        /// The Camera section's pilot button.
+        CameraPilot& pilot;
     };
 
     /// The selected node: its name, parent, transform and components, written directly to the scene. The header has
@@ -94,6 +97,13 @@ namespace elm {
         /// Values the node keeps for props the script no longer has: shown to be removed.
         void DrawUnknownProps(ScriptComponent& script, const ScriptProps& props);
         void ResetScriptProps(NodeId node);
+
+        void DrawCameraSection(NodeId node);
+        /// Pilot on the header and the section's menu: Align to View, Set Active Camera.
+        void DrawCameraActions(NodeId node);
+        void DrawCameraRows(NodeId node);
+        void DrawLightSection(NodeId node);
+        void DrawLightRows(NodeId node);
 
         void DrawAddComponent(NodeId node);
         void DrawAddModelMenu(NodeId node);

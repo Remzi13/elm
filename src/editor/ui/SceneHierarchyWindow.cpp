@@ -10,6 +10,8 @@
 
 #include "model/ModelCatalog.hpp"
 
+#include "Scene/CameraComponent.hpp"
+#include "Scene/LightComponent.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/PhysicsComponents.hpp"
 #include "Scene/Scene.hpp"
@@ -33,20 +35,24 @@ namespace elm {
         constexpr const char* ModelFileExtensions = ".model;.gltf;.glb";
 
         /// Icons: symbols of the icon font (EditorStyle), in UTF-8; in a label the id comes after ###.
-        constexpr const char* AddNodeButton = "\xE2\x9C\x9A###AddNode";               // U+271A
-        constexpr const char* ShownIcon = "\xE2\x97\x89";                             // U+25C9
-        constexpr const char* HiddenIcon = "\xE2\x97\x8B";                            // U+25CB
-        constexpr const char* AddChildItem = "\xE2\x9C\x9A  Add Child###Add Child";   // U+271A
-        constexpr const char* RenameItem = "\xE2\x9C\x8E  Rename###Rename";           // U+270E
-        constexpr const char* DuplicateItem = "\xE2\x9D\x90  Duplicate###Duplicate";  // U+2750
-        constexpr const char* UnparentItem = "\xE2\x86\xB0  Move to Root###Unparent"; // U+21B0
-        constexpr const char* DeleteItem = "\xE2\x9C\x96  Delete###Delete Node";      // U+2716
+        constexpr const char* AddNodeButton = "\xE2\x9C\x9A###AddNode";                                 // U+271A
+        constexpr const char* ShownIcon = "\xE2\x97\x89";                                               // U+25C9
+        constexpr const char* HiddenIcon = "\xE2\x97\x8B";                                              // U+25CB
+        constexpr const char* AddChildItem = "\xE2\x9C\x9A  Add Child###Add Child";                     // U+271A
+        constexpr const char* RenameItem = "\xE2\x9C\x8E  Rename###Rename";                             // U+270E
+        constexpr const char* DuplicateItem = "\xE2\x9D\x90  Duplicate###Duplicate";                    // U+2750
+        constexpr const char* UnparentItem = "\xE2\x86\xB0  Move to Root###Unparent";                   // U+21B0
+        constexpr const char* DeleteItem = "\xE2\x9C\x96  Delete###Delete Node";                        // U+2716
+        constexpr const char* ActiveCameraItem = "\xE2\x97\x8E  Set Active Camera###Set Active Camera"; // U+25CE
 
         /// The columns of the tree: the icon of a component, for each node that has one.
-        constexpr std::array<ComponentType, 4> ComponentChips { ComponentType::Model, ComponentType::RigidBody, ComponentType::Collider,
-            ComponentType::Script };
+        constexpr std::array<ComponentType, 6> ComponentChips { ComponentType::Model, ComponentType::RigidBody, ComponentType::Collider,
+            ComponentType::Script, ComponentType::Camera, ComponentType::Light };
         /// The row of ComponentChips that a node with a model has: its visibility is the model's.
         constexpr size_t ModelChip = 0;
+        /// The active camera's chip is lit.
+        constexpr size_t CameraChip = 4;
+        static_assert(ComponentChips[CameraChip] == ComponentType::Camera);
         /// The icon of visibility stands before the chips.
         constexpr size_t RowIconCount = ComponentChips.size() + 1;
 
@@ -86,6 +92,8 @@ namespace elm {
         bool isRoot { true };
         /// The user hid its model.
         bool isHidden { false };
+        /// The camera Play looks through (Scene::ActiveCamera).
+        bool isActiveCamera { false };
         /// The node's name, its place in the scene when it has none.
         String name;
         /// What ImGui gets: the name and the id that keeps the row when the name changes.
@@ -175,6 +183,7 @@ namespace elm {
         const Scene& scene = m_deps.scene;
         const auto nodes = scene.Nodes();
         const auto* modelComponents = scene.FindComponents<ModelComponent>();
+        const NodeId activeCamera = scene.ActiveCamera();
         Vector<TreeRow> rows(nodes.size());
         for (size_t nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex) {
             const Scene::Node& node = nodes[nodeIndex];
@@ -186,7 +195,8 @@ namespace elm {
             const ModelComponent* model = modelComponents ? modelComponents->Find(node.id) : nullptr;
             row.isHidden = model && !model->visible;
             row.hasComponent = { model != nullptr, HasComponent<RigidBody>(scene, node.id), HasComponent<Collider>(scene, node.id),
-                HasComponent<ScriptComponent>(scene, node.id) };
+                HasComponent<ScriptComponent>(scene, node.id), HasComponent<CameraComponent>(scene, node.id), HasComponent<LightComponent>(scene, node.id) };
+            row.isActiveCamera = node.id == activeCamera;
             const size_t parentIndex = scene.IndexOf(node.parent);
             if (parentIndex != Scene::NoNode)
                 rows[parentIndex].children.push_back(nodeIndex);
@@ -289,7 +299,11 @@ namespace elm {
                 m_visibilityToggle = row.id;
         }
         for (size_t chip = 0; chip < ComponentChips.size(); ++chip) {
-            if (row.hasComponent[chip])
+            if (!row.hasComponent[chip])
+                continue;
+            if (chip == CameraChip && row.isActiveCamera)
+                (void)drawIcon(chip + 1, ui::ComponentIcon(ComponentType::Camera), ImGuiCol_Text, "Active camera: Play looks through it");
+            else
                 (void)drawIcon(chip + 1, ui::ComponentIcon(ComponentChips[chip]), ImGuiCol_TextDisabled, ComponentTypeName(ComponentChips[chip]));
         }
         const ImVec2 cellMax(cellMin.x + slot * static_cast<float>(RowIconCount), cellMin.y + height);
@@ -397,6 +411,8 @@ namespace elm {
             SnapSelectedToGround();
         if (!row.isRoot && ImGui::MenuItem(UnparentItem))
             (void)m_deps.scene.SetParent(row.id, NodeId {});
+        if (row.hasComponent[CameraChip] && ImGui::MenuItem(ActiveCameraItem, nullptr, row.isActiveCamera, !row.isActiveCamera))
+            (void)m_deps.scene.SetActiveCamera(row.id);
         ImGui::Separator();
         if (ImGui::MenuItem(DeleteItem, "Del"))
             RemoveSelected();

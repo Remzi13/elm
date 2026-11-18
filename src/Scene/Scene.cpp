@@ -4,6 +4,7 @@
 
 #include "math/Rotation.hpp"
 
+#include "Scene/CameraComponent.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/SceneAsset.hpp"
 #include "Scene/ScriptComponent.hpp"
@@ -172,6 +173,8 @@ namespace elm {
             ids[assetIndex] = AddNode(source.name, source.localTransform, parent);
         }
         AppendComponents(asset, ids, models);
+        if (asset.activeCameraIndex < ids.size())
+            (void)SetActiveCamera(ids[asset.activeCameraIndex]);
         return ids;
     }
 
@@ -183,6 +186,7 @@ namespace elm {
         m_nodes.clear();
         m_worldTransforms.clear();
         m_components.Clear();
+        m_activeCamera = {};
         m_transformsDirty = false;
         ++m_structureRevision;
     }
@@ -205,6 +209,7 @@ namespace elm {
         copy.m_worldTransforms = m_worldTransforms;
         copy.m_ids = m_ids;
         copy.m_components = m_components.Clone();
+        copy.m_activeCamera = m_activeCamera;
         copy.m_transformsDirty = m_transformsDirty;
         return copy;
     }
@@ -217,8 +222,34 @@ namespace elm {
         m_worldTransforms = std::move(snapshot.m_worldTransforms);
         // The stores of the snapshot take over: references to the current ones end here
         m_components = std::move(snapshot.m_components);
+        m_activeCamera = snapshot.m_activeCamera;
         m_transformsDirty = true;
         ++m_structureRevision;
+    }
+
+    NodeId Scene::ActiveCamera() const
+    {
+        const ComponentStore<CameraComponent>* cameras = FindComponents<CameraComponent>();
+        if (!cameras)
+            return {};
+        if (IndexOf(m_activeCamera) != NoNode && cameras->Contains(m_activeCamera))
+            return m_activeCamera;
+        for (const Node& node : m_nodes) {
+            if (cameras->Contains(node.id))
+                return node.id;
+        }
+        return {};
+    }
+
+    bool Scene::SetActiveCamera(NodeId camera)
+    {
+        ELM_ASSERT_THREAD(Update);
+        const ComponentStore<CameraComponent>* cameras = FindComponents<CameraComponent>();
+        if (IndexOf(camera) == NoNode || !cameras || !cameras->Contains(camera))
+            return false;
+        m_activeCamera = camera;
+        ++m_structureRevision;
+        return true;
     }
 
     const Scene::Node* Scene::Find(NodeId id) const

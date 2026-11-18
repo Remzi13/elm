@@ -21,6 +21,7 @@
 
 #include "script/ScriptSystem.hpp"
 
+#include "editor/CameraPilot.hpp"
 #include "editor/EditMode.hpp"
 #include "editor/SceneDocument.hpp"
 #include "editor/SceneEdits.hpp"
@@ -139,6 +140,8 @@ namespace elm {
         FrameClock m_clock;
         /// The fly camera of the engine view in Edit; off in Play, where the camera is the game's.
         CameraController m_cameraController;
+        /// A camera node the fly camera moves in Edit, with the view looking through it.
+        CameraPilot m_pilot;
         /// Edit and Play around PlayMode: the snapshot of the edited scene.
         EditMode m_editMode;
         /// Undo and redo of the user's edits of the scene.

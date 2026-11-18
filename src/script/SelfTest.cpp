@@ -9,6 +9,7 @@
 #include "script/lua/Bind.hpp"
 #include "script/module/MainModule.hpp"
 #include "script/module/ModuleLoader.hpp"
+#include "script/values/Entity.hpp"
 #include "script/module/ModulePaths.hpp"
 #include "script/reload/HotReload.hpp"
 
@@ -19,6 +20,8 @@
 #include "core/Memory.hpp"
 #include "core/Settings.hpp"
 
+#include "Scene/CameraComponent.hpp"
+#include "Scene/LightComponent.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/NodeIdTable.hpp"
 #include "Scene/PhysicsComponents.hpp"
@@ -205,6 +208,9 @@ namespace elm::script {
         }
 
         lua::Ref g_storedValue;
+        /// The scene of the bindings: elm_test.add_camera gives an entity the Camera component Lua cannot add.
+        Scene* g_fixtureScene { nullptr };
+        void AddCamera(const Entity& entity) { g_fixtureScene->Components<CameraComponent>().Emplace(entity.id); }
         void Store(lua::Ref value) { g_storedValue = std::move(value); }
         int RestoreRaw(lua_State* L)
         {
@@ -212,8 +218,9 @@ namespace elm::script {
             return 1;
         }
 
-        void RegisterFixtures(lua::State& state)
+        void RegisterFixtures(lua::State& state, Scene& scene)
         {
+            g_fixtureScene = &scene;
             lua::Module module(state, "elm_test");
             module
                 .Function<&Twice>("twice", { "value" })
@@ -233,6 +240,7 @@ namespace elm::script {
                 .Function<&Sum>("sum")
                 .Function<&Store>("store", { "value" })
                 .Function<&RestoreRaw>("restore")
+                .Function<&AddCamera>("add_camera", { "entity" })
                 .Function<[](int left, int right) { return left - right; }>("subtract", { "left", "right" })
                 .Function<[] { return Tracked::alive; }>("tracked_alive")
                 .Value("answer", 42)
@@ -1319,6 +1327,12 @@ namespace elm::script {
             const Collider capsule { .shape = ColliderShape::Capsule, .halfExtents = { 1.0f, 2.0f, 3.0f }, .radius = 0.4f, .halfHeight = 0.9f, .offset = { 0.0f, 1.0f, 0.0f }, .trigger = true };
             scene.Components<Collider>().Emplace(guard, capsule);
             scene.Components<Collider>().Emplace(target);
+            const CameraComponent camera { .fovDegrees = 45.0f, .nearPlane = 0.5f, .farPlane = 80.0f };
+            scene.Components<CameraComponent>().Emplace(target, camera);
+            scene.Components<CameraComponent>().Emplace(plain);
+            (void)scene.SetActiveCamera(plain);
+            const LightComponent light { .type = LightType::Spot, .color = { 1.0f, 0.5f, 0.25f, 1.0f }, .intensity = 2.0f, .range = 6.0f, .innerConeAngle = 10.0f, .outerConeAngle = 20.0f };
+            scene.Components<LightComponent>().Emplace(guard, light);
             // An Entity prop pointing at a node that is gone is saved as no entity
             scene.RemoveNode(gone);
             scene.UpdateWorldTransforms();
@@ -1337,7 +1351,7 @@ namespace elm::script {
                     "scene_file::readable_components", text.substr(text.find("\"components\"")));
                 // World transforms follow from the local ones and are not written
                 report.Check(text.find("worldTransform") == String::npos && text.find("\"Model\"") != String::npos
-                        && text.find("\"modelIndex\": 0") != String::npos && text.find("\"formatVersion\": 7") != String::npos
+                        && text.find("\"modelIndex\": 0") != String::npos && text.find("\"formatVersion\": 8") != String::npos
                         && text.find("\"path\": \"models/Cube.model\"") != String::npos,
                     "scene_file::model_is_a_component", text.substr(0, 400));
             }
@@ -1401,6 +1415,12 @@ namespace elm::script {
                     && colliders && colliders->Find(newGuard) && *colliders->Find(newGuard) == capsule && colliders->Find(newTarget)
                     && *colliders->Find(newTarget) == Collider {} && !colliders->Contains(newPlain) && !scripts->Contains(newPlain),
                 "scene_file::physics_components_round_trip");
+            const auto* cameras = restored.FindComponents<CameraComponent>();
+            const auto* lights = restored.FindComponents<LightComponent>();
+            report.Check(cameras && cameras->Size() == 2 && cameras->Find(newTarget) && *cameras->Find(newTarget) == camera
+                    && restored.ActiveCamera() == newPlain && lights
+                    && lights->Size() == 1 && lights->Find(newGuard) && *lights->Find(newGuard) == light,
+                "scene_file::camera_and_light_round_trip");
 
             // Hand-written files
             auto writeScene = [&](const char* name, int version, const char* components) {
@@ -3096,7 +3116,7 @@ namespace elm::script {
                 std::cout << "[FAIL] init: " << init.error().message << "\n";
                 return 1;
             }
-            RegisterFixtures(SelfTestAccess::State(system));
+            RegisterFixtures(SelfTestAccess::State(system), sceneSystem.EditScene());
 
             RunNativeTests(system, report);
             RunDebugBindingTests(system, debugDraw, report);
