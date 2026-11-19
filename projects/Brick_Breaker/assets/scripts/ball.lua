@@ -15,9 +15,11 @@ local Ball = {
 function Ball:on_start()
     self.held = true    
     self.paddle_entity = elm.scene.find(self.paddle)
+    self.game_entity = elm.scene.find(self.game)
 end
 
-function Ball:on_update(dt)
+function Ball:on_update(dt)    
+    if self.game_entity and self.game_entity.script and self.game_entity.script.over then return end
     if self.held == true then
         self.entity.position = self.paddle_entity.position + Vector3(0, 0, -0.4)    
         if input.is_pressed(input.key.Space) then
@@ -50,9 +52,9 @@ function Ball:on_update(dt)
     end
     if self.entity.position.z > self.lose_z then
         self.held = true
-        local game = elm.scene.find(self.game)
-        if game and game.script and game.script.ball_lost then
-            game.script:ball_lost()
+        
+        if self.game_entity and self.game_entity.script and self.game_entity.script.ball_lost then
+            self.game_entity.script:ball_lost()
         end
     end
 end

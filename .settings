@@ -10,6 +10,8 @@
       "Render/Debug/Draw/Physics/Contacts": true,
       "Render/Debug/Draw/Physics/Raycasts": true,
       "Render/Debug/Draw/Physics/Triggers": true,
+      "Render/Debug/Draw/Scene/Cameras": true,
+      "Render/Debug/Draw/Scene/Lights": true,
       "Render/Debug/Draw/Script/Default": true,
       "Render/culling/DepthBias": 0.0032999999821186066,
       "Render/culling/DepthFalseColor": true,

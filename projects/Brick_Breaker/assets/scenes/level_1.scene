@@ -1,5 +1,6 @@
 {
-   "formatVersion": 7,
+   "activeCamera": 53,
+   "formatVersion": 8,
    "models": [
       {
          "path": "models/life.model"
@@ -28,7 +29,9 @@
          "components": {
             "Script": {
                "module": "game",
-               "props": {}
+               "props": {
+                  "next_scene": "scenes/level_2.scene"
+               }
             }
          },
          "localTransform": [
@@ -3093,6 +3096,43 @@
             ]
          ],
          "name": "paddle",
+         "parentIndex": 0
+      },
+      {
+         "components": {
+            "Camera": {
+               "farPlane": 500,
+               "fovDegrees": 60,
+               "nearPlane": 0.2
+            }
+         },
+         "localTransform": [
+            [
+               -0.9999935626983643,
+               0.003303391858935356,
+               -0.0013841772451996803,
+               0.34660032391548157
+            ],
+            [
+               0,
+               -0.3864617645740509,
+               -0.9223054647445679,
+               12.688678741455078
+            ],
+            [
+               0.0035816673189401627,
+               0.9222996234893799,
+               -0.38645923137664795,
+               7.068995952606201
+            ],
+            [
+               0,
+               0,
+               0,
+               1
+            ]
+         ],
+         "name": "Camera",
          "parentIndex": 0
       }
    ]
