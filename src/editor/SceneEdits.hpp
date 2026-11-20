@@ -13,14 +13,15 @@
 #include "Scene/ScriptComponent.hpp"
 
 #include <optional>
+#include <span>
 #include <variant>
 
 namespace elm {
 
     /// The user's edits of the scene with undo and redo (docs/core/Системы.md#Правки сцены из редактора). The
     /// windows edit the scene themselves; the history finds what changed around each UI frame:
-    ///  - a node step: the watched node (the selected one) before and after, its name, local transform and
-    ///    components. While a widget stays held (a drag, typing, the gizmo) its edits go into one step;
+    ///  - a node step: the watched nodes (the selected ones) that changed, before and after: name, local transform
+    ///    and components. While a widget stays held (a drag, typing, the gizmo) its edits go into one step;
     ///  - a structure step: the whole scene before nodes were added, removed or moved (Scene::StructureRevision),
     ///    so undo brings removed nodes back with their ids.
     /// Node edits outside a UI frame (scripts) are not steps; a structure change between frames becomes one at the
@@ -41,10 +42,10 @@ namespace elm {
 
         /// Play freezes the history; when it thaws the scene as it is now is the start of the next step.
         void SetFrozen(bool frozen);
-        /// Before a UI frame: the node whose edits become node steps; an invalid id watches none.
-        void BeginFrame(NodeId watched);
+        /// Before a UI frame: the nodes whose edits become node steps; stale ids watch nothing.
+        void BeginFrame(std::span<const NodeId> watched);
         /// After the UI frame: what changed becomes a step. gestureHeld: a widget is still held, its next
-        /// edits of the same node go into the same step.
+        /// edits go into the same step.
         void EndFrame(bool gestureHeld);
 
         [[nodiscard]] bool CanUndo() const noexcept { return !m_frozen && !m_undo.empty(); }
@@ -76,10 +77,20 @@ namespace elm {
             bool operator==(const NodeState&) const = default;
         };
 
-        struct NodeStep {
+        struct NodeChange {
             NodeId node;
             NodeState before;
             NodeState after;
+        };
+
+        struct NodeStep {
+            Vector<NodeChange> changes;
+        };
+
+        /// A watched node as it was at the start of the frame.
+        struct WatchedNode {
+            NodeId node;
+            NodeState before;
         };
 
         /// The scene on the other side of the step: before it while it is done, after it while it is undone.
@@ -91,7 +102,9 @@ namespace elm {
 
         [[nodiscard]] static std::optional<NodeState> Capture(const Scene& scene, NodeId node);
         static void Apply(Scene& scene, NodeId node, const NodeState& state);
-        void RecordNode(const NodeState& after, bool gestureHeld);
+        void RecordNodes(Vector<NodeChange> changes, bool gestureHeld);
+        /// The watched nodes as they are now; the ones that went are watched no more.
+        void CaptureWatched();
         void Push(Step step);
         /// Undo or redo of one step; the step then belongs to the other side.
         void Reverse(Step& step, bool undo);
@@ -104,8 +117,7 @@ namespace elm {
         /// The scene at the start of the next step: the before of a structure step.
         Scene m_baseline;
         uint64_t m_baselineRevision { 0 };
-        NodeId m_watched;
-        std::optional<NodeState> m_watchedBefore;
+        Vector<WatchedNode> m_watched;
         /// The last node step takes the next edits of its node: the widget that made it is still held.
         bool m_gestureOpen { false };
         bool m_frozen { false };

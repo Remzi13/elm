@@ -64,16 +64,6 @@ namespace elm {
             return bounds.minBounds.x > bounds.maxBounds.x;
         }
 
-        void Merge(AABB& bounds, const AABB& other) noexcept
-        {
-            bounds.minBounds.x = (std::min)(bounds.minBounds.x, other.minBounds.x);
-            bounds.minBounds.y = (std::min)(bounds.minBounds.y, other.minBounds.y);
-            bounds.minBounds.z = (std::min)(bounds.minBounds.z, other.minBounds.z);
-            bounds.maxBounds.x = (std::max)(bounds.maxBounds.x, other.maxBounds.x);
-            bounds.maxBounds.y = (std::max)(bounds.maxBounds.y, other.maxBounds.y);
-            bounds.maxBounds.z = (std::max)(bounds.maxBounds.z, other.maxBounds.z);
-        }
-
         [[nodiscard]] String MakeFileName(const String& modelName)
         {
             String fileName;
@@ -123,7 +113,7 @@ namespace elm {
             target.indices.reserve(target.indices.size() + source.indices.size());
             for (const auto index : source.indices)
                 target.indices.push_back(index + offset);
-            Merge(target.localBounds, source.localBounds);
+            target.localBounds = target.localBounds.Merged(source.localBounds);
         }
 
         [[nodiscard]] size_t CountTriangles(const Model& model) noexcept

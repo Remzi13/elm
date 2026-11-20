@@ -10,7 +10,7 @@ namespace elm {
     class ModelCatalog;
     class Scene;
     class SceneEdits;
-    struct Selection;
+    class Selection;
 
     namespace script {
         struct PlayRequests;

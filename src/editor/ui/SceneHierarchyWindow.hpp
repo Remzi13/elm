@@ -80,7 +80,11 @@ namespace elm {
         /// A model file dropped from the Project window becomes a new root node.
         void AcceptDroppedModel();
 
+        /// Only this node, and the start of a range.
         void Select(NodeId node);
+        /// A click on a row: Ctrl adds or removes the node, Shift selects the visible rows from the range start.
+        void ClickRow(NodeId node, const Vector<TreeRow>& rows, const Vector<VisibleRow>& visible);
+        void SelectRange(NodeId node, const Vector<TreeRow>& rows, const Vector<VisibleRow>& visible);
         void StartRename(NodeId node);
         void DuplicateSelected(const math::Vector3& offset = { 1.0f, 0.0f, 0.0f });
         void SnapSelectedToGround();
@@ -95,6 +99,10 @@ namespace elm {
         Set<uint32_t> m_openRows;
         /// The node whose model shows or hides in the next frame, selected in this one.
         NodeId m_visibilityToggle;
+        /// The row clicked while the tree is drawn, selected after it.
+        NodeId m_clickedRow;
+        /// Where a Shift click starts: the row last clicked without Shift, the active node when it is not selected.
+        NodeId m_rangeAnchor;
         NodeId m_renaming;
         String m_renameText;
         /// The rename field took the focus: leaving it ends the rename.

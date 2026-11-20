@@ -16,6 +16,7 @@
 #include "Scene/Scene.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <optional>
@@ -52,6 +53,81 @@ namespace elm {
             if (enter > leave || enter <= 0.0f)
                 return std::nullopt;
             return enter;
+        }
+
+        /// The rectangle of the view the part of the bounds in front of the camera covers; nothing when all of it is
+        /// behind. The part is the corners in front and where the lines between corners cross the camera plane: clip
+        /// space is linear, so the crossings of the edges are among them, and the other crossings lie inside the part.
+        std::optional<ViewRect> ProjectBounds(const Matrix4x4& viewProjection, const AABB& bounds)
+        {
+            /// A point this near the camera plane is still in front of it, far out on the view.
+            constexpr float NearW = 1e-3f;
+            constexpr float Inf = std::numeric_limits<float>::max();
+            std::array<Vector4, 8> clip;
+            const auto corners = bounds.GetCorners();
+            std::transform(corners.begin(), corners.end(), clip.begin(), [&](const Vector3& corner) { return viewProjection.TransformPoint(corner); });
+            ViewRect covered { Inf, Inf, -Inf, -Inf };
+            bool inFront = false;
+            const auto cover = [&](const Vector4& point) {
+                inFront = true;
+                covered.minX = (std::min)(covered.minX, point.x / point.w);
+                covered.minY = (std::min)(covered.minY, point.y / point.w);
+                covered.maxX = (std::max)(covered.maxX, point.x / point.w);
+                covered.maxY = (std::max)(covered.maxY, point.y / point.w);
+            };
+            for (size_t from = 0; from < clip.size(); ++from) {
+                if (clip[from].w >= NearW)
+                    cover(clip[from]);
+                for (size_t to = from + 1; to < clip.size(); ++to) {
+                    if ((clip[from].w < NearW) != (clip[to].w < NearW))
+                        cover(clip[from] + (clip[to] - clip[from]) * ((NearW - clip[from].w) / (clip[to].w - clip[from].w)));
+                }
+            }
+            return inFront ? std::optional { covered } : std::nullopt;
+        }
+
+        /// Moves the node along world Y so its bottom sits on the surface below it (or y = 0 if nothing beneath).
+        bool SnapNodeToGround(Scene& scene, const ModelCatalog& models, NodeId node)
+        {
+            const auto found = NodeBounds(scene, models, node);
+            if (!found)
+                return false;
+            const AABB& nodeBounds = *found;
+            const auto* nodeModels = scene.FindComponents<ModelComponent>();
+            const float currentBottomY = nodeBounds.minBounds.y;
+
+            float groundY = 0.0f;
+            bool foundSurface = false;
+            float highestUnderneath = -1e9f;
+
+            const auto nodes = scene.Nodes();
+            for (size_t i = 0; i < nodes.size(); ++i) {
+                if (nodes[i].id == node)
+                    continue;
+                const ModelComponent* otherComp = nodeModels ? nodeModels->Find(nodes[i].id) : nullptr;
+                const Model* otherModel = otherComp && otherComp->visible ? models.Get(otherComp->model) : nullptr;
+                if (!otherModel || otherModel->submeshes.empty())
+                    continue;
+                const AABB otherBounds = otherModel->GetLocalBounds().Transformed(scene.WorldTransforms()[i]);
+                const bool overlapX = otherBounds.minBounds.x <= nodeBounds.maxBounds.x && otherBounds.maxBounds.x >= nodeBounds.minBounds.x;
+                const bool overlapZ = otherBounds.minBounds.z <= nodeBounds.maxBounds.z && otherBounds.maxBounds.z >= nodeBounds.minBounds.z;
+                if (overlapX && overlapZ && otherBounds.maxBounds.y <= currentBottomY + 0.05f) {
+                    if (otherBounds.maxBounds.y > highestUnderneath) {
+                        highestUnderneath = otherBounds.maxBounds.y;
+                        foundSurface = true;
+                    }
+                }
+            }
+            if (foundSurface)
+                groundY = highestUnderneath;
+
+            const float dy = groundY - currentBottomY;
+            if (std::abs(dy) < 1e-4f)
+                return false;
+
+            math::Matrix4x4 world = scene.WorldTransforms()[scene.IndexOf(node)];
+            world(1, 3) += dy;
+            return scene.SetWorldTransform(node, world);
         }
 
     } // namespace
@@ -114,20 +190,36 @@ namespace elm {
         return id;
     }
 
-    NodeId DuplicateNode(Scene& scene, NodeId source, const math::Vector3& offset)
+    Vector<NodeId> DuplicateNodes(Scene& scene, std::span<const NodeId> nodes, const math::Vector3& offset)
     {
-        const Scene::Node* found = scene.Find(source);
-        if (!found)
-            return {};
-        auto transform = found->localTransform;
-        transform(0, 3) += offset.x;
-        transform(1, 3) += offset.y;
-        transform(2, 3) += offset.z;
-        const String name = found->name + " Copy";
-        const NodeId parent = found->parent;
-        const NodeId copy = scene.AddNode(name, transform, parent);
-        scene.CopyComponents(source, copy);
-        return copy;
+        // A parent comes before its children in the scene: its copy is there when theirs are made
+        Vector<NodeId> sources;
+        std::copy_if(nodes.begin(), nodes.end(), std::back_inserter(sources), [&](NodeId node) { return scene.Find(node) != nullptr; });
+        std::sort(sources.begin(), sources.end(), [&](NodeId left, NodeId right) { return scene.IndexOf(left) < scene.IndexOf(right); });
+        UnorderedMap<uint32_t, NodeId> copies;
+        for (const NodeId source : sources) {
+            const Scene::Node& found = *scene.Find(source);
+            const auto parentCopy = copies.find(found.parent.Raw());
+            const bool underCopy = parentCopy != copies.end();
+            auto transform = found.localTransform;
+            // Under the parent's copy the place is the parent's offset already
+            if (!underCopy) {
+                transform(0, 3) += offset.x;
+                transform(1, 3) += offset.y;
+                transform(2, 3) += offset.z;
+            }
+            const String name = found.name + " Copy";
+            const NodeId parent = underCopy ? parentCopy->second : found.parent;
+            const NodeId copy = scene.AddNode(name, transform, parent);
+            scene.CopyComponents(source, copy);
+            copies.emplace(source.Raw(), copy);
+        }
+        Vector<NodeId> ordered;
+        for (const NodeId node : nodes) {
+            if (const auto copy = copies.find(node.Raw()); copy != copies.end())
+                ordered.push_back(copy->second);
+        }
+        return ordered;
     }
 
     Vector<NodeId> DuplicateNodeArray(Scene& scene, NodeId source, int countX, int countZ, float stepX, float stepZ)
@@ -157,61 +249,90 @@ namespace elm {
         return created;
     }
 
-    bool SnapNodeToGround(Scene& scene, const ModelCatalog& models, NodeId node)
+    bool SnapNodesToGround(Scene& scene, const ModelCatalog& models, std::span<const NodeId> nodes)
+    {
+        bool snapped = false;
+        for (const NodeId node : TopmostNodes(scene, nodes))
+            snapped = SnapNodeToGround(scene, models, node) || snapped;
+        return snapped;
+    }
+
+    NodeId RemoveNodesFromPlace(Scene& scene, std::span<const NodeId> nodes)
+    {
+        NodeId inPlace;
+        for (const NodeId node : nodes) {
+            const size_t removedIndex = scene.IndexOf(node);
+            if (removedIndex == Scene::NoNode)
+                continue;
+            (void)scene.RemoveNode(node);
+            inPlace = scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
+        }
+        return inPlace;
+    }
+
+    std::optional<AABB> NodeBounds(const Scene& scene, const ModelCatalog& models, NodeId node)
     {
         const size_t index = scene.IndexOf(node);
         if (index == Scene::NoNode)
-            return false;
-
+            return std::nullopt;
         const auto* nodeModels = scene.FindComponents<ModelComponent>();
-        const ModelComponent* comp = nodeModels ? nodeModels->Find(node) : nullptr;
-        const Model* model = comp ? models.Get(comp->model) : nullptr;
+        const ModelComponent* component = nodeModels ? nodeModels->Find(node) : nullptr;
+        const Model* model = component ? models.Get(component->model) : nullptr;
         const Vector3 extent { NodeWithoutModelExtent, NodeWithoutModelExtent, NodeWithoutModelExtent };
         const AABB local = model && !model->submeshes.empty() ? model->GetLocalBounds() : AABB { Vector3 {} - extent, extent };
-        const AABB nodeBounds = local.Transformed(scene.WorldTransforms()[index]);
-        const float currentBottomY = nodeBounds.minBounds.y;
-
-        float groundY = 0.0f;
-        bool foundSurface = false;
-        float highestUnderneath = -1e9f;
-
-        const auto nodes = scene.Nodes();
-        for (size_t i = 0; i < nodes.size(); ++i) {
-            if (nodes[i].id == node)
-                continue;
-            const ModelComponent* otherComp = nodeModels ? nodeModels->Find(nodes[i].id) : nullptr;
-            const Model* otherModel = otherComp && otherComp->visible ? models.Get(otherComp->model) : nullptr;
-            if (!otherModel || otherModel->submeshes.empty())
-                continue;
-            const AABB otherBounds = otherModel->GetLocalBounds().Transformed(scene.WorldTransforms()[i]);
-            const bool overlapX = otherBounds.minBounds.x <= nodeBounds.maxBounds.x && otherBounds.maxBounds.x >= nodeBounds.minBounds.x;
-            const bool overlapZ = otherBounds.minBounds.z <= nodeBounds.maxBounds.z && otherBounds.maxBounds.z >= nodeBounds.minBounds.z;
-            if (overlapX && overlapZ && otherBounds.maxBounds.y <= currentBottomY + 0.05f) {
-                if (otherBounds.maxBounds.y > highestUnderneath) {
-                    highestUnderneath = otherBounds.maxBounds.y;
-                    foundSurface = true;
-                }
-            }
-        }
-        if (foundSurface)
-            groundY = highestUnderneath;
-
-        const float dy = groundY - currentBottomY;
-        if (std::abs(dy) < 1e-4f)
-            return false;
-
-        math::Matrix4x4 world = scene.WorldTransforms()[index];
-        world(1, 3) += dy;
-        return scene.SetWorldTransform(node, world);
+        return local.Transformed(scene.WorldTransforms()[index]);
     }
 
-    NodeId RemoveNodeFromPlace(Scene& scene, NodeId node)
+    std::optional<AABB> GroupBounds(const Scene& scene, const ModelCatalog& models, std::span<const NodeId> nodes)
     {
-        const size_t removedIndex = scene.IndexOf(node);
-        if (removedIndex == Scene::NoNode)
-            return {};
-        (void)scene.RemoveNode(node);
-        return scene.IdOf((std::min)(removedIndex, scene.NodeCount() - 1));
+        AABB group;
+        bool found = false;
+        for (const NodeId node : nodes) {
+            if (const auto bounds = NodeBounds(scene, models, node)) {
+                group = group.Merged(*bounds);
+                found = true;
+            }
+        }
+        return found ? std::optional { group } : std::nullopt;
+    }
+
+    Vector<NodeId> TopmostNodes(const Scene& scene, std::span<const NodeId> nodes)
+    {
+        Set<uint32_t> among;
+        for (const NodeId node : nodes)
+            among.insert(node.Raw());
+        const auto isAmong = [&](NodeId node) { return among.contains(node.Raw()); };
+        Vector<NodeId> topmost;
+        for (const NodeId node : nodes) {
+            const Scene::Node* found = scene.Find(node);
+            if (!found)
+                continue;
+            bool underAnother = false;
+            for (const Scene::Node* ancestor = scene.Find(found->parent); ancestor && !underAnother; ancestor = scene.Find(ancestor->parent))
+                underAnother = isAmong(ancestor->id);
+            if (!underAnother)
+                topmost.push_back(node);
+        }
+        return topmost;
+    }
+
+    Vector<NodeId> PickNodesInRect(const Scene& scene, const ModelCatalog& models, const Matrix4x4& viewProjection, const ViewRect& rect)
+    {
+        Vector<NodeId> picked;
+        const auto* nodeModels = scene.FindComponents<ModelComponent>();
+        if (!nodeModels)
+            return picked;
+        const auto nodes = scene.Nodes();
+        for (size_t index = 0; index < nodes.size(); ++index) {
+            const ModelComponent* component = nodeModels->Find(nodes[index].id);
+            const Model* model = component && component->visible ? models.Get(component->model) : nullptr;
+            if (!model || model->submeshes.empty())
+                continue;
+            const auto covered = ProjectBounds(viewProjection, model->GetLocalBounds().Transformed(scene.WorldTransforms()[index]));
+            if (covered && covered->minX <= rect.maxX && covered->maxX >= rect.minX && covered->minY <= rect.maxY && covered->maxY >= rect.minY)
+                picked.push_back(nodes[index].id);
+        }
+        return picked;
     }
 
     NodeId PickNode(const Scene& scene, const ModelCatalog& models, const ViewRay& ray)
@@ -236,19 +357,13 @@ namespace elm {
         return picked;
     }
 
-    void FrameNode(Camera& camera, const Scene& scene, const ModelCatalog& models, NodeId node)
+    void FrameNodes(Camera& camera, const Scene& scene, const ModelCatalog& models, std::span<const NodeId> nodes)
     {
-        const size_t index = scene.IndexOf(node);
-        if (index == Scene::NoNode)
+        const auto bounds = GroupBounds(scene, models, nodes);
+        if (!bounds)
             return;
-        const auto* nodeModels = scene.FindComponents<ModelComponent>();
-        const ModelComponent* component = nodeModels ? nodeModels->Find(node) : nullptr;
-        const Model* model = component ? models.Get(component->model) : nullptr;
-        const Vector3 extent { NodeWithoutModelExtent, NodeWithoutModelExtent, NodeWithoutModelExtent };
-        const AABB local = model && !model->submeshes.empty() ? model->GetLocalBounds() : AABB { Vector3 {} - extent, extent };
-        const AABB bounds = local.Transformed(scene.WorldTransforms()[index]);
-        const float distance = bounds.GetExtent().Length() / std::sin(camera.fovRadians * 0.5f);
-        camera.SetPosition(bounds.GetCenter() - camera.GetForwardDirection() * distance);
+        const float distance = bounds->GetExtent().Length() / std::sin(camera.fovRadians * 0.5f);
+        camera.SetPosition(bounds->GetCenter() - camera.GetForwardDirection() * distance);
     }
 
     Collider FitColliderToModel(const Model* model)

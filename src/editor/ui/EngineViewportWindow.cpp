@@ -8,6 +8,7 @@
 #include "core/Log.hpp"
 #include "graphics/Camera.hpp"
 #include "graphics/debug/DebugDraw.hpp"
+#include "math/Rotation.hpp"
 #include "render/ViewPort.hpp"
 #include "Scene/ModelComponent.hpp"
 #include "Scene/Scene.hpp"
@@ -15,6 +16,7 @@
 #include "imgui.h"
 
 #include <span>
+#include <utility>
 
 namespace elm {
 
@@ -29,6 +31,8 @@ namespace elm {
             return reinterpret_cast<ImTextureID>(value);
         }
 
+        /// The fill of the selection rectangle over the view, its border is opaque.
+        constexpr float MarqueeFillAlpha = 0.15f;
         /// Icons of the view menu: symbols of the icon font (EditorStyle), in UTF-8, with the id after ###.
         constexpr const char* MenuIcon = "\xE2\x98\xB0###ViewMenu";      // U+2630
         constexpr const char* MoveIcon = "\xE2\x9C\xA5###Move";          // U+2725
@@ -105,6 +109,8 @@ namespace elm {
         render::ViewPort& viewPort = m_deps.viewPort;
         m_hovered = false;
         m_focused = false;
+        // Comes back only on a frame that shows the view: a hidden one would end it with a pick of its own
+        const std::optional<ImVec2> marqueeStart = std::exchange(m_marqueeStart, std::nullopt);
         if (!m_visible) return;
 
         ImGui::SetNextWindowPos(ImVec2(460.0f, 10.0f), ImGuiCond_FirstUseEver);
@@ -121,7 +127,7 @@ namespace elm {
         if (m_focused && !playing)
             HandleKeys();
 
-        const Scene::Node* selected = scene.Find(m_deps.selection.node);
+        const Scene::Node* selected = scene.Find(m_deps.selection.Active());
         // A node the user hid gets no gizmo; a node without a model is not hidden
         const auto* nodeModels = scene.FindComponents<ModelComponent>();
         const ModelComponent* selectedModel = selected && nodeModels ? nodeModels->Find(selected->id) : nullptr;
@@ -151,11 +157,17 @@ namespace elm {
 
                 const graphics::GizmoInput input = ReadGizmoInput(camera, imagePosition, available, m_hovered);
                 if (selectedShown)
-                    UpdateGizmo(selected->id, input);
+                    UpdateGizmo(input);
                 else if (m_gizmo)
                     m_gizmo->Reset();
+                // In Play the mouse is the game's
+                if (!playing)
+                    m_marqueeStart = marqueeStart;
                 if (m_hovered && !playing)
                     HandleMouse(input);
+                // The drag goes on outside the view
+                if (m_marqueeStart)
+                    UpdateMarquee(input, imagePosition, available);
             }
         }
         ImGui::End();
@@ -321,11 +333,54 @@ namespace elm {
         else if (ImGui::IsKeyPressed(ImGuiKey_R, false))
             gizmo.operation = GizmoOperation::Scale;
         else if (ImGui::IsKeyPressed(ImGuiKey_F, false))
-            FrameNode(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.node);
+            FrameNodes(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.Nodes());
         else if (ImGui::IsKeyPressed(ImGuiKey_End, false))
-            SnapNodeToGround(m_deps.scene, m_deps.models, m_deps.selection.node);
+            SnapNodesToGround(m_deps.scene, m_deps.models, m_deps.selection.Nodes());
         else if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
             m_deps.pilot.Stop();
+    }
+
+    void EngineViewportWindow::UpdateMarquee(const graphics::GizmoInput& input, ImVec2 imagePosition, ImVec2 size)
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        const ImVec2 start = *m_marqueeStart;
+        const ImVec2 end = io.MousePos;
+        const ImVec2 min((std::min)(start.x, end.x), (std::min)(start.y, end.y));
+        const ImVec2 max((std::max)(start.x, end.x), (std::max)(start.y, end.y));
+        const bool dragged = max.x - min.x > io.MouseDragThreshold || max.y - min.y > io.MouseDragThreshold;
+        if (input.down) {
+            if (dragged) {
+                ImDrawList* drawList = ImGui::GetWindowDrawList();
+                drawList->AddRectFilled(min, max, ImGui::GetColorU32(ImGuiCol_DragDropTarget, MarqueeFillAlpha));
+                drawList->AddRect(min, max, ImGui::GetColorU32(ImGuiCol_DragDropTarget));
+            }
+            return;
+        }
+        m_marqueeStart.reset();
+        if (!dragged) {
+            const NodeId picked = PickNode(m_deps.scene, m_deps.models, input.ray);
+            SelectPicked(picked ? std::span { &picked, 1 } : std::span<const NodeId> {}, false);
+            return;
+        }
+        // Screen y goes down, NDC y up
+        const auto ndcX = [&](float x) { return (x - imagePosition.x) / size.x * 2.0f - 1.0f; };
+        const auto ndcY = [&](float y) { return 1.0f - (y - imagePosition.y) / size.y * 2.0f; };
+        const ViewRect rect { ndcX(min.x), ndcY(max.y), ndcX(max.x), ndcY(min.y) };
+        SelectPicked(PickNodesInRect(m_deps.scene, m_deps.models, m_deps.camera.GetViewProjectionMatrix(), rect), true);
+    }
+
+    void EngineViewportWindow::SelectPicked(std::span<const NodeId> picked, bool dragged)
+    {
+        Selection& selection = m_deps.selection;
+        // A Ctrl click past every node keeps the selection
+        if (!ImGui::GetIO().KeyCtrl) {
+            selection.Clear();
+        } else if (!dragged && !picked.empty() && selection.Contains(picked.front())) {
+            selection.Remove(picked.front());
+            return;
+        }
+        for (const NodeId node : picked)
+            selection.Add(node);
     }
 
     void EngineViewportWindow::HandleMouse(const graphics::GizmoInput& input)
@@ -333,7 +388,7 @@ namespace elm {
         // A press on a handle of the gizmo is its drag, not a pick
         const bool onGizmo = m_gizmo && (m_gizmo->IsDragging() || m_gizmo->GetHovered() != graphics::GizmoAxis::None);
         if (input.pressed && !onGizmo)
-            m_deps.selection.node = PickNode(m_deps.scene, m_deps.models, input.ray);
+            m_marqueeStart = ImGui::GetIO().MousePos;
         if (const float wheel = ImGui::GetIO().MouseWheel; wheel != 0.0f) {
             if (ImGui::IsMouseDown(ImGuiMouseButton_Right)) {
                 constexpr float SpeedFactor = 1.25f;
@@ -345,7 +400,7 @@ namespace elm {
         }
     }
 
-    void EngineViewportWindow::UpdateGizmo(NodeId node, const graphics::GizmoInput& input)
+    void EngineViewportWindow::UpdateGizmo(const graphics::GizmoInput& input)
     {
         if (!m_gizmo)
             m_gizmo.emplace(m_deps.debugDraw);
@@ -354,16 +409,57 @@ namespace elm {
             m_gizmo->Reset();
             return;
         }
-        Scene& scene = m_deps.scene;
-        const Matrix4x4& world = scene.WorldTransforms()[scene.IndexOf(node)];
+        const bool wasDragging = m_gizmo->IsDragging();
+        if (!wasDragging)
+            m_gizmoTarget.handles = m_gizmoTarget.start = FindGizmoPivot();
         GizmoSettings effectiveSettings = m_deps.gizmo;
         if (ImGui::GetIO().KeyCtrl)
             effectiveSettings.snap = !effectiveSettings.snap;
-        if (const auto moved = m_gizmo->Update(world, effectiveSettings, input); moved && !scene.SetWorldTransform(node, *moved)) {
-            ERROR_MESSAGE(log::Category::Core, "EngineViewportWindow",
-                "Unable to update the selected node transform because its parent transform is singular");
+        const auto moved = m_gizmo->Update(m_gizmoTarget.handles, effectiveSettings, input);
+        // The nodes as the drag found them: every frame of it moves them from there
+        if (!wasDragging && m_gizmo->IsDragging()) {
+            const Scene& scene = m_deps.scene;
+            m_gizmoTarget.nodes.clear();
+            for (const NodeId node : TopmostNodes(scene, m_deps.selection.Nodes()))
+                m_gizmoTarget.nodes.push_back(NodeStart { node, scene.WorldTransforms()[scene.IndexOf(node)] });
         }
+        if (moved)
+            MoveGizmoTarget(*moved);
         m_gizmo->Draw(m_deps.debugDraw);
+    }
+
+    Matrix4x4 EngineViewportWindow::FindGizmoPivot() const
+    {
+        const Scene& scene = m_deps.scene;
+        const auto selected = m_deps.selection.Nodes();
+        Matrix4x4 pivot = scene.WorldTransforms()[scene.IndexOf(m_deps.selection.Active())];
+        const auto group = selected.size() > 1 ? GroupBounds(scene, m_deps.models, selected) : std::nullopt;
+        if (group) {
+            const Vector3 center = group->GetCenter();
+            pivot(0, 3) = center.x;
+            pivot(1, 3) = center.y;
+            pivot(2, 3) = center.z;
+        }
+        return pivot;
+    }
+
+    void EngineViewportWindow::MoveGizmoTarget(const Matrix4x4& handles)
+    {
+        m_gizmoTarget.handles = handles;
+        const auto startInverse = math::Inverse(m_gizmoTarget.start);
+        bool moved = true;
+        for (const NodeStart& start : m_gizmoTarget.nodes) {
+            // The node the handles stand on goes exactly with them: a snapped move lands it on the grid
+            const bool onHandles = start.world == m_gizmoTarget.start;
+            if (!onHandles && !startInverse) {
+                moved = false;
+                continue;
+            }
+            const Matrix4x4 world = onHandles ? handles : handles * *startInverse * start.world;
+            moved = m_deps.scene.SetWorldTransform(start.node, world) && moved;
+        }
+        if (!moved)
+            ERROR_MESSAGE(log::Category::Core, "EngineViewportWindow", "Unable to move a selected node: a transform is singular");
     }
 
 } // namespace elm

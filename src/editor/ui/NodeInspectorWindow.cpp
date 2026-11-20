@@ -248,8 +248,10 @@ namespace elm {
         if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
             HandleSceneEditShortcuts(m_deps.edits, m_deps.sceneFile);
 
-        const NodeId node = m_deps.selection.node;
+        const NodeId node = m_deps.selection.Active();
         if (m_deps.scene.Find(node)) {
+            if (const size_t selected = m_deps.selection.Nodes().size(); selected > 1)
+                ImGui::TextDisabled("%zu nodes selected, the active one is shown", selected);
             DrawNodeRows(node);
             DrawTransformSection(node);
             DrawModelSection(node);
@@ -292,9 +294,9 @@ namespace elm {
         // In Play the camera is the game's
         ImGui::BeginDisabled(IsPlaying());
         if (ImGui::Button(FrameButton, square))
-            FrameNode(m_deps.camera, scene, m_deps.models, node);
+            FrameNodes(m_deps.camera, scene, m_deps.models, std::span { &node, 1 });
         ImGui::EndDisabled();
-        ImGui::SetItemTooltip("Bring the node into the view (F in the viewport and the tree)");
+        ImGui::SetItemTooltip("Bring the node into the view (F in the viewport and the tree brings the whole selection)");
 
         ImGui::AlignTextToFramePadding();
         ImGui::TextDisabled("%s", ParentIcon);

@@ -5,6 +5,8 @@
 #include "math/Matrix.hpp"
 #include "math/Vector.hpp"
 
+#include <algorithm>
+
 namespace elm {
     using namespace math;
 
@@ -44,6 +46,13 @@ namespace elm {
         [[nodiscard]] constexpr Vector3 GetExtent() const noexcept
         {
             return (maxBounds - minBounds) * 0.5f;
+        }
+
+        /// The bounds of both; an empty one adds nothing.
+        [[nodiscard]] constexpr AABB Merged(const AABB& other) const noexcept
+        {
+            return { { (std::min)(minBounds.x, other.minBounds.x), (std::min)(minBounds.y, other.minBounds.y), (std::min)(minBounds.z, other.minBounds.z) },
+                { (std::max)(maxBounds.x, other.maxBounds.x), (std::max)(maxBounds.y, other.maxBounds.y), (std::max)(maxBounds.z, other.maxBounds.z) } };
         }
 
         [[nodiscard]] std::array<Vector3, 8> GetCorners() const noexcept

@@ -9,6 +9,8 @@ engine_add_executable(editor
     SceneEdits.cpp
     SceneDocument.hpp
     SceneDocument.cpp
+    SelectionVisualizer.hpp
+    SelectionVisualizer.cpp
     NodeEditing.hpp
     NodeEditing.cpp
     EditorSelfTest.hpp
@@ -55,6 +57,8 @@ engine_add_executable(editor
     ui/SceneHierarchyWindow.hpp
     ui/SceneMenu.cpp
     ui/SceneMenu.hpp
+    ui/Selection.cpp
+    ui/Selection.hpp
     ui/SettingsWindow.cpp
     ui/SettingsWindow.hpp
     ui/SocLabWindow.cpp

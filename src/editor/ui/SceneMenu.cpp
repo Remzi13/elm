@@ -87,13 +87,13 @@ namespace elm {
             (void)m_edits->Redo();
         ImGui::Separator();
         // No shortcuts shown: Ctrl+D and Del are Scene Hierarchy's, while it has the focus
-        const bool selected = m_scene && m_selection && m_scene->Find(m_selection->node);
+        const bool selected = m_scene && m_selection && m_scene->Find(m_selection->Active());
         if (ImGui::MenuItem("Duplicate", nullptr, false, selected)) {
-            m_selection->node = DuplicateNode(*m_scene, m_selection->node);
-            m_document->Report(SceneStatus::Kind::Info, "Duplicated node.");
+            m_selection->Select(DuplicateNodes(*m_scene, m_selection->Nodes()));
+            m_document->Report(SceneStatus::Kind::Info, "Duplicated.");
         }
         if (ImGui::MenuItem("Delete", nullptr, false, selected))
-            m_selection->node = RemoveNodeFromPlace(*m_scene, m_selection->node);
+            m_selection->Select(RemoveNodesFromPlace(*m_scene, m_selection->Nodes()));
         ImGui::EndMenu();
     }
 

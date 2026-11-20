@@ -21,14 +21,8 @@ namespace elm {
     {
         AABB bounds;
         for (const auto& submesh : submeshes) {
-            if (const auto& data = submesh.data) {
-                bounds.minBounds.x = std::min(bounds.minBounds.x, data->localBounds.minBounds.x);
-                bounds.minBounds.y = std::min(bounds.minBounds.y, data->localBounds.minBounds.y);
-                bounds.minBounds.z = std::min(bounds.minBounds.z, data->localBounds.minBounds.z);
-                bounds.maxBounds.x = std::max(bounds.maxBounds.x, data->localBounds.maxBounds.x);
-                bounds.maxBounds.y = std::max(bounds.maxBounds.y, data->localBounds.maxBounds.y);
-                bounds.maxBounds.z = std::max(bounds.maxBounds.z, data->localBounds.maxBounds.z);
-            }
+            if (const auto& data = submesh.data)
+                bounds = bounds.Merged(data->localBounds);
         }
         return bounds;
     }

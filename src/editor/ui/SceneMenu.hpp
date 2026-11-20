@@ -11,7 +11,7 @@ namespace elm {
     class Scene;
     class SceneDocument;
     class SceneEdits;
-    struct Selection;
+    class Selection;
 
     namespace project {
         class Project;

@@ -25,6 +25,7 @@
 
 #include "editor/ProjectHubWindow.hpp"
 #include "editor/ProjectWindow.hpp"
+#include "editor/SelectionVisualizer.hpp"
 
 #include "platform/Process.hpp"
 
@@ -184,8 +185,10 @@ namespace elm {
         // frame, the keys from the input the last Simulate dispatched
         m_cameraController.SetViewportState(m_imgui->IsSceneViewportHovered(), m_imgui->IsSceneViewportFocused());
         m_cameraController.SetEnabled(!m_scripts.GetPlayMode().IsPlaying());
+        // Undo, scripts and Play/Stop remove nodes between the frames of the windows
+        m_selection.DropRemoved(m_scene.GetScene());
         // Piloting is an edit of the selected camera node: Play and another selection end it
-        if (m_scripts.GetPlayMode().IsPlaying() || m_selection.node != m_pilot.Piloted())
+        if (m_scripts.GetPlayMode().IsPlaying() || m_selection.Active() != m_pilot.Piloted())
             m_pilot.Stop();
         m_pilot.FollowNode();
         m_cameraController.Update(deltaTime);
@@ -361,7 +364,7 @@ namespace elm {
         m_frameStats = { m_clock.GetFps(), m_clock.GetAverageFrameMs(), m_physics.GetNumBodies() };
         // Edits of the selected node and of the structure become history steps; Play freezes it
         m_edits.SetFrozen(m_scripts.GetPlayMode().IsPlaying());
-        m_edits.BeginFrame(m_selection.node);
+        m_edits.BeginFrame(m_selection.Nodes());
         m_imgui->BuildFrame(frame);
         // After the windows: the view menu and the wheel move the view too
         m_pilot.FollowView();
@@ -376,6 +379,8 @@ namespace elm {
         m_debugDraw.AddVisualizer(MakeUnique<graphics::ColliderVisualizer>(m_scene.GetScene(), debugDraw));
         m_debugDraw.AddVisualizer(MakeUnique<graphics::PhysicsVisualizer>(m_physics.FrameLog(), debugDraw));
         m_debugDraw.AddVisualizer(MakeUnique<graphics::CameraAndLightVisualizer>(m_scene.GetScene(), m_graphics.GetViewCamera(), debugDraw));
+        m_debugDraw.AddVisualizer(MakeUnique<SelectionVisualizer>(
+            SelectionVisualizerDeps { m_scene.GetScene(), m_resources.GetModels(), m_selection, m_pilot }, debugDraw));
     }
 
     void Editor::CreateEditorWindows()

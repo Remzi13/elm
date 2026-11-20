@@ -70,7 +70,7 @@ namespace elm {
         m_deps.models.Clear();
         // The steps are about the nodes and models that went
         m_deps.edits.Clear();
-        m_deps.selection.node = NodeId {};
+        m_deps.selection.Clear();
         m_file = UnusedFile();
         Report(Kind::Info, "New scene " + ShownName() + ".");
     }
@@ -90,7 +90,7 @@ namespace elm {
         (void)m_deps.scene.Append(std::move(*result), handlers);
         // The steps are about the nodes and models of the scene before
         m_deps.edits.Clear();
-        m_deps.selection.node = NodeId {};
+        m_deps.selection.Clear();
         m_file = file;
         Report(Kind::Success, "Scene loaded from " + PathText(file) + ".");
     }
@@ -132,7 +132,7 @@ namespace elm {
         const auto handlers = m_deps.models.InsertAll(std::move(result->models), result->modelFiles);
         const auto newIds = m_deps.scene.Append(std::move(*result), handlers);
         if (!newIds.empty())
-            m_deps.selection.node = newIds.front();
+            m_deps.selection.Select(newIds.front());
         Report(Kind::Success, "glTF scene imported from " + String(file.Filename().c_str()) + ".");
     }
 

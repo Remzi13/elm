@@ -145,10 +145,10 @@ namespace elm {
     void SceneHierarchyWindow::HandleKeys()
     {
         const ImGuiIO& io = ImGui::GetIO();
-        if (io.WantTextInput || !m_deps.scene.Find(m_deps.selection.node))
+        if (io.WantTextInput || !m_deps.scene.Find(m_deps.selection.Active()))
             return;
         if (ImGui::IsKeyPressed(ImGuiKey_F2, false))
-            StartRename(m_deps.selection.node);
+            StartRename(m_deps.selection.Active());
         else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
             RemoveSelected();
         else if (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_D, false))
@@ -159,7 +159,7 @@ namespace elm {
             SnapSelectedToGround();
         // In Play the camera is the game's
         else if (!io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false) && !(m_deps.play.isPlaying && m_deps.play.isPlaying()))
-            FrameNode(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.node);
+            FrameNodes(m_deps.camera, m_deps.scene, m_deps.models, m_deps.selection.Nodes());
     }
 
     void SceneHierarchyWindow::DrawToolbar()
@@ -248,6 +248,11 @@ namespace elm {
             }
             ImGui::EndTable();
         }
+        // After the rows: a Shift click selects the visible rows between two
+        if (m_clickedRow) {
+            ClickRow(m_clickedRow, rows, visible);
+            m_clickedRow = NodeId {};
+        }
         DrawEmptySpace();
         ImGui::EndChild();
     }
@@ -257,8 +262,12 @@ namespace elm {
         const TreeRow& row = rows[visible.row];
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
-        if (m_deps.selection.node == row.id)
-            ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(ImGuiCol_Header));
+        // Among several selected rows the active one, which Inspector shows, is brighter
+        const Selection& selection = m_deps.selection;
+        if (selection.Contains(row.id)) {
+            const bool marksActive = selection.Nodes().size() > 1 && selection.Active() == row.id;
+            ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImGui::GetColorU32(marksActive ? ImGuiCol_HeaderActive : ImGuiCol_Header));
+        }
 
         const float indent = static_cast<float>(visible.depth) * ImGui::GetTreeNodeToLabelSpacing();
         if (visible.depth > 0)
@@ -292,11 +301,16 @@ namespace elm {
             return hovered;
         };
         // What a node without a model shows is not its own to hide
+        bool overEye = false;
         if (row.hasComponent[ModelChip]) {
-            const bool overEye = row.isHidden ? drawIcon(0, HiddenIcon, ImGuiCol_TextDisabled, "Hidden: click to show")
-                                              : drawIcon(0, ShownIcon, ImGuiCol_Text, "Shown: click to hide");
-            if (overEye && clicked)
-                m_visibilityToggle = row.id;
+            overEye = row.isHidden ? drawIcon(0, HiddenIcon, ImGuiCol_TextDisabled, "Hidden: click to show")
+                                   : drawIcon(0, ShownIcon, ImGuiCol_Text, "Shown: click to hide");
+        }
+        // The eye changes what shows, not what is selected: a selected row keeps the others, Ctrl and Shift aside
+        if (overEye && clicked) {
+            m_visibilityToggle = row.id;
+            if (!m_deps.selection.Contains(row.id))
+                Select(row.id);
         }
         for (size_t chip = 0; chip < ComponentChips.size(); ++chip) {
             if (!row.hasComponent[chip])
@@ -308,8 +322,8 @@ namespace elm {
         }
         const ImVec2 cellMax(cellMin.x + slot * static_cast<float>(RowIconCount), cellMin.y + height);
         // The icons are a part of the row
-        if (clicked && ImGui::IsMouseHoveringRect(cellMin, cellMax))
-            Select(row.id);
+        if (clicked && !overEye && ImGui::IsMouseHoveringRect(cellMin, cellMax))
+            m_clickedRow = row.id;
         ImGui::Dummy(ImVec2(cellMax.x - cellMin.x, height));
     }
 
@@ -335,9 +349,9 @@ namespace elm {
                 m_openRows.erase(row.id.Raw());
         }
         if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
-            Select(row.id);
+            m_clickedRow = row.id;
         if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !(m_deps.play.isPlaying && m_deps.play.isPlaying()))
-            FrameNode(m_deps.camera, m_deps.scene, m_deps.models, row.id);
+            FrameNodes(m_deps.camera, m_deps.scene, m_deps.models, std::span { &row.id, 1 });
 
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None)) {
             ImGui::SetDragDropPayload(NodeDragPayload, &row.id, sizeof(NodeId));
@@ -390,7 +404,11 @@ namespace elm {
     {
         if (!ImGui::BeginPopupContextItem())
             return;
-        Select(row.id);
+        // The menu is about the row: a selected row keeps the others and becomes active
+        if (m_deps.selection.Contains(row.id))
+            m_deps.selection.Add(row.id);
+        else
+            Select(row.id);
         ImGui::TextDisabled("%s", row.name.c_str());
         ImGui::Separator();
         if (ImGui::MenuItem("Open Inspector"))
@@ -428,7 +446,7 @@ namespace elm {
         ImGui::Dummy(ImVec2(emptySpace.x, (std::max)(emptySpace.y, ImGui::GetFrameHeight())));
         if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left)
             && ImGui::IsMouseHoveringRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax()))
-            m_deps.selection.node = NodeId {};
+            m_deps.selection.Clear();
         if (ImGui::BeginDragDropTarget()) {
             if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(NodeDragPayload)) {
                 NodeId draggedId;
@@ -524,7 +542,51 @@ namespace elm {
     {
         if (m_renaming != node)
             m_renaming = NodeId {};
-        m_deps.selection.node = node;
+        m_deps.selection.Select(node);
+        m_rangeAnchor = node;
+    }
+
+    void SceneHierarchyWindow::ClickRow(NodeId node, const Vector<TreeRow>& rows, const Vector<VisibleRow>& visible)
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        Selection& selection = m_deps.selection;
+        if (io.KeyShift) {
+            SelectRange(node, rows, visible);
+        } else if (io.KeyCtrl) {
+            m_renaming = NodeId {};
+            m_rangeAnchor = node;
+            if (selection.Contains(node))
+                selection.Remove(node);
+            else
+                selection.Add(node);
+        } else {
+            Select(node);
+        }
+    }
+
+    void SceneHierarchyWindow::SelectRange(NodeId node, const Vector<TreeRow>& rows, const Vector<VisibleRow>& visible)
+    {
+        const auto position = [&](NodeId id) {
+            return std::find_if(visible.begin(), visible.end(), [&](const VisibleRow& row) { return rows[row.row].id == id; });
+        };
+        // A selection made elsewhere (the viewport, Undo) starts from its active node
+        const auto anchor = position(m_deps.selection.Contains(m_rangeAnchor) ? m_rangeAnchor : m_deps.selection.Active());
+        const auto clicked = position(node);
+        // An anchor that went or hides under a closed row starts no range
+        if (anchor == visible.end() || clicked == visible.end()) {
+            Select(node);
+            return;
+        }
+        m_renaming = NodeId {};
+        Selection& selection = m_deps.selection;
+        selection.Clear();
+        // Towards the clicked row: it ends up active, the anchor stays for the next Shift click
+        const ptrdiff_t step = clicked >= anchor ? 1 : -1;
+        for (auto row = anchor;; row += step) {
+            selection.Add(rows[row->row].id);
+            if (row == clicked)
+                break;
+        }
     }
 
     void SceneHierarchyWindow::StartRename(NodeId node)
@@ -539,14 +601,15 @@ namespace elm {
 
     void SceneHierarchyWindow::DuplicateSelected(const math::Vector3& offset)
     {
-        m_deps.selection.node = DuplicateNode(m_deps.scene, m_deps.selection.node, offset);
-        m_deps.document.Report(StatusKind::Info, "Duplicated node.");
+        const Vector<NodeId> copies = DuplicateNodes(m_deps.scene, m_deps.selection.Nodes(), offset);
+        m_deps.selection.Select(copies);
+        m_deps.document.Report(StatusKind::Info, copies.size() == 1 ? String("Duplicated node.") : "Duplicated " + String(std::to_string(copies.size()).c_str()) + " nodes.");
     }
 
     void SceneHierarchyWindow::SnapSelectedToGround()
     {
-        if (SnapNodeToGround(m_deps.scene, m_deps.models, m_deps.selection.node))
-            m_deps.document.Report(StatusKind::Info, "Snapped node to ground.");
+        if (SnapNodesToGround(m_deps.scene, m_deps.models, m_deps.selection.Nodes()))
+            m_deps.document.Report(StatusKind::Info, "Snapped to ground.");
     }
 
     void SceneHierarchyWindow::DrawDuplicateArrayDialog()
@@ -566,7 +629,7 @@ namespace elm {
             if (m_arrayCountZ < 1) m_arrayCountZ = 1;
 
             if (ImGui::Button("Create", ImVec2(120, 0))) {
-                const auto created = DuplicateNodeArray(m_deps.scene, m_deps.selection.node, m_arrayCountX, m_arrayCountZ, m_arrayStepX, m_arrayStepZ);
+                const auto created = DuplicateNodeArray(m_deps.scene, m_deps.selection.Active(), m_arrayCountX, m_arrayCountZ, m_arrayStepX, m_arrayStepZ);
                 m_deps.document.Report(StatusKind::Info, String("Created ") + std::to_string(created.size()).c_str() + " array nodes.");
                 ImGui::CloseCurrentPopup();
             }
@@ -580,7 +643,7 @@ namespace elm {
 
     void SceneHierarchyWindow::RemoveSelected()
     {
-        m_deps.selection.node = RemoveNodeFromPlace(m_deps.scene, m_deps.selection.node);
+        m_deps.selection.Select(RemoveNodesFromPlace(m_deps.scene, m_deps.selection.Nodes()));
     }
 
 } // namespace elm

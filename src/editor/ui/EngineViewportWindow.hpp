@@ -11,6 +11,7 @@
 #include "imgui.h"
 
 #include <optional>
+#include <span>
 namespace elm {
 
     class Camera;
@@ -74,10 +75,33 @@ namespace elm {
         void DrawDebugSection();
         /// W, E, R and F. Not with the right mouse button: the fly camera has WASD and QE then.
         void HandleKeys();
-        /// Moves the selected node with the gizmo and draws the gizmo.
-        void UpdateGizmo(NodeId node, const graphics::GizmoInput& input);
-        /// The mouse over the image in Edit: a click selects, the wheel moves the camera.
+        /// A node the gizmo moves and its world transform when the drag began.
+        struct NodeStart {
+            NodeId node;
+            math::Matrix4x4 world;
+        };
+        /// What the gizmo moves: the topmost selected nodes, found when the drag begins.
+        struct GizmoTarget {
+            Vector<NodeStart> nodes;
+            /// Where the handles stood when the drag began, and where they are now.
+            math::Matrix4x4 start;
+            math::Matrix4x4 handles;
+        };
+
+        /// Moves the selected nodes with the gizmo and draws the gizmo.
+        void UpdateGizmo(const graphics::GizmoInput& input);
+        /// Where the handles stand: on the active node, for several nodes in the middle of their bounds, turned as
+        /// the active node.
+        [[nodiscard]] math::Matrix4x4 FindGizmoPivot() const;
+        /// Every node goes along with the handles: by the change from where they began.
+        void MoveGizmoTarget(const math::Matrix4x4& handles);
+        /// The mouse over the image in Edit: a press starts a selection, the wheel moves the camera.
         void HandleMouse(const graphics::GizmoInput& input);
+        /// The left button since a press on the view: a drag draws a rectangle, the release selects what is in it,
+        /// or, without a drag, the node under the mouse. Ctrl adds to the selection.
+        void UpdateMarquee(const graphics::GizmoInput& input, ImVec2 imagePosition, ImVec2 size);
+        /// Selects the nodes the release found: alone, or with Ctrl added (a click toggles its node).
+        void SelectPicked(std::span<const NodeId> picked, bool dragged);
 
         EngineViewportDeps m_deps;
 
@@ -86,6 +110,10 @@ namespace elm {
         bool m_debugSectionOpen { false };
         bool m_hovered { false };
         bool m_focused { false };
+        /// Where the left button went down on the view, in screen pixels, until it goes up.
+        std::optional<ImVec2> m_marqueeStart;
+        /// The handles follow the selection on every frame without a drag; a drag moves the nodes from where it began.
+        GizmoTarget m_gizmoTarget;
         /// Made on the first frame with a selection: it registers its debug draw channel.
         std::optional<graphics::TransformGizmo> m_gizmo;
     };

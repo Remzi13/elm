@@ -3,6 +3,8 @@
 #include "core/Error.hpp"
 #include "core/FileSystem.hpp"
 
+#include "editor/ui/Selection.hpp"
+
 #include "model/ModelHandler.hpp"
 
 #include "Scene/NodeId.hpp"
@@ -12,12 +14,6 @@
 #include <functional>
 
 namespace elm {
-
-    /// The node Scene Hierarchy marks, Inspector shows and the viewport's gizmo moves; a click in the tree or on the
-    /// view selects it. Invalid when nothing is selected; a node that went finds nothing, like any stale NodeId. Owner: Editor. Thread: update (UI).
-    struct Selection {
-        NodeId node;
-    };
 
     /// Opens files and models in the window that edits them. Editor fills it when it makes the project
     /// windows and empties it before they close: an empty function opens nothing. Thread: update (UI).

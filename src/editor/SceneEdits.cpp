@@ -1,5 +1,6 @@
 #include "editor/SceneEdits.hpp"
 
+#include <algorithm>
 #include <utility>
 
 namespace elm {
@@ -40,10 +41,22 @@ namespace elm {
             Rebaseline();
     }
 
-    void SceneEdits::BeginFrame(NodeId watched)
+    void SceneEdits::BeginFrame(std::span<const NodeId> watched)
     {
-        m_watched = watched;
-        m_watchedBefore = Capture(m_scene, watched);
+        m_watched.clear();
+        for (const NodeId node : watched)
+            m_watched.push_back(WatchedNode { node, {} });
+        CaptureWatched();
+    }
+
+    void SceneEdits::CaptureWatched()
+    {
+        std::erase_if(m_watched, [&](WatchedNode& watched) {
+            auto state = Capture(m_scene, watched.node);
+            if (state)
+                watched.before = std::move(*state);
+            return !state;
+        });
     }
 
     void SceneEdits::EndFrame(bool gestureHeld)
@@ -56,27 +69,42 @@ namespace elm {
             Rebaseline();
             return;
         }
-        const auto after = Capture(m_scene, m_watched);
-        if (after && m_watchedBefore && *after != *m_watchedBefore) {
-            RecordNode(*after, gestureHeld);
+        Vector<NodeChange> changes;
+        for (const WatchedNode& watched : m_watched) {
+            auto after = Capture(m_scene, watched.node);
+            if (after && *after != watched.before)
+                changes.push_back(NodeChange { watched.node, watched.before, std::move(*after) });
+        }
+        if (!changes.empty()) {
+            RecordNodes(std::move(changes), gestureHeld);
             return;
         }
         m_gestureOpen = m_gestureOpen && gestureHeld;
     }
 
-    void SceneEdits::RecordNode(const NodeState& after, bool gestureHeld)
+    void SceneEdits::RecordNodes(Vector<NodeChange> changes, bool gestureHeld)
     {
+        for (const NodeChange& change : changes)
+            Apply(m_baseline, change.node, change.after);
+        CaptureWatched();
         NodeStep* last = m_undo.empty() ? nullptr : std::get_if<NodeStep>(&m_undo.back());
-        if (m_gestureOpen && last && last->node == m_watched) {
-            // The step that was saved changes: nothing leads back to the saved scene
-            if (m_savedDepth == m_undo.size())
-                m_savedDepth.reset();
-            last->after = after;
-        } else {
-            Push(NodeStep { m_watched, *m_watchedBefore, after });
+        m_gestureOpen = m_gestureOpen && last;
+        if (!m_gestureOpen) {
+            Push(NodeStep { std::move(changes) });
+            m_gestureOpen = gestureHeld;
+            return;
         }
-        Apply(m_baseline, m_watched, after);
-        m_watchedBefore = after;
+        // The step that was saved changes: nothing leads back to the saved scene
+        if (m_savedDepth == m_undo.size())
+            m_savedDepth.reset();
+        // The held widget goes on: a node it changed before keeps its first before
+        for (NodeChange& change : changes) {
+            const auto earlier = std::find_if(last->changes.begin(), last->changes.end(), [&](const NodeChange& recorded) { return recorded.node == change.node; });
+            if (earlier != last->changes.end())
+                earlier->after = std::move(change.after);
+            else
+                last->changes.push_back(std::move(change));
+        }
         m_gestureOpen = gestureHeld;
     }
 
@@ -120,10 +148,12 @@ namespace elm {
 
     void SceneEdits::Reverse(Step& step, bool undo)
     {
-        if (auto* node = std::get_if<NodeStep>(&step)) {
-            // A node removed by an edit outside the history stays removed
-            if (m_scene.Find(node->node))
-                Apply(m_scene, node->node, undo ? node->before : node->after);
+        if (auto* nodes = std::get_if<NodeStep>(&step)) {
+            for (const NodeChange& change : nodes->changes) {
+                // A node removed by an edit outside the history stays removed
+                if (m_scene.Find(change.node))
+                    Apply(m_scene, change.node, undo ? change.before : change.after);
+            }
         } else {
             auto& structure = std::get<StructureStep>(step);
             Scene current = m_scene.Clone();
@@ -151,7 +181,7 @@ namespace elm {
         m_baseline = m_scene.Clone();
         m_baselineRevision = m_scene.StructureRevision();
         // An undo in the middle of a UI frame is not an edit of that frame
-        m_watchedBefore = Capture(m_scene, m_watched);
+        CaptureWatched();
         m_gestureOpen = false;
     }
 

@@ -288,7 +288,7 @@ line]] .. [==[a]]b]==])",
             auto flyFrame = [&](const Vector3& offset, bool held) {
                 pilot.FollowNode();
                 view.Translate(offset);
-                edits.BeginFrame(camera);
+                edits.BeginFrame(std::span { &camera, 1 });
                 pilot.FollowView();
                 edits.EndFrame(held);
                 scene.UpdateWorldTransforms();
@@ -431,7 +431,7 @@ line]] .. [==[a]]b]==])",
             SceneEdits edits(scene);
             // One UI frame that moved the node, as a window would
             auto frame = [&](NodeId watched, bool held, const auto& edit) {
-                edits.BeginFrame(watched);
+                edits.BeginFrame(std::span { &watched, 1 });
                 edit();
                 edits.EndFrame(held);
             };
@@ -487,6 +487,23 @@ line]] .. [==[a]]b]==])",
             while (edits.Undo())
                 ++undone;
             report.Check(undone == SceneEdits::MaxSteps, "edits::the_oldest_steps_go");
+
+            // Several selected nodes: a drag of them all is one step, undo brings all of them back
+            const NodeId c = scene.AddNode("c");
+            edits.Clear();
+            const float aBefore = x(a);
+            const NodeId both[] { a, c };
+            const auto groupFrame = [&](bool held, float offset) {
+                edits.BeginFrame(both);
+                (void)scene.SetLocalTransform(a, Matrix4x4::Translation({ offset, 0.0f, 0.0f }));
+                (void)scene.SetLocalTransform(c, Matrix4x4::Translation({ offset, 0.0f, 0.0f }));
+                edits.EndFrame(held);
+            };
+            groupFrame(true, 5.0f);
+            groupFrame(true, 6.0f);
+            groupFrame(false, 7.0f);
+            report.Check(edits.Undo() && x(a) == aBefore && x(c) == 0.0f && !edits.CanUndo(), "edits::a_group_drag_is_one_step");
+            report.Check(edits.Redo() && x(a) == 7.0f && x(c) == 7.0f, "edits::redo_a_group_drag");
         }
 
         // ── Saved scene and node edits, without UI ──────────────────────────────
@@ -497,7 +514,7 @@ line]] .. [==[a]]b]==])",
             const NodeId a = scene.AddNode("a");
             SceneEdits edits(scene);
             auto rename = [&](const char* name) {
-                edits.BeginFrame(a);
+                edits.BeginFrame(std::span { &a, 1 });
                 (void)scene.SetName(a, name);
                 edits.EndFrame(false);
             };
@@ -539,20 +556,38 @@ line]] .. [==[a]]b]==])",
             Scene scene;
             const NodeId a = scene.AddNode("a");
             scene.Components<Collider>().Emplace(a);
-            const NodeId copy = DuplicateNode(scene, a);
+            const NodeId copy = DuplicateNodes(scene, std::span { &a, 1 }).front();
             report.Check(scene.Find(copy) && scene.Find(copy)->name == "a Copy" && scene.Components<Collider>().Contains(copy),
                 "nodes::a_copy_has_the_components");
-            const NodeId copyInPlace = DuplicateNode(scene, a, { 0.0f, 0.0f, 0.0f });
+            const NodeId copyInPlace = DuplicateNodes(scene, std::span { &a, 1 }, { 0.0f, 0.0f, 0.0f }).front();
             report.Check(scene.Find(copyInPlace) && scene.Find(copyInPlace)->localTransform(0, 3) == scene.Find(a)->localTransform(0, 3),
                 "nodes::duplicate_in_place_keeps_position");
             const auto array = DuplicateNodeArray(scene, a, 2, 3, 1.1f, 0.6f);
             report.Check(array.size() == 5, "nodes::duplicate_array_creates_grid");
 
+            {
+                // A parent and its child, selected child first
+                Scene group;
+                const NodeId parent = group.AddNode("parent");
+                const NodeId child = group.AddNode("child", Matrix4x4::Translation({ 0.0f, 2.0f, 0.0f }), parent);
+                const NodeId lone = group.AddNode("lone");
+                const NodeId selected[] { child, parent, lone };
+                const Vector<NodeId> copies = DuplicateNodes(group, selected);
+                const Scene::Node* childCopy = copies.size() == 3 ? group.Find(copies[0]) : nullptr;
+                report.Check(childCopy && childCopy->parent == copies[1] && childCopy->localTransform(0, 3) == 0.0f
+                        && group.Find(copies[1])->parent == NodeId {} && group.Find(copies[1])->localTransform(0, 3) == 1.0f,
+                    "nodes::a_copied_child_goes_under_the_copied_parent");
+                const NodeId removed[] { parent, lone };
+                (void)RemoveNodesFromPlace(group, removed);
+                report.Check(!group.Find(parent) && !group.Find(lone) && group.Find(child) && group.NodeCount() == 4,
+                    "nodes::removing_nodes_keeps_their_children");
+            }
+
             Scene testScene;
             const NodeId na = testScene.AddNode("na");
-            const NodeId nb = DuplicateNode(testScene, na);
-            report.Check(RemoveNodeFromPlace(testScene, na) == nb, "nodes::removal_gives_the_next_node");
-            report.Check(!RemoveNodeFromPlace(testScene, nb) && testScene.Empty(), "nodes::removing_the_last_node_gives_nothing");
+            const NodeId nb = DuplicateNodes(testScene, std::span { &na, 1 }).front();
+            report.Check(RemoveNodesFromPlace(testScene, std::span { &na, 1 }) == nb, "nodes::removal_gives_the_next_node");
+            report.Check(!RemoveNodesFromPlace(testScene, std::span { &nb, 1 }) && testScene.Empty(), "nodes::removing_the_last_node_gives_nothing");
 
             {
                 Scene snapScene;
@@ -562,7 +597,7 @@ line]] .. [==[a]]b]==])",
                 const NodeId floating = AddPrimitiveNode(snapScene, snapModels, ModelPrimitive::Cube, NodeId {});
                 (void)snapScene.SetLocalTransform(floating, Matrix4x4::Translation({ 0.0f, 5.0f, 0.0f }));
                 snapScene.UpdateWorldTransforms();
-                const bool snapped = SnapNodeToGround(snapScene, snapModels, floating);
+                const bool snapped = SnapNodesToGround(snapScene, snapModels, std::span { &floating, 1 });
                 snapScene.UpdateWorldTransforms();
                 const float yAfter = snapScene.WorldTransforms()[snapScene.IndexOf(floating)](1, 3);
                 report.Check(snapped && std::abs(yAfter - 0.5f) < 0.1f, "nodes::snap_to_ground_aligns_bottom");
@@ -589,16 +624,58 @@ line]] .. [==[a]]b]==])",
 
                 Camera camera({ 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f);
                 const Vector3 forward = camera.GetForwardDirection();
-                FrameNode(camera, view, models, far);
+                FrameNodes(camera, view, models, std::span { &far, 1 });
                 const Vector3 toNode = Vector3 { 0.0f, 0.0f, 9.0f } - camera.GetPosition();
                 const float distance = toNode.Length();
                 report.Check(distance > 0.5f && (toNode - forward * distance).Length() < 1e-3f, "nodes::framing_puts_the_node_ahead_of_the_camera");
                 const Vector3 before = camera.GetPosition();
-                FrameNode(camera, view, models, empty);
+                FrameNodes(camera, view, models, std::span { &empty, 1 });
                 report.Check((camera.GetPosition() - before).Length() > 1.0f, "nodes::a_node_without_a_model_is_framed_too");
                 const Vector3 framed = camera.GetPosition();
-                FrameNode(camera, view, models, NodeId {});
+                const NodeId stale = view.AddNode("gone");
+                (void)view.RemoveNode(stale);
+                FrameNodes(camera, view, models, std::span { &stale, 1 });
                 report.Check((camera.GetPosition() - framed).Length() == 0.0f, "nodes::a_stale_node_moves_nothing");
+
+                const NodeId pair[] { near, far };
+                const auto group = GroupBounds(view, models, pair);
+                report.Check(group && std::abs(group->minBounds.z - 4.5f) < 1e-4f && std::abs(group->maxBounds.z - 9.5f) < 1e-4f,
+                    "nodes::group_bounds_hold_all_the_nodes");
+                const NodeId none[] { NodeId {} };
+                report.Check(!GroupBounds(view, models, none), "nodes::stale_nodes_have_no_group_bounds");
+
+                const NodeId child = view.AddNode("child", Matrix4x4::Identity(), near);
+                const NodeId grandchild = view.AddNode("grandchild", Matrix4x4::Identity(), child);
+                const NodeId family[] { grandchild, near, far, NodeId {} };
+                report.Check(TopmostNodes(view, family) == Vector<NodeId> { near, far }, "nodes::topmost_nodes_leave_out_the_ones_under_another");
+                (void)view.RemoveNode(child);
+                view.UpdateWorldTransforms();
+                Camera groupCamera({ 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f);
+                FrameNodes(groupCamera, view, models, pair);
+                report.Check(groupCamera.GetPosition().z < 4.5f, "nodes::framing_a_group_fits_all_of_it");
+                const auto emptyBounds = NodeBounds(view, models, empty);
+                report.Check(emptyBounds && (emptyBounds->GetCenter() - Vector3 { 0.0f, 0.0f, 2.0f }).Length() < 1e-4f
+                        && std::abs(emptyBounds->GetExtent().x - 0.5f) < 1e-4f,
+                    "nodes::a_node_without_a_model_has_a_cube_of_bounds");
+                report.Check(!NodeBounds(view, models, NodeId {}), "nodes::a_stale_node_has_no_bounds");
+
+                const Camera origin({ 0.0f, 0.0f, 0.0f }, 0.0f, 0.0f);
+                const ViewRect middle { -0.1f, -0.1f, 0.1f, 0.1f };
+                report.Check(PickNodesInRect(view, models, origin.GetViewProjectionMatrix(), middle) == Vector<NodeId> { near, far },
+                    "nodes::a_rectangle_picks_the_shown_models_in_it");
+                report.Check(PickNodesInRect(view, models, origin.GetViewProjectionMatrix(), ViewRect { 0.8f, 0.8f, 0.9f, 0.9f }).empty(),
+                    "nodes::a_rectangle_past_the_models_picks_nothing");
+                // A model that reaches behind the camera covers the view up to its edge
+                Scene ground;
+                const NodeId plane = AddPrimitiveNode(ground, models, ModelPrimitive::Cube, NodeId {});
+                (void)ground.SetLocalTransform(plane, Matrix4x4::Translation({ 0.0f, -1.0f, 0.0f }) * Matrix4x4::Scaling({ 40.0f, 0.1f, 40.0f }));
+                ground.UpdateWorldTransforms();
+                report.Check(PickNodesInRect(ground, models, origin.GetViewProjectionMatrix(), ViewRect { -0.1f, -0.95f, 0.1f, -0.9f })
+                        == Vector<NodeId> { plane },
+                    "nodes::a_rectangle_picks_a_model_that_reaches_behind_the_camera");
+                const Camera beyond({ 0.0f, 0.0f, 20.0f }, 0.0f, 0.0f);
+                report.Check(PickNodesInRect(view, models, beyond.GetViewProjectionMatrix(), middle).empty(),
+                    "nodes::models_behind_the_view_are_not_picked");
             }
 
             namespace fs = std::filesystem;
@@ -647,7 +724,7 @@ line]] .. [==[a]]b]==])",
             report.Check(document.ShownName() == "opened.scene", "document::shows_the_name_in_the_scenes_folder");
 
             const NodeId node = scene.AddNode("node");
-            edits.BeginFrame(node);
+            edits.BeginFrame(std::span { &node, 1 });
             edits.EndFrame(false);
             report.Check(document.IsModified(), "document::a_new_node_modifies");
 
@@ -993,7 +1070,7 @@ line]] .. [==[a]]b]==])",
                 fixture.Frame();
                 fixture.Click(WindowsFixture::RowArrow(0));
                 fixture.Click(WindowsFixture::RowCenter(1));
-                report.Check(fixture.selection.node == child, "tree::an_open_row_shows_its_child");
+                report.Check(fixture.selection.Active() == child, "tree::an_open_row_shows_its_child");
                 fixture.Drag(WindowsFixture::RowCenter(1), WindowsFixture::RowCenter(6));
                 report.Check(!fixture.scene.Find(child)->parent, "tree::drop_on_empty_space_makes_a_root");
             }
@@ -1031,10 +1108,22 @@ line]] .. [==[a]]b]==])",
             eyes.Click(WindowsFixture::RowEye(0));
             eyes.Frame();
             const ModelComponent* model = eyes.scene.Components<ModelComponent>().Find(cube);
-            report.Check(eyes.selection.node == cube && !model->visible, "tree::the_eye_hides_the_model_and_selects_the_node");
+            report.Check(eyes.selection.Active() == cube && !model->visible, "tree::the_eye_hides_the_model_and_selects_the_node");
             eyes.Click(WindowsFixture::RowEye(0));
             eyes.Frame();
             report.Check(model->visible, "tree::the_eye_shows_it_again");
+            // Two selected: Ctrl+click on an eye hides the model and keeps both selected
+            const NodeId other = AddPrimitiveNode(eyes.scene, eyes.models, ModelPrimitive::Cube, NodeId {});
+            const NodeId pair[] { cube, other };
+            eyes.selection.Select(pair);
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, true);
+            eyes.Click(WindowsFixture::RowEye(0));
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
+            eyes.Frame();
+            report.Check(!eyes.scene.Components<ModelComponent>().Find(cube)->visible && eyes.selection.Nodes().size() == 2,
+                "tree::a_ctrl_click_on_the_eye_keeps_the_selection");
+            eyes.Click(WindowsFixture::RowEye(0));
+            eyes.Frame();
 
             eyes.Click(WindowsFixture::RowCenter(0));
             const Vector3 before = eyes.camera.GetPosition();
@@ -1163,14 +1252,14 @@ line]] .. [==[a]]b]==])",
             fixture.Click(filter);
             fixture.Type("needle");
             fixture.Click(WindowsFixture::RowCenter(1));
-            report.Check(fixture.selection.node == needle, "tree::search_shows_a_match_in_a_closed_parent");
+            report.Check(fixture.selection.Active() == needle, "tree::search_shows_a_match_in_a_closed_parent");
 
             fixture.Click(filter);
             for (size_t letter = 0; letter < std::strlen("needle"); ++letter)
                 fixture.Press(ImGuiKey_Backspace);
-            fixture.selection.node = parent;
+            fixture.selection.Select(parent);
             fixture.Click(WindowsFixture::RowCenter(1));
-            report.Check(fixture.selection.node == NodeId {}, "tree::search_leaves_a_closed_parent_closed");
+            report.Check(fixture.selection.Active() == NodeId {}, "tree::search_leaves_a_closed_parent_closed");
         }
 
         void RunTreeFocusTests(Report& report, const Path& assets)
@@ -1200,14 +1289,88 @@ line]] .. [==[a]]b]==])",
             report.Check(toNode.Length() > 0.5f && toNode.Length() < 5.0f && alignment > 0.999f, "tree::a_double_click_frames_the_node");
         }
 
+        void RunSelectionTests(Report& report)
+        {
+            Scene scene;
+            const NodeId first = scene.AddNode("first");
+            const NodeId second = scene.AddNode("second");
+            Selection selection;
+            selection.Select(first);
+            selection.Add(second);
+            report.Check(selection.Nodes().size() == 2 && selection.Active() == second, "selection::add_makes_the_node_active");
+            selection.Add(first);
+            report.Check(selection.Nodes().size() == 2 && selection.Active() == first, "selection::add_of_a_selected_node_makes_it_active");
+            selection.Remove(first);
+            report.Check(selection.Nodes().size() == 1 && selection.Active() == second, "selection::the_node_before_becomes_active");
+            selection.Add(NodeId {});
+            report.Check(selection.Nodes().size() == 1, "selection::an_invalid_node_is_not_added");
+            selection.Select(NodeId {});
+            report.Check(selection.Nodes().empty() && !selection.Active(), "selection::select_of_an_invalid_node_selects_nothing");
+            const NodeId both[] { first, second };
+            selection.Select(both);
+            (void)scene.RemoveNode(second);
+            selection.DropRemoved(scene);
+            report.Check(selection.Nodes().size() == 1 && selection.Active() == first, "selection::removed_nodes_are_dropped");
+        }
+
+        void RunTreeMultiSelectTests(Report& report, const Path& assets)
+        {
+            WindowsFixture fixture(assets);
+            const NodeId first = fixture.scene.AddNode("first");
+            const NodeId second = fixture.scene.AddNode("second");
+            const NodeId third = fixture.scene.AddNode("third");
+            fixture.Frame();
+            const auto clickWith = [&](ImGuiKey modifier, size_t row) {
+                ImGui::GetIO().AddKeyEvent(modifier, true);
+                fixture.Click(WindowsFixture::RowCenter(row));
+                ImGui::GetIO().AddKeyEvent(modifier, false);
+                fixture.Frame();
+            };
+            const Selection& selection = fixture.selection;
+            fixture.Click(WindowsFixture::RowCenter(0));
+            clickWith(ImGuiMod_Shift, 2);
+            report.Check(selection.Nodes().size() == 3 && selection.Active() == third, "tree::a_shift_click_selects_the_rows_between");
+            clickWith(ImGuiMod_Shift, 1);
+            report.Check(selection.Nodes().size() == 2 && selection.Contains(first) && selection.Active() == second,
+                "tree::a_shift_click_starts_from_the_same_row");
+            clickWith(ImGuiMod_Ctrl, 2);
+            report.Check(selection.Nodes().size() == 3 && selection.Active() == third, "tree::a_ctrl_click_adds_the_node");
+            clickWith(ImGuiMod_Ctrl, 2);
+            report.Check(selection.Nodes().size() == 2 && !selection.Contains(third) && selection.Active() == second,
+                "tree::a_ctrl_click_on_a_selected_node_removes_it");
+            fixture.Click(WindowsFixture::RowCenter(1), ImGuiMouseButton_Right);
+            fixture.Frame();
+            report.Check(selection.Nodes().size() == 2 && selection.Active() == second, "tree::the_row_menu_keeps_the_selection");
+            // The first click closes the menu
+            fixture.Click(WindowsFixture::RowCenter(2));
+            fixture.Click(WindowsFixture::RowCenter(2));
+            clickWith(ImGuiMod_Ctrl, 0);
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, true);
+            fixture.Press(ImGuiKey_D);
+            ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
+            fixture.Frame();
+            report.Check(fixture.scene.NodeCount() == 5 && selection.Nodes().size() == 2 && !selection.Contains(first) && !selection.Contains(third),
+                "tree::ctrl_d_duplicates_every_selected_node");
+            fixture.Press(ImGuiKey_Delete);
+            report.Check(fixture.scene.NodeCount() == 3 && fixture.scene.Find(first) && fixture.scene.Find(third),
+                "tree::delete_removes_every_selected_node");
+            fixture.Click(WindowsFixture::RowCenter(2));
+            report.Check(selection.Nodes().size() == 1 && selection.Active() == third, "tree::a_click_selects_only_the_node");
+            // Selected elsewhere (the viewport): the range starts from the active node
+            fixture.selection.Select(second);
+            clickWith(ImGuiMod_Shift, 2);
+            report.Check(selection.Nodes().size() == 2 && selection.Contains(second) && selection.Active() == third,
+                "tree::a_shift_click_starts_from_a_selection_made_elsewhere");
+        }
+
         void RunTreeEditTests(Report& report, const Path& assets)
         {
             WindowsFixture fixture(assets);
             const NodeId node = fixture.scene.AddNode("node");
             fixture.Frame();
-            report.Check(fixture.selection.node == NodeId {}, "tree::nothing_is_selected_at_first");
+            report.Check(fixture.selection.Active() == NodeId {}, "tree::nothing_is_selected_at_first");
             fixture.Click(WindowsFixture::RowCenter(0));
-            report.Check(fixture.selection.node == node, "tree::a_click_selects");
+            report.Check(fixture.selection.Active() == node, "tree::a_click_selects");
 
             fixture.Press(ImGuiKey_F2);
             fixture.Frame();
@@ -1224,7 +1387,7 @@ line]] .. [==[a]]b]==])",
             fixture.Press(ImGuiKey_D);
             ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
             fixture.Frame();
-            const NodeId copy = fixture.selection.node;
+            const NodeId copy = fixture.selection.Active();
             report.Check(fixture.scene.NodeCount() == 2 && copy != node, "tree::ctrl_d_duplicates");
 
             fixture.Press(ImGuiKey_Delete);
@@ -1241,18 +1404,18 @@ line]] .. [==[a]]b]==])",
 
             // Inspector closed, nothing selected: the row menu selects the node and brings Inspector forward
             fixture.inspector.SetVisible(false);
-            fixture.selection.node = NodeId {};
+            fixture.selection.Clear();
             fixture.Click(WindowsFixture::RowCenter(0), ImGuiMouseButton_Right);
             fixture.Frame();
             const bool opened = fixture.ClickMenuItem("Open Inspector");
             fixture.Frame();
             const ImGuiWindow* focused = GImGui->NavWindow;
-            report.Check(opened && fixture.inspector.IsVisible() && fixture.selection.node == fixture.scene.Nodes()[0].id && focused
+            report.Check(opened && fixture.inspector.IsVisible() && fixture.selection.Active() == fixture.scene.Nodes()[0].id && focused
                     && StringView(focused->Name).find("NodeInspector") != StringView::npos,
                 "tree::row_menu_opens_inspector_on_the_node");
 
             fixture.Click(WindowsFixture::RowCenter(6));
-            report.Check(fixture.selection.node == NodeId {}, "tree::a_click_on_empty_space_selects_nothing");
+            report.Check(fixture.selection.Active() == NodeId {}, "tree::a_click_on_empty_space_selects_nothing");
 
             fixture.Click(WindowsFixture::RowCenter(6), ImGuiMouseButton_Right);
             fixture.Frame();
@@ -1265,7 +1428,7 @@ line]] .. [==[a]]b]==])",
             {
                 WindowsFixture fixture(assets);
                 const NodeId node = fixture.scene.AddNode("node");
-                fixture.selection.node = node;
+                fixture.selection.Select(node);
                 fixture.Frame();
                 fixture.Frame();
                 const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "###AddComponent");
@@ -1277,7 +1440,7 @@ line]] .. [==[a]]b]==])",
             {
                 WindowsFixture fixture(assets);
                 const NodeId node = fixture.scene.AddNode("camera");
-                fixture.selection.node = node;
+                fixture.selection.Select(node);
                 fixture.Frame();
                 fixture.Frame();
                 const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "###AddComponent");
@@ -1289,7 +1452,7 @@ line]] .. [==[a]]b]==])",
             {
                 WindowsFixture fixture(assets);
                 const NodeId node = fixture.scene.AddNode("light");
-                fixture.selection.node = node;
+                fixture.selection.Select(node);
                 fixture.Frame();
                 fixture.Frame();
                 const bool opened = fixture.ClickItem(WindowsFixture::FindWindow(NodeInspectorWindow::Name), "###AddComponent");
@@ -1302,7 +1465,7 @@ line]] .. [==[a]]b]==])",
                 WindowsFixture fixture(assets);
                 const NodeId node = fixture.scene.AddNode("camera");
                 fixture.scene.Components<CameraComponent>().Emplace(node);
-                fixture.selection.node = node;
+                fixture.selection.Select(node);
                 fixture.Frame();
                 fixture.Frame();
                 ImGuiWindow* inspector = WindowsFixture::FindWindow(NodeInspectorWindow::Name);
@@ -1325,7 +1488,7 @@ line]] .. [==[a]]b]==])",
                 WindowsFixture fixture(assets);
                 const NodeId node = fixture.scene.AddNode("node");
                 fixture.scene.Components<ModelComponent>().Emplace(node);
-                fixture.selection.node = node;
+                fixture.selection.Select(node);
                 fixture.Frame();
                 fixture.Frame();
                 const bool chosen = fixture.ClickInSection("Model", "###Browse");
@@ -1335,7 +1498,7 @@ line]] .. [==[a]]b]==])",
                 WindowsFixture fixture(assets);
                 const NodeId node = fixture.scene.AddNode("node");
                 fixture.scene.Components<RigidBody>().Emplace(node);
-                fixture.selection.node = node;
+                fixture.selection.Select(node);
                 fixture.Frame();
                 fixture.Frame();
                 ImGuiWindow* window = WindowsFixture::FindWindow(NodeInspectorWindow::Name);
@@ -1419,7 +1582,7 @@ line]] .. [==[a]]b]==])",
             const Path otherFile = assets / "scenes" / "other.scene";
             WindowsFixture fixture(assets);
             const NodeId node = fixture.scene.AddNode("node");
-            fixture.edits.BeginFrame(node);
+            fixture.edits.BeginFrame(std::span { &node, 1 });
             fixture.edits.EndFrame(false);
 
             fixture.menu.RequestOpen(otherFile);
@@ -1634,6 +1797,7 @@ line]] .. [==[a]]b]==])",
             const Path assets(String(root.generic_string().c_str()));
 
             RunSavedMarkTests(report);
+            RunSelectionTests(report);
             RunNodeEditingTests(report);
             RunSceneDocumentTests(report, assets);
             RunTreeDropTests(report, assets);
@@ -1644,6 +1808,7 @@ line]] .. [==[a]]b]==])",
             RunViewMenuTests(report, assets);
             RunSceneStatusTests(report, assets);
             RunTreeEditTests(report, assets);
+            RunTreeMultiSelectTests(report, assets);
             RunTreeFocusTests(report, assets);
             RunInspectorTests(report, assets);
             RunModelEditorTests(report, assets);
